@@ -57,7 +57,7 @@ describe('reduceGate', () => {
     const outcome: OnboardingOutcome = {
       kind: 'complete',
       at: 1,
-      branch: 'quick',
+      branch: 'main',
       skipped: [],
       completed: [],
     }
@@ -86,7 +86,7 @@ describe('reduceGate', () => {
       },
       {
         name: 'in-progress',
-        outcome: { kind: 'in-progress', stepId: 'provider', branch: 'full' },
+        outcome: { kind: 'in-progress', stepId: 'provider', branch: 'main' },
         expected: { complete: false, dismissed: false, active: false },
       },
       {
@@ -99,7 +99,7 @@ describe('reduceGate', () => {
         outcome: {
           kind: 'complete',
           at: 42,
-          branch: 'quick',
+          branch: 'main',
           skipped: [],
           completed: [],
         },
@@ -132,7 +132,7 @@ describe('reduceGate', () => {
         outcome: {
           kind: 'complete',
           at: 1,
-          branch: 'full',
+          branch: 'main',
           skipped: [],
           completed: [],
         },

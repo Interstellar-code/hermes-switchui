@@ -47,10 +47,11 @@ describe('useOnboardingChecklist', () => {
 
     await waitFor(() => expect(result.current.ready).toBe(true))
 
-    expect(result.current.items).toHaveLength(7)
-    // Fresh install: no active provider, nothing skipped/completed — every
-    // item that isn't the (blocked) verify step counts as outstanding.
-    expect(result.current.outstanding).toBe(6)
+    expect(result.current.items).toHaveLength(8)
+    // Fresh install: no active provider, nothing skipped or completed. The
+    // chat item is blocked (no provider) and every optional item is blocked
+    // behind it, so only connect, provider and workspace are outstanding.
+    expect(result.current.outstanding).toBe(3)
   })
 
   it('re-reads when the onboarding-complete event fires', async () => {
@@ -60,15 +61,17 @@ describe('useOnboardingChecklist', () => {
     await waitFor(() => expect(result.current.ready).toBe(true))
     expect(
       result.current.items.find((item) => item.id === 'plugins')?.state,
-    ).toBe('todo')
+    ).toBe('blocked')
 
     window.localStorage.setItem(
       ONBOARDING_KEYS.outcome,
       JSON.stringify({
         kind: 'complete',
         at: Date.now(),
-        branch: 'quick',
-        skipped: ['theme', 'plugins', 'system-check'],
+        branch: 'main',
+        // 'chat' among the skipped is what unblocks the optional band — the
+        // gate settles either by succeeding or by being explicitly skipped.
+        skipped: ['chat', 'theme', 'plugins'],
       }),
     )
     window.dispatchEvent(new Event(ONBOARDING_COMPLETE_EVENT))
@@ -94,8 +97,8 @@ describe('useOnboardingChecklist', () => {
       JSON.stringify({
         kind: 'complete',
         at: Date.now(),
-        branch: 'quick',
-        skipped: [],
+        branch: 'main',
+        skipped: ['chat'],
         completed: ['theme'],
       }),
     )
@@ -114,14 +117,13 @@ describe('useOnboardingChecklist', () => {
   })
 
   it('clears the badge entirely after a completed full run', async () => {
-    // The regression this pins: `verified`, `pluginsTouched`,
+    // The regression this pins: `chatProven`, `pluginsTouched`,
     // `profileTouched` and `memoryTouched` are hardcoded false out here (they
     // are live in-wizard probes), the draft is deleted on finish, and
-    // `writeOnboardingComplete`
-    // used to persist only `skipped`. A user who completed the full branch —
-    // verified, chose a profile, reviewed plugins, picked a theme — was left
-    // with a permanent count on the sidebar nav and "Setup Wizard (N left)" in
-    // the command palette, with no way to clear it.
+    // `writeOnboardingComplete` used to persist only `skipped`. A user who
+    // completed everything was left with a permanent count on the sidebar nav
+    // and "Setup Wizard (N left)" in the command palette, with no way to clear
+    // it.
     mockFetch.mockResolvedValue({
       ok: true,
       json: async () => ({ providers: [], activeProvider: 'anthropic' }),
@@ -131,15 +133,16 @@ describe('useOnboardingChecklist', () => {
       JSON.stringify({
         kind: 'complete',
         at: Date.now(),
-        branch: 'full',
+        branch: 'main',
         skipped: [],
         completed: [
-          'verify',
+          'connect',
+          'workspace',
+          'chat',
           'profile',
           'memory',
           'plugins',
           'theme',
-          'system-check',
         ],
       }),
     )

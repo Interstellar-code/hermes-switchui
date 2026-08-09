@@ -292,4 +292,73 @@ describe('gateway-capabilities', () => {
       expect(capabilities.authError).toBe(false)
     })
   })
+
+  describe('probeChatCompletions / chat completions 401 (item 2 follow-up)', () => {
+    it('a 401 on /v1/chat/completions proves the route exists but is NOT usable', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/v1/chat/completions')) {
+          return Promise.resolve(new Response(null, { status: 401 }))
+        }
+        // /health up and healthy so this isolates the chat-completions probe.
+        if (value.endsWith('/health')) {
+          return Promise.resolve(new Response(null, { status: 200 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      // Not usable: transport selection (chat-mode.ts) must not treat a
+      // token-mismatched route as a working chat backend.
+      expect(capabilities.chatCompletions).toBe(false)
+      // But route-presence is still recorded: a 401 proves the route is
+      // registered (a vanilla/unauthenticated gateway would 404 instead).
+      expect(capabilities.chatCompletionsRouteExists).toBe(true)
+      // A chat-completions-only token mismatch still surfaces as an overall
+      // authError so the UI doesn't render "Connected".
+      expect(capabilities.authError).toBe(true)
+    })
+
+    it('a 404 on /v1/chat/completions is absent, not an auth error', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/v1/chat/completions')) {
+          return Promise.resolve(new Response(null, { status: 404 }))
+        }
+        if (value.endsWith('/health')) {
+          return Promise.resolve(new Response(null, { status: 200 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      expect(capabilities.chatCompletions).toBe(false)
+      expect(capabilities.chatCompletionsRouteExists).toBe(false)
+      expect(capabilities.authError).toBe(false)
+    })
+
+    it('a 200 on /v1/chat/completions is usable and route-present', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/v1/chat/completions')) {
+          return Promise.resolve(new Response(null, { status: 200 }))
+        }
+        if (value.endsWith('/health')) {
+          return Promise.resolve(new Response(null, { status: 200 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      expect(capabilities.chatCompletions).toBe(true)
+      expect(capabilities.chatCompletionsRouteExists).toBe(true)
+      expect(capabilities.authError).toBe(false)
+    })
+  })
 })

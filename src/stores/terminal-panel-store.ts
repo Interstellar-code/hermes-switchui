@@ -4,6 +4,26 @@ import { persist } from 'zustand/middleware'
 const DEFAULT_PANEL_HEIGHT = 280
 const MIN_PANEL_HEIGHT = 100
 
+/**
+ * Single source of truth for the terminal's default working directory.
+ *
+ * Previously this store defaulted brand-new tabs to `'~'` while
+ * `terminal-workspace.tsx` declared its own separate `DEFAULT_TERMINAL_CWD =
+ * '~/.hermes'` constant for the "+ new terminal" action, the cwd-picker's
+ * primary "Hermes state dir" option, and every fallback render of a tab's
+ * cwd. Two independent literals for the same concept meant the very first
+ * tab a fresh install ever sees (created here, at store-init time, before
+ * terminal-workspace.tsx's own default ever applies) silently disagreed with
+ * every other "default" the terminal UI presents.
+ *
+ * `'~/.hermes'` wins: it is the value terminal-workspace.tsx already treats
+ * as canonical everywhere a user-visible default matters (button, picker,
+ * fallback label), and it is the directory this workspace actually manages
+ * (agent state, profiles, config) — a plain terminal opened against it lands
+ * somewhere relevant instead of the user's unrelated home directory.
+ */
+export const DEFAULT_TERMINAL_CWD = '~/.hermes'
+
 export type TerminalTabStatus =
   | 'active'
   | 'idle'
@@ -38,7 +58,7 @@ type TerminalPanelState = {
   setTabStatus: (tabId: string, status: TerminalTabStatus) => void
 }
 
-function createDefaultTab(counter: number, cwd = '~'): TerminalTab {
+function createDefaultTab(counter: number, cwd = DEFAULT_TERMINAL_CWD): TerminalTab {
   return {
     id: crypto.randomUUID(),
     title: `Terminal ${counter}`,

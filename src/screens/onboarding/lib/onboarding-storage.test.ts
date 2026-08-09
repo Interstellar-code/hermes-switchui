@@ -18,7 +18,7 @@ import type { OnboardingDraft, OnboardingTransient } from './onboarding-storage'
 function baseDraft(): OnboardingDraft {
   return {
     version: ONBOARDING_DRAFT_VERSION,
-    branch: 'quick',
+    branch: 'main',
     stepId: 'connect',
     providerId: 'anthropic',
     baseUrl: '',
@@ -146,7 +146,7 @@ describe('readOnboardingOutcome', () => {
     expect(readOnboardingOutcome(storage)).toEqual({
       kind: 'in-progress',
       stepId: 'connect',
-      branch: 'quick',
+      branch: 'main',
     })
   })
 
@@ -161,11 +161,11 @@ describe('readOnboardingOutcome', () => {
   it('reports complete after writeOnboardingComplete, and it outranks a leftover draft', () => {
     const storage = new MemoryStorage()
     writeOnboardingDraft(storage, baseDraft())
-    writeOnboardingComplete(storage, { branch: 'quick', skipped: ['verify'] })
+    writeOnboardingComplete(storage, { branch: 'main', skipped: ['verify'] })
     expect(readOnboardingOutcome(storage)).toEqual({
       kind: 'complete',
       at: expect.any(Number),
-      branch: 'quick',
+      branch: 'main',
       skipped: ['verify'],
       completed: [],
     })
@@ -174,7 +174,7 @@ describe('readOnboardingOutcome', () => {
   it('round-trips the completed list, which the badge and palette read', () => {
     const storage = new MemoryStorage()
     writeOnboardingComplete(storage, {
-      branch: 'full',
+      branch: 'main',
       skipped: ['verify'],
       completed: ['provider', 'plugins', 'theme'],
     })
@@ -194,14 +194,14 @@ describe('readOnboardingOutcome', () => {
       JSON.stringify({
         kind: 'complete',
         at: 5,
-        branch: 'quick',
+        branch: 'main',
         skipped: ['theme'],
       }),
     )
     expect(readOnboardingOutcome(storage)).toEqual({
       kind: 'complete',
       at: 5,
-      branch: 'quick',
+      branch: 'main',
       skipped: ['theme'],
       completed: [],
     })
@@ -235,7 +235,7 @@ describe('the auto-detected record', () => {
 
   it('writeOnboardingComplete also stamps the legacy complete key', () => {
     const storage = new MemoryStorage()
-    writeOnboardingComplete(storage, { branch: 'full', skipped: [] })
+    writeOnboardingComplete(storage, { branch: 'main', skipped: [] })
     expect(storage.getItem(ONBOARDING_KEYS.complete)).toBe('true')
     expect(ONBOARDING_KEYS.complete).toBe('claude-onboarding-complete')
   })

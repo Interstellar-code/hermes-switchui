@@ -35,9 +35,7 @@ function choice(
 const CHOICES = [choice('alpha'), choice('beta'), choice('gamma')]
 
 function names(): Array<string> {
-  return screen
-    .getAllByRole('button')
-    .map((node) => node.textContent.trim())
+  return screen.getAllByRole('button').map((node) => node.textContent.trim())
 }
 
 describe('ProviderPicker', () => {

@@ -7,19 +7,19 @@ const FRESH: OnboardingOutcome = { kind: 'fresh' }
 const IN_PROGRESS: OnboardingOutcome = {
   kind: 'in-progress',
   stepId: 'connect',
-  branch: 'full',
+  branch: 'main',
 }
 const DISMISSED: OnboardingOutcome = { kind: 'dismissed', at: 1000 }
 const COMPLETE: OnboardingOutcome = {
   kind: 'complete',
   at: 1000,
-  branch: 'quick',
+  branch: 'main',
   skipped: [],
   completed: [],
 }
 
 describe('resolveEntryStep', () => {
-  it('relaunch always lands on the stepped full flow, no matter the outcome', () => {
+  it('relaunch always lands on the first real step, no matter the outcome', () => {
     // The summary used to be the relaunch front door. It is now a deep-link
     // destination only: clicking "Setup Wizard" on a working install opens the
     // rail on the first step, not a landing page to click through.
@@ -27,7 +27,7 @@ describe('resolveEntryStep', () => {
       for (const hasWorkingProvider of [true, false]) {
         expect(
           resolveEntryStep({ mode: 'relaunch', outcome, hasWorkingProvider }),
-        ).toEqual({ stepId: 'system-check', branch: 'full' })
+        ).toEqual({ stepId: 'connect', branch: 'main' })
       }
     }
   })
@@ -42,7 +42,7 @@ describe('resolveEntryStep', () => {
         outcome: IN_PROGRESS,
         hasWorkingProvider: false,
       }),
-    ).toEqual({ stepId: 'system-check', branch: 'full' })
+    ).toEqual({ stepId: 'connect', branch: 'main' })
   })
 
   it('first-run with a working provider goes to summary even with a fresh outcome', () => {
@@ -55,7 +55,7 @@ describe('resolveEntryStep', () => {
     ).toEqual({ stepId: 'summary', branch: 'summary' })
   })
 
-  it('an in-progress outcome resumes at its own step and branch, for first-run and resume', () => {
+  it('an in-progress outcome resumes at its own step, for first-run and resume', () => {
     for (const mode of ['first-run', 'resume'] as const) {
       expect(
         resolveEntryStep({
@@ -63,7 +63,7 @@ describe('resolveEntryStep', () => {
           outcome: IN_PROGRESS,
           hasWorkingProvider: false,
         }),
-      ).toEqual({ stepId: 'connect', branch: 'full' })
+      ).toEqual({ stepId: 'connect', branch: 'main' })
     }
   })
 
@@ -80,17 +80,17 @@ describe('resolveEntryStep', () => {
     ).toEqual({ stepId: 'summary', branch: 'summary' })
   })
 
-  it('falls back to welcome/quick for a fresh outcome with no working provider', () => {
+  it('falls back to welcome for a fresh outcome with no working provider', () => {
     expect(
       resolveEntryStep({
         mode: 'first-run',
         outcome: FRESH,
         hasWorkingProvider: false,
       }),
-    ).toEqual({ stepId: 'welcome', branch: 'quick' })
+    ).toEqual({ stepId: 'welcome', branch: 'main' })
   })
 
-  it('falls back to welcome/quick for a dismissed or complete outcome, on resume', () => {
+  it('falls back to welcome for a dismissed or complete outcome, on resume', () => {
     for (const outcome of [DISMISSED, COMPLETE]) {
       expect(
         resolveEntryStep({
@@ -98,7 +98,7 @@ describe('resolveEntryStep', () => {
           outcome,
           hasWorkingProvider: false,
         }),
-      ).toEqual({ stepId: 'welcome', branch: 'quick' })
+      ).toEqual({ stepId: 'welcome', branch: 'main' })
     }
   })
 })

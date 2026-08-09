@@ -156,6 +156,118 @@ describe('ensureBuiltinProfiles config.yaml shape (P-15)', () => {
   })
 })
 
+describe('ensureBuiltinProfiles terminal: inheritance-gap emulation', () => {
+  beforeEach(() => {
+    delete process.env.HERMES_SKIP_PROFILE_BOOTSTRAP
+    delete process.env.HERMES_BUILTIN_PROFILES_FILE
+  })
+  afterEach(() => {
+    delete process.env.HERMES_SKIP_PROFILE_BOOTSTRAP
+    delete process.env.HERMES_BUILTIN_PROFILES_FILE
+  })
+
+  function seededConfigPath(home: string, profile = 'hermes-switch'): string {
+    return path.join(home, '.hermes', 'profiles', profile, 'config.yaml')
+  }
+
+  it('copies the root terminal: block into a freshly-seeded profile', async () => {
+    await withTempHome(async (home) => {
+      const hermesHome = path.join(home, '.hermes')
+      fs.mkdirSync(hermesHome, { recursive: true })
+      fs.writeFileSync(
+        path.join(hermesHome, 'config.yaml'),
+        YAML.stringify({ terminal: { cwd: '/srv/project', backend: 'local' } }),
+      )
+
+      const mod = await freshBootstrap()
+      mod.ensureBuiltinProfiles()
+
+      const config = YAML.parse(
+        fs.readFileSync(seededConfigPath(home), 'utf-8'),
+      ) as { terminal?: { cwd?: string; backend?: string } }
+      expect(config.terminal?.cwd).toBe('/srv/project')
+      expect(config.terminal?.backend).toBe('local')
+    })
+  })
+
+  it('writes no terminal: key when root config.yaml has none', async () => {
+    await withTempHome(async (home) => {
+      const hermesHome = path.join(home, '.hermes')
+      fs.mkdirSync(hermesHome, { recursive: true })
+      fs.writeFileSync(
+        path.join(hermesHome, 'config.yaml'),
+        YAML.stringify({ model: { default: 'auto' } }),
+      )
+
+      const mod = await freshBootstrap()
+      mod.ensureBuiltinProfiles()
+
+      const config = YAML.parse(
+        fs.readFileSync(seededConfigPath(home), 'utf-8'),
+      ) as { terminal?: unknown }
+      expect(config.terminal).toBeUndefined()
+    })
+  })
+
+  it('writes no terminal: key when root config.yaml does not exist at all', async () => {
+    await withTempHome(async (home) => {
+      const mod = await freshBootstrap()
+      mod.ensureBuiltinProfiles()
+
+      const config = YAML.parse(
+        fs.readFileSync(seededConfigPath(home), 'utf-8'),
+      ) as { terminal?: unknown }
+      expect(config.terminal).toBeUndefined()
+    })
+  })
+
+  it('never overwrites an already-seeded profile config.yaml, even if root terminal: appears later', async () => {
+    await withTempHome(async (home) => {
+      const hermesHome = path.join(home, '.hermes')
+
+      // First run: no root terminal: block yet.
+      const mod1 = await freshBootstrap()
+      mod1.ensureBuiltinProfiles()
+      const before = YAML.parse(
+        fs.readFileSync(seededConfigPath(home), 'utf-8'),
+      ) as { terminal?: unknown }
+      expect(before.terminal).toBeUndefined()
+
+      // Root gains a terminal: block after the profile already exists.
+      fs.writeFileSync(
+        path.join(hermesHome, 'config.yaml'),
+        YAML.stringify({ terminal: { cwd: '/late/addition' } }),
+      )
+
+      const mod2 = await freshBootstrap()
+      mod2.ensureBuiltinProfiles()
+
+      // The existing profile config.yaml must be untouched (the per-file
+      // fs.existsSync guard), matching the gateway's own non-inheritance.
+      const after = YAML.parse(
+        fs.readFileSync(seededConfigPath(home), 'utf-8'),
+      ) as { terminal?: unknown }
+      expect(after.terminal).toBeUndefined()
+    })
+  })
+
+  it('a malformed root config.yaml is treated as "no terminal: block", not a crash', async () => {
+    await withTempHome(async (home) => {
+      const hermesHome = path.join(home, '.hermes')
+      fs.mkdirSync(hermesHome, { recursive: true })
+      fs.writeFileSync(path.join(hermesHome, 'config.yaml'), '{ not: valid: yaml')
+
+      const mod = await freshBootstrap()
+      expect(() => mod.ensureBuiltinProfiles()).not.toThrow()
+
+      const config = YAML.parse(
+        fs.readFileSync(seededConfigPath(home), 'utf-8'),
+      ) as { terminal?: unknown }
+      expect(config.terminal).toBeUndefined()
+    })
+  })
+})
+
 describe('ensureBuiltinProfiles default-profile adoption', () => {
   const ORIGINAL_ENV = {
     HERMES_SKIP_PROFILE_BOOTSTRAP: process.env.HERMES_SKIP_PROFILE_BOOTSTRAP,

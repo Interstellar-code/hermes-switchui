@@ -99,7 +99,7 @@ function readGateOutcome(storage: Storage): OnboardingOutcome {
     return {
       kind: 'complete',
       at: Date.now(),
-      branch: 'quick',
+      branch: 'main',
       skipped: [],
       completed: [],
     }
@@ -112,7 +112,7 @@ function readGateOutcome(storage: Storage): OnboardingOutcome {
     return {
       kind: 'complete',
       at: auto.at,
-      branch: 'quick',
+      branch: 'main',
       skipped: [],
       completed: [],
     }
@@ -193,10 +193,10 @@ export function useOnboardingGate(options?: {
 
   const markComplete = useCallback(() => {
     if (typeof window !== 'undefined') {
-      // The live wizard is the single-path legacy flow, which maps onto the
-      // `quick` branch; it tracks no per-step skip list of its own.
+      // There is one path now (`main`); this call records only that the gate
+      // settled, and tracks no per-step skip list of its own.
       writeOnboardingComplete(window.localStorage, {
-        branch: 'quick',
+        branch: 'main',
         skipped: [],
         completed: [],
       })

@@ -4,18 +4,26 @@
  * onboarding-screen.tsx — the composition root of the onboarding flow.
  *
  * Everything it renders is built elsewhere: the chrome and state machine come
- * from `@/components/wizard`, the step table and every rule about branching,
+ * from `@/components/wizard`, the step table and every rule about ordering,
  * storage, entry point and the relaunch lock come from `./lib`, the bodies
- * from `./steps`, and the only write path from `./hooks/use-onboarding-save`.
- * This file owns exactly three things — the draft, the branch, and the wiring
- * between them.
+ * from `./steps`, and the only config write path from
+ * `./hooks/use-onboarding-save`. This file owns exactly three things — the
+ * draft, the gate, and the wiring between them.
  *
- * Two modes, distinguished the same way the component it replaces did it:
+ * ## The shape, after W6
+ *
+ * Four required steps and a set of optional cards, in the order the official
+ * quickstart gives: connect → provider → workspace → first chat, and only then
+ * anything else. The quick/full fork is gone. `chat` is the gate: `extras` and
+ * every optional step is `enabled` only once `useFirstChat` reports the gate
+ * settled (see `extrasUnlocked`).
+ *
+ * Two modes, distinguished the same way the component this replaces did it:
  *   `open === undefined` → first run. Uncontrolled, self-gates on the legacy
  *     completion flag, not dismissible with Escape (there is nothing behind it
  *     to go back to).
- *   `open` defined → relaunch. Controlled by the caller, opens on the
- *     read-only summary, and writes nothing until the user unlocks it.
+ *   `open` defined → relaunch. Controlled by the caller, opens on the first
+ *     real step, and stays a usable settings surface.
  *
  * Hook-order note, because it is load-bearing: `useOnboardingSave` is called
  * *after* `useWizard` so it receives the live `currentId` with no one-render
@@ -26,15 +34,24 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useAgentCwd } from './hooks/use-agent-cwd'
+import { useConnectStatus } from './hooks/use-connect-status'
 import { useCorePlugins } from './hooks/use-core-plugins'
+import { useFirstChat } from './hooks/use-first-chat'
 import { useOnboardingMemory } from './hooks/use-onboarding-memory'
 import { useOnboardingProfiles } from './hooks/use-onboarding-profiles'
 import { useOnboardingSave } from './hooks/use-onboarding-save'
-import { useSystemChecks } from './hooks/use-system-checks'
+import { isGateProven, isGateSettled } from './lib/chat-gate'
 import { buildChecklist } from './lib/checklist'
 import { buildCurrentSetup, factsForStep } from './lib/current-setup'
+import { buildExtras } from './lib/extras'
+import {
+  pendingGatewayTips,
+  readGatewayOnboarding,
+} from './lib/gateway-onboarding'
+import { detectOllamaContext } from './lib/ollama-context'
 import { resolveEntryStep } from './lib/onboarding-mode'
-import { ONBOARDING_STEPS } from './lib/onboarding-steps'
+import { ONBOARDING_STEPS, resolveStepAlias } from './lib/onboarding-steps'
 import {
   ONBOARDING_DRAFT_VERSION,
   ONBOARDING_KEYS,
@@ -47,18 +64,18 @@ import {
 import { buildOnboardingProviderChoices } from './lib/provider-choices'
 import { canWriteConfig } from './lib/relaunch-lock'
 import { useOnboardingGate } from './lib/use-onboarding-gate'
+import { ChatStep } from './steps/chat-step'
 import { ConnectStep } from './steps/connect-step'
+import { ExtrasStep } from './steps/extras-step'
 import { FinishStep } from './steps/finish-step'
 import { MemoryStep } from './steps/memory-step'
 import { PluginsStep } from './steps/plugins-step'
 import { ProfileStep } from './steps/profile-step'
 import { ProviderStep } from './steps/provider-step'
-import { ReviewStep } from './steps/review-step'
 import { SummaryStep } from './steps/summary-step'
-import { SystemCheckStep } from './steps/system-check-step'
 import { ThemeStep } from './steps/theme-step'
-import { VerifyStep } from './steps/verify-step'
 import { WelcomeStep } from './steps/welcome-step'
+import { WorkspaceStep } from './steps/workspace-step'
 import type { OnboardingMode } from './lib/onboarding-mode'
 import type {
   OnboardingBranch,
@@ -74,7 +91,6 @@ import type { WizardState } from '@/components/wizard'
 import type { ThemeId } from '@/lib/theme'
 import {
   WizardFooter,
-  WizardNote,
   WizardShell,
   WizardStepper,
   useWizard,
@@ -88,26 +104,7 @@ import { getTheme } from '@/lib/theme'
 import '@/styles/matrix-onboarding.css'
 
 const CONFIG_QUERY_KEY = ['onboarding', 'claude-config'] as const
-
-/** Steps that only exist on the `full` branch. */
-const FULL_ONLY: ReadonlySet<OnboardingStepId> = new Set([
-  'system-check',
-  'profile',
-  'memory',
-  'plugins',
-  'theme',
-])
-
-/**
- * The branch a given step needs in order to be enabled at all. Used both for
- * mid-flow jumps and for honouring a deep link at mount — landing on `theme`
- * with `branch: 'summary'` would leave the step disabled and `useWizard` would
- * silently reconcile the user somewhere else.
- */
-function branchForStep(id: OnboardingStepId): OnboardingBranch {
-  if (id === 'summary') return 'summary'
-  return FULL_ONLY.has(id) ? 'full' : 'quick'
-}
+const LOCAL_PROVIDERS_KEY = ['onboarding', 'local-providers'] as const
 
 type ConfigProviderRow = {
   id?: string
@@ -119,6 +116,12 @@ type ClaudeConfigPayload = {
   providers?: Array<ConfigProviderRow>
   activeProvider?: string
   activeModel?: string
+  /** The raw (secret-masked) `config.yaml`, which carries `onboarding:`. */
+  config?: unknown
+}
+
+type LocalProvidersPayload = {
+  providers?: Array<{ id?: string; online?: boolean }>
 }
 
 /** Never throws: TanStack Start renders this tree on the server too. */
@@ -144,7 +147,7 @@ function readCompleteFlag(): boolean {
 function emptyDraft(): OnboardingDraft & OnboardingTransient {
   return {
     version: ONBOARDING_DRAFT_VERSION,
-    branch: 'quick',
+    branch: 'main',
     stepId: 'welcome',
     providerId: null,
     baseUrl: '',
@@ -163,6 +166,16 @@ async function fetchClaudeConfig(): Promise<ClaudeConfigPayload | null> {
     const res = await fetch('/api/claude-config')
     if (!res.ok) return null
     return (await res.json()) as ClaudeConfigPayload
+  } catch {
+    return null
+  }
+}
+
+async function fetchLocalProviders(): Promise<LocalProvidersPayload | null> {
+  try {
+    const res = await fetch('/api/local-providers')
+    if (!res.ok) return null
+    return (await res.json()) as LocalProvidersPayload
   } catch {
     return null
   }
@@ -193,7 +206,7 @@ export type OnboardingScreenProps = {
    * Deep link from the setup-wizard store — picks the *starting step*, in
    * relaunch mode too. It never implies `unlocked`: a deep link must not be a
    * way around the write lock, so the flow it opens is still read-only until
-   * the user unlocks it explicitly.
+   * the user unlocks it.
    */
   initialStepId?: OnboardingStepId
 }
@@ -237,10 +250,14 @@ function OnboardingFlow({
     resolveEntryStep({ mode, outcome, hasWorkingProvider: false }),
   )
 
-  // A deep link picks the starting step, so the branch has to start wherever
-  // that step is actually enabled — otherwise `useWizard` reconciles it away.
+  // The summary is the only branch left, and only a deep link or an
+  // already-configured first run reaches it.
   const [branch, setBranch] = useState<OnboardingBranch>(() =>
-    initialStepId ? branchForStep(initialStepId) : entry.branch,
+    initialStepId
+      ? initialStepId === 'summary'
+        ? 'summary'
+        : 'main'
+      : entry.branch,
   )
   const [draft, setDraft] = useState<OnboardingDraft & OnboardingTransient>(
     () => ({
@@ -250,14 +267,9 @@ function OnboardingFlow({
   )
   // Relaunch opens unlocked. The lock machinery is untouched and still works
   // when this is false — only the default flipped, because it was buying
-  // nothing and costing the user a working settings surface.
-  //
-  // The justification: every write in this wizard already requires an explicit
-  // press on a labelled control — Save on the review step (which shows the
-  // literal YAML first), Activate on profile, Enable/Disable on plugins, Use
-  // on memory, Restart on verify. A click-through of Next writes nothing at
-  // any point. The lock was belt-and-braces over that guarantee, and the belt
-  // was the reason a returning user could not toggle a plugin.
+  // nothing and costing the user a working settings surface: every write in
+  // this wizard already requires an explicit press on a labelled control, and
+  // a click-through of Next writes nothing at any point.
   const [unlocked, setUnlocked] = useState(true)
   const [saved, setSaved] = useState(false)
   const [dirty, setDirty] = useState(false)
@@ -265,12 +277,10 @@ function OnboardingFlow({
   const locked = relaunch && !unlocked
 
   // A deep link picks the entry step — including on a relaunch, which is the
-  // only mode the sidebar/palette/dashboard links ever open. What it must not
-  // do is get past the lock, and it does not: `unlocked` stays false above, so
-  // every step it lands on renders read-only and `canWriteConfig` keeps
-  // refusing until the user chooses "Change setup".
-  const [initialId] = useState<OnboardingStepId>(
-    () => initialStepId ?? entry.stepId,
+  // only mode the sidebar/palette/dashboard links ever open. Retired ids are
+  // mapped onto their replacements here so a saved link never dead-ends.
+  const [initialId] = useState<OnboardingStepId>(() =>
+    initialStepId ? resolveStepAlias(initialStepId) : entry.stepId,
   )
 
   const { markComplete, markDismissed, markEngaged } = useOnboardingGate({
@@ -294,6 +304,15 @@ function OnboardingFlow({
   const config = configQuery.data ?? null
   const activeProvider = config?.activeProvider || null
   const activeModel = config?.activeModel || null
+  const rawConfig = config?.config ?? null
+
+  const localProvidersQuery = useQuery({
+    queryKey: LOCAL_PROVIDERS_KEY,
+    queryFn: fetchLocalProviders,
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
+  })
 
   const hasStoredKey = useMemo(() => {
     const providerId = draft.providerId
@@ -310,24 +329,30 @@ function OnboardingFlow({
 
   // One decision, consulted by every mutation the wizard can perform — not
   // just the config PATCH. A locked relaunch tells the user their setup is
-  // read-only, so enabling a plugin or restarting the gateway from a step the
-  // checklist deep-links into has to be refused too.
-  const canWrite = canWriteConfig({ mode, unlocked, stepId: 'review' })
+  // read-only, so enabling a plugin, writing terminal.cwd or restarting the
+  // gateway from a step the checklist deep-links into has to be refused too.
+  const canWrite = canWriteConfig({ mode, unlocked, stepId: 'provider' })
 
-  const system = useSystemChecks({ enabled: true, canWrite })
-  const plugins = useCorePlugins({ enabled: branch === 'full', canWrite })
-  const profiles = useOnboardingProfiles({
-    enabled: branch === 'full',
+  const chat = useFirstChat()
+  const gateSettled = isGateSettled(chat.state)
+  const gateProven = isGateProven(chat.state)
+  const extrasOpen = mode === 'relaunch' || gateSettled
+
+  const connection = useConnectStatus({
+    enabled: true,
     canWrite,
+    activeProvider,
   })
-  const memory = useOnboardingMemory({
-    enabled: branch === 'full',
-    canWrite,
-  })
+  const agentCwd = useAgentCwd({ enabled: true, canWrite })
+  // The three optional pickers only fetch once the gate has opened them —
+  // nothing should be probing the plugin hub for a screen the user cannot
+  // reach yet.
+  const plugins = useCorePlugins({ enabled: extrasOpen, canWrite })
+  const profiles = useOnboardingProfiles({ enabled: extrasOpen, canWrite })
+  const memory = useOnboardingMemory({ enabled: extrasOpen, canWrite })
 
   // Refreshed during render so callbacks below read the live draft without
-  // taking it as a dependency. Declared here rather than beside the
-  // save-and-resume effect because `handleFinish` needs it too.
+  // taking it as a dependency.
   const draftRef = useRef(draft)
   draftRef.current = draft
 
@@ -336,18 +361,13 @@ function OnboardingFlow({
       const storage = safeStorage()
       if (mode !== 'relaunch') {
         // Order matters. `markComplete` stamps the legacy flag and fires the
-        // event `__root.tsx` listens on; the richer record (which branch ran,
-        // what was skipped) is written *after* so it is the copy that
-        // survives — `markComplete` can only write `quick` / `[]`.
+        // event `__root.tsx` listens on; the richer record (what was skipped,
+        // what was completed) is written *after* so it is the copy that
+        // survives.
         markComplete()
         if (storage) {
-          // `completed` is persisted alongside `skipped` because the draft —
-          // the only other place it lived — is deleted on the next line. The
-          // sidebar badge and the command palette read the outcome, not the
-          // draft, and without this they reported a permanent full house of
-          // outstanding items to a user who had just finished everything.
           writeOnboardingComplete(storage, {
-            branch,
+            branch: 'main',
             skipped: union(
               draftRef.current.skipped,
               idsWithStatus(state, 'skipped'),
@@ -362,7 +382,7 @@ function OnboardingFlow({
       }
       onClose?.()
     },
-    [branch, markComplete, mode, onClose],
+    [markComplete, mode, onClose],
   )
 
   const ctx: OnboardingCtx = {
@@ -371,9 +391,12 @@ function OnboardingFlow({
     dirty,
     draft,
     saved,
+    providerVerified: false,
     hasStoredKey,
     catalogBaseUrl: choice?.baseUrl ?? null,
+    chat: chat.state,
     canWrite,
+    hasActiveProvider: Boolean(activeProvider),
   }
 
   const wz = useWizard<OnboardingStepId, OnboardingCtx>({
@@ -394,11 +417,10 @@ function OnboardingFlow({
     stepId: wz.state.currentId,
   })
 
-  // ── navigation that has to wait for a branch flip ──────────────────────────
+  // ── navigation that has to wait for a state flip ──────────────────────────
   // `useWizard` resolves NEXT/GOTO against the ctx of the render the click
-  // happened in, so a handler that changes the branch *and* moves must let the
-  // branch land first — otherwise picking "Full setup" walks straight past the
-  // system-check step that choice just enabled.
+  // happened in, so a handler that changes ctx *and* moves must let the change
+  // land first.
   type PendingNav = { kind: 'next' } | { kind: 'enter'; id: OnboardingStepId }
   const [pendingNav, setPendingNav] = useState<PendingNav | null>(null)
 
@@ -409,6 +431,13 @@ function OnboardingFlow({
     else wz.reset(pendingNav.id)
   }, [pendingNav, wz.next, wz.reset])
 
+  /**
+   * The user changed something that has to be written. Deliberately NOT called
+   * from navigation: `dirty` is an input to `validateProviderStep` ("you edited
+   * this, now save it"), so a Next or a rail click that set it would demand a
+   * save of a draft nobody touched — and on a configured install that is a dead
+   * end, since there is nothing to save.
+   */
   const touch = useCallback(() => {
     setDirty(true)
     markEngaged()
@@ -420,7 +449,8 @@ function OnboardingFlow({
       setDraft((prev) => ({ ...prev, ...patch }))
       if ('providerId' in patch) {
         // A different provider means the previous save no longer describes
-        // what is on screen.
+        // what is on screen, and the previous verification described something
+        // else entirely.
         setSaved(false)
         saveApi.reset()
       }
@@ -428,56 +458,57 @@ function OnboardingFlow({
     [saveApi, touch],
   )
 
-  const chooseBranch = useCallback(
-    (next: 'quick' | 'full') => {
-      touch()
-      setBranch(next)
-      setDraft((prev) => ({ ...prev, branch: next }))
-      setPendingNav({ kind: 'next' })
-    },
-    [touch],
-  )
-
   const jumpTo = useCallback(
     (id: OnboardingStepId) => {
-      touch()
-      if (branch === 'summary') {
-        setBranch(FULL_ONLY.has(id) ? 'full' : 'quick')
-      } else if (FULL_ONLY.has(id) && branch !== 'full') {
-        setBranch('full')
-      }
+      markEngaged()
+      const target = resolveStepAlias(id)
+      if (branch === 'summary') setBranch('main')
       // `reset` rather than `goto`: a jump from a landing page targets steps
       // the reachability rule (visited, or immediately next) would refuse.
-      setPendingNav({ kind: 'enter', id })
+      setPendingNav({ kind: 'enter', id: target })
     },
-    [branch, touch],
+    [branch, markEngaged],
   )
 
+  const startFlow = useCallback(() => {
+    markEngaged()
+    setPendingNav({ kind: 'next' })
+  }, [markEngaged])
+
   const unlock = useCallback(() => {
-    touch()
+    markEngaged()
     setUnlocked(true)
-    // Leaving the summary branch is what actually opens the editable flow;
-    // this call unlocks and navigates, and writes nothing by itself.
-    setBranch('quick')
-  }, [touch])
+    setBranch('main')
+    setPendingNav({ kind: 'enter', id: 'connect' })
+  }, [markEngaged])
 
   const dismiss = useCallback(() => {
     markDismissed()
     onClose?.()
   }, [markDismissed, onClose])
 
+  // Save and verify are one action now: a save the wizard never checked is how
+  // it used to report success on a provider that 401s on first use.
   const handleSave = useCallback(() => {
     if (!choice) return
     void saveApi.save({ choice, draft }).then((ok) => {
-      if (ok) setSaved(true)
+      if (!ok) return
+      setSaved(true)
+      void saveApi.verify(choice.id)
     })
   }, [choice, draft, saveApi])
+
+  const openRoute = useCallback(
+    (href: string) => {
+      onClose?.()
+      if (typeof window !== 'undefined') window.location.assign(href)
+    },
+    [onClose],
+  )
 
   // ── save-and-resume ───────────────────────────────────────────────────────
   const firstSyncRef = useRef(true)
 
-  // Step/status changes are persisted immediately: they are the coarse
-  // "where was I" signal a resume needs, and they are rare.
   useEffect(() => {
     if (firstSyncRef.current) {
       firstSyncRef.current = false
@@ -486,7 +517,7 @@ function OnboardingFlow({
     const next: OnboardingDraft & OnboardingTransient = {
       ...draftRef.current,
       stepId: wz.state.currentId,
-      branch: branch === 'summary' ? draftRef.current.branch : branch,
+      branch: 'main',
       skipped: union(
         draftRef.current.skipped,
         idsWithStatus(wz.state, 'skipped'),
@@ -503,7 +534,7 @@ function OnboardingFlow({
     if (mode === 'relaunch') return
     const storage = safeStorage()
     if (storage) writeOnboardingDraft(storage, next)
-  }, [branch, mode, wz.state])
+  }, [mode, wz.state])
 
   // Field edits are debounced — this fires on every keystroke in the API key
   // field, and `writeOnboardingDraft` sanitises rather than stores it.
@@ -516,9 +547,9 @@ function OnboardingFlow({
   }, [dirty, draft, mode])
 
   // A first run that turns out to already have a working provider lands on the
-  // summary instead of the fork — but only while the user has not touched
-  // anything, so a late config read can never yank the flow (the same rule
-  // `onboarding-gate.ts` applies to the connection probe).
+  // summary instead of the welcome screen — but only while the user has not
+  // touched anything, so a late config read can never yank the flow (the same
+  // rule `onboarding-gate.ts` applies to the connection probe).
   useEffect(() => {
     if (mode !== 'first-run' || dirty) return
     if (branch === 'summary' || wz.state.currentId !== 'welcome') return
@@ -526,37 +557,45 @@ function OnboardingFlow({
     setBranch('summary')
   }, [activeProvider, branch, dirty, mode, wz.state.currentId])
 
+  // ── derived context ───────────────────────────────────────────────────────
+
+  const gatewayReachable = useMemo(() => {
+    const hop = connection.boundaries.find(
+      (boundary) => boundary.id === 'ui-gateway',
+    )
+    if (!hop || hop.status === 'unknown') return null
+    return hop.status !== 'fail'
+  }, [connection.boundaries])
+
   const checklistItems = useMemo(
     () =>
       buildChecklist({
         outcome,
         draft,
         activeProvider,
-        verified: saveApi.verifyOutcome?.status === 'confirmed',
+        gatewayReachable,
+        chatProven: gateProven,
+        agentCwd: agentCwd.status?.resolved.path ?? null,
+        agentCwdExplicit:
+          agentCwd.status?.resolved.source === 'explicit-config' ||
+          agentCwd.applied !== null,
         pluginsTouched: plugins.touched,
         profileTouched: profiles.touched,
         memoryTouched: memory.touched,
       }),
     [
       activeProvider,
+      agentCwd.applied,
+      agentCwd.status,
       draft,
+      gateProven,
+      gatewayReachable,
       memory.touched,
       outcome,
       plugins.touched,
       profiles.touched,
-      saveApi.verifyOutcome,
     ],
   )
-
-  // QUICK never renders the system-check step, but a failing check is still
-  // the most likely reason "connect" is about to go wrong, so it rides along
-  // as a warning on that step instead.
-  const systemCheckWarning = useMemo(() => {
-    if (branch !== 'quick') return null
-    return (
-      system.checks.find((check) => check.status === 'fail')?.detail ?? null
-    )
-  }, [branch, system.checks])
 
   // Everything the wizard already knows about this workspace, assembled once.
   // `initialTheme` rather than the live theme: selecting in the theme picker
@@ -567,21 +606,69 @@ function OnboardingFlow({
       buildCurrentSetup({
         config,
         pluginRows: plugins.rows,
-        checks: system.checks,
+        boundaries: connection.boundaries,
         themeId: initialTheme,
         verifyOutcome: saveApi.verifyOutcome ?? null,
-        gatewayUrl: system.gatewayUrl,
+        gatewayUrl: connection.gatewayUrl,
         profiles: profiles.choices,
       }),
     [
       config,
+      connection.boundaries,
+      connection.gatewayUrl,
       initialTheme,
       plugins.rows,
       profiles.choices,
       saveApi.verifyOutcome,
-      system.checks,
-      system.gatewayUrl,
     ],
+  )
+
+  const gatewayOnboarding = useMemo(
+    () => readGatewayOnboarding(rawConfig),
+    [rawConfig],
+  )
+
+  const ollamaOnline = useMemo(() => {
+    const rows = localProvidersQuery.data?.providers ?? []
+    const row = rows.find((entryRow) => entryRow.id === 'ollama')
+    return row ? row.online === true : null
+  }, [localProvidersQuery.data])
+
+  const ollama = useMemo(
+    () =>
+      detectOllamaContext({
+        providerId: draft.providerId ?? activeProvider,
+        baseUrl:
+          draft.baseUrl ||
+          ((draft.providerId ?? activeProvider)
+            ? (currentSetup.providerBaseUrls[
+                normalizeProviderId(draft.providerId ?? activeProvider ?? '')
+              ] ?? null)
+            : null),
+        config: rawConfig,
+        online: ollamaOnline,
+      }),
+    [
+      activeProvider,
+      currentSetup.providerBaseUrls,
+      draft.baseUrl,
+      draft.providerId,
+      ollamaOnline,
+      rawConfig,
+    ],
+  )
+
+  const extras = useMemo(
+    () =>
+      buildExtras({
+        gateway: gatewayOnboarding,
+        activeProfileName: currentSetup.activeProfileName,
+        activeMemoryProvider: currentSetup.activeMemoryProvider,
+        enabledPluginCount: currentSetup.enabledPlugins.length,
+        corePluginCount: currentSetup.corePluginCount,
+        themeLabel: currentSetup.themeLabel,
+      }),
+    [currentSetup, gatewayOnboarding],
   )
 
   const factsFor = (id: OnboardingStepId) =>
@@ -590,19 +677,33 @@ function OnboardingFlow({
     })
 
   // Where the selected provider's credential already lives, if anywhere — the
-  // env var *name*, never the key. `hasStoredKey` above answers only "is there
-  // one", which the API-key field could use but no other auth kind could.
+  // env var *name*, never the key.
   const storedKeyEnv = draft.providerId
     ? (currentSetup.storedKeyEnvs[normalizeProviderId(draft.providerId)] ??
       null)
     : null
 
-  // The verify step asks the gateway about a provider, and on a relaunch the
-  // draft is empty — nothing has been picked because nothing needed picking.
-  // Falling back to the provider that is actually configured is what makes the
-  // button mean something there; without it `onVerify` silently no-opped and
-  // the user was pressing a dead control on a working install.
-  const verifyProviderId = draft.providerId ?? activeProvider
+  // Provenance, not a boolean: "resolves from the pool, not from the .env you
+  // just edited" is the case `configured: true` could never express.
+  const originNote = useMemo(() => {
+    const providerId = draft.providerId ?? activeProvider
+    if (!providerId) return null
+    const row = (connection.credentials?.statuses ?? []).find(
+      (status) => status.provider === providerId,
+    )
+    if (!row) return null
+    if (row.shadowedBy || row.effectiveOrigin === 'unknown') {
+      return row.detail ?? null
+    }
+    return null
+  }, [activeProvider, connection.credentials, draft.providerId])
+
+  const connectionLabel =
+    gatewayReachable === null
+      ? 'Unknown'
+      : gatewayReachable
+        ? 'Online'
+        : 'Offline'
 
   const step = wz.step
   if (!step) return null
@@ -617,7 +718,8 @@ function OnboardingFlow({
           <SummaryStep
             activeProvider={activeProvider}
             activeModel={activeModel}
-            checks={system.checks}
+            connection={connectionLabel}
+            agentCwd={agentCwd.status?.resolved.path ?? null}
             items={checklistItems}
             onJump={jumpTo}
             onUnlock={unlock}
@@ -629,21 +731,22 @@ function OnboardingFlow({
       case 'welcome':
         return (
           <WelcomeStep
-            onChooseBranch={chooseBranch}
+            onStart={startFlow}
             onDismiss={dismiss}
             showDismiss={!relaunch}
           />
         )
 
-      case 'system-check':
+      case 'connect':
         return (
-          <SystemCheckStep
-            checks={system.checks}
-            loading={system.loading}
-            onHeal={(action, payload) => void system.heal(action, payload)}
-            healing={system.healing}
+          <ConnectStep
+            boundaries={connection.boundaries}
+            loading={connection.loading}
+            onHeal={(action, payload) => void connection.heal(action, payload)}
+            healing={connection.healing}
             canWrite={canWrite}
-            facts={factsFor('system-check')}
+            facts={factsFor('connect')}
+            gatewayUrl={connection.gatewayUrl}
           />
         )
 
@@ -651,65 +754,75 @@ function OnboardingFlow({
         return (
           <ProviderStep
             choices={choices}
+            choice={choice}
             draft={draft}
             onChange={patchDraft}
             errors={wz.errors}
-            detecting={false}
             facts={factsFor('provider')}
             activeProviderId={currentSetup.activeProviderId}
             configuredProviderIds={currentSetup.configuredProviderIds}
-          />
-        )
-
-      case 'connect':
-        return (
-          <ConnectStep
-            choice={choice}
-            draft={draft}
-            onChange={patchDraft}
-            errors={wz.errors}
             hasStoredKey={hasStoredKey}
-            systemCheckWarning={systemCheckWarning}
-            canWrite={canWrite}
-            facts={factsFor('connect')}
             storedKeyEnv={storedKeyEnv}
-          />
-        )
-
-      case 'review':
-        return choice ? (
-          <ReviewStep
-            choice={choice}
-            draft={draft}
+            originNote={originNote}
             canWrite={canWrite}
             saving={saveApi.saving}
             saveError={saveApi.saveError}
             saved={saved}
             onSave={handleSave}
-            facts={factsFor('review')}
-          />
-        ) : (
-          <WizardNote tone="warn">
-            Choose a provider before reviewing what will be written.
-          </WizardNote>
-        )
-
-      case 'verify':
-        return (
-          <VerifyStep
-            providerId={verifyProviderId ?? ''}
-            outcome={saveApi.verifyOutcome}
             verifying={saveApi.verifying}
-            onVerify={() => {
-              if (verifyProviderId) void saveApi.verify(verifyProviderId)
-            }}
+            verification={saveApi.verification}
             canRestart={saveApi.canRestart}
             restarting={saveApi.restarting}
             onRestart={() => void saveApi.restart()}
-            liveOutcome={saveApi.liveOutcome}
-            liveTesting={saveApi.liveTesting}
-            onLiveTest={() => void saveApi.liveTest()}
-            facts={factsFor('verify')}
+            ollama={ollama}
+          />
+        )
+
+      case 'workspace':
+        return (
+          <WorkspaceStep
+            status={agentCwd.status}
+            loading={agentCwd.loading}
+            error={agentCwd.error}
+            preview={agentCwd.preview}
+            previewing={agentCwd.previewing}
+            onPreview={(path) => void agentCwd.requestPreview(path)}
+            onCancelPreview={agentCwd.clearPreview}
+            applying={agentCwd.applying}
+            onApply={(path) => void agentCwd.apply(path)}
+            applied={agentCwd.applied}
+            canWrite={canWrite}
+          />
+        )
+
+      case 'chat':
+        return (
+          <ChatStep
+            state={chat.state}
+            prompt={chat.prompt}
+            onSend={() => {
+              markEngaged()
+              void chat.send()
+            }}
+            onSkip={() => {
+              markEngaged()
+              chat.skip()
+            }}
+            activeProvider={activeProvider}
+            ollama={ollama}
+            tips={pendingGatewayTips(gatewayOnboarding)}
+            facts={factsFor('chat')}
+            errors={wz.errors}
+          />
+        )
+
+      case 'extras':
+        return (
+          <ExtrasStep
+            cards={extras}
+            onJump={jumpTo}
+            onOpenRoute={openRoute}
+            unproven={!gateProven}
           />
         )
 
@@ -777,11 +890,19 @@ function OnboardingFlow({
             items={checklistItems}
             onJump={jumpTo}
             onOpenWorkspace={wz.finish}
+            chatProven={gateProven}
             needsRestart={
               saved && saveApi.verifyOutcome?.status !== 'confirmed'
             }
           />
         )
+
+      // Retired ids never render — they are disabled in the step table and
+      // mapped onto their replacements at mount.
+      case 'system-check':
+      case 'review':
+      case 'verify':
+        return null
     }
   }
 

@@ -217,20 +217,39 @@ const DASHBOARD_TOKEN_REGEX =
 
 export type CoreCapabilities = {
   health: boolean
+  /**
+   * True when `/v1/chat/completions` is registered AND usable — i.e. the
+   * route exists and this workspace's bearer token was accepted (no 401).
+   * This is the field `chat-mode.ts`'s `getChatMode()` / `resolveChatBackend()`
+   * read to decide whether the OpenAI-compatible transport is safe to use;
+   * see `chatCompletionsRouteExists` below for the weaker "route is
+   * registered" signal on its own. See W3 audit item 5 follow-up.
+   */
   chatCompletions: boolean
+  /**
+   * True when `/v1/chat/completions` answered with anything other than 404
+   * — i.e. the route is registered, regardless of whether THIS workspace's
+   * token was accepted. A 401 proves the route exists (a vanilla/
+   * unauthenticated gateway 404s instead) but does not make the route
+   * usable; `chatCompletions` above is the usable signal transport
+   * selection must key off. Kept for callers that only care about
+   * route-presence (mirrors the `exists`/`authError` split in
+   * `probeChatCompletions()`).
+   */
+  chatCompletionsRouteExists?: boolean
   models: boolean
   streaming: boolean
   probed: boolean
   /**
-   * True when `/health` answered 401 — this workspace's own bearer token
-   * (`HERMES_API_TOKEN` / `API_SERVER_KEY`) does not match what THIS gateway
-   * process expects. Distinct from `!health`: a token mismatch means the
-   * gateway IS up and reachable — every authenticated request will simply
-   * keep failing until the tokens agree. Conflating the two used to render a
-   * mismatch as "Connected" (the generic `probe()` below treats any
-   * non-404/403 status, 401 included, as "capability present" — correct for
-   * capability-presence probes, wrong for the health/availability signal
-   * users see). See W3 audit item 5.
+   * True when `/health` OR `/v1/chat/completions` answered 401 — this
+   * workspace's own bearer token (`HERMES_API_TOKEN` / `API_SERVER_KEY`)
+   * does not match what THIS gateway process expects. Distinct from
+   * `!health`: a token mismatch means the gateway IS up and reachable —
+   * every authenticated request will simply keep failing until the tokens
+   * agree. Conflating the two used to render a mismatch as "Connected" (the
+   * generic `probe()` below treats any non-404/403 status, 401 included, as
+   * "capability present" — correct for capability-presence probes, wrong
+   * for the health/availability signal users see). See W3 audit item 5.
    */
   authError: boolean
 }
@@ -303,6 +322,7 @@ export type ConnectionStatus =
 let capabilities: GatewayCapabilities = {
   health: false,
   chatCompletions: false,
+  chatCompletionsRouteExists: false,
   models: false,
   streaming: false,
   authError: false,
@@ -697,20 +717,43 @@ async function probeEnhancedChatStream(): Promise<boolean> {
   }
 }
 
-async function probeChatCompletions(): Promise<boolean> {
+/**
+ * Probe for `/v1/chat/completions`.
+ *
+ * Distinguishes *route exists* from *usable*, mirroring `probeHealth()`
+ * above (W3 audit item 5) — a 401 here proves the route is registered (a
+ * vanilla/unauthenticated gateway would 404 instead), which is the correct
+ * read for a capability-presence probe. But it does NOT mean this
+ * workspace's bearer token (`HERMES_API_TOKEN` / `API_SERVER_KEY`) is
+ * actually accepted: every real request will also 401 until the tokens
+ * agree. The old code returned a single boolean and fell through to `true`
+ * on 401, so `capabilities.chatCompletions` — which `chat-mode.ts`'s
+ * `resolveChatBackend()` reads (via `getChatMode()`) to decide whether to
+ * use the OpenAI-compatible transport — could read `true` under a token
+ * mismatch and route chat traffic at a backend that will reject every
+ * message. `exists` records the route-presence signal for anyone who wants
+ * it; `authError` lets the caller gate usability on it separately.
+ */
+async function probeChatCompletions(): Promise<{
+  exists: boolean
+  authError: boolean
+}> {
   try {
     const getRes = await fetch(`${CLAUDE_API}/v1/chat/completions`, {
       method: 'GET',
       headers: authHeaders(),
       signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
     })
-    if (getRes.status === 405) return true
-    if (getRes.ok) return true
-    if (getRes.status === 400 || getRes.status === 422) return true
-    if (getRes.status === 404) return false
-    return true
+    if (getRes.status === 401) return { exists: true, authError: true }
+    if (getRes.status === 405) return { exists: true, authError: false }
+    if (getRes.ok) return { exists: true, authError: false }
+    if (getRes.status === 400 || getRes.status === 422) {
+      return { exists: true, authError: false }
+    }
+    if (getRes.status === 404) return { exists: false, authError: false }
+    return { exists: true, authError: false }
   } catch {
-    return false
+    return { exists: false, authError: false }
   }
 }
 
@@ -1048,7 +1091,7 @@ export async function probeGateway(options?: {
 
     const [
       healthResult,
-      chatCompletions,
+      chatCompletionsResult,
       models,
       legacySessions,
       enhancedChat,
@@ -1066,7 +1109,14 @@ export async function probeGateway(options?: {
       dashboard.available ? Promise.resolve(false) : probe('/api/jobs'),
     ])
     const health = healthResult.healthy
-    const authError = healthResult.authError
+    const chatCompletionsRouteExists = chatCompletionsResult.exists
+    // Usable, not merely present: a 401 proves the route is registered but
+    // must not mark chat completions usable, or transport selection
+    // (chat-mode.ts's resolveChatBackend()) will route traffic at a backend
+    // that rejects every request under a token mismatch.
+    const chatCompletions =
+      chatCompletionsResult.exists && !chatCompletionsResult.authError
+    const authError = healthResult.authError || chatCompletionsResult.authError
 
     // Strict MCP probe runs after dashboard probe so dashboard token
     // resolution (in-page HTML scrape fallback) has had a chance to populate
@@ -1092,6 +1142,7 @@ export async function probeGateway(options?: {
     capabilities = {
       health,
       chatCompletions,
+      chatCompletionsRouteExists,
       models,
       streaming: chatCompletions,
       probed: true,
@@ -1151,6 +1202,7 @@ export function getCoreCapabilities(): CoreCapabilities {
   return {
     health: capabilities.health,
     chatCompletions: capabilities.chatCompletions,
+    chatCompletionsRouteExists: capabilities.chatCompletionsRouteExists,
     models: capabilities.models,
     streaming: capabilities.streaming,
     probed: capabilities.probed,

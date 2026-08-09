@@ -152,6 +152,38 @@ function adoptDefaultProfileOnce(agents: Array<BuiltinAgent>): void {
 }
 
 /**
+ * Read the `terminal:` block out of the root `~/.hermes/config.yaml`, if any.
+ *
+ * Used only at profile-seed time (`ensureConfigYaml`) to emulate an
+ * inheritance the gateway itself does not implement — see that function's
+ * doc comment. Returns `null` whenever there is nothing safe to copy (file
+ * missing, unparsable, or no `terminal:` mapping); callers must treat `null`
+ * as "write nothing", never invent a default the user never configured.
+ */
+function readRootTerminalBlock(): Record<string, unknown> | null {
+  try {
+    const rootHome = path.dirname(getProfilesRoot())
+    const rootConfigPath = path.join(rootHome, 'config.yaml')
+    if (!fs.existsSync(rootConfigPath)) return null
+    const parsed = YAML.parse(fs.readFileSync(rootConfigPath, 'utf-8')) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return null
+    }
+    const terminal = (parsed as Record<string, unknown>).terminal
+    if (!terminal || typeof terminal !== 'object' || Array.isArray(terminal)) {
+      return null
+    }
+    return terminal as Record<string, unknown>
+  } catch (err) {
+    console.warn(
+      '[profiles-bootstrap] Failed to read root `terminal:` block (leaving new profiles without one):',
+      err,
+    )
+    return null
+  }
+}
+
+/**
  * Resolve the builtin agent list to seed.
  *
  * Priority:
@@ -300,12 +332,29 @@ export function ensureBuiltinProfiles(): void {
  * root's already-working setup. Once the user explicitly assigns a provider
  * to this profile (wizard / settings), that write path sets
  * `model.provider` + `providers.<name>` itself.
+ *
+ * `terminal:` inheritance-gap emulation — see `agent-cwd.ts`'s "gap #1" doc
+ * comment: `hermes_cli/config.py` (config.py:751) reads only a profile's own
+ * config.yaml and never merges the root's, and no seeded profile shipped a
+ * `terminal:` block, so switching to a freshly-seeded builtin profile
+ * silently moved the agent's terminal/execute_code tools from wherever the
+ * root had them configured back to `$HOME`. If the root config.yaml has a
+ * `terminal:` block at the moment this profile is first seeded, copy it in
+ * verbatim so the new profile starts out behaving like the root did. This is
+ * NOT real inheritance and must never be mistaken for gateway behavior: it
+ * is a one-time snapshot taken here, in Switch UI, at seed time only (guarded
+ * by the same `fs.existsSync(configPath)` early-return as every other file
+ * in this module, so an already-seeded or user-edited profile is never
+ * touched again). A later edit to the root's `terminal:` block does not
+ * propagate to profiles already seeded, exactly like the gateway's own lack
+ * of inheritance. When the root has no `terminal:` block, write nothing —
+ * inventing a default here would be worse than the gap it is meant to close.
  */
 function ensureConfigYaml(profileDir: string, agent: BuiltinAgent): void {
   const configPath = path.join(profileDir, 'config.yaml')
   if (fs.existsSync(configPath)) return
 
-  const config = {
+  const config: Record<string, unknown> = {
     description: agent.description,
     model: {
       default: 'auto',
@@ -319,6 +368,11 @@ function ensureConfigYaml(profileDir: string, agent: BuiltinAgent): void {
       persona_id: null,
       last_run: null,
     },
+  }
+
+  const rootTerminal = readRootTerminalBlock()
+  if (rootTerminal) {
+    config.terminal = rootTerminal
   }
 
   fs.writeFileSync(configPath, YAML.stringify(config), 'utf-8')

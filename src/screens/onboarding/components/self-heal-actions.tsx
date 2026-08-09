@@ -1,29 +1,29 @@
 'use client'
 
 /**
- * self-heal-actions.tsx — the inline remediation control a `SystemCheck`
+ * self-heal-actions.tsx — the inline remediation control a `TrustBoundary`
  * attaches via its `heal` field. Purely presentational: it never calls the
  * network itself, only reports "the user asked to run this" via `onRun`.
  */
-import type { SystemCheck } from '../lib/system-checks'
+import type { BoundaryHeal } from '../lib/trust-boundaries'
 import { WizardField } from '@/components/wizard'
 
 export type SelfHealActionsProps = {
-  action: NonNullable<SystemCheck['heal']>
+  action: NonNullable<BoundaryHeal>
   busy: boolean
   onRun: (payload?: { gatewayUrl?: string }) => void
   gatewayUrl?: string
   onGatewayUrlChange?: (value: string) => void
 }
 
-const RUN_LABEL: Record<NonNullable<SystemCheck['heal']>, string> = {
+const RUN_LABEL: Record<NonNullable<BoundaryHeal>, string> = {
   'start-agent': 'Start agent',
   'restart-gateway': 'Restart gateway',
   reprobe: 'Re-check',
   'change-url': 'Save and re-check',
 }
 
-const BUSY_LABEL: Record<NonNullable<SystemCheck['heal']>, string> = {
+const BUSY_LABEL: Record<NonNullable<BoundaryHeal>, string> = {
   'start-agent': 'Starting…',
   'restart-gateway': 'Restarting…',
   reprobe: 'Checking…',

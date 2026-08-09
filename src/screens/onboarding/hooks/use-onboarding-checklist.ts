@@ -9,10 +9,10 @@
  * read through this hook rather than duplicating the storage/fetch wiring
  * `onboarding-screen.tsx` already does for its own summary step.
  *
- * `verified`, `pluginsTouched` and `profileTouched` are always passed as
- * `false` here: those signals come from live probes
- * (`useSystemChecks`/`useCorePlugins`/`useOnboardingProfiles`/the save hook's
- * verify outcome) that only run *inside* an active wizard session, and outside
+ * `chatProven`, `pluginsTouched` and `profileTouched` are always passed as
+ * `false` here, and `gatewayReachable` as `null`: those signals come from live
+ * probes (`useConnectStatus`/`useCorePlugins`/`useOnboardingProfiles`/
+ * `useFirstChat`) that only run *inside* an active wizard session, and outside
  * the wizard we only have what is in storage.
  *
  * That is safe only because the completion record now carries `completed`:
@@ -144,7 +144,14 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
             outcome: snapshot.outcome,
             draft: snapshot.draft,
             activeProvider,
-            verified: false,
+            // Every live signal is absent outside the wizard. `null` for
+            // reachability rather than `false`: "not checked in this session"
+            // is not "the gateway is down", and this hook renders on a
+            // dashboard that has no business claiming an outage.
+            gatewayReachable: null,
+            chatProven: false,
+            agentCwd: null,
+            agentCwdExplicit: false,
             pluginsTouched: false,
             profileTouched: false,
             memoryTouched: false,

@@ -12,17 +12,25 @@
  * write has to accept an `onSave` prop wired to this hook — it cannot reach
  * `/api/claude-config` on its own without that being obvious in review.
  *
- * The three read-ish operations (`verify`, `liveTest`, `restart`) live here
- * too because they are the natural follow-ups to a save and they all need the
- * same lifetime discipline: `verify` polls for up to 20 seconds, so its
- * AbortController is scoped to this hook and aborted on unmount — a poll that
- * outlives the wizard would keep hitting /api/models behind a closed dialog.
- * Unmount is not the only exit, though: this hook lives on the flow component,
- * not on `VerifyStep`, so navigating away from verify (back, forward, or a
- * jump) leaves the wizard mounted and the poll running. `stepId` is already an
- * input here for the write lock, so it also drives the abort — leaving verify
- * ends the poll exactly as closing the wizard does.
- * `liveTest` spends real tokens and is never called automatically.
+ * The two read-ish operations (`verify`, `restart`) live here too because they
+ * are the natural follow-ups to a save and they need the same lifetime
+ * discipline: `verify` polls for up to 20 seconds, so its AbortController is
+ * scoped to this hook and aborted on unmount — a poll that outlives the wizard
+ * would keep hitting /api/models behind a closed dialog. Unmount is not the
+ * only exit, though: this hook lives on the flow component, not on the step, so
+ * navigating away (back, forward, or a jump) leaves the wizard mounted and the
+ * poll running. `stepId` is already an input here for the write lock, so it
+ * also drives the abort — leaving the provider step ends the poll exactly as
+ * closing the wizard does.
+ *
+ * `verify` now runs `verifyProviderAfterSave`, which is resolution polling
+ * **plus one real completion**. That is a deliberate cost: config resolution
+ * and credential resolution fail independently, and the second failure is the
+ * common one (a `key_env` that resolves to nothing under multiplexing, a key
+ * shadowed by an inline copy, a rotated key with a stale mirror). The previous
+ * split — a free poll here, a live test behind an opt-in button the user had
+ * to know to press — is how the wizard used to say "Saved" about a provider
+ * that 401s on first use.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -36,13 +44,10 @@ import type {
 } from '../lib/onboarding-storage'
 import type { ProviderChoice } from '../lib/provider-choices'
 import type {
-  LiveTestOutcome,
+  PostSaveVerification,
   VerifyOutcome,
 } from '@/screens/providers/lib/verify-provider'
-import {
-  sendLiveTestPrompt,
-  verifyProviderVisible,
-} from '@/screens/providers/lib/verify-provider'
+import { verifyProviderAfterSave } from '@/screens/providers/lib/verify-provider'
 import { useProviderMutations } from '@/screens/providers/hooks/use-provider-mutations'
 
 const GATEWAY_STATUS_KEY = ['onboarding', 'save-gateway-status'] as const
@@ -81,12 +86,12 @@ export type UseOnboardingSaveResult = {
   saveError: string | null
   saved: boolean
   reset: () => void
+  /** Resolution poll **and** one real completion. See the module header. */
   verify: (providerId: string) => Promise<void>
   verifying: boolean
   verifyOutcome: VerifyOutcome | null
-  liveTest: () => Promise<void>
-  liveTesting: boolean
-  liveOutcome: LiveTestOutcome | null
+  /** The full post-write check, including the gateway's verbatim error. */
+  verification: PostSaveVerification | null
   restart: () => Promise<void>
   restarting: boolean
   canRestart: boolean
@@ -101,9 +106,9 @@ export function useOnboardingSave({
   const [saveError, setSaveError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
   const [verifying, setVerifying] = useState(false)
-  const [verifyOutcome, setVerifyOutcome] = useState<VerifyOutcome | null>(null)
-  const [liveTesting, setLiveTesting] = useState(false)
-  const [liveOutcome, setLiveOutcome] = useState<LiveTestOutcome | null>(null)
+  const [verification, setVerification] = useState<PostSaveVerification | null>(
+    null,
+  )
 
   const { restartGateway } = useProviderMutations()
 
@@ -125,7 +130,7 @@ export function useOnboardingSave({
   // Nulled as well as aborted so a later return to the verify step gets a
   // fresh controller rather than inheriting an already-aborted signal.
   useEffect(() => {
-    if (stepId === 'verify') return
+    if (stepId === 'provider') return
     abortRef.current?.abort()
     abortRef.current = null
   }, [stepId])
@@ -190,6 +195,7 @@ export function useOnboardingSave({
   const reset = useCallback(() => {
     setSaved(false)
     setSaveError(null)
+    setVerification(null)
   }, [])
 
   const verify = useCallback(async (providerId: string) => {
@@ -199,27 +205,17 @@ export function useOnboardingSave({
 
     setVerifying(true)
     try {
-      const outcome = await verifyProviderVisible(providerId, { signal })
-      if (mountedRef.current && !signal.aborted) setVerifyOutcome(outcome)
+      const outcome = await verifyProviderAfterSave(providerId, { signal })
+      if (mountedRef.current && !signal.aborted) setVerification(outcome)
     } finally {
       if (mountedRef.current) setVerifying(false)
-    }
-  }, [])
-
-  const liveTest = useCallback(async () => {
-    setLiveTesting(true)
-    try {
-      const outcome = await sendLiveTestPrompt()
-      if (mountedRef.current) setLiveOutcome(outcome)
-    } finally {
-      if (mountedRef.current) setLiveTesting(false)
     }
   }, [])
 
   // Restarting the gateway is a mutation of the user's running system, so it
   // answers to the same lock the config PATCH does — a relaunch that promises
   // "read-only" must not bounce a working gateway.
-  const canRestartHere = canWriteConfig({ mode, unlocked, stepId: 'review' })
+  const canRestartHere = canWriteConfig({ mode, unlocked, stepId: 'provider' })
 
   const restart = useCallback(async () => {
     if (!canRestartHere) return
@@ -239,10 +235,8 @@ export function useOnboardingSave({
     reset,
     verify,
     verifying,
-    verifyOutcome,
-    liveTest,
-    liveTesting,
-    liveOutcome,
+    verifyOutcome: verification?.resolution ?? null,
+    verification,
     restart,
     restarting: restartGateway.isPending,
     canRestart:

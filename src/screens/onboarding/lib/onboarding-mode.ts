@@ -17,24 +17,26 @@ export function resolveEntryStep(input: {
   outcome: OnboardingOutcome
   hasWorkingProvider: boolean
 }): { stepId: OnboardingStepId; branch: OnboardingBranch } {
-  // A relaunch lands on the stepped view, on the full branch, regardless of
-  // what the draft or outcome say. "Setup Wizard" in the sidebar is a settings
-  // surface for someone who already has a working install: the summary was a
-  // landing page they had to click through before they could reach the thing
-  // they opened the wizard for. It is still in the step table and still
-  // reachable by deep link (`openSetupWizard('summary')`) — it is just no
-  // longer the front door.
+  // A relaunch lands on the first real step, regardless of what the draft or
+  // outcome say. "Setup Wizard" in the sidebar is a settings surface for
+  // someone who already has a working install: the summary was a landing page
+  // they had to click through before they could reach the thing they opened
+  // the wizard for. It is still in the step table and still reachable by deep
+  // link (`openSetupWizard('summary')`) — it is just not the front door.
   if (input.mode === 'relaunch') {
-    return { stepId: 'system-check', branch: 'full' }
+    return { stepId: 'connect', branch: 'main' }
   }
 
+  // A first run on an install that is already configured is not a first run in
+  // any useful sense — somebody set this up outside the wizard. Land on the
+  // read-only overview rather than walking them through choices already made.
   if (input.mode === 'first-run' && input.hasWorkingProvider) {
     return { stepId: 'summary', branch: 'summary' }
   }
 
   if (input.outcome.kind === 'in-progress') {
-    return { stepId: input.outcome.stepId, branch: input.outcome.branch }
+    return { stepId: input.outcome.stepId, branch: 'main' }
   }
 
-  return { stepId: 'welcome', branch: 'quick' }
+  return { stepId: 'welcome', branch: 'main' }
 }

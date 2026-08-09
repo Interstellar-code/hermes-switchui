@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   ONBOARDING_STEPS,
-  validateConnectStep,
+  RETIRED_STEP_ALIASES,
+  extrasUnlocked,
+  resolveStepAlias,
+  validateChatStep,
   validateProviderStep,
-  validateReviewStep,
 } from './onboarding-steps'
+import { CHAT_GATE_UNTESTED } from './chat-gate'
 import { ONBOARDING_DRAFT_VERSION } from './onboarding-storage'
+import type { ChatGateState } from './chat-gate'
 import type { OnboardingCtx } from './onboarding-steps'
 import type { OnboardingDraft } from './onboarding-storage'
 import {
@@ -18,7 +22,7 @@ import {
 function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return {
     version: ONBOARDING_DRAFT_VERSION,
-    branch: 'quick',
+    branch: 'main',
     stepId: 'welcome',
     providerId: null,
     baseUrl: '',
@@ -35,151 +39,100 @@ function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
 
 function ctx(overrides: Partial<OnboardingCtx> = {}): OnboardingCtx {
   return {
-    branch: 'quick',
+    branch: 'main',
     mode: 'first-run',
     dirty: false,
     draft: draft(),
     saved: false,
+    providerVerified: false,
     hasStoredKey: false,
     catalogBaseUrl: null,
+    chat: CHAT_GATE_UNTESTED,
     canWrite: true,
+    hasActiveProvider: false,
     ...overrides,
   }
 }
 
+const PASSED: ChatGateState = { kind: 'passed', reply: 'Hello.' }
+const SKIPPED: ChatGateState = { kind: 'skipped', at: 1 }
+const FAILED: ChatGateState = {
+  kind: 'failed',
+  error: '401 Unauthorized',
+  credentialLikely: true,
+}
+
+const REQUIRED = ['connect', 'provider', 'workspace', 'chat']
+const OPTIONAL = ['extras', 'profile', 'memory', 'plugins', 'theme']
+
 describe('ONBOARDING_STEPS rail', () => {
-  it('QUICK rail is exactly provider, connect, review, verify', () => {
-    const ids = railSteps(ONBOARDING_STEPS, ctx({ branch: 'quick' })).map(
+  it('is exactly the four required steps until the chat gate is settled', () => {
+    const ids = railSteps(ONBOARDING_STEPS, ctx()).map((step) => step.id)
+    expect(ids).toEqual(REQUIRED)
+  })
+
+  it('is the canonical order from the docs: connect → provider → workspace → chat', () => {
+    // install → choose provider → first successful chat → verify resume, then
+    // everything else. The order is the contract, not a layout preference.
+    const ids = railSteps(ONBOARDING_STEPS, ctx()).map((step) => step.id)
+    expect(ids.indexOf('connect')).toBeLessThan(ids.indexOf('provider'))
+    expect(ids.indexOf('provider')).toBeLessThan(ids.indexOf('workspace'))
+    expect(ids.indexOf('workspace')).toBeLessThan(ids.indexOf('chat'))
+  })
+
+  it('unlocks the optional steps once a real completion has succeeded', () => {
+    const ids = railSteps(ONBOARDING_STEPS, ctx({ chat: PASSED })).map(
       (step) => step.id,
     )
-    expect(ids).toEqual(['provider', 'connect', 'review', 'verify'])
+    expect(ids).toEqual([...REQUIRED, ...OPTIONAL])
   })
 
-  it('FULL rail is exactly system-check, provider, connect, review, verify, profile, memory, plugins, theme', () => {
-    const ids = railSteps(ONBOARDING_STEPS, ctx({ branch: 'full' })).map(
+  it('unlocks the optional steps when the user skips with the warning', () => {
+    const ids = railSteps(ONBOARDING_STEPS, ctx({ chat: SKIPPED })).map(
       (step) => step.id,
     )
-    // `profile` sits after `verify` and before `plugins`: switching the agent
-    // identity only makes sense once the provider behind it is known to work,
-    // and it shares the plugins step's "nothing happens until the gateway
-    // restarts" caveat, so the two read as one band. `memory` joins that band
-    // between them — it is a property of the identity chosen on the step
-    // before, and it carries the same restart caveat.
-    expect(ids).toEqual([
-      'system-check',
-      'provider',
-      'connect',
-      'review',
-      'verify',
-      'profile',
-      'memory',
-      'plugins',
-      'theme',
-    ])
-    expect(ids).toHaveLength(9)
+    expect(ids).toEqual([...REQUIRED, ...OPTIONAL])
   })
 
-  it('drops review from the FULL relaunch rail until the draft is dirty', () => {
-    const clean = railSteps(
-      ONBOARDING_STEPS,
-      ctx({ branch: 'full', mode: 'relaunch', dirty: false }),
-    ).map((step) => step.id)
-    expect(clean).toEqual([
-      'system-check',
-      'provider',
-      'connect',
-      'verify',
-      'profile',
-      'memory',
-      'plugins',
-      'theme',
-    ])
-    expect(clean).toHaveLength(8)
-
-    const dirty = railSteps(
-      ONBOARDING_STEPS,
-      ctx({ branch: 'full', mode: 'relaunch', dirty: true }),
-    ).map((step) => step.id)
-    expect(dirty).toContain('review')
-    expect(dirty).toHaveLength(9)
-    // It reappears in place, not at the end: `verify` reads the gateway for
-    // the provider named in the draft, so a save that has not happened yet
-    // would make verify report on the old configuration.
-    expect(dirty.indexOf('review')).toBeLessThan(dirty.indexOf('verify'))
+  it('keeps the optional steps locked while the chat is merely failing', () => {
+    const ids = railSteps(ONBOARDING_STEPS, ctx({ chat: FAILED })).map(
+      (step) => step.id,
+    )
+    expect(ids).toEqual(REQUIRED)
   })
 
-  it('keeps review on first-run and resume whether or not anything is dirty', () => {
-    for (const mode of ['first-run', 'resume'] as const) {
-      for (const dirty of [false, true]) {
-        const ids = railSteps(
-          ONBOARDING_STEPS,
-          ctx({ branch: 'full', mode, dirty }),
-        ).map((step) => step.id)
-        expect(ids, `${mode}/${dirty}`).toContain('review')
-      }
+  it('offers no optional step before the gate — the rule the docs state outright', () => {
+    for (const id of OPTIONAL) {
+      const step = ONBOARDING_STEPS.find((candidate) => candidate.id === id)
+      expect(step?.enabled?.(ctx()), id).toBe(false)
     }
   })
 
-  it('drops review entirely when the run may not write', () => {
-    // Reviewing a configuration you are not permitted to save is a step with
-    // no purpose; `validateReviewStep` already refuses to block there, and
-    // removing it from the rail means it cannot be reached at all.
-    for (const mode of ['first-run', 'relaunch'] as const) {
-      const ids = railSteps(
-        ONBOARDING_STEPS,
-        ctx({ branch: 'full', mode, dirty: true, canWrite: false }),
-      ).map((step) => step.id)
-      expect(ids, mode).not.toContain('review')
-    }
+  it('unlocks the optional steps on a relaunch without re-proving a completion', () => {
+    // The relaunched wizard is a settings surface reached from inside a running
+    // workspace. Making a returning user prove a completion before they may
+    // toggle a plugin is the regression the "usable settings surface" change
+    // fixed, so `mode: 'relaunch'` is a deliberate second door.
+    expect(extrasUnlocked(ctx({ mode: 'relaunch' }))).toBe(true)
+    const ids = railSteps(ONBOARDING_STEPS, ctx({ mode: 'relaunch' })).map(
+      (step) => step.id,
+    )
+    expect(ids).toEqual([...REQUIRED, ...OPTIONAL])
   })
 
-  it('never blocks navigation with a review step that is not on the rail', () => {
-    // A step that is not in `activeSteps` cannot gate NEXT — the machine only
-    // validates the step it is standing on, and hops the missing one in both
-    // directions. This is what makes the conditional review safe.
-    const relaunchClean = ctx({
-      branch: 'full',
-      mode: 'relaunch',
-      dirty: false,
-      saved: false,
-    })
-    expect(nextStepId(ONBOARDING_STEPS, relaunchClean, 'connect')).toBe(
-      'verify',
-    )
-    expect(prevStepId(ONBOARDING_STEPS, relaunchClean, 'verify')).toBe(
-      'connect',
-    )
+  it('hops the locked optional steps in both directions', () => {
+    const locked = ctx()
+    expect(nextStepId(ONBOARDING_STEPS, locked, 'chat')).toBe('finish')
+    expect(prevStepId(ONBOARDING_STEPS, locked, 'finish')).toBe('chat')
 
-    const relaunchDirty = ctx({
-      branch: 'full',
-      mode: 'relaunch',
-      dirty: true,
-      saved: false,
-    })
-    expect(nextStepId(ONBOARDING_STEPS, relaunchDirty, 'connect')).toBe(
-      'review',
-    )
-    expect(prevStepId(ONBOARDING_STEPS, relaunchDirty, 'verify')).toBe('review')
+    const open = ctx({ chat: PASSED })
+    expect(nextStepId(ONBOARDING_STEPS, open, 'chat')).toBe('extras')
   })
 
-  it('the memory step exists on the full branch only', () => {
-    const memory = ONBOARDING_STEPS.find((step) => step.id === 'memory')
-    expect(memory).toBeDefined()
-    expect(memory?.enabled?.(ctx({ branch: 'full' }))).toBe(true)
-    expect(memory?.enabled?.(ctx({ branch: 'quick' }))).toBe(false)
-    expect(memory?.enabled?.(ctx({ branch: 'summary' }))).toBe(false)
-    // Choosing a memory provider is never a precondition for finishing setup.
-    expect(memory?.validate).toBeUndefined()
-  })
-
-  it('the profile step exists on the full branch only', () => {
-    const profile = ONBOARDING_STEPS.find((step) => step.id === 'profile')
-    expect(profile).toBeDefined()
-    expect(profile?.enabled?.(ctx({ branch: 'full' }))).toBe(true)
-    expect(profile?.enabled?.(ctx({ branch: 'quick' }))).toBe(false)
-    expect(profile?.enabled?.(ctx({ branch: 'summary' }))).toBe(false)
-    // Activation is never a precondition for finishing setup.
-    expect(profile?.validate).toBeUndefined()
+  it('skips the welcome screen on a relaunch', () => {
+    const welcome = ONBOARDING_STEPS.find((step) => step.id === 'welcome')
+    expect(welcome?.enabled?.(ctx({ mode: 'first-run' }))).toBe(true)
+    expect(welcome?.enabled?.(ctx({ mode: 'relaunch' }))).toBe(false)
   })
 
   it('SUMMARY rail is empty', () => {
@@ -189,13 +142,21 @@ describe('ONBOARDING_STEPS rail', () => {
     expect(ids).toEqual([])
   })
 
-  it('provider, connect, and review are never optional', () => {
-    for (const branch of ['quick', 'full'] as const) {
-      for (const id of ['provider', 'connect', 'review'] as const) {
-        const step = ONBOARDING_STEPS.find((candidate) => candidate.id === id)
-        expect(step?.optional, `${id} in ${branch}`).not.toBe(true)
-      }
-    }
+  it('makes the chat step non-optional, so the footer offers no unlabelled Skip', () => {
+    // The escape hatch lives on the step body behind a warning that names what
+    // breaks. A footer Skip button would be a bypass with no explanation.
+    const chat = ONBOARDING_STEPS.find((step) => step.id === 'chat')
+    expect(chat?.optional).not.toBe(true)
+    expect(chat?.validate).toBeDefined()
+  })
+
+  it('makes connect and workspace skippable, and provider not', () => {
+    const optionality = Object.fromEntries(
+      ONBOARDING_STEPS.map((step) => [step.id, step.optional === true]),
+    )
+    expect(optionality.connect).toBe(true)
+    expect(optionality.workspace).toBe(true)
+    expect(optionality.provider).toBe(false)
   })
 
   it('welcome, finish, and summary are chromeless', () => {
@@ -206,9 +167,6 @@ describe('ONBOARDING_STEPS rail', () => {
   })
 
   it("the finish step's title matches FinishStep's own visible heading", () => {
-    // Both render on the same screen — the shell title above, the <h3> below.
-    // They disagreed ("You're set" vs "Setup complete"), and the former is not
-    // the house voice.
     const finish = ONBOARDING_STEPS.find((step) => step.id === 'finish')
     expect(finish?.title).toBe('Setup complete')
   })
@@ -217,43 +175,56 @@ describe('ONBOARDING_STEPS rail', () => {
     const ids = ONBOARDING_STEPS.map((step) => step.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
+})
 
-  it('system-check, verify, profile, memory, plugins, and theme are optional', () => {
-    for (const id of [
-      'system-check',
-      'verify',
-      'profile',
-      'memory',
-      'plugins',
-      'theme',
-    ] as const) {
-      const step = ONBOARDING_STEPS.find((candidate) => candidate.id === id)
-      expect(step?.optional).toBe(true)
+describe('retired step ids', () => {
+  it('keeps every retired id resolvable, so saved deep links do not dead-end', () => {
+    // `setup-wizard-store.ts` derives its deep-link allowlist from this table.
+    // An id dropped outright would normalise to `null` and dump the user on the
+    // front door instead of the step they asked for.
+    const ids = ONBOARDING_STEPS.map((step) => step.id)
+    for (const retired of Object.keys(RETIRED_STEP_ALIASES)) {
+      expect(ids, retired).toContain(retired)
     }
+  })
+
+  it('never enables a retired id on any ctx', () => {
+    for (const retired of Object.keys(RETIRED_STEP_ALIASES)) {
+      const step = ONBOARDING_STEPS.find(
+        (candidate) => candidate.id === retired,
+      )
+      for (const state of [CHAT_GATE_UNTESTED, PASSED, SKIPPED]) {
+        expect(step?.enabled?.(ctx({ chat: state })), retired).toBe(false)
+      }
+      expect(step?.enabled?.(ctx({ mode: 'relaunch' })), retired).toBe(false)
+    }
+  })
+
+  it('maps each retired id onto the step that took over its job', () => {
+    expect(resolveStepAlias('system-check')).toBe('connect')
+    expect(resolveStepAlias('review')).toBe('provider')
+    expect(resolveStepAlias('verify')).toBe('provider')
+    expect(resolveStepAlias('memory')).toBe('memory')
   })
 })
 
 describe('validateProviderStep', () => {
-  it('requires a provider', () => {
+  it('requires a provider on a fresh install', () => {
     expect(validateProviderStep(ctx())).toEqual([
       'Choose a provider to continue',
     ])
   })
 
-  it('passes once a provider is chosen', () => {
+  it('lets a configured install pass through untouched', () => {
+    // The relaunch case: nothing has been picked because nothing needed
+    // picking, and demanding a choice would trap a user who only came to look.
     expect(
-      validateProviderStep(ctx({ draft: draft({ providerId: 'anthropic' }) })),
+      validateProviderStep(ctx({ hasActiveProvider: true, dirty: false })),
     ).toEqual([])
-  })
-})
-
-describe('validateConnectStep', () => {
-  it("is silent when no provider is chosen yet — that is the provider step's job", () => {
-    expect(validateConnectStep(ctx())).toEqual([])
   })
 
   it('requires a base URL for an api-key provider with no catalog default', () => {
-    const errors = validateConnectStep(
+    const errors = validateProviderStep(
       ctx({
         draft: draft({ providerId: 'manifest', baseUrl: '' }),
         catalogBaseUrl: null,
@@ -265,30 +236,34 @@ describe('validateConnectStep', () => {
     )
   })
 
-  it('does not require a base URL once catalog default exists', () => {
-    const errors = validateConnectStep(
-      ctx({
-        draft: draft({ providerId: 'anthropic', baseUrl: '' }),
-        catalogBaseUrl: 'https://api.anthropic.com/v1',
-        hasStoredKey: true,
-      }),
-    )
-    expect(errors).toEqual([])
+  it('does not require a base URL once a catalog default exists', () => {
+    expect(
+      validateProviderStep(
+        ctx({
+          draft: draft({ providerId: 'anthropic', baseUrl: '' }),
+          catalogBaseUrl: 'https://api.anthropic.com/v1',
+          hasStoredKey: true,
+          saved: true,
+        }),
+      ),
+    ).toEqual([])
   })
 
   it('does not require a base URL for an oauth-only provider', () => {
-    const errors = validateConnectStep(
-      ctx({
-        draft: draft({ providerId: 'nous', baseUrl: '' }),
-        catalogBaseUrl: null,
-        hasStoredKey: true,
-      }),
-    )
-    expect(errors).toEqual([])
+    expect(
+      validateProviderStep(
+        ctx({
+          draft: draft({ providerId: 'nous', baseUrl: '' }),
+          catalogBaseUrl: null,
+          hasStoredKey: true,
+          saved: true,
+        }),
+      ),
+    ).toEqual([])
   })
 
   it('requires an API key for api-key providers when none is stored or typed', () => {
-    const errors = validateConnectStep(
+    const errors = validateProviderStep(
       ctx({
         draft: {
           ...draft({ providerId: 'anthropic', baseUrl: '' }),
@@ -303,53 +278,57 @@ describe('validateConnectStep', () => {
     )
   })
 
-  it('skips the API key requirement when a key is already stored', () => {
-    const errors = validateConnectStep(
-      ctx({
-        draft: draft({ providerId: 'anthropic' }),
-        catalogBaseUrl: 'https://api.anthropic.com/v1',
-        hasStoredKey: true,
-      }),
-    )
-    expect(errors).toEqual([])
-  })
-
-  it('skips the API key requirement when one has been typed', () => {
-    const errors = validateConnectStep(
-      ctx({
-        draft: { ...draft({ providerId: 'anthropic' }), apiKey: 'sk-typed' },
-        catalogBaseUrl: 'https://api.anthropic.com/v1',
-        hasStoredKey: false,
-      }),
-    )
-    expect(errors).toEqual([])
-  })
-})
-
-describe('validateReviewStep', () => {
-  it('blocks until saved', () => {
-    expect(validateReviewStep(ctx({ saved: false }))).toEqual([
-      'Press Save to write the configuration',
-    ])
-  })
-
-  it('passes once saved', () => {
-    expect(validateReviewStep(ctx({ saved: true }))).toEqual([])
+  it('asks for the save once the draft has been edited', () => {
+    expect(
+      validateProviderStep(
+        ctx({
+          draft: draft({ providerId: 'anthropic' }),
+          catalogBaseUrl: 'https://api.anthropic.com/v1',
+          hasStoredKey: true,
+          dirty: true,
+          saved: false,
+        }),
+      ),
+    ).toEqual(['Press “Save and verify” to write this provider and test it.'])
   })
 
   it('does not block when the run is not permitted to write', () => {
     // A locked relaunch disables Save and `save()` refuses, so `saved` can
-    // never become true. Requiring it made review a dead end: Next blocked
-    // forever, no Skip offered, only Back or Close. A step the user cannot
-    // complete must not be allowed to trap them.
-    expect(validateReviewStep(ctx({ saved: false, canWrite: false }))).toEqual(
-      [],
-    )
+    // never become true. Requiring it would make the step a dead end: Next
+    // blocked forever, no Skip offered, only Back or Close.
+    expect(
+      validateProviderStep(
+        ctx({
+          draft: draft({ providerId: 'anthropic' }),
+          catalogBaseUrl: 'https://api.anthropic.com/v1',
+          hasStoredKey: true,
+          dirty: true,
+          saved: false,
+          canWrite: false,
+        }),
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('validateChatStep', () => {
+  it('blocks until a completion has succeeded', () => {
+    expect(validateChatStep(ctx())).toEqual([
+      'Send one real message first — everything after this step depends on a completion succeeding.',
+    ])
   })
 
-  it('still blocks an unsaved review once writing is permitted again', () => {
-    expect(validateReviewStep(ctx({ saved: false, canWrite: true }))).toEqual([
-      'Press Save to write the configuration',
-    ])
+  it('passes once a completion has succeeded', () => {
+    expect(validateChatStep(ctx({ chat: PASSED }))).toEqual([])
+  })
+
+  it('passes once the user has accepted the skip warning', () => {
+    expect(validateChatStep(ctx({ chat: SKIPPED }))).toEqual([])
+  })
+
+  it("quotes the gateway's own error while it is failing", () => {
+    expect(validateChatStep(ctx({ chat: FAILED }))[0]).toContain(
+      '401 Unauthorized',
+    )
   })
 })

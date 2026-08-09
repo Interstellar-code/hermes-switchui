@@ -22,7 +22,7 @@ import type { VerifyOutcome } from '@/screens/providers/lib/verify-provider'
 import type { CorePluginRow } from './core-plugins'
 import type { OnboardingStepId } from './onboarding-steps'
 import type { ProfileChoice } from './profile-choices'
-import type { SystemCheck } from './system-checks'
+import type { TrustBoundary } from './trust-boundaries'
 import { THEMES } from '@/lib/theme'
 import { getMemoryProviderInfo } from '@/lib/memory-provider-catalog'
 import {
@@ -151,23 +151,25 @@ function isConfiguredRow(row: Record<string, unknown>): boolean {
 }
 
 /**
- * `buildSystemChecks` writes the capability summary as prose
- * ("6 of 6 enhanced capabilities are on: …"), which is the only place the
- * count exists. Reading the leading numbers back out keeps this module from
- * having to re-probe anything, and degrades to a plain reachability sentence
- * when the summary is missing or the shape changed.
+ * A one-line verdict for the "currently configured" strip, read off the
+ * UI → gateway hop.
+ *
+ * Deliberately not re-probing anything: `buildTrustBoundaries` has already
+ * classified the same payload, and a second opinion here is how the strip and
+ * the Connect step end up disagreeing on the same screen. A hop that has not
+ * answered yet yields `null` rather than a guess, which drops the row.
  */
-function connectionLabelFrom(checks: Array<SystemCheck>): string | null {
-  const capabilities = checks.find((check) => check.id === 'capabilities')
-  if (capabilities?.status === 'ok') {
-    const match = /^(\d+) of (\d+)/.exec(capabilities.detail)
-    if (match) {
-      return `Hermes gateway · ${match[1]} of ${match[2]} capabilities`
-    }
+function connectionLabelFrom(boundaries: Array<TrustBoundary>): string | null {
+  const hop = boundaries.find((entry) => entry.id === 'ui-gateway')
+  if (!hop) return null
+  if (hop.status === 'ok') return 'Hermes gateway · reachable'
+  // A 401 is not an outage, and the strip must not imply one.
+  if (hop.status === 'fail') {
+    return hop.heal === 'change-url'
+      ? 'Hermes gateway · refusing this token'
+      : 'Hermes gateway · not responding'
   }
-  const gateway = checks.find((check) => check.id === 'gateway')
-  if (gateway?.status === 'ok') return 'Hermes gateway · reachable'
-  if (gateway?.status === 'fail') return 'Hermes gateway · not responding'
+  if (hop.status === 'warn') return 'Hermes gateway · degraded'
   return null
 }
 
@@ -188,7 +190,8 @@ export function buildCurrentSetup(input: {
   /** The `/api/claude-config` payload, which may be null. */
   config: unknown
   pluginRows: Array<CorePluginRow>
-  checks: Array<SystemCheck>
+  /** The three hops from `buildTrustBoundaries`, for the connection line. */
+  boundaries: Array<TrustBoundary>
   themeId: ThemeId
   verifyOutcome: VerifyOutcome | null
   /**
@@ -301,7 +304,7 @@ export function buildCurrentSetup(input: {
     enabledPlugins,
     corePluginCount: coreRows.length,
     gatewayUrl,
-    connectionLabel: connectionLabelFrom(input.checks),
+    connectionLabel: connectionLabelFrom(input.boundaries),
     verifiedModelCount:
       input.verifyOutcome?.status === 'confirmed'
         ? input.verifyOutcome.modelCount
@@ -358,16 +361,42 @@ export function factsForStep(
   if (!setup.anythingConfigured) return []
 
   switch (stepId) {
+    // Retired ids are never rendered (see `onboarding-steps.ts`), but the
+    // switch has to stay exhaustive over `OnboardingStepId`.
     case 'system-check':
+    case 'connect':
       return meaningful([
         fact('gateway-url', 'Gateway', setup.gatewayUrl),
         fact('connection', 'Connection', setup.connectionLabel, 'active'),
       ])
 
+    case 'review':
+    case 'verify':
     case 'provider': {
+      const providerId = options?.providerId
+        ? canonicalProviderId(options.providerId)
+        : null
       const others = setup.configuredProviderIds.filter(
         (id) => id !== setup.activeProviderId,
       ).length
+      // Once a provider is selected the useful context is that provider's own
+      // credential and endpoint — what used to live on the separate connect
+      // step, now that choosing and connecting are one screen.
+      if (providerId) {
+        return meaningful([
+          fact(
+            'key',
+            'Credential',
+            credentialValue(setup.storedKeyEnvs[providerId]),
+          ),
+          fact(
+            'base-url',
+            'Base URL',
+            setup.providerBaseUrls[providerId] ?? null,
+          ),
+          fact('model', 'Model', setup.providerModels[providerId] ?? null),
+        ])
+      }
       return meaningful([
         fact('provider', 'Active provider', setup.activeProviderName, 'active'),
         fact('model', 'Active model', setup.activeModel),
@@ -379,45 +408,13 @@ export function factsForStep(
       ])
     }
 
-    case 'connect': {
-      const providerId = options?.providerId
-        ? canonicalProviderId(options.providerId)
-        : null
-      if (!providerId) return []
-      return meaningful([
-        fact(
-          'key',
-          'API key',
-          credentialValue(setup.storedKeyEnvs[providerId]),
-        ),
-        fact(
-          'base-url',
-          'Base URL',
-          setup.providerBaseUrls[providerId] ?? null,
-        ),
-        fact('model', 'Model', setup.providerModels[providerId] ?? null),
-      ])
-    }
-
-    case 'review':
-      // Framed as a replacement, so the YAML below reads as a change to a
-      // working setup rather than a first write.
-      return meaningful([
-        fact(
-          'provider',
-          'Replacing provider',
-          setup.activeProviderName,
-          'active',
-        ),
-        fact('model', 'Replacing model', setup.activeModel),
-      ])
-
-    case 'verify':
+    case 'chat':
       return meaningful([
         fact('provider', 'Active provider', setup.activeProviderName, 'active'),
+        fact('model', 'Active model', setup.activeModel),
         fact(
           'models',
-          'Verified',
+          'Catalogue',
           setup.verifiedModelCount === null
             ? null
             : plural(setup.verifiedModelCount, 'model'),
@@ -449,7 +446,11 @@ export function factsForStep(
     case 'theme':
       return meaningful([fact('theme', 'Theme', setup.themeLabel, 'active')])
 
-    // The three chromeless steps already lead with their own summaries.
+    // The workspace step leads with `/api/agent-cwd`, which is a live read
+    // this module has no access to and must not second-guess; the chromeless
+    // steps and the extras hub lead with their own summaries.
+    case 'workspace':
+    case 'extras':
     case 'summary':
     case 'welcome':
     case 'finish':

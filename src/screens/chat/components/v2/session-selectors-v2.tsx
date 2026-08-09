@@ -58,7 +58,7 @@ import type {
   ThinkingLevel,
   WorkspaceDetectionResponse,
 } from '../chat-composer-types'
-import type { Project } from '@/lib/projects-types'
+import type { Project, SessionProjectRef } from '@/lib/projects-types'
 import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import {
   Popover,
@@ -106,6 +106,24 @@ type SelectableWorkspace = {
 
 function readModelText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * `/api/plugins/projects/session/{id}` (see `_resolve_session()` in the
+ * gateway's `plugins/projects/dashboard/plugin_api.py`) deliberately returns
+ * only `{id, slug, name}` — `SessionProjectRef` — never `icon`/`color`. A
+ * plain `'icon' in selectedProject` check does not narrow a
+ * `Project | SessionProjectRef` union to `Project`: `SessionProjectRef`
+ * doesn't declare `icon` at all, so TS's `in`-narrowing intersects it with
+ * `Record<'icon', unknown>` instead of excluding it, leaving `.icon` typed
+ * as `{}` and `.color` missing entirely. An explicit predicate sidesteps
+ * that and actually narrows to `Project`, which is what the icon/color
+ * render branch below needs.
+ */
+function hasProjectVisuals(
+  project: Project | SessionProjectRef,
+): project is Project {
+  return 'icon' in project && 'color' in project
 }
 
 function normalizeProfiles(value: unknown): Array<SelectableProfile> {
@@ -509,7 +527,9 @@ function SessionSelectorsV2Component({
       sessionProject)
     : null
   const selectedProjectDetails =
-    selectedProject && 'icon' in selectedProject ? selectedProject : null
+    selectedProject && hasProjectVisuals(selectedProject)
+      ? selectedProject
+      : null
   const projectButtonLabel = selectedProject?.name || 'No project'
   const projectSelectionIsBinding =
     sessionProjectQuery.data?.source === 'binding'

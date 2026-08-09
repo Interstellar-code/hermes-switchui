@@ -27,6 +27,8 @@ const SectionNotifications = lazy(() => import('./sections/section-notifications
 const SectionProvider = lazy(() => import('./sections/section-provider'))
 const SectionModelRegistry = lazy(() => import('./sections/section-model-registry'))
 const SectionAgentRuntime = lazy(() => import('./sections/section-agent-runtime'))
+const SectionExecution = lazy(() => import('./sections/section-execution'))
+const SectionGateway = lazy(() => import('./sections/section-gateway'))
 const SectionMemoryWiki = lazy(() => import('./sections/section-memory-wiki'))
 const SectionSkills = lazy(() => import('./sections/section-skills'))
 const SectionMcpServers = lazy(() => import('./sections/section-mcp-servers'))
@@ -54,6 +56,8 @@ const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   provider: SectionProvider,
   'model-registry': SectionModelRegistry,
   'agent-runtime': SectionAgentRuntime,
+  execution: SectionExecution,
+  gateway: SectionGateway,
   'memory-wiki': SectionMemoryWiki,
   skills: SectionSkills,
   workflows: SectionWorkflows,
@@ -94,6 +98,8 @@ const SECTIONS: Array<SectionDef> = [
   { id: 'model-registry', label: 'Model Registry', group: 'Models', p: 3 },
   // Agent
   { id: 'agent-runtime', label: 'Runtime', group: 'Agent', p: 3 },
+  { id: 'execution', label: 'Execution', group: 'Agent', p: 5 },
+  { id: 'gateway', label: 'Gateway', group: 'Agent', p: 5 },
   // Memory
   { id: 'memory-wiki', label: 'Memory & Wiki', group: 'Memory', p: 4 },
   // Skills

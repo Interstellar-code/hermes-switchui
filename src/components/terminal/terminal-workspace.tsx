@@ -19,7 +19,10 @@ import { MatrixRainCanvas } from '@/components/terminal/matrix-rain-canvas'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { clampContextMenuPosition } from '@/lib/context-menu'
-import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
+import {
+  DEFAULT_TERMINAL_CWD,
+  useTerminalPanelStore,
+} from '@/stores/terminal-panel-store'
 import { useProjects } from '@/lib/projects-api'
 import { fetchAgentCwd } from '@/screens/chat/components/chat-composer-services'
 import {
@@ -84,8 +87,11 @@ type SplitMode = 'single' | 'horizontal' | 'vertical'
  * from `terminal.cwd` in the profile config, possibly on a different backend
  * entirely. `cd`-ing in here moves nothing for the agent. The footer shows both
  * so the two are never read as one.
+ *
+ * DEFAULT_TERMINAL_CWD is imported from terminal-panel-store.ts, the single
+ * source of truth for the terminal's default cwd — see that file's doc
+ * comment for why '~/.hermes' was chosen over the store's previous '~'.
  */
-const DEFAULT_TERMINAL_CWD = '~/.hermes'
 const MAX_RECONNECT_ATTEMPTS = 4
 
 export function TerminalWorkspace({

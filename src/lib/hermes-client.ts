@@ -488,11 +488,54 @@ export async function setModelAssignment(body: {
 
 // ── Env vars ─────────────────────────────────────────────────────
 
+/**
+ * What `PUT`/`DELETE /api/env` report back. These endpoints are not thin
+ * `.env` writers — the gateway runs `hermes_cli/credential_lifecycle.py`,
+ * which reconciles all three credential stores (the `.env` file, any
+ * `config.yaml` mirrors, and the `auth.json` credential pool) — see the
+ * matching `CredentialWriteResult` doc comment in
+ * `src/server/claude-dashboard-api.ts`. Every field here is the evidence
+ * that reconciliation happened (or didn't); a caller that discards this body
+ * silently hides a rewritten config.yaml or a warning that a stale pooled
+ * copy may still be in effect. All fields are optional/defensive: this type
+ * is shared across two related response shapes (the raw dashboard `/api/env`
+ * response, and the workspace's own reconciling wrapper on
+ * `/api/claude-config`) and we do not want a missing field to throw.
+ */
+export type EnvWriteResult = {
+  ok?: boolean
+  key?: string
+  /** `config.yaml` mirror paths rewritten to the new value. */
+  config_updates?: Array<string>
+  /** `config.yaml` mirror paths removed outright. */
+  config_scrubbed?: Array<string>
+  /** Providers whose env-seeded `credential_pool` entries were pruned. */
+  pool_pruned?: Array<string>
+  providers?: Array<string>
+  removed?: boolean
+  found?: boolean
+  /** False when a local-only fallback write could not fully reconcile. */
+  credentialsReconciled?: boolean
+  warnings?: Array<string> | string
+}
+
+async function parseEnvWriteResult(res: Response): Promise<EnvWriteResult> {
+  try {
+    const body = (await res.json()) as unknown
+    return body && typeof body === 'object' ? body : {}
+  } catch {
+    return {}
+  }
+}
+
 export async function getEnv(): Promise<Record<string, EnvVarInfo>> {
   return proxyGet('/api/env')
 }
 
-export async function putEnv(key: string, value: string): Promise<void> {
+export async function putEnv(
+  key: string,
+  value: string,
+): Promise<EnvWriteResult> {
   const res = await proxyFetch('/api/env', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -502,9 +545,10 @@ export async function putEnv(key: string, value: string): Promise<void> {
     const text = await res.text().catch(() => '')
     throw new Error(`Hermes Dashboard API PUT /api/env: ${res.status} ${text}`)
   }
+  return parseEnvWriteResult(res)
 }
 
-export async function deleteEnv(key: string): Promise<void> {
+export async function deleteEnv(key: string): Promise<EnvWriteResult> {
   const res = await proxyFetch('/api/env', {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
@@ -516,6 +560,7 @@ export async function deleteEnv(key: string): Promise<void> {
       `Hermes Dashboard API DELETE /api/env: ${res.status} ${text}`,
     )
   }
+  return parseEnvWriteResult(res)
 }
 
 export async function revealEnv(

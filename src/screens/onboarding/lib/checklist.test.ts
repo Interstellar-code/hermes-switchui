@@ -1,13 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildChecklist, outstandingCount } from './checklist'
+import {
+  buildChecklist,
+  outstandingCount,
+  outstandingRequiredCount,
+} from './checklist'
 import { ONBOARDING_DRAFT_VERSION } from './onboarding-storage'
+import type { BuildChecklistInput } from './checklist'
 import type { OnboardingDraft, OnboardingOutcome } from './onboarding-storage'
 
 function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return {
     version: ONBOARDING_DRAFT_VERSION,
-    branch: 'full',
+    branch: 'main',
     stepId: 'plugins',
     providerId: 'anthropic',
     baseUrl: '',
@@ -24,306 +29,213 @@ function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
 
 const FRESH: OnboardingOutcome = { kind: 'fresh' }
 
+function input(
+  overrides: Partial<BuildChecklistInput> = {},
+): BuildChecklistInput {
+  return {
+    outcome: FRESH,
+    draft: draft(),
+    activeProvider: null,
+    gatewayReachable: null,
+    chatProven: false,
+    agentCwd: null,
+    agentCwdExplicit: false,
+    pluginsTouched: false,
+    profileTouched: false,
+    memoryTouched: false,
+    ...overrides,
+  }
+}
+
+function stateOf(items: ReturnType<typeof buildChecklist>, id: string) {
+  return items.find((entry) => entry.id === id)?.state
+}
+
 describe('buildChecklist', () => {
+  it('lists the four required items first, and flags them as required', () => {
+    const items = buildChecklist(input())
+    expect(items.slice(0, 4).map((entry) => entry.id)).toEqual([
+      'connect',
+      'provider',
+      'workspace',
+      'chat',
+    ])
+    expect(items.slice(0, 4).every((entry) => entry.required)).toBe(true)
+    expect(items.slice(4).some((entry) => entry.required)).toBe(false)
+  })
+
   it('provider is done when there is an active provider', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft(),
-      activeProvider: 'anthropic',
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'provider')?.state).toBe('done')
+    const items = buildChecklist(input({ activeProvider: 'anthropic' }))
+    expect(stateOf(items, 'provider')).toBe('done')
   })
 
   it('provider is todo, never skipped, even if listed in draft.skipped', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['provider'] }),
-      activeProvider: null,
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'provider')?.state).toBe('todo')
+    const items = buildChecklist(
+      input({ draft: draft({ skipped: ['provider'] }), activeProvider: null }),
+    )
+    expect(stateOf(items, 'provider')).toBe('todo')
   })
 
-  it('verify is blocked when there is no active provider yet', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft(),
-      activeProvider: null,
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'verify')?.state).toBe('blocked')
+  it('chat is blocked while there is no active provider', () => {
+    expect(stateOf(buildChecklist(input()), 'chat')).toBe('blocked')
   })
 
-  it('verify is skipped when listed in draft.skipped and a provider exists', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['verify'] }),
-      activeProvider: 'anthropic',
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'verify')?.state).toBe('skipped')
+  it('chat is todo once a provider exists, and done once a completion succeeds', () => {
+    expect(
+      stateOf(buildChecklist(input({ activeProvider: 'anthropic' })), 'chat'),
+    ).toBe('todo')
+    expect(
+      stateOf(
+        buildChecklist(
+          input({ activeProvider: 'anthropic', chatProven: true }),
+        ),
+        'chat',
+      ),
+    ).toBe('done')
   })
 
-  it('verify is done when verified is true, regardless of skipped', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['verify'] }),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'verify')?.state).toBe('done')
+  it('blocks every optional item until the chat has been settled', () => {
+    // The same rule the step table enforces, applied to the list the dashboard
+    // card renders: inviting a user to "set up memory" on an install that
+    // cannot complete a sentence is the twelve-step wizard's mistake, smaller.
+    const items = buildChecklist(input({ activeProvider: 'anthropic' }))
+    for (const id of ['profile', 'memory', 'plugins', 'theme']) {
+      expect(stateOf(items, id), id).toBe('blocked')
+    }
   })
 
-  it('plugins is done only when pluginsTouched is true — a 200 from enable is not enough on its own', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft(),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'plugins')?.state).toBe('todo')
+  it('unblocks the optional items once a completion has succeeded', () => {
+    const items = buildChecklist(
+      input({ activeProvider: 'anthropic', chatProven: true }),
+    )
+    for (const id of ['profile', 'memory', 'plugins', 'theme']) {
+      expect(stateOf(items, id), id).toBe('todo')
+    }
   })
 
-  it('profile is done only when profileTouched is true — a 200 from activate is not enough', () => {
-    // Activation writes the `~/.hermes/active_profile` pointer and nothing
-    // else; the gateway does not re-read it until it restarts, so this item
-    // is treated exactly like the plugins one.
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft(),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'profile')?.state).toBe('todo')
-    expect(items.find((i) => i.id === 'profile')?.goTo).toBe('profile')
+  it('unblocks the optional items when the chat step was explicitly skipped', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        draft: draft({ skipped: ['chat'] }),
+      }),
+    )
+    expect(stateOf(items, 'chat')).toBe('skipped')
+    expect(stateOf(items, 'profile')).toBe('todo')
   })
 
-  it('profile is skipped when the step was skipped, and done once touched', () => {
-    const skipped = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['profile'] }),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(skipped.find((i) => i.id === 'profile')?.state).toBe('skipped')
+  // ── connect ───────────────────────────────────────────────────────────────
 
-    const touched = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['profile'] }),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: true,
-      memoryTouched: false,
-    })
-    expect(touched.find((i) => i.id === 'profile')?.state).toBe('done')
+  it('connect reports "not checked" rather than a failure when nothing probed', () => {
+    const items = buildChecklist(input({ gatewayReachable: null }))
+    expect(stateOf(items, 'connect')).toBe('todo')
+    expect(items.find((entry) => entry.id === 'connect')?.detail).toContain(
+      'Not checked',
+    )
   })
 
-  it('memory is done only when memoryTouched is true — a 200 from the PATCH is not enough', () => {
-    // The write only rewrites `~/.hermes/config.yaml`; `agent_init.py` reads
-    // `memory.provider` once, at gateway startup, so this item is treated
-    // exactly like the profile and plugins ones.
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft(),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: true,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'memory')?.state).toBe('todo')
-    expect(items.find((i) => i.id === 'memory')?.goTo).toBe('memory')
+  it('connect is done when the gateway answered', () => {
+    expect(
+      stateOf(buildChecklist(input({ gatewayReachable: true })), 'connect'),
+    ).toBe('done')
   })
 
-  it('memory is skipped when the step was skipped, and done once touched', () => {
-    const skipped = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['memory'] }),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: true,
-      memoryTouched: false,
-    })
-    expect(skipped.find((i) => i.id === 'memory')?.state).toBe('skipped')
+  // ── workspace ─────────────────────────────────────────────────────────────
 
-    const touched = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['memory'] }),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: true,
-      memoryTouched: true,
-    })
-    expect(touched.find((i) => i.id === 'memory')?.state).toBe('done')
+  it('workspace is done only when terminal.cwd was set explicitly', () => {
+    const fallback = buildChecklist(
+      input({ agentCwd: '/home/tester', agentCwdExplicit: false }),
+    )
+    expect(stateOf(fallback, 'workspace')).toBe('todo')
+    expect(
+      fallback.find((entry) => entry.id === 'workspace')?.detail,
+    ).toContain('Falling back to /home/tester')
+
+    const explicit = buildChecklist(
+      input({ agentCwd: '/srv/code', agentCwdExplicit: true }),
+    )
+    expect(stateOf(explicit, 'workspace')).toBe('done')
+    expect(
+      explicit.find((entry) => entry.id === 'workspace')?.detail,
+    ).toContain('/srv/code')
   })
 
-  it('falls back to the outcome skipped list once the draft is gone', () => {
-    const complete: OnboardingOutcome = {
+  // ── the persisted record stands in for live probes ────────────────────────
+
+  it('falls back to the completion record once the draft is gone', () => {
+    const outcome: OnboardingOutcome = {
       kind: 'complete',
       at: 1,
-      branch: 'full',
+      branch: 'main',
       skipped: ['theme'],
-      completed: [],
+      completed: ['connect', 'chat', 'workspace', 'plugins'],
     }
-    const items = buildChecklist({
-      outcome: complete,
-      draft: null,
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.find((i) => i.id === 'theme')?.state).toBe('skipped')
+    const items = buildChecklist(
+      input({ outcome, draft: null, activeProvider: 'anthropic' }),
+    )
+    expect(stateOf(items, 'connect')).toBe('done')
+    expect(stateOf(items, 'chat')).toBe('done')
+    expect(stateOf(items, 'workspace')).toBe('done')
+    expect(stateOf(items, 'plugins')).toBe('done')
+    expect(stateOf(items, 'theme')).toBe('skipped')
   })
 
-  it('with no draft and a non-complete outcome, nothing is skipped', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: null,
-      activeProvider: null,
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.every((i) => i.state !== 'skipped')).toBe(true)
-  })
-
-  it('derives verify/profile/memory/plugins from the completion record once the draft is gone', () => {
-    // The exact state a finished full run leaves behind: the draft is deleted
-    // by `handleFinish`, so `completed` on the outcome is the only evidence
-    // that verify, profile, memory and plugins were done. Without it every
-    // out-of-wizard consumer reports them outstanding forever.
-    const complete: OnboardingOutcome = {
+  it('prefers the draft over the completion record while a run is in flight', () => {
+    const outcome: OnboardingOutcome = {
       kind: 'complete',
       at: 1,
-      branch: 'full',
+      branch: 'main',
       skipped: [],
-      completed: [
-        'verify',
-        'profile',
-        'memory',
-        'plugins',
-        'theme',
-        'system-check',
-      ],
+      completed: ['plugins'],
     }
-    const items = buildChecklist({
-      outcome: complete,
-      draft: null,
-      activeProvider: 'anthropic',
-      // All four false, exactly as `use-onboarding-checklist` passes them
-      // outside a live wizard session.
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(items.map((item) => item.state)).toEqual([
-      'done',
-      'done',
-      'done',
-      'done',
-      'done',
-      'done',
-      'done',
-    ])
-    expect(outstandingCount(items)).toBe(0)
-  })
-
-  it('a completion record with no `completed` field leaves items outstanding', () => {
-    // Tolerant read: a record written before `completed` existed is still a
-    // valid completion, it simply cannot prove any step was done.
-    const items = buildChecklist({
-      outcome: {
-        kind: 'complete',
-        at: 1,
-        branch: 'quick',
-        skipped: [],
-        completed: [],
-      },
-      draft: null,
-      activeProvider: 'anthropic',
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    expect(outstandingCount(items)).toBe(6)
-  })
-
-  it('goTo matches each item id 1:1 with a step id', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft(),
-      activeProvider: null,
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    for (const item of items) {
-      expect(item.goTo).toBe(item.id)
-    }
+    const items = buildChecklist(
+      input({
+        outcome,
+        draft: draft({ completed: [], skipped: ['plugins'] }),
+        activeProvider: 'anthropic',
+        chatProven: true,
+      }),
+    )
+    expect(stateOf(items, 'plugins')).toBe('skipped')
   })
 })
 
 describe('outstandingCount', () => {
-  it('counts todo and skipped, not done or blocked', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ skipped: ['theme'] }),
-      activeProvider: null,
-      verified: false,
-      pluginsTouched: false,
-      profileTouched: false,
-      memoryTouched: false,
-    })
-    // provider: todo, verify: blocked (no provider), profile: todo,
-    // memory: todo, plugins: todo, theme: skipped, system-check: todo
-    // → 5 todo + 1 skipped = 6
-    expect(outstandingCount(items)).toBe(6)
+  it('counts todo and skipped, never blocked', () => {
+    // A blocked item is not a task the user is behind on, and counting it
+    // produced a sidebar badge that could never reach zero.
+    const items = buildChecklist(input())
+    expect(items.some((entry) => entry.state === 'blocked')).toBe(true)
+    expect(outstandingCount(items)).toBe(
+      items.filter(
+        (entry) => entry.state === 'todo' || entry.state === 'skipped',
+      ).length,
+    )
   })
 
-  it('is zero once everything is done', () => {
-    const items = buildChecklist({
-      outcome: FRESH,
-      draft: draft({ completed: ['theme', 'system-check'] }),
-      activeProvider: 'anthropic',
-      verified: true,
-      pluginsTouched: true,
-      profileTouched: true,
-      memoryTouched: true,
-    })
+  it('reaches zero when everything is done', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        gatewayReachable: true,
+        chatProven: true,
+        agentCwdExplicit: true,
+        pluginsTouched: true,
+        profileTouched: true,
+        memoryTouched: true,
+        draft: draft({ completed: ['theme'] }),
+      }),
+    )
     expect(outstandingCount(items)).toBe(0)
+    expect(outstandingRequiredCount(items)).toBe(0)
+  })
+})
+
+describe('outstandingRequiredCount', () => {
+  it('counts only the four the docs call required, including blocked ones', () => {
+    // Unlike `outstandingCount`, a blocked *required* item absolutely counts:
+    // "you cannot do this yet" is precisely why setup is not finished.
+    const items = buildChecklist(input())
+    expect(outstandingRequiredCount(items)).toBe(4)
   })
 })

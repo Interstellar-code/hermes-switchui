@@ -14,7 +14,7 @@ import { buildProfileChoices } from './profile-choices'
 import type { CurrentSetup } from './current-setup'
 import type { CorePluginRow } from './core-plugins'
 import type { OnboardingStepId } from './onboarding-steps'
-import type { SystemCheck } from './system-checks'
+import type { TrustBoundary } from './trust-boundaries'
 
 const SECRET = 'sk-live-do-not-leak-0987654321'
 
@@ -44,19 +44,19 @@ const CONFIG = {
   ],
 }
 
-const CHECKS: Array<SystemCheck> = [
+const BOUNDARIES: Array<TrustBoundary> = [
   {
-    id: 'gateway',
-    label: 'Gateway reachable',
+    id: 'browser-ui',
+    label: 'Browser → Switch UI',
     status: 'ok',
-    detail: 'The gateway responded to a health check.',
+    detail: 'Signed in.',
     heal: null,
   },
   {
-    id: 'capabilities',
-    label: 'Capability summary',
+    id: 'ui-gateway',
+    label: 'Switch UI → Hermes gateway',
     status: 'ok',
-    detail: '6 of 6 enhanced capabilities are on: sessions, skills.',
+    detail: 'Reachable at http://127.0.0.1:8642.',
     heal: null,
   },
 ]
@@ -86,7 +86,7 @@ function configured(): CurrentSetup {
   return buildCurrentSetup({
     config: CONFIG,
     pluginRows: PLUGIN_ROWS,
-    checks: CHECKS,
+    boundaries: BOUNDARIES,
     themeId: 'claude-nous',
     verifyOutcome: { status: 'confirmed', modelCount: 42, message: 'ok' },
     gatewayUrl: 'http://127.0.0.1:8642',
@@ -98,7 +98,7 @@ function fresh(overrides?: { config?: unknown }): CurrentSetup {
   return buildCurrentSetup({
     config: overrides && 'config' in overrides ? overrides.config : null,
     pluginRows: [],
-    checks: [],
+    boundaries: [],
     themeId: 'matrix',
     verifyOutcome: null,
   })
@@ -141,7 +141,7 @@ describe('buildCurrentSetup', () => {
     expect(setup.themeLabel).toBe('Nous')
     expect(setup.enabledPlugins).toEqual(['kanban', 'projects'])
     expect(setup.corePluginCount).toBe(3)
-    expect(setup.connectionLabel).toBe('Hermes gateway · 6 of 6 capabilities')
+    expect(setup.connectionLabel).toBe('Hermes gateway · reachable')
     expect(setup.gatewayUrl).toBe('http://127.0.0.1:8642')
     expect(setup.verifiedModelCount).toBe(42)
     expect(setup.activeProfileName).toBe('Neo')
@@ -152,7 +152,7 @@ describe('buildCurrentSetup', () => {
     const fromPayload = buildCurrentSetup({
       config: CONFIG,
       pluginRows: [],
-      checks: [],
+      boundaries: [],
       themeId: 'matrix',
       verifyOutcome: null,
       profiles: PROFILES_PAYLOAD,
@@ -167,7 +167,7 @@ describe('buildCurrentSetup', () => {
     const setup = buildCurrentSetup({
       config: CONFIG,
       pluginRows: [],
-      checks: [],
+      boundaries: [],
       themeId: 'matrix',
       verifyOutcome: null,
       profiles: { profiles: [{ name: 'neo' }] },
@@ -180,7 +180,7 @@ describe('buildCurrentSetup', () => {
       const setup = buildCurrentSetup({
         config: CONFIG,
         pluginRows: [],
-        checks: [],
+        boundaries: [],
         themeId: 'matrix',
         verifyOutcome: null,
         profiles,
@@ -195,7 +195,7 @@ describe('buildCurrentSetup', () => {
     const setup = buildCurrentSetup({
       config: null,
       pluginRows: [],
-      checks: [],
+      boundaries: [],
       themeId: 'matrix',
       verifyOutcome: null,
       profiles: PROFILES_PAYLOAD,
@@ -244,7 +244,7 @@ describe('buildCurrentSetup', () => {
         providers: [],
       },
       pluginRows: [],
-      checks: [],
+      boundaries: [],
       themeId: 'matrix',
       verifyOutcome: null,
     })
@@ -252,22 +252,43 @@ describe('buildCurrentSetup', () => {
     expect(setup.providerBaseUrls.groq).toBe('https://groq.example/v1')
   })
 
-  it('falls back to plain reachability when no capability summary landed', () => {
+  it('never renders a 401 as an outage in the connection line', () => {
+    // The strip and the Connect step read the same hop, so they cannot end up
+    // disagreeing about whether the gateway is down or merely refusing us.
     const setup = buildCurrentSetup({
       config: CONFIG,
       pluginRows: [],
-      checks: [CHECKS[0]],
+      boundaries: [
+        {
+          id: 'ui-gateway',
+          label: 'Switch UI → Hermes gateway',
+          status: 'fail',
+          detail: 'The gateway answered with 401 Unauthorized.',
+          heal: 'change-url',
+        },
+      ],
       themeId: 'matrix',
       verifyOutcome: null,
     })
-    expect(setup.connectionLabel).toBe('Hermes gateway · reachable')
+    expect(setup.connectionLabel).toBe('Hermes gateway · refusing this token')
+  })
+
+  it('reports nothing at all until the hop has answered', () => {
+    const setup = buildCurrentSetup({
+      config: CONFIG,
+      pluginRows: [],
+      boundaries: [],
+      themeId: 'matrix',
+      verifyOutcome: null,
+    })
+    expect(setup.connectionLabel).toBeNull()
   })
 
   it('reports no verified count until verification is actually confirmed', () => {
     const setup = buildCurrentSetup({
       config: CONFIG,
       pluginRows: [],
-      checks: [],
+      boundaries: [],
       themeId: 'matrix',
       verifyOutcome: {
         status: 'pending-restart',
@@ -338,30 +359,37 @@ describe('factsForStep', () => {
     `)
   })
 
-  it('keys the connect facts off the provider it is passed', () => {
+  it('keys the provider facts off the provider it is passed', () => {
+    // Choosing and connecting are one step now, so once a provider is selected
+    // the useful context is that provider's own credential and endpoint —
+    // what used to lead the separate connect step.
     const setup = configured()
 
-    const anthropic = factsForStep('connect', setup, {
+    const anthropic = factsForStep('provider', setup, {
       providerId: 'anthropic',
     })
     expect(anthropic[0]).toMatchObject({
-      label: 'API key',
+      label: 'Credential',
       value: 'Stored in ANTHROPIC_API_KEY',
       state: 'set',
     })
 
-    const nous = factsForStep('connect', setup, { providerId: 'nous' })
+    const nous = factsForStep('provider', setup, { providerId: 'nous' })
     expect(nous[0].value).toBe('Stored in the gateway auth store')
 
     // A provider with nothing stored and nothing written has nothing to say.
-    expect(factsForStep('connect', setup, { providerId: 'openai' })).toEqual([])
-
-    // And with no provider chosen there is no question to answer.
-    expect(factsForStep('connect', setup)).toEqual([])
+    expect(factsForStep('provider', setup, { providerId: 'openai' })).toEqual(
+      [],
+    )
   })
 
-  it('resolves the connect facts through the legacy provider alias', () => {
-    const facts = factsForStep('connect', configured(), {
+  it('falls back to the active provider when nothing is selected yet', () => {
+    const facts = factsForStep('provider', configured())
+    expect(facts.map((entry) => entry.label)).toContain('Active provider')
+  })
+
+  it('resolves the provider facts through the legacy provider alias', () => {
+    const facts = factsForStep('provider', configured(), {
       providerId: 'manifest',
     })
     expect(facts.map((entry) => entry.value)).toContain(
@@ -369,12 +397,21 @@ describe('factsForStep', () => {
     )
   })
 
-  it('frames the review step as a replacement', () => {
-    const facts = factsForStep('review', configured())
-    expect(facts.map((entry) => entry.label)).toEqual([
-      'Replacing provider',
-      'Replacing model',
-    ])
+  it('leads the connect step with the gateway it is talking to', () => {
+    const facts = factsForStep('connect', configured())
+    expect(facts.map((entry) => entry.label)).toEqual(['Gateway', 'Connection'])
+  })
+
+  it('says nothing on the steps that lead with their own live reads', () => {
+    for (const id of [
+      'workspace',
+      'extras',
+      'summary',
+      'welcome',
+      'finish',
+    ] as const) {
+      expect(factsForStep(id, configured()), id).toEqual([])
+    }
   })
 
   it('counts core plugins without counting this app', () => {
@@ -417,7 +454,7 @@ describe('factsForStep', () => {
         config: { ...CONFIG.config, memory: { provider: 'some-fork' } },
       },
       pluginRows: PLUGIN_ROWS,
-      checks: CHECKS,
+      boundaries: BOUNDARIES,
       themeId: 'matrix',
       verifyOutcome: null,
     })
@@ -432,7 +469,7 @@ describe('factsForStep', () => {
           config: { ...CONFIG.config, memory },
         },
         pluginRows: PLUGIN_ROWS,
-        checks: CHECKS,
+        boundaries: BOUNDARIES,
         themeId: 'matrix',
         verifyOutcome: null,
       })
@@ -449,10 +486,10 @@ describe('factsForStep', () => {
     })
   })
 
-  it('leads the system check with the gateway it is talking to', () => {
+  it('leads the Connect step with the gateway it is talking to', () => {
     expect(
-      factsForStep('system-check', configured()).map((entry) => entry.value),
-    ).toEqual(['http://127.0.0.1:8642', 'Hermes gateway · 6 of 6 capabilities'])
+      factsForStep('connect', configured()).map((entry) => entry.value),
+    ).toEqual(['http://127.0.0.1:8642', 'Hermes gateway · reachable'])
   })
 
   it('never puts a credential in a fact, for any step', () => {

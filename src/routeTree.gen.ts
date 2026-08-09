@@ -72,6 +72,7 @@ import { Route as ApiLocalProvidersRouteImport } from './routes/api/local-provid
 import { Route as ApiIntegrationsRouteImport } from './routes/api/integrations'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiHermesPluginRouteImport } from './routes/api/hermes-plugin'
+import { Route as ApiHermesDocsRouteImport } from './routes/api/hermes-docs'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-status'
 import { Route as ApiGatewayReprobeRouteImport } from './routes/api/gateway-reprobe'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
@@ -548,6 +549,11 @@ const ApiHistoryRoute = ApiHistoryRouteImport.update({
 const ApiHermesPluginRoute = ApiHermesPluginRouteImport.update({
   id: '/api/hermes-plugin',
   path: '/api/hermes-plugin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHermesDocsRoute = ApiHermesDocsRouteImport.update({
+  id: '/api/hermes-docs',
+  path: '/api/hermes-docs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
@@ -1458,6 +1464,7 @@ export interface FileRoutesByFullPath {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-docs': typeof ApiHermesDocsRoute
   '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
@@ -1683,6 +1690,7 @@ export interface FileRoutesByTo {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-docs': typeof ApiHermesDocsRoute
   '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
@@ -1911,6 +1919,7 @@ export interface FileRoutesById {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-docs': typeof ApiHermesDocsRoute
   '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
   '/api/integrations': typeof ApiIntegrationsRoute
@@ -2140,6 +2149,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-docs'
     | '/api/hermes-plugin'
     | '/api/history'
     | '/api/integrations'
@@ -2365,6 +2375,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-docs'
     | '/api/hermes-plugin'
     | '/api/history'
     | '/api/integrations'
@@ -2592,6 +2603,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-docs'
     | '/api/hermes-plugin'
     | '/api/history'
     | '/api/integrations'
@@ -2820,6 +2832,7 @@ export interface RootRouteChildren {
   ApiFilesRoute: typeof ApiFilesRoute
   ApiGatewayReprobeRoute: typeof ApiGatewayReprobeRoute
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
+  ApiHermesDocsRoute: typeof ApiHermesDocsRoute
   ApiHermesPluginRoute: typeof ApiHermesPluginRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
   ApiIntegrationsRoute: typeof ApiIntegrationsRoute
@@ -3364,6 +3377,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hermes-plugin'
       fullPath: '/api/hermes-plugin'
       preLoaderRoute: typeof ApiHermesPluginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hermes-docs': {
+      id: '/api/hermes-docs'
+      path: '/api/hermes-docs'
+      fullPath: '/api/hermes-docs'
+      preLoaderRoute: typeof ApiHermesDocsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/gateway-status': {
@@ -5102,6 +5122,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilesRoute: ApiFilesRoute,
   ApiGatewayReprobeRoute: ApiGatewayReprobeRoute,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
+  ApiHermesDocsRoute: ApiHermesDocsRoute,
   ApiHermesPluginRoute: ApiHermesPluginRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
   ApiIntegrationsRoute: ApiIntegrationsRoute,

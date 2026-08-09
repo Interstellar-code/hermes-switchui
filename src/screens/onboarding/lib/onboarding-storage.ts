@@ -30,14 +30,23 @@ export const ONBOARDING_KEYS = {
 
 export const ONBOARDING_COMPLETE_EVENT = 'claude:onboarding-complete'
 
-/** Bump when `OnboardingDraft`'s shape changes. A mismatch discards, never migrates. */
-export const ONBOARDING_DRAFT_VERSION = 2
+/**
+ * Bump when `OnboardingDraft`'s shape changes. A mismatch discards, never
+ * migrates.
+ *
+ * 3 — the quick/full fork is gone (see `onboarding-steps.ts`), so `branch` is
+ * now `'main'`. A version-2 draft names a branch that no longer exists and a
+ * step id that may have been retired, so discarding it is the correct read:
+ * the user resumes at the front of the new flow instead of at a step the
+ * wizard would have to reconcile them off anyway.
+ */
+export const ONBOARDING_DRAFT_VERSION = 3
 
 export type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
 
 export type OnboardingDraft = {
   version: number
-  branch: 'quick' | 'full'
+  branch: 'main'
   stepId: OnboardingStepId
   providerId: string | null
   baseUrl: string
@@ -140,7 +149,7 @@ function isDraftShape(value: unknown): value is OnboardingDraft {
   return (
     record.version === ONBOARDING_DRAFT_VERSION &&
     typeof record.stepId === 'string' &&
-    (record.branch === 'quick' || record.branch === 'full') &&
+    record.branch === 'main' &&
     Array.isArray(record.skipped) &&
     Array.isArray(record.completed)
   )

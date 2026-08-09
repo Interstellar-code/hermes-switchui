@@ -1,46 +1,35 @@
 'use client'
 
 /**
- * summary-step.tsx — where a returning user (and every relaunch) lands.
+ * summary-step.tsx — the read-only overview a deep link can still land on.
  *
- * This step is the relaunch write-lock made visible. While `locked` it
- * renders no control that can write config: not a Save, not a toggle, not a
- * field. "Change setup" only calls `onUnlock`, which flips the lock and drops
- * the user into the editable flow — it writes nothing by itself, and the copy
- * says so, because a screen that shows a working configuration next to a
- * button is exactly where a user assumes the button will overwrite it.
+ * No longer the front door: a relaunch opens on the first real step, because
+ * a returning user opening "Setup Wizard" already knows what they came for and
+ * a landing page they have to click through is friction with nothing behind
+ * it. It remains in the step table because the dashboard card, the palette and
+ * `openSetupWizard('summary')` all point at it, and because a first run that
+ * discovers an already-configured install has nothing better to show.
  *
- * The checklist's "Open" buttons navigate; navigation is not a write, and
- * `canWriteConfig` keeps refusing on every step until the unlock happens.
+ * It renders no control that writes. "Continue to setup" only navigates;
+ * `canWriteConfig` still refuses on every step until the run is unlocked.
  */
 import { OnboardingChecklist } from '../components/onboarding-checklist'
 import type { ChecklistItem } from '../lib/checklist'
 import type { OnboardingStepId } from '../lib/onboarding-steps'
-import type { SystemCheck } from '../lib/system-checks'
 import { WizardNote } from '@/components/wizard'
 
 export type SummaryStepProps = {
   activeProvider: string | null
   activeModel: string | null
-  checks: Array<SystemCheck>
+  /** `Online` / `Offline` / `Unknown`, derived by the caller. */
+  connection: string
+  /** Where the agent actually runs, when it is known. */
+  agentCwd: string | null
   items: Array<ChecklistItem>
   onJump: (stepId: OnboardingStepId) => void
   onUnlock: () => void
   onClose: () => void
   locked: boolean
-}
-
-/**
- * The gateway check is the one that answers "is this setup actually live".
- * Anything short of a definite answer reads as `Unknown`, never as broken —
- * the same rule `system-checks.ts` applies to the checks themselves.
- */
-function connectionLabel(checks: Array<SystemCheck>): string {
-  const gateway = checks.find((check) => check.id === 'gateway')
-  if (!gateway) return 'Unknown'
-  if (gateway.status === 'ok') return 'Online'
-  if (gateway.status === 'fail') return 'Offline'
-  return 'Unknown'
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -55,7 +44,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 export function SummaryStep({
   activeProvider,
   activeModel,
-  checks,
+  connection,
+  agentCwd,
   items,
   onJump,
   onUnlock,
@@ -67,13 +57,14 @@ export function SummaryStep({
       <div className="ob-summary-grid">
         <Stat label="Provider" value={activeProvider || 'None'} />
         <Stat label="Model" value={activeModel || 'None'} />
-        <Stat label="Connection" value={connectionLabel(checks)} />
+        <Stat label="Connection" value={connection} />
+        <Stat label="Agent runs in" value={agentCwd || 'Unknown'} />
       </div>
 
       <WizardNote tone={locked ? 'warn' : 'info'}>
         {locked
-          ? 'Your existing setup is read-only here. Nothing is written to config.yaml or .env unless you choose Change setup first.'
-          : 'Changes are unlocked for this run. Saving on the review step will write to config.yaml.'}
+          ? 'Your existing setup is read-only here. Nothing is written to config.yaml or .env unless you choose Continue to setup first.'
+          : 'Nothing on this screen writes. The provider step is the only one that touches config.yaml, and only when you press Save.'}
       </WizardNote>
 
       <OnboardingChecklist items={items} onJump={onJump} />
@@ -87,7 +78,7 @@ export function SummaryStep({
           className="wz-btn wz-btn-primary"
           onClick={onUnlock}
         >
-          Change setup
+          {locked ? 'Change setup' : 'Continue to setup'}
         </button>
       </div>
     </div>

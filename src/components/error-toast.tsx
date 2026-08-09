@@ -25,9 +25,20 @@ function classifyError(raw: string): string {
     lower.includes('403') ||
     lower.includes('unauthorized') ||
     lower.includes('invalid api key') ||
+    lower.includes('invalid_api_key') ||
     lower.includes('api key')
   ) {
-    return 'Authentication error — check your API key in Settings'
+    // There are two distinct secrets that can produce this exact error
+    // shape and there is no reliable way to tell them apart from the raw
+    // text alone: the workspace→gateway bearer token (HERMES_API_TOKEN /
+    // API_SERVER_KEY) and the gateway→provider key. A mismatched gateway
+    // token makes the gateway itself return `invalid_api_key` on OpenAI-
+    // compatible endpoints (see openai-compat-api.ts's getBearerToken()
+    // doc comment) — the identical shape a bad provider key produces. Name
+    // both real secrets instead of guessing one, and point at the Settings
+    // section that actually exists (`api-keys`, labelled "API Keys") rather
+    // than a generic "Settings" that has no such single destination.
+    return 'Authentication error — check the Hermes gateway token (HERMES_API_TOKEN / API_SERVER_KEY) or the provider API key in Settings → API Keys'
   }
   if (
     lower.includes('500') ||

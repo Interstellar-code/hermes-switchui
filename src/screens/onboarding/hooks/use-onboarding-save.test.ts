@@ -4,10 +4,10 @@
  * `lib/relaunch-lock.test.ts`; what is asserted here is that the 20-second
  * verify poll cannot outlive the step it belongs to.
  *
- * This hook lives on the flow component, not on `VerifyStep`, so unmounting
- * the wizard is *not* the only way to leave verify — back, forward, or a jump
+ * This hook lives on the flow component, not on the step body, so unmounting
+ * the wizard is *not* the only way to leave the provider step — back, forward, or a jump
  * from the summary checklist all leave the wizard mounted and used to leave
- * `verifyProviderVisible` hitting /api/models every 1.5s for the rest of its
+ * `verifyProviderAfterSave` hitting /api/models every 1.5s for the rest of its
  * budget, with a stale outcome landing after the user had moved on.
  */
 import React from 'react'
@@ -21,7 +21,7 @@ import type { OnboardingStepId } from '../lib/onboarding-steps'
 const verifySignals: Array<AbortSignal | undefined> = []
 
 vi.mock('@/screens/providers/lib/verify-provider', () => ({
-  verifyProviderVisible: (
+  verifyProviderAfterSave: (
     _providerId: string,
     options?: { signal?: AbortSignal },
   ) => {
@@ -30,7 +30,6 @@ vi.mock('@/screens/providers/lib/verify-provider', () => ({
     // the abort the hook is supposed to issue.
     return new Promise(() => undefined)
   },
-  sendLiveTestPrompt: () => Promise.resolve({ ok: true, message: 'ok' }),
 }))
 
 const restartMutate = vi.fn(() => Promise.resolve({}))
@@ -67,7 +66,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
     vi.unstubAllGlobals()
   })
 
-  it('aborts the poll when the current step leaves verify', async () => {
+  it('aborts the poll when the current step leaves the provider step', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
@@ -78,7 +77,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
       ),
     )
 
-    const { result, rerender } = renderSave('verify')
+    const { result, rerender } = renderSave('provider')
 
     await act(async () => {
       void result.current.verify('ollama')
@@ -96,7 +95,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
     expect(signal!.aborted).toBe(true)
   })
 
-  it('a later return to verify gets a fresh, un-aborted controller', async () => {
+  it('a later return to the provider step gets a fresh, un-aborted controller', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() =>
@@ -107,15 +106,15 @@ describe('useOnboardingSave — verify poll lifetime', () => {
       ),
     )
 
-    const { result, rerender } = renderSave('verify')
+    const { result, rerender } = renderSave('provider')
 
     await act(async () => {
       void result.current.verify('ollama')
       // Let the hook's state updates flush; the poll itself never settles.
       await Promise.resolve()
     })
-    rerender({ stepId: 'review' })
-    rerender({ stepId: 'verify' })
+    rerender({ stepId: 'workspace' })
+    rerender({ stepId: 'provider' })
 
     await act(async () => {
       void result.current.verify('ollama')
@@ -129,7 +128,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
   })
 
   it('offers no gateway restart while locked, and refuses one if called', async () => {
-    // Same class as the plugins/system-check leak: the verify step is
+    // Same class as the plugins/system-check leak: the provider step is
     // reachable from a locked relaunch (the summary checklist links straight
     // to it), and "Restart gateway now" bounces the user's running gateway.
     vi.stubGlobal(
@@ -147,7 +146,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
         useOnboardingSave({
           mode: 'relaunch',
           unlocked: false,
-          stepId: 'verify',
+          stepId: 'provider',
         }),
       { wrapper },
     )
@@ -162,7 +161,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
         useOnboardingSave({
           mode: 'relaunch',
           unlocked: true,
-          stepId: 'verify',
+          stepId: 'provider',
         }),
       { wrapper },
     )
@@ -183,7 +182,7 @@ describe('useOnboardingSave — verify poll lifetime', () => {
       ),
     )
 
-    const { result, unmount } = renderSave('verify')
+    const { result, unmount } = renderSave('provider')
 
     await act(async () => {
       void result.current.verify('ollama')

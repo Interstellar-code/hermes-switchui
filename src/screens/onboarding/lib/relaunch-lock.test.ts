@@ -5,7 +5,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { useCorePlugins } from '../hooks/use-core-plugins'
-import { useSystemChecks } from '../hooks/use-system-checks'
+import { useConnectStatus } from '../hooks/use-connect-status'
 import { canWriteConfig } from './relaunch-lock'
 import { ONBOARDING_STEPS } from './onboarding-steps'
 import type { OnboardingStepId } from './onboarding-steps'
@@ -163,12 +163,17 @@ describe('the lock covers every mutation the wizard can perform', () => {
     expect(restartMutate).not.toHaveBeenCalled()
   })
 
-  it('useSystemChecks.heal issues no self-heal request while locked', async () => {
+  it('useConnectStatus.heal issues no self-heal request while locked', async () => {
     const fetchMock = vi.fn<FetchMock>(okResponse)
     vi.stubGlobal('fetch', fetchMock)
 
     const { result } = renderHook(
-      () => useSystemChecks({ enabled: true, canWrite: false }),
+      () =>
+        useConnectStatus({
+          enabled: true,
+          canWrite: false,
+          activeProvider: null,
+        }),
       { wrapper },
     )
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
@@ -187,12 +192,17 @@ describe('the lock covers every mutation the wizard can perform', () => {
     expect(restartMutate).not.toHaveBeenCalled()
   })
 
-  it('useSystemChecks.heal runs again once unlocked', async () => {
+  it('useConnectStatus.heal runs again once unlocked', async () => {
     const fetchMock = vi.fn<FetchMock>(okResponse)
     vi.stubGlobal('fetch', fetchMock)
 
     const { result } = renderHook(
-      () => useSystemChecks({ enabled: true, canWrite: true }),
+      () =>
+        useConnectStatus({
+          enabled: true,
+          canWrite: true,
+          activeProvider: null,
+        }),
       { wrapper },
     )
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
