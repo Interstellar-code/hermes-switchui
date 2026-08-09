@@ -712,6 +712,138 @@
     color: var(--m-text, var(--theme-text));
   }
 
+  /* ── agent profile picker ─────────────────────────────────────────────── */
+  /* Reuses the provider grid's state grammar on purpose: `.ob-badge-active`
+     and the accent outline below are the same "this is the one you are
+     running" signal `.ob-prov.is-active` establishes, so the two steps do not
+     teach two visual languages for one idea. One card per row rather than a
+     grid — a profile carries a role, a description and a model, which is more
+     than a 200px provider tile has to say. */
+  .ob-profiles {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ob-profile {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-bg-deep, var(--theme-bg));
+  }
+  .ob-profile.is-active {
+    border-color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+    outline: 1px solid
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent)) 45%,
+        transparent
+      );
+    outline-offset: 2px;
+  }
+  /* Same footprint as `.ob-prov-fallback` — a profile's monogram and a
+     provider's are the same kind of mark. */
+  .ob-profile-glyph {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    align-self: start;
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 5px;
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+    font: 700 11px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.02em;
+    color: var(--m-green-500, var(--theme-accent));
+  }
+  .ob-profile-body {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .ob-profile-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font: 600 11.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .ob-profile-role {
+    margin: 0;
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-profile-desc {
+    margin: 0;
+    font: 400 10.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  /* Also carries the step's read-only line and its link out to the Agents
+     screen, which is why it is typography only and sets no grid placement. */
+  .ob-profile-meta {
+    margin: 0;
+    font: 400 10.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-faint, var(--theme-muted));
+    overflow-wrap: anywhere;
+  }
+  .ob-profile-meta a {
+    color: var(--m-green-500, var(--theme-accent));
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .ob-profile-meta a:focus-visible {
+    outline: 1px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 2px;
+  }
+  /* Tier is the archetype rank the Agents screen sorts on; the colour is a
+     second channel behind the "Tier N" text, never the only one. */
+  .ob-tier {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-pill, 9999px);
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-tier.is-t1 {
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: color-mix(
+      in srgb,
+      var(--m-green-500, var(--theme-accent)) 45%,
+      transparent
+    );
+  }
+  .ob-tier.is-t2 {
+    color: var(--m-green-300, var(--theme-accent-secondary));
+    border-color: color-mix(
+      in srgb,
+      var(--m-green-300, var(--theme-accent-secondary)) 35%,
+      transparent
+    );
+  }
+  .ob-tier.is-t3 {
+    color: var(--m-text-muted, var(--theme-muted));
+    border-color: color-mix(
+      in srgb,
+      var(--m-text-muted, var(--theme-muted)) 35%,
+      transparent
+    );
+  }
+
   /* ── theme picker ─────────────────────────────────────────────────────── */
   .ob-themes {
     display: grid;
@@ -897,6 +1029,16 @@
     }
     .ob-themes {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* A glyph, a description and an Activate button cannot share a 292px
+       line. The button drops to its own row under the text instead. */
+    .ob-profile {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .ob-profile > .wz-btn {
+      grid-column: 1 / -1;
+      justify-self: start;
     }
 
     /* A label plus a right-aligned detail cannot share a 292px line without

@@ -49,19 +49,34 @@ describe('ONBOARDING_STEPS rail', () => {
     expect(ids).toEqual(['provider', 'connect', 'review', 'verify'])
   })
 
-  it('FULL rail is exactly system-check, provider, connect, review, verify, plugins, theme', () => {
+  it('FULL rail is exactly system-check, provider, connect, review, verify, profile, plugins, theme', () => {
     const ids = railSteps(ONBOARDING_STEPS, ctx({ branch: 'full' })).map(
       (step) => step.id,
     )
+    // `profile` sits after `verify` and before `plugins`: switching the agent
+    // identity only makes sense once the provider behind it is known to work,
+    // and it shares the plugins step's "nothing happens until the gateway
+    // restarts" caveat, so the two read as one band.
     expect(ids).toEqual([
       'system-check',
       'provider',
       'connect',
       'review',
       'verify',
+      'profile',
       'plugins',
       'theme',
     ])
+  })
+
+  it('the profile step exists on the full branch only', () => {
+    const profile = ONBOARDING_STEPS.find((step) => step.id === 'profile')
+    expect(profile).toBeDefined()
+    expect(profile?.enabled?.(ctx({ branch: 'full' }))).toBe(true)
+    expect(profile?.enabled?.(ctx({ branch: 'quick' }))).toBe(false)
+    expect(profile?.enabled?.(ctx({ branch: 'summary' }))).toBe(false)
+    // Activation is never a precondition for finishing setup.
+    expect(profile?.validate).toBeUndefined()
   })
 
   it('SUMMARY rail is empty', () => {
@@ -100,8 +115,14 @@ describe('ONBOARDING_STEPS rail', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('system-check, verify, plugins, and theme are optional', () => {
-    for (const id of ['system-check', 'verify', 'plugins', 'theme'] as const) {
+  it('system-check, verify, profile, plugins, and theme are optional', () => {
+    for (const id of [
+      'system-check',
+      'verify',
+      'profile',
+      'plugins',
+      'theme',
+    ] as const) {
       const step = ONBOARDING_STEPS.find((candidate) => candidate.id === id)
       expect(step?.optional).toBe(true)
     }

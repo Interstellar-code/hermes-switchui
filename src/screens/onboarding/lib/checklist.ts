@@ -19,6 +19,7 @@ import type { OnboardingDraft, OnboardingOutcome } from './onboarding-storage'
 export type ChecklistItemId =
   | 'provider'
   | 'verify'
+  | 'profile'
   | 'plugins'
   | 'theme'
   | 'system-check'
@@ -39,6 +40,14 @@ export function buildChecklist(input: {
   activeProvider: string | null
   verified: boolean
   pluginsTouched: boolean
+  /**
+   * Whether this session actually activated a profile. Treated exactly like
+   * `pluginsTouched` and for the same reason: a 200 from
+   * `/api/profiles/activate` only writes the `~/.hermes/active_profile`
+   * pointer, and the gateway does not read it again until it restarts — so
+   * "the API returned OK" is not the same as "this is done".
+   */
+  profileTouched: boolean
 }): Array<ChecklistItem> {
   const completeOutcome =
     input.outcome.kind === 'complete' ? input.outcome : null
@@ -52,6 +61,7 @@ export function buildChecklist(input: {
   // has and nobody else does.
   const verified = input.verified || completed.has('verify')
   const pluginsTouched = input.pluginsTouched || completed.has('plugins')
+  const profileTouched = input.profileTouched || completed.has('profile')
 
   function stateFor(
     id: ChecklistItemId,
@@ -81,6 +91,13 @@ export function buildChecklist(input: {
       detail: verified ? 'Verified.' : 'Not verified yet.',
       state: stateFor('verify', verified, !input.activeProvider),
       goTo: 'verify',
+    },
+    {
+      id: 'profile',
+      label: 'Choose an agent profile',
+      detail: profileTouched ? 'Chosen.' : 'Not chosen yet.',
+      state: stateFor('profile', profileTouched, false),
+      goTo: 'profile',
     },
     {
       id: 'plugins',

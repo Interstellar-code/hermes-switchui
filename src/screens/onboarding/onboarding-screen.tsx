@@ -27,6 +27,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useCorePlugins } from './hooks/use-core-plugins'
+import { useOnboardingProfiles } from './hooks/use-onboarding-profiles'
 import { useOnboardingSave } from './hooks/use-onboarding-save'
 import { useSystemChecks } from './hooks/use-system-checks'
 import { buildChecklist } from './lib/checklist'
@@ -48,6 +49,7 @@ import { useOnboardingGate } from './lib/use-onboarding-gate'
 import { ConnectStep } from './steps/connect-step'
 import { FinishStep } from './steps/finish-step'
 import { PluginsStep } from './steps/plugins-step'
+import { ProfileStep } from './steps/profile-step'
 import { ProviderStep } from './steps/provider-step'
 import { ReviewStep } from './steps/review-step'
 import { SummaryStep } from './steps/summary-step'
@@ -88,6 +90,7 @@ const CONFIG_QUERY_KEY = ['onboarding', 'claude-config'] as const
 /** Steps that only exist on the `full` branch. */
 const FULL_ONLY: ReadonlySet<OnboardingStepId> = new Set([
   'system-check',
+  'profile',
   'plugins',
   'theme',
 ])
@@ -300,6 +303,10 @@ function OnboardingFlow({
 
   const system = useSystemChecks({ enabled: true, canWrite })
   const plugins = useCorePlugins({ enabled: branch === 'full', canWrite })
+  const profiles = useOnboardingProfiles({
+    enabled: branch === 'full',
+    canWrite,
+  })
 
   // Refreshed during render so callbacks below read the live draft without
   // taking it as a dependency. Declared here rather than beside the
@@ -505,8 +512,16 @@ function OnboardingFlow({
         activeProvider,
         verified: saveApi.verifyOutcome?.status === 'confirmed',
         pluginsTouched: plugins.touched,
+        profileTouched: profiles.touched,
       }),
-    [activeProvider, draft, outcome, plugins.touched, saveApi.verifyOutcome],
+    [
+      activeProvider,
+      draft,
+      outcome,
+      plugins.touched,
+      profiles.touched,
+      saveApi.verifyOutcome,
+    ],
   )
 
   // QUICK never renders the system-check step, but a failing check is still
@@ -532,11 +547,13 @@ function OnboardingFlow({
         themeId: initialTheme,
         verifyOutcome: saveApi.verifyOutcome ?? null,
         gatewayUrl: system.gatewayUrl,
+        profiles: profiles.choices,
       }),
     [
       config,
       initialTheme,
       plugins.rows,
+      profiles.choices,
       saveApi.verifyOutcome,
       system.checks,
       system.gatewayUrl,
@@ -662,6 +679,21 @@ function OnboardingFlow({
             liveTesting={saveApi.liveTesting}
             onLiveTest={() => void saveApi.liveTest()}
             facts={factsFor('verify')}
+          />
+        )
+
+      case 'profile':
+        return (
+          <ProfileStep
+            choices={profiles.choices}
+            activeName={profiles.activeName}
+            loading={profiles.loading}
+            error={profiles.error}
+            onActivate={(name) => void profiles.activate(name)}
+            activating={profiles.activating}
+            canWrite={canWrite}
+            needsRestart={profiles.needsRestart}
+            facts={factsFor('profile')}
           />
         )
 
