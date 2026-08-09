@@ -31,6 +31,14 @@ export type ConnectStepProps = {
   errors: Array<string>
   hasStoredKey: boolean
   systemCheckWarning: string | null
+  /**
+   * False during a locked relaunch. Editing the draft is always safe — it is
+   * never persisted in relaunch mode — but the OAuth device flow is not a
+   * draft edit: it writes tokens into the gateway's auth store the moment the
+   * user approves. A screen that promises the existing setup is read-only
+   * must not offer it.
+   */
+  canWrite: boolean
 }
 
 /** The model selector, always rendered — a `<select>` when the backend
@@ -105,6 +113,7 @@ export function ConnectStep({
   errors,
   hasStoredKey,
   systemCheckWarning,
+  canWrite,
 }: ConnectStepProps) {
   const oauth = useNousOAuth()
   const [copiedCli, setCopiedCli] = useState(false)
@@ -151,7 +160,15 @@ export function ConnectStep({
         <WizardNote tone="warn">{systemCheckWarning}</WizardNote>
       ) : null}
 
-      {choice.authKind === 'oauth' && choice.supportsOAuth ? (
+      {choice.authKind === 'oauth' && choice.supportsOAuth && !canWrite ? (
+        <WizardNote>
+          Signing in to {choice.name} would replace the credentials this
+          workspace already uses. Choose “Change setup” on the summary screen
+          first if that is what you want.
+        </WizardNote>
+      ) : null}
+
+      {choice.authKind === 'oauth' && choice.supportsOAuth && canWrite ? (
         <div className="ob-oauth">
           {oauth.stage === 'idle' || oauth.stage === 'error' ? (
             <>
