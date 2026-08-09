@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { getProfileClaudeHome } from './claude-paths'
+import { getHermesRoot, getProfileClaudeHome } from './claude-paths'
 
 export type DelegationStatus = 'running' | 'completed' | 'failed'
 
@@ -43,19 +43,28 @@ const STALE_AFTER_SECONDS = 180
 
 /** Derive a delegation's lifecycle status. `nowSeconds` is injected for testability. */
 export function deriveDelegationStatus(
-  row: Pick<DelegationRow, 'ended_at' | 'end_reason' | 'last_active' | 'started_at'>,
+  row: Pick<
+    DelegationRow,
+    'ended_at' | 'end_reason' | 'last_active' | 'started_at'
+  >,
   nowSeconds: number,
 ): DelegationStatus {
   if (row.ended_at) {
-    return row.end_reason && FAILURE_END_REASON.test(row.end_reason) ? 'failed' : 'completed'
+    return row.end_reason && FAILURE_END_REASON.test(row.end_reason)
+      ? 'failed'
+      : 'completed'
   }
   const lastRef = row.last_active ?? row.started_at
-  if (lastRef != null && nowSeconds - lastRef > STALE_AFTER_SECONDS) return 'completed'
+  if (lastRef != null && nowSeconds - lastRef > STALE_AFTER_SECONDS)
+    return 'completed'
   return 'running'
 }
 
 /** Map a raw sqlite row to the API delegation shape. */
-export function toDelegation(row: DelegationRow, nowSeconds = Date.now() / 1000): Delegation {
+export function toDelegation(
+  row: DelegationRow,
+  nowSeconds = Date.now() / 1000,
+): Delegation {
   return {
     childSessionId: row.id,
     agentId: row.agent_id,
