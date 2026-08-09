@@ -8,6 +8,12 @@
  * `verify-provider.ts`. Nothing here fires on mount — verification and the
  * live test both spend a real request (the live test spends tokens too), so
  * the parent decides when that is worth doing.
+ *
+ * `providerId` empty is a real state, not a bug to paper over: it means the
+ * draft has no provider *and* the workspace has none configured. Verification
+ * has nothing to ask about, so this step says so in prose rather than
+ * rendering a Verify button whose handler cannot do anything — a control that
+ * looks live and no-ops is worse than no control.
  */
 import { CurrentSetupStrip } from '../components/current-setup-strip'
 import type { SetupFact } from '../lib/current-setup'
@@ -62,37 +68,47 @@ export function VerifyStep({
   onLiveTest,
   facts,
 }: VerifyStepProps) {
+  const hasProvider = providerId.trim().length > 0
   const stateModifier = outcome ? ` ${STATE_CLASS[outcome.status]}` : ''
-  const stateMessage = verifying
-    ? `Checking whether the gateway can see ${providerId}…`
-    : outcome
-      ? outcome.message
-      : 'Not verified yet — press Verify connection to check.'
+  const stateMessage = !hasProvider
+    ? 'There is no provider to verify yet.'
+    : verifying
+      ? `Checking whether the gateway can see ${providerId}…`
+      : outcome
+        ? outcome.message
+        : 'Not verified yet — press Verify connection to check.'
 
   return (
     <div className="ob-verify">
       <CurrentSetupStrip facts={facts} />
       <div className={`ob-verify-state${stateModifier}`} role="status">
-        {outcome && !verifying ? (
+        {outcome && !verifying && hasProvider ? (
           <span className="wz-sr">{STATE_LABEL[outcome.status]}. </span>
         ) : null}
         {stateMessage}
       </div>
 
-      <div className="ob-verify-actions">
-        <button
-          type="button"
-          className="wz-btn wz-btn-primary"
-          disabled={verifying}
-          onClick={onVerify}
-        >
-          {verifying
-            ? 'Verifying…'
-            : outcome
-              ? 'Verify again'
-              : 'Verify connection'}
-        </button>
-      </div>
+      {hasProvider ? (
+        <div className="ob-verify-actions">
+          <button
+            type="button"
+            className="wz-btn wz-btn-primary"
+            disabled={verifying}
+            onClick={onVerify}
+          >
+            {verifying
+              ? 'Verifying…'
+              : outcome
+                ? 'Verify again'
+                : 'Verify connection'}
+          </button>
+        </div>
+      ) : (
+        <WizardNote tone="warn">
+          Choose a provider on the Provider step — this workspace has none
+          configured, so there is nothing for the gateway to report on yet.
+        </WizardNote>
+      )}
 
       {outcome && outcome.status !== 'confirmed' ? (
         canRestart ? (

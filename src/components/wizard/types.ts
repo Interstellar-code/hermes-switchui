@@ -34,6 +34,19 @@ export type WizardState<TId extends string = string> = {
   finished: boolean
 }
 
+/**
+ * Navigation policy, passed alongside `ctx` rather than stored in state: it is
+ * a property of the consumer's mode (first run vs settings surface), not of
+ * where the user currently stands.
+ */
+export type WizardNavOptions = {
+  /**
+   * Make every *active* step reachable, instead of only visited steps plus the
+   * one immediately ahead. Defaults to false.
+   */
+  freeNavigation?: boolean
+}
+
 export type WizardAction<TId extends string = string> =
   | { type: 'GOTO'; id: TId }
   | { type: 'NEXT' }

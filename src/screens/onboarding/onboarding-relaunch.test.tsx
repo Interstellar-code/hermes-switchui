@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 /**
- * Ported verbatim in intent from `claude-onboarding.relaunch.test.tsx`: the
- * six contracts that make the sidebar's "Setup Wizard" entry safe to click on
- * a working install. The wizard underneath changed completely; what must not
- * change is that a relaunch writes nothing until the user says so.
+ * The contracts that make the sidebar's "Setup Wizard" entry safe to click on
+ * a working install.
+ *
+ * The shape of that safety changed. It used to be a lock: a relaunch opened on
+ * a read-only summary and could not write until the user pressed "Change
+ * setup". That bought nothing the flow did not already guarantee — every write
+ * in this wizard is behind an explicit press on a labelled control (Save,
+ * Activate, Enable, Use, Restart), and a click-through of Next writes nothing —
+ * while costing a returning user the ability to toggle a plugin or fix a
+ * provider without a ceremony first. So the default flipped, and what is
+ * asserted here is the guarantee that was always the real one: **a relaunch
+ * writes nothing until the user presses a write control.**
+ *
+ * The lock itself is not gone and is not untested — `relaunch-lock.test.ts`
+ * pins `canWriteConfig` across the full mode × step × unlocked matrix, and
+ * pins that every mutating hook refuses when handed `canWrite: false`.
  *
  * "No writes" is asserted as "no PATCH to /api/claude-config was issued at
  * all", not as "the request failed" — a request that reaches the server and
@@ -42,6 +54,25 @@ const CURRENT_CONFIG = {
   providers: [{ id: 'manifest', name: 'Interstellar', configured: true }],
 }
 
+// `useCorePlugins` reads the hub through the browser-safe client, not fetch,
+// so the plugins step needs this to render real rows with real controls.
+const enableAgentPlugin = vi.fn((_name: string) => Promise.resolve({}))
+const disableAgentPlugin = vi.fn((_name: string) => Promise.resolve({}))
+
+vi.mock('@/lib/hermes-client', () => ({
+  enableAgentPlugin: (name: string) => enableAgentPlugin(name),
+  disableAgentPlugin: (name: string) => disableAgentPlugin(name),
+  getPluginsHub: () =>
+    Promise.resolve({
+      plugins: [
+        // `bundled` + a non-enabled runtime status is exactly the combination
+        // `buildCorePluginRows` turns into an `enable` action.
+        { name: 'personas', source: 'bundled', runtimeStatus: 'disabled' },
+        { name: 'mcp_lazy', source: 'bundled', runtimeStatus: 'enabled' },
+      ],
+    }),
+}))
+
 function jsonResponse(body: unknown) {
   return Promise.resolve({
     ok: true,
@@ -65,7 +96,10 @@ function installFetchMock() {
       return jsonResponse(GATEWAY_STATUS)
     }
     if (url.startsWith('/api/models')) {
-      return jsonResponse({ data: [{ id: 'llama3', provider: 'ollama' }] })
+      return jsonResponse({
+        configuredProviders: ['manifest'],
+        models: [{ id: 'glm-4.6', provider: 'manifest' }],
+      })
     }
     return jsonResponse({})
   })
@@ -81,11 +115,30 @@ function configWrites(fetchMock: ReturnType<typeof installFetchMock>) {
   )
 }
 
+function modelReads(fetchMock: ReturnType<typeof installFetchMock>) {
+  return fetchMock.mock.calls.filter(([input]) =>
+    String(input).startsWith('/api/models'),
+  )
+}
+
 function renderScreen(ui: ReactElement) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
+/** The rail step buttons, in order, by their visible label. */
+function railLabels(): Array<string> {
+  return screen
+    .getAllByRole('button', { name: /^Step \d+ of \d+: / })
+    .map((button) => button.textContent.replace(/^\d+|✓/, '').trim())
+}
+
+function railButton(label: string): HTMLButtonElement {
+  return screen.getByRole('button', {
+    name: new RegExp(`^Step \\d+ of \\d+: ${label}`),
+  })
 }
 
 /** provider → connect → review, from the provider step. */
@@ -105,6 +158,8 @@ describe('OnboardingScreen relaunch mode', () => {
   afterEach(() => {
     cleanup()
     vi.unstubAllGlobals()
+    enableAgentPlugin.mockClear()
+    disableAgentPlugin.mockClear()
     localStorage.clear()
   })
 
@@ -112,7 +167,6 @@ describe('OnboardingScreen relaunch mode', () => {
     installFetchMock()
     renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
     expect(await screen.findByTestId('wizard-onboarding')).toBeTruthy()
-    expect(screen.getByText('Change setup')).toBeTruthy()
   })
 
   it('stays hidden when the controlled prop is false', () => {
@@ -123,47 +177,233 @@ describe('OnboardingScreen relaunch mode', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  it('does not write provider config while the existing setup is locked', async () => {
-    const fetchMock = installFetchMock()
+  // ── where a relaunch lands ───────────────────────────────────────────────
+
+  it('opens on the stepped system-check view, not the summary', async () => {
+    installFetchMock()
     renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
 
-    // Enter the flow from the summary's checklist — navigation, not a write.
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Open: Verify the connection',
-      }),
+    const current = await screen.findByRole('button', { current: 'step' })
+    expect(current.textContent).toContain('System')
+    // The summary's own controls are nowhere on screen.
+    expect(screen.queryByRole('button', { name: 'Change setup' })).toBeNull()
+  })
+
+  it('shows the full rail on open, minus review while nothing is dirty', async () => {
+    installFetchMock()
+    renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
+    await screen.findByRole('button', { current: 'step' })
+
+    expect(railLabels()).toEqual([
+      'System',
+      'Provider',
+      'Connect',
+      'Verify',
+      'Agent',
+      'Memory',
+      'Plugins',
+      'Theme',
+    ])
+  })
+
+  it('is still deep-linkable to the summary, which stays in the table', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="summary" />,
     )
-    const back = await screen.findByRole('button', { name: 'Back' })
-    fireEvent.click(back)
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(await screen.findByText('Change setup')).toBeTruthy()
+  })
 
-    await walkProviderToReview()
+  // ── free navigation ──────────────────────────────────────────────────────
 
-    const save = screen.getByRole('button', { name: 'Save' })
-    expect((save as HTMLButtonElement).disabled).toBe(true)
-    fireEvent.click(save)
+  it('makes every rail step clickable from the first one', async () => {
+    installFetchMock()
+    renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
+    await screen.findByRole('button', { current: 'step' })
+
+    for (const label of railLabels()) {
+      expect(railButton(label).disabled, label).toBe(false)
+    }
+
+    // Theme is five steps ahead: unreachable under the default
+    // visited-plus-one rule, reachable here.
+    fireEvent.click(railButton('Theme'))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { current: 'step' }).textContent,
+      ).toContain('Theme'),
+    )
+  })
+
+  // ── the relaunch is unlocked, and the steps say so ───────────────────────
+
+  it('renders live plugin controls instead of a read-only notice', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="plugins" />,
+    )
+
+    expect(await screen.findByRole('button', { name: 'Enable' })).toBeTruthy()
+    expect(screen.queryByText(/Read-only for this run/)).toBeNull()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Enable' })[0])
+    await waitFor(() => expect(enableAgentPlugin).toHaveBeenCalled())
+  })
+
+  it('offers the system check self-heal actions', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="system-check" />,
+    )
+    await screen.findByRole('button', { current: 'step' })
+    expect(screen.queryByText(/Read-only for this run/)).toBeNull()
+  })
+
+  // ── but it still writes nothing on its own ───────────────────────────────
+
+  it('writes no config while the user only navigates', async () => {
+    const fetchMock = installFetchMock()
+    renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
+    await screen.findByRole('button', { current: 'step' })
+
+    // A full click-through of the rail: every step visited, nothing pressed
+    // that is labelled as a write.
+    for (const label of railLabels()) {
+      fireEvent.click(railButton(label))
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
 
     expect(configWrites(fetchMock)).toHaveLength(0)
   })
 
-  it('writes config only after the user unlocks changes', async () => {
+  it('writes config only when the user presses Save on the review step', async () => {
     const fetchMock = installFetchMock()
     renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
+    await screen.findByRole('button', { current: 'step' })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Change setup' }))
-    fireEvent.click(await screen.findByRole('button', { name: /Quick start/ }))
-
+    fireEvent.click(railButton('Provider'))
     await walkProviderToReview()
 
+    expect(configWrites(fetchMock)).toHaveLength(0)
+
     const save = screen.getByRole('button', { name: 'Save' })
-    expect((save as HTMLButtonElement).disabled).toBe(false)
+    expect(save.hasAttribute('disabled')).toBe(false)
     fireEvent.click(save)
 
     await waitFor(() =>
       expect(configWrites(fetchMock).length).toBeGreaterThan(0),
     )
   })
+
+  // ── the conditional review step ──────────────────────────────────────────
+
+  it('adds the review step to the rail once the draft is dirty', async () => {
+    installFetchMock()
+    renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
+    await screen.findByRole('button', { current: 'step' })
+
+    expect(railLabels()).not.toContain('Review')
+
+    fireEvent.click(railButton('Provider'))
+    fireEvent.click(await screen.findByRole('button', { name: /Ollama/ }))
+
+    await waitFor(() => expect(railLabels()).toContain('Review'))
+    expect(railLabels()).toEqual([
+      'System',
+      'Provider',
+      'Connect',
+      'Review',
+      'Verify',
+      'Agent',
+      'Memory',
+      'Plugins',
+      'Theme',
+    ])
+  })
+
+  it('hops the absent review step in both directions', async () => {
+    installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="connect" />,
+    )
+    await screen.findByRole('button', { current: 'step' })
+
+    // Connect → Next lands on Verify, not on a review step that is not there,
+    // and nothing blocks with "Press Save to write the configuration".
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(
+      await screen.findByRole('button', { name: 'Verify connection' }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByText(/Press Save to write the configuration/),
+    ).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { current: 'step' }).textContent,
+      ).toContain('Connect'),
+    )
+  })
+
+  // ── verify actually verifies ─────────────────────────────────────────────
+
+  it('verifies the configured provider when the draft has none', async () => {
+    // The relaunch draft starts empty — nothing has been picked because
+    // nothing needed picking. `onVerify` used to be `if (draft.providerId)`,
+    // so on a configured install the button silently did nothing at all.
+    const fetchMock = installFetchMock()
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="verify" />,
+    )
+
+    const verify = await screen.findByRole('button', {
+      name: 'Verify connection',
+    })
+    const before = modelReads(fetchMock).length
+    fireEvent.click(verify)
+
+    await waitFor(() =>
+      expect(modelReads(fetchMock).length).toBeGreaterThan(before),
+    )
+    // The poll resolves rather than timing out, which it can only do because
+    // it was handed `manifest` — CURRENT_CONFIG.activeProvider, the one
+    // provider the mocked /api/models reports models for. With the old
+    // `if (draft.providerId)` guard no request left at all.
+    expect(
+      await screen.findByText(/The gateway lists 1 model for this provider/),
+    ).toBeTruthy()
+  })
+
+  it('explains itself instead of offering a dead button with no provider at all', async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.startsWith('/api/claude-config')) {
+        return jsonResponse({
+          activeProvider: '',
+          activeModel: '',
+          providers: [],
+        })
+      }
+      if (url.startsWith('/api/gateway-status'))
+        return jsonResponse(GATEWAY_STATUS)
+      return jsonResponse({})
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    renderScreen(
+      <OnboardingScreen open onClose={vi.fn()} initialStepId="verify" />,
+    )
+
+    expect(
+      await screen.findByText(/There is no provider to verify yet/),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: 'Verify connection' }),
+    ).toBeNull()
+  })
+
+  // ── unchanged contracts ──────────────────────────────────────────────────
 
   it('closes via onClose without clearing the completion flag', async () => {
     installFetchMock()
@@ -182,13 +422,6 @@ describe('OnboardingScreen relaunch mode', () => {
     expect(container.firstChild).toBeNull()
   })
 
-  // ── the deep link ────────────────────────────────────────────────────────
-  // `__root.tsx` is the only caller and it always passes `open`, so a relaunch
-  // that discards `initialStepId` discards it always: the dashboard card's
-  // "Open: Pick a theme" link, the sidebar badge, the command palette and the
-  // `target` field on `setup-wizard-store` all described behaviour that could
-  // not happen. What the deep link must NOT do is imply `unlocked`.
-
   it('honours a deep link to a step on the full branch', async () => {
     installFetchMock()
     renderScreen(
@@ -197,70 +430,5 @@ describe('OnboardingScreen relaunch mode', () => {
 
     const current = await screen.findByRole('button', { current: 'step' })
     expect(current.textContent).toContain('Theme')
-  })
-
-  it('a deep-linked relaunch is still locked', async () => {
-    installFetchMock()
-    renderScreen(
-      <OnboardingScreen open onClose={vi.fn()} initialStepId="theme" />,
-    )
-    await screen.findByRole('button', { current: 'step' })
-
-    // One step back from theme is plugins, which is where the lock used to
-    // leak: `jumpTo` flipped the branch to 'full' without touching `unlocked`,
-    // so the step rendered live Enable/Disable buttons and `useCorePlugins`
-    // called enableAgentPlugin with no `canWriteConfig` consultation.
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-
-    expect(await screen.findByText(/Read-only for this run/)).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Enable' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Disable' })).toBeNull()
-    expect(
-      screen.queryByRole('button', { name: 'Restart dashboard' }),
-    ).toBeNull()
-  })
-
-  it('a deep-linked system check offers no self-heal action while locked', async () => {
-    installFetchMock()
-    renderScreen(
-      <OnboardingScreen open onClose={vi.fn()} initialStepId="system-check" />,
-    )
-
-    expect(await screen.findByText(/Read-only for this run/)).toBeTruthy()
-    // These fire POST /api/start-agent, POST /api/gateway-reprobe and a
-    // gateway restart — from a screen that promised a read.
-    expect(screen.queryByRole('button', { name: /Start the agent/ })).toBeNull()
-    expect(screen.queryByRole('button', { name: /Restart/ })).toBeNull()
-  })
-
-  it('does not dead-end the user on the review step while locked', async () => {
-    // `review` is not optional and `validateReviewStep` required `ctx.saved`,
-    // but Save is disabled and `save()` refuses while locked — so `saved`
-    // could never become true. Next was permanently blocked with "Press Save
-    // to write the configuration" and no Skip was offered.
-    installFetchMock()
-    renderScreen(<OnboardingScreen open onClose={vi.fn()} />)
-
-    fireEvent.click(
-      await screen.findByRole('button', {
-        name: 'Open: Verify the connection',
-      }),
-    )
-    fireEvent.click(await screen.findByRole('button', { name: 'Back' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
-
-    await walkProviderToReview()
-    const save = screen.getByRole('button', { name: 'Save' })
-    expect((save as HTMLButtonElement).disabled).toBe(true)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
-
-    expect(
-      await screen.findByRole('button', { name: 'Verify connection' }),
-    ).toBeTruthy()
-    expect(
-      screen.queryByText(/Press Save to write the configuration/),
-    ).toBeNull()
   })
 })

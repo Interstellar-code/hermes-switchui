@@ -12,7 +12,12 @@
  * completed", and the presence of any status at all means "visited", which is
  * what `isReachable` keys off.
  */
-import type { WizardAction, WizardState, WizardStepDef } from './types'
+import type {
+  WizardAction,
+  WizardNavOptions,
+  WizardState,
+  WizardStepDef,
+} from './types'
 
 export function initialWizardState<TId extends string>(
   firstId: TId,
@@ -84,15 +89,28 @@ export function canLeave<TId extends string, TCtx>(
   return { ok: false, errors }
 }
 
-/** Visited steps, plus the one immediately ahead. Nothing further. */
+/**
+ * Visited steps, plus the one immediately ahead. Nothing further — unless the
+ * consumer opts into `freeNavigation`, in which case every *active* step is
+ * reachable and the rail becomes a plain tab bar.
+ *
+ * The opt-in exists because the default is a teaching aid, not a safety
+ * mechanism: it walks a first-time user through the flow in order. A returning
+ * user opening the same wizard as a settings surface already knows which step
+ * they want, and gating it behind "visit every step in between" is friction
+ * with nothing behind it. It is never a permission — a step still has to be
+ * `enabled(ctx)` to be reachable at all, and writes answer to their own gate.
+ */
 export function isReachable<TId extends string, TCtx>(
   steps: ReadonlyArray<WizardStepDef<TId, TCtx>>,
   ctx: TCtx,
   state: WizardState<TId>,
   target: TId,
+  options: WizardNavOptions = {},
 ): boolean {
   const active = activeSteps(steps, ctx)
   if (stepIndex(active, target) < 0) return false
+  if (options.freeNavigation) return true
   if (state.status[target] != null) return true
   return nextStepId(steps, ctx, state.currentId) === target
 }
@@ -154,13 +172,14 @@ export function applyWizardAction<TId extends string, TCtx>(
   ctx: TCtx,
   state: WizardState<TId>,
   action: WizardAction<TId>,
+  options: WizardNavOptions = {},
 ): WizardState<TId> {
   const current = steps.find((step) => step.id === state.currentId)
 
   switch (action.type) {
     case 'GOTO': {
       if (action.id === state.currentId) return state
-      if (!isReachable(steps, ctx, state, action.id)) return state
+      if (!isReachable(steps, ctx, state, action.id, options)) return state
       return {
         ...state,
         currentId: action.id,

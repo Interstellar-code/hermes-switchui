@@ -19,14 +19,30 @@ const COMPLETE: OnboardingOutcome = {
 }
 
 describe('resolveEntryStep', () => {
-  it('relaunch always lands on the read-only summary, no matter the outcome', () => {
+  it('relaunch always lands on the stepped full flow, no matter the outcome', () => {
+    // The summary used to be the relaunch front door. It is now a deep-link
+    // destination only: clicking "Setup Wizard" on a working install opens the
+    // rail on the first step, not a landing page to click through.
     for (const outcome of [FRESH, IN_PROGRESS, DISMISSED, COMPLETE]) {
       for (const hasWorkingProvider of [true, false]) {
         expect(
           resolveEntryStep({ mode: 'relaunch', outcome, hasWorkingProvider }),
-        ).toEqual({ stepId: 'summary', branch: 'summary' })
+        ).toEqual({ stepId: 'system-check', branch: 'full' })
       }
     }
+  })
+
+  it('relaunch outranks an in-progress draft rather than resuming it', () => {
+    // Pinned separately from the loop above because it is the one case where
+    // two rules genuinely conflict: a half-finished first-run draft must not
+    // be what a returning user sees when they open settings.
+    expect(
+      resolveEntryStep({
+        mode: 'relaunch',
+        outcome: IN_PROGRESS,
+        hasWorkingProvider: false,
+      }),
+    ).toEqual({ stepId: 'system-check', branch: 'full' })
   })
 
   it('first-run with a working provider goes to summary even with a fresh outcome', () => {

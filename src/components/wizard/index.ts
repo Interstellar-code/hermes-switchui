@@ -51,6 +51,7 @@ export {
 
 export type {
   WizardAction,
+  WizardNavOptions,
   WizardState,
   WizardStatus,
   WizardStepDef,

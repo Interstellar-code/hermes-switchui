@@ -25,6 +25,7 @@ import {
 } from './wizard-machine'
 import type {
   WizardAction,
+  WizardNavOptions,
   WizardState,
   WizardStatus,
   WizardStepDef,
@@ -35,6 +36,11 @@ export type UseWizardOptions<TId extends string, TCtx> = {
   ctx: TCtx
   initialId?: TId
   initialState?: WizardState<TId>
+  /**
+   * Make every active step reachable from the rail. Defaults to false — the
+   * visited-plus-one rule. See `isReachable` for why this is an opt-in.
+   */
+  freeNavigation?: boolean
   onStepChange?: (id: TId, state: WizardState<TId>) => void
   onFinish?: (state: WizardState<TId>) => void
 }
@@ -70,6 +76,7 @@ export function useWizard<TId extends string, TCtx>({
   ctx,
   initialId,
   initialState,
+  freeNavigation = false,
   onStepChange,
   onFinish,
 }: UseWizardOptions<TId, TCtx>): UseWizardResult<TId, TCtx> {
@@ -78,6 +85,8 @@ export function useWizard<TId extends string, TCtx>({
   stepsRef.current = steps
   const ctxRef = useRef(ctx)
   ctxRef.current = ctx
+  const navRef = useRef<WizardNavOptions>({ freeNavigation })
+  navRef.current = { freeNavigation }
   const onStepChangeRef = useRef(onStepChange)
   onStepChangeRef.current = onStepChange
   const onFinishRef = useRef(onFinish)
@@ -127,7 +136,13 @@ export function useWizard<TId extends string, TCtx>({
 
   const dispatch = useCallback((action: WizardAction<TId>) => {
     setState((prev) =>
-      applyWizardAction(stepsRef.current, ctxRef.current, prev, action),
+      applyWizardAction(
+        stepsRef.current,
+        ctxRef.current,
+        prev,
+        action,
+        navRef.current,
+      ),
     )
   }, [])
 
@@ -145,8 +160,11 @@ export function useWizard<TId extends string, TCtx>({
   )
 
   const isReachable = useCallback(
-    (id: TId) => isReachableIn(steps, ctx, { ...state, currentId }, id),
-    [steps, ctx, state, currentId],
+    (id: TId) =>
+      isReachableIn(steps, ctx, { ...state, currentId }, id, {
+        freeNavigation,
+      }),
+    [steps, ctx, state, currentId, freeNavigation],
   )
   const statusOf = useCallback(
     (id: TId): WizardStatus => state.status[id] ?? 'pending',

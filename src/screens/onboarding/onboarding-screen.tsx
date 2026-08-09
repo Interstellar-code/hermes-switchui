@@ -248,7 +248,17 @@ function OnboardingFlow({
       ...(mode === 'resume' && storedDraft ? storedDraft : {}),
     }),
   )
-  const [unlocked, setUnlocked] = useState(false)
+  // Relaunch opens unlocked. The lock machinery is untouched and still works
+  // when this is false — only the default flipped, because it was buying
+  // nothing and costing the user a working settings surface.
+  //
+  // The justification: every write in this wizard already requires an explicit
+  // press on a labelled control — Save on the review step (which shows the
+  // literal YAML first), Activate on profile, Enable/Disable on plugins, Use
+  // on memory, Restart on verify. A click-through of Next writes nothing at
+  // any point. The lock was belt-and-braces over that guarantee, and the belt
+  // was the reason a returning user could not toggle a plugin.
+  const [unlocked, setUnlocked] = useState(true)
   const [saved, setSaved] = useState(false)
   const [dirty, setDirty] = useState(false)
 
@@ -357,6 +367,8 @@ function OnboardingFlow({
 
   const ctx: OnboardingCtx = {
     branch,
+    mode,
+    dirty,
     draft,
     saved,
     hasStoredKey,
@@ -368,6 +380,9 @@ function OnboardingFlow({
     steps: ONBOARDING_STEPS,
     ctx,
     initialId,
+    // A returning user knows which step they came for; a first-run user should
+    // still be walked through in order.
+    freeNavigation: mode === 'relaunch',
     onFinish: handleFinish,
   })
 
@@ -582,6 +597,13 @@ function OnboardingFlow({
       null)
     : null
 
+  // The verify step asks the gateway about a provider, and on a relaunch the
+  // draft is empty — nothing has been picked because nothing needed picking.
+  // Falling back to the provider that is actually configured is what makes the
+  // button mean something there; without it `onVerify` silently no-opped and
+  // the user was pressing a dead control on a working install.
+  const verifyProviderId = draft.providerId ?? activeProvider
+
   const step = wz.step
   if (!step) return null
 
@@ -675,11 +697,11 @@ function OnboardingFlow({
       case 'verify':
         return (
           <VerifyStep
-            providerId={draft.providerId ?? ''}
+            providerId={verifyProviderId ?? ''}
             outcome={saveApi.verifyOutcome}
             verifying={saveApi.verifying}
             onVerify={() => {
-              if (draft.providerId) void saveApi.verify(draft.providerId)
+              if (verifyProviderId) void saveApi.verify(verifyProviderId)
             }}
             canRestart={saveApi.canRestart}
             restarting={saveApi.restarting}

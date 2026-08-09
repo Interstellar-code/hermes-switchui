@@ -1273,9 +1273,17 @@
      loads first. Compounding with `[data-wizard]` bumps this to (0,3,0),
      which beats `.wz-modal`'s (0,2,0) deterministically. `height` and
      `margin` are repeated from `.wz-modal` for clarity even though they
-     already agree with it. */
+     already agree with it.
+
+     1040px, not the 640px this started at: the relaunch flow now opens on the
+     stepped view, so the box has to hold a nine-step rail and a twenty-four
+     card provider grid. Measured at a 1280px viewport: the rail lays out in
+     two rows (`.wz-steps` is `auto-fit`/118px) and the provider grid in three
+     columns (`.ob-prov-grid` is `auto-fill`/200px), against four rail rows and
+     a single grid column at 640px. The `calc(100vw - 32px)` half is what keeps
+     it a modal rather than a full-bleed panel on anything narrower. */
   &[data-wizard].ob-relaunch {
-    width: min(640px, calc(100vw - 32px));
+    width: min(1040px, calc(100vw - 32px));
     height: fit-content;
     /* dvh, not vh: on a phone `vh` measures the viewport as if the browser
        chrome were retracted, so a `vh` cap lets the sheet run under it. */

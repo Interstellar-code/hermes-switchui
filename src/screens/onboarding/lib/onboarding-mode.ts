@@ -4,8 +4,8 @@
  * whether the workspace already has a working provider. The precedence is a
  * strict priority list, not a merge, because the cases conflict on purpose —
  * a relaunch must win over an in-progress draft even though both could
- * technically apply, and getting that order wrong is exactly how a relaunch
- * would end up silently resuming into a write-capable step.
+ * technically apply, and a relaunch resuming into a half-finished first-run
+ * draft would show a returning user someone else's abandoned flow.
  */
 import type { OnboardingBranch, OnboardingStepId } from './onboarding-steps'
 import type { OnboardingOutcome } from './onboarding-storage'
@@ -17,11 +17,15 @@ export function resolveEntryStep(input: {
   outcome: OnboardingOutcome
   hasWorkingProvider: boolean
 }): { stepId: OnboardingStepId; branch: OnboardingBranch } {
-  // Non-negotiable: a relaunch always lands on the read-only summary,
-  // regardless of what the draft or outcome say. See relaunch-lock.ts for
-  // the write-side half of this contract.
+  // A relaunch lands on the stepped view, on the full branch, regardless of
+  // what the draft or outcome say. "Setup Wizard" in the sidebar is a settings
+  // surface for someone who already has a working install: the summary was a
+  // landing page they had to click through before they could reach the thing
+  // they opened the wizard for. It is still in the step table and still
+  // reachable by deep link (`openSetupWizard('summary')`) — it is just no
+  // longer the front door.
   if (input.mode === 'relaunch') {
-    return { stepId: 'summary', branch: 'summary' }
+    return { stepId: 'system-check', branch: 'full' }
   }
 
   if (input.mode === 'first-run' && input.hasWorkingProvider) {

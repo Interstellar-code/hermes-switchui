@@ -194,7 +194,11 @@
      Auto-fit wraps onto a second line instead of forcing the overflow. */
   .wz-steps {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
+    /* 100px is not arbitrary. With `repeat(auto-fit, minmax(Xpx, 1fr))` and an
+       8px gap, the column count is floor((W + gap) / (X + gap)). The relaunch
+       modal gives the rail W≈996px, so nine steps need X ≤ 103. Anything above
+       that drops the ninth onto a row of its own. */
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
     gap: 8px;
     list-style: none;
     margin: 0;
