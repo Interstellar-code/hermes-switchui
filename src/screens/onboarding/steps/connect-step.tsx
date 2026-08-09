@@ -9,7 +9,9 @@
  * on the review step (see CLAUDE.md's write-path rule).
  */
 import { useEffect, useRef, useState } from 'react'
+import { CurrentSetupStrip } from '../components/current-setup-strip'
 import { useOnboardingModels } from '../hooks/use-onboarding-models'
+import type { SetupFact } from '../lib/current-setup'
 import type {
   OnboardingDraft,
   OnboardingTransient,
@@ -39,6 +41,19 @@ export type ConnectStepProps = {
    * must not offer it.
    */
   canWrite: boolean
+  facts: Array<SetupFact>
+  /**
+   * The env var already holding this provider's credential, or `auth-store`
+   * for one the gateway holds itself. `hasStoredKey` only ever reached the
+   * API-key branch, so an OAuth or CLI provider with a live credential was
+   * shown a screen that read exactly like a first-time sign-in.
+   */
+  storedKeyEnv: string | null
+}
+
+/** How a stored credential is described, given where it lives. */
+function credentialLocation(env: string): string {
+  return env === 'auth-store' ? 'the gateway auth store' : env
 }
 
 /** The model selector, always rendered — a `<select>` when the backend
@@ -114,6 +129,8 @@ export function ConnectStep({
   hasStoredKey,
   systemCheckWarning,
   canWrite,
+  facts,
+  storedKeyEnv,
 }: ConnectStepProps) {
   const oauth = useNousOAuth()
   const [copiedCli, setCopiedCli] = useState(false)
@@ -156,8 +173,20 @@ export function ConnectStep({
 
   return (
     <div className="ob-connect">
+      <CurrentSetupStrip facts={facts} />
+
       {systemCheckWarning ? (
         <WizardNote tone="warn">{systemCheckWarning}</WizardNote>
+      ) : null}
+
+      {/* The API-key branch says this in its own field hint; every other auth
+          kind has no field to hang it on, so it gets stated outright. */}
+      {choice.authKind !== 'api-key' && storedKeyEnv ? (
+        <WizardNote tone="ok">
+          {choice.name} already has a credential stored in{' '}
+          {credentialLocation(storedKeyEnv)}. Continue to keep using it, or sign
+          in again to replace it.
+        </WizardNote>
       ) : null}
 
       {choice.authKind === 'oauth' && choice.supportsOAuth && !canWrite ? (
@@ -277,7 +306,11 @@ export function ConnectStep({
           <WizardField
             label="API key"
             hint={
-              hasStoredKey ? 'Leave blank to keep the existing key.' : undefined
+              storedKeyEnv
+                ? `A key is already stored in ${credentialLocation(storedKeyEnv)} — leave blank to keep it.`
+                : hasStoredKey
+                  ? 'Leave blank to keep the existing key.'
+                  : undefined
             }
             htmlFor="ob-connect-api-key"
           >

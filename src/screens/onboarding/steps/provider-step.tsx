@@ -10,7 +10,9 @@
  * previous provider's API key or base URL would silently carry over onto the
  * next one, which is exactly the kind of leak this rebuild exists to close.
  */
+import { CurrentSetupStrip } from '../components/current-setup-strip'
 import { ProviderPicker } from '../components/provider-picker'
+import type { SetupFact } from '../lib/current-setup'
 import type {
   OnboardingDraft,
   OnboardingTransient,
@@ -24,6 +26,10 @@ export type ProviderStepProps = {
   onChange: (patch: Partial<OnboardingDraft & OnboardingTransient>) => void
   errors: Array<string>
   detecting: boolean
+  facts: Array<SetupFact>
+  /** Marked and hoisted in the grid — see `ProviderPicker`. */
+  activeProviderId: string | null
+  configuredProviderIds: Array<string>
 }
 
 export function ProviderStep({
@@ -32,6 +38,9 @@ export function ProviderStep({
   onChange,
   errors,
   detecting,
+  facts,
+  activeProviderId,
+  configuredProviderIds,
 }: ProviderStepProps) {
   function handleSelect(id: string) {
     const choice = choices.find((candidate) => candidate.id === id) ?? null
@@ -46,6 +55,7 @@ export function ProviderStep({
 
   return (
     <>
+      <CurrentSetupStrip facts={facts} />
       {detecting ? (
         <WizardNote tone="info">Detecting local providers…</WizardNote>
       ) : null}
@@ -53,6 +63,8 @@ export function ProviderStep({
         choices={choices}
         selectedId={draft.providerId}
         onSelect={handleSelect}
+        activeProviderId={activeProviderId}
+        configuredProviderIds={configuredProviderIds}
       />
       {errors.map((error) => (
         <WizardNote tone="error" key={error}>

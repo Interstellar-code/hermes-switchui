@@ -6,7 +6,9 @@
  * frames it with the one thing that matters — none of these checks can
  * block Next.
  */
+import { CurrentSetupStrip } from '../components/current-setup-strip'
 import { SystemCheckList } from '../components/system-check-list'
+import type { SetupFact } from '../lib/current-setup'
 import type { SystemCheck } from '../lib/system-checks'
 import { WizardNote, WizardPanel } from '@/components/wizard'
 
@@ -24,6 +26,7 @@ export type SystemCheckStepProps = {
    * restart it, so a locked relaunch renders none of them.
    */
   canWrite: boolean
+  facts: Array<SetupFact>
 }
 
 export function SystemCheckStep({
@@ -32,9 +35,11 @@ export function SystemCheckStep({
   onHeal,
   healing,
   canWrite,
+  facts,
 }: SystemCheckStepProps) {
   return (
     <WizardPanel>
+      <CurrentSetupStrip facts={facts} />
       <WizardNote>
         These checks are informational only, and nothing here blocks setup. On a
         portable or freshly started backend, any of them can come back unknown —
