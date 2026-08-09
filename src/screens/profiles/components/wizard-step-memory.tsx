@@ -13,7 +13,7 @@ export function WizardStepMemory({ draft, errors, onChange }: Props) {
       <h3>Memory</h3>
       <p className="lead">
         Enable long-term memory so this agent can recall facts across sessions.
-        Disabled by default — the agent will not retain anything between conversations.
+        Memory is inherited from your active profile by default — toggle it off if this agent should start fresh.
       </p>
 
       {errors.length > 0 && (

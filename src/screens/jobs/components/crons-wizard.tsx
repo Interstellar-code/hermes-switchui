@@ -7,13 +7,13 @@
 
 import { useCallback, useReducer, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import type { ClaudeJob } from '@/lib/jobs-api'
-import type { ProfileSummary } from '@/server/profiles-browser'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { createJob, updateJob } from '@/lib/jobs-api'
 import { toast } from '@/components/ui/toast'
+import { useProfilesList } from '@/hooks/use-profiles-list'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -324,15 +324,7 @@ function StepAgent({
   errors: Array<string>
   onChange: (patch: Partial<CronDraft>) => void
 }) {
-  const profilesQuery = useQuery({
-    queryKey: ['profiles', 'list'],
-    queryFn: async () => {
-      const r = await fetch('/api/profiles/list')
-      if (!r.ok) return { profiles: [] as Array<ProfileSummary> }
-      return (await r.json()) as { profiles: Array<ProfileSummary> }
-    },
-    staleTime: 30_000,
-  })
+  const profilesQuery = useProfilesList()
 
   // The default profiles (hermes-switch/neo/trinity/morpheus) share ids with
   // the builtins, so list each id once: keep the builtin (it has a proper role

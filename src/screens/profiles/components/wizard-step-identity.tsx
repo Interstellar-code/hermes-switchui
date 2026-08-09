@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { GlyphPicker } from './glyph-picker'
 import type { NewAgentDraft } from '../types'
 import { randomMatrixName } from '@/lib/matrix-names'
+import { sanitizeProfileName } from '@/lib/profile-name'
 
 type Props = {
   draft: NewAgentDraft
@@ -62,7 +63,7 @@ export function WizardStepIdentity({ draft, errors, existingTags, existingNames,
             className="wiz-input"
             style={{ flex: 1 }}
             value={draft.name}
-            onChange={(e) => onChange({ name: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') })}
+            onChange={(e) => onChange({ name: sanitizeProfileName(e.target.value) })}
             placeholder="my-agent"
             maxLength={40}
             disabled={editing}
@@ -96,6 +97,20 @@ export function WizardStepIdentity({ draft, errors, existingTags, existingNames,
           maxLength={80}
         />
         <div className="wiz-hint">{80 - draft.role.length} chars remaining</div>
+      </div>
+
+      <div className="field">
+        <label>Description <span className="opt">(optional · longer blurb, separate from Role)</span></label>
+        <textarea
+          className="wiz-textarea"
+          value={draft.description}
+          onChange={(e) => onChange({ description: e.target.value })}
+          placeholder="What this agent is for — shown in profile details, not on the card."
+          rows={3}
+        />
+        <div className="wiz-hint">
+          Role is the short label on the card; Description is the longer write-up.
+        </div>
       </div>
 
       <div className="field">

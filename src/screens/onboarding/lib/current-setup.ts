@@ -60,11 +60,14 @@ export type CurrentSetup = {
   connectionLabel: string | null
   verifiedModelCount: number | null
   /**
-   * The display name of the agent profile the gateway will boot into — the
-   * synthetic `Default` when `~/.hermes/active_profile` is absent, which is
-   * the common case. Deliberately *not* part of `anythingConfigured`: every
-   * install has an active profile, so counting it would grow a "Currently
-   * configured" strip on a genuinely fresh one.
+   * The display name of the agent profile the gateway will boot into. A
+   * fresh install now bootstraps `active_profile` to point at the
+   * `hermes-switch` builtin (overridable via `HERMES_DEFAULT_PROFILE`), so
+   * the synthetic `Default` is no longer the common case — it only shows up
+   * when `~/.hermes/active_profile` explicitly names `default`. Deliberately
+   * *not* part of `anythingConfigured`: every install has an active profile,
+   * so counting it would grow a "Currently configured" strip on a genuinely
+   * fresh one.
    */
   activeProfileName: string | null
   /**

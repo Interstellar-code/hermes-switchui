@@ -57,6 +57,50 @@
     background: var(--m-border-subtle, var(--theme-border));
   }
 
+  /* ── header actions ──
+     The header grid's `auto` column holds three controls; without an explicit
+     flex context they stack vertically inside it. */
+  .pf-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pf-header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: var(--m-radius-md, 6px);
+    color: var(--m-text-faint, var(--theme-muted));
+    font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    cursor: pointer;
+    white-space: nowrap;
+    transition:
+      color var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out),
+      border-color var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+  }
+  .pf-header-btn:hover:not(:disabled) {
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
+  }
+  .pf-header-btn:focus-visible {
+    outline: 2px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 2px;
+  }
+  .pf-header-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+  .pf-header-btn svg {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
+  }
+
   /* ── New Agent CTA ── */
   .btn-new-agent {
     display: inline-flex;
@@ -86,9 +130,14 @@
   }
 
   /* ── filter bar ── */
+  /* Four possible children — search, pills, the conditional Clear filters
+     button, and the view toggle — so three tracks dropped the toggle onto a
+     second row the moment a filter went active. The fourth track collapses to
+     0 when Clear is absent, and the toggle is pinned to the last column so it
+     stays flush right either way. */
   .pf-filter-bar {
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: 1fr auto auto auto;
     align-items: center;
     gap: 10px;
     padding: 10px 22px;
@@ -220,6 +269,9 @@
     overflow: hidden;
     flex-shrink: 0;
   }
+  .pf-filter-bar > .pf-view-toggle {
+    grid-column: -2 / -1;
+  }
   .pf-view-toggle button {
     display: inline-grid;
     place-items: center;
@@ -311,11 +363,18 @@
     );
     border-color: rgba(95, 207, 255, 0.22);
   }
-  .pf-card.builtin {
-    cursor: default;
-  }
+  /* Built-ins used to be inert. They now open the same detail drawer as any
+     other card, so the cursor must not claim otherwise — only the lift is
+     held back, to keep them reading as fixtures rather than user content. */
   .pf-card.builtin:hover {
     transform: none;
+  }
+  /* The card is role="button" + tabIndex=0: it needs a visible focus state or
+     keyboard users land on it with no feedback at all. */
+  .pf-card:focus-visible {
+    outline: 2px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 2px;
+    border-color: var(--m-green-500, var(--theme-accent));
   }
 
   /* card head */
@@ -337,11 +396,19 @@
     text-shadow: 0 0 8px rgba(0, 255, 65, 0.4);
     flex-shrink: 0;
   }
-  .pf-card.tier-1 .pf-glyph {
+  /* Tier tint lives on the glyph's own class, not an ancestor selector.
+     `.pf-card.tier-N .pf-glyph` used to be the only rule, which happened to
+     work on the card (the card itself carries `.tier-N`) but never matched
+     in the table, where the glyph sits inside a bare `<tr>` with no
+     `.pf-card` ancestor — so table-row glyphs rendered in the default green
+     regardless of tier. `profile-card.tsx` and `profile-table-row.tsx` both
+     emit `tier-1-glyph` / `tier-2-glyph` directly on the glyph element, so
+     that is now the single mechanism for both surfaces. */
+  .pf-glyph.tier-1-glyph {
     border-color: var(--m-green-500, var(--theme-accent));
     box-shadow: var(--m-glow-sm, 0 0 8px rgba(0, 255, 65, 0.3));
   }
-  .pf-card.tier-2 .pf-glyph {
+  .pf-glyph.tier-2-glyph {
     color: #5fcfff;
     border-color: rgba(95, 207, 255, 0.5);
     text-shadow: 0 0 8px rgba(95, 207, 255, 0.4);
@@ -476,6 +543,63 @@
     letter-spacing: 0.14em;
   }
 
+  /* ── card stats row (G-02) ──
+     Facts the list API already returned and nothing showed. Deliberately the
+     quietest row on the card: it is reference, not headline. */
+  .pf-card-stats {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .pf-stat {
+    color: var(--m-text-faint, var(--theme-muted));
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    white-space: nowrap;
+  }
+  .pf-env-badge {
+    padding: 1px 5px;
+    border: 1px solid var(--m-amber, var(--theme-warning));
+    border-radius: 3px;
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-amber, var(--theme-warning));
+    text-transform: lowercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    opacity: 0.8;
+  }
+
+  /* ── live-gateway scope badge (G-05) ──
+     Shared by the card and the table row. Deliberately absent for the common
+     case (`served` renders nothing — see use-profile-scope-status.ts) so it
+     only appears when there is something to act on. `not-served` and
+     `unknown` are two distinct failure modes and must never be styled the
+     same: an unreachable probe (`unknown`) is not proof the profile is
+     unreachable, only that we cannot currently confirm it, so it gets a
+     quieter, dashed treatment than the confirmed `not-served` gap. */
+  .pf-scope-badge {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    cursor: default;
+  }
+  .pf-scope-badge--not-served {
+    border: 1px solid var(--m-amber, var(--theme-warning));
+    color: var(--m-amber, var(--theme-warning));
+    background: rgba(255, 170, 0, 0.08);
+  }
+  .pf-scope-badge--unknown {
+    border: 1px dashed var(--m-border-subtle, var(--theme-border));
+    color: var(--m-text-ghost, var(--theme-muted));
+    background: transparent;
+  }
+
   /* builtin lock badge */
   .pf-lock-badge {
     display: inline-flex;
@@ -492,6 +616,28 @@
   .pf-lock-badge svg {
     width: 9px;
     height: 9px;
+  }
+
+  /* ── card action row ──
+     Revealed on hover *and* on focus-within: the buttons are keyboard
+     reachable, so hiding them from a tabbing user would hand them four
+     invisible controls. `:focus-within` matches the card itself as well as
+     its descendants, so the row appears the moment the card takes focus and
+     stays up while focus walks through the buttons.
+
+     The row keeps its space in the grid whether or not it is visible, so
+     revealing it never reflows the card. */
+  .pf-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+  }
+  .pf-card:hover .pf-card-actions,
+  .pf-card:focus-within .pf-card-actions {
+    opacity: 1;
   }
 
   /* ── table view ── */
@@ -546,8 +692,21 @@
     background: var(--m-fill-subtle, var(--theme-accent-subtle));
     cursor: pointer;
   }
-  .pf-table tr.builtin:hover td {
-    cursor: default;
+  /* Every row is tabIndex=0 and opens the drawer on Enter/Space. `<tr>` cannot
+     take role="button" without wrecking the table semantics, so the focus
+     state has to carry the affordance on its own. The outline is drawn inside
+     the row (`outline-offset: -2px`) because a `<tr>` box in a
+     `border-collapse: separate` table sits flush against its neighbours; the
+     cell tint is the belt to that outline's braces, since some engines are
+     unreliable about painting outlines on table rows. */
+  .pf-tbl-row:focus-visible {
+    outline: 2px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: -2px;
+  }
+  /* Outweighs `.pf-table tr:hover td` on purpose, so a row that is both
+     hovered and focused still reads as focused. */
+  .pf-table tr.pf-tbl-row:focus-visible td {
+    background: var(--m-fill, var(--theme-accent-subtle));
   }
 
   /* table name cell */
@@ -1377,6 +1536,21 @@
   .skill.skill-destructive:not(.on) {
     border-color: rgba(255, 170, 0, 0.25);
   }
+  /* Plugin-registered pill — informational, not a warning, so it borrows the
+     warn pill's box model (size, padding, radius, flex-shrink) but stays
+     neutral rather than amber. Previously had no rule at all and rendered as
+     a bare, unsized 🔌 emoji. */
+  .wiz-toolset-plugin-pill {
+    font-size: 10px;
+    line-height: 1;
+    padding: 2px 5px;
+    border-radius: 3px;
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+    border: 1px solid var(--m-border-subtle, var(--theme-border));
+    color: var(--m-text-faint, var(--theme-muted));
+    flex-shrink: 0;
+    cursor: default;
+  }
   /* Warning pill for destructive toolsets */
   .wiz-toolset-warn-pill {
     font-size: 10px;
@@ -1459,6 +1633,39 @@
     overflow: auto;
     white-space: pre-wrap;
     word-break: break-word;
+  }
+
+  /* ── config diff (step 8) ──
+     Sits on top of `.pf-drawer-yaml`, which supplies the frame, the mono face
+     and the scroll behaviour. This only takes over the padding so each line
+     can run edge to edge and carry its own gutter.
+
+     Colour here is reinforcement, never the message: the `+ ` / `- ` markers
+     the component prints already say which is which, and the left gutter
+     repeats it positionally. Both washes are low-alpha over whatever the
+     theme's own ground is, so they hold up on the light themes too. */
+  .wiz-diff-yaml {
+    padding: 12px 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .wiz-diff-line {
+    display: block;
+    padding: 0 14px;
+    border-left: 2px solid transparent;
+  }
+  .wiz-diff-added {
+    border-left-color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .wiz-diff-removed {
+    border-left-color: var(--m-red, var(--theme-danger));
+    background: rgba(255, 68, 68, 0.08);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .wiz-diff-unchanged {
+    color: var(--m-text-muted, var(--theme-muted));
   }
 
   /* wizard footer */
@@ -1733,10 +1940,27 @@
     border-color: var(--m-border, var(--theme-border));
     background: var(--m-fill, var(--theme-accent-subtle));
   }
+  .pf-tbl-action-btn:focus-visible {
+    outline: 2px solid var(--m-green-500, var(--theme-accent));
+    outline-offset: 1px;
+  }
   .pf-tbl-action-btn--danger:hover {
     color: var(--m-red, var(--theme-danger));
     border-color: var(--m-red, var(--theme-danger));
     background: rgba(255, 68, 68, 0.06);
+  }
+  /* Activate — the one action in the row that is not neutral, so it carries a
+     resting tint instead of waiting for hover to declare itself. */
+  .pf-tbl-action-btn--primary {
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-border-subtle, var(--theme-border));
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+  }
+  .pf-tbl-action-btn--primary:hover {
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+    box-shadow: var(--m-glow-sm, 0 0 8px rgba(0, 255, 65, 0.3));
   }
   .pf-tbl-lock {
     display: inline-grid;
@@ -2105,9 +2329,19 @@
 .pf-drawer-tab:hover {
   color: var(--m-text, var(--theme-text));
 }
-.pf-drawer-tab.active {
+/* Two spellings on purpose. This kit is shared: the profile drawer renders
+   `active`, `screens/memory/components/memory-detail-drawer.tsx` renders
+   `is-active` — and had therefore been running with an unstyled active tab
+   since the day it was written. Supporting both here fixes memory without
+   reaching into a component this stylesheet does not own. */
+.pf-drawer-tab.active,
+.pf-drawer-tab.is-active {
   color: var(--m-green-500, var(--theme-accent));
   border-bottom-color: var(--m-green-500, var(--theme-accent));
+}
+.pf-drawer-tab:focus-visible {
+  outline: 2px solid var(--m-green-500, var(--theme-accent));
+  outline-offset: -2px;
 }
 
 /* content area */
@@ -2361,6 +2595,139 @@
 .pf-drawer-action-btn.primary:hover {
   background: var(--m-fill, var(--theme-accent-subtle));
 }
+.pf-drawer-action-btn:focus-visible {
+  outline: 2px solid var(--m-green-500, var(--theme-accent));
+  outline-offset: 2px;
+}
+
+/* Action row promoted to a persistent bar between the drawer header and the
+   tab strip. `.pf-drawer-actions` is laid out for the end of a scrolling body,
+   so the inherited top margin has to be cancelled, not overridden by accident.
+   `:empty` matters: the profile drawer withholds every action for an active
+   built-in, and an empty bar would still paint 20px of padding and a rule. */
+.pf-drawer-actions--bar {
+  margin-top: 0;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--m-border, var(--theme-border));
+  flex-shrink: 0;
+}
+.pf-drawer-actions--bar:empty {
+  display: none;
+}
+
+/* ── drawer Files tab ── */
+.pf-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-file-row {
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: 6px;
+  background: var(--m-bg-deep, var(--theme-bg));
+  overflow: hidden;
+}
+/* Four flat children — label, path, meta, and an optional View button — so
+   each is placed explicitly rather than left to auto-flow, which would
+   reshuffle the whole row the moment the button appears. */
+.pf-file-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 10px 12px;
+}
+.pf-file-label {
+  grid-area: 1 / 1;
+  font: 600 11.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-strong, var(--theme-text));
+  letter-spacing: 0.06em;
+}
+.pf-file-path {
+  grid-area: 2 / 1;
+  font: 400 10.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-faint, var(--theme-muted));
+  word-break: break-all;
+  line-height: 1.5;
+}
+.pf-file-meta {
+  grid-area: 1 / 2 / span 2 / auto;
+  justify-self: end;
+  text-align: right;
+  font: 400 10px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-ghost, var(--theme-muted));
+  white-space: nowrap;
+}
+.pf-file-head > .pf-drawer-action-btn {
+  grid-area: 1 / 3 / span 2 / auto;
+  align-self: center;
+}
+.pf-file-body {
+  padding: 10px 12px;
+  border-top: 1px solid var(--m-border-subtle, var(--theme-border));
+  font: 400 11px/1.65 var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-faint, var(--theme-muted));
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+/* File contents reuse the YAML pre; inside a row it is a panel within a panel,
+   so it drops its own frame and butts against the head. */
+.pf-file-row > .pf-drawer-yaml {
+  border: none;
+  border-top: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: 0;
+  max-height: 40vh;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Recently Deleted ── */
+.pf-trash-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-trash-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: 6px;
+  background: var(--m-bg-deep, var(--theme-bg));
+}
+.pf-trash-name {
+  grid-area: 1 / 1;
+  font: 600 12px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-strong, var(--theme-text));
+  letter-spacing: 0.06em;
+  word-break: break-all;
+}
+.pf-trash-meta {
+  grid-area: 2 / 1;
+  font: 400 10px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-ghost, var(--theme-muted));
+  letter-spacing: 0.08em;
+}
+.pf-trash-actions {
+  grid-area: 1 / 2 / span 2 / auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
+}
+/* Loading, error and genuinely-empty all land here. Sentence case, not the
+   uppercase label treatment — two of the three are prose. */
+.pf-trash-empty {
+  padding: 28px 12px;
+  text-align: center;
+  font: 400 11px/1.7 var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-faint, var(--theme-muted));
+}
 
 /* raw YAML view */
 .pf-drawer-yaml {
@@ -2454,4 +2821,381 @@
   border-radius: inherit;
   pointer-events: none;
   background: linear-gradient(135deg, rgba(0, 255, 65, 0.04), transparent 40%);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Responsive layer (G-06)
+
+   This screen ships in the mobile tab bar *and* the hamburger menu, so it is a
+   real phone surface — but nothing above this line was written with one in
+   mind. The pill row and the wizard step rail survive only because they scroll
+   horizontally; the 8-column table, the 9-step modal, the drawer and the card
+   grid had never been sized below ~700px at all.
+
+   Two breakpoints, deliberately few:
+     900px — the point at which the header, filter bar and table stop fitting
+             on one line. Tablets and split-screen windows land here.
+     640px — phone. Single-column everything, and the table sheds its two
+             remaining low-value columns.
+
+   Desktop is the primary surface and nothing below touches it.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+  [data-screen='profiles'] {
+    /* Header: the stats row, two quiet buttons and the New Agent CTA cannot
+       share a 56px line. Give the actions their own row. */
+    .pf-header {
+      grid-template-columns: minmax(0, 1fr);
+      height: auto;
+      padding: 10px 16px;
+      row-gap: 10px;
+    }
+    .pf-header-left {
+      flex-wrap: wrap;
+      row-gap: 6px;
+    }
+    .pf-header-stats {
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .pf-header-actions {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+    }
+
+    /* Filter bar: `1fr auto auto auto` puts the pills in the same line as the
+       search field, and the pills win — the search collapses to its icon. Drop
+       the pills to their own full-width row (they already scroll) and keep the
+       search, Clear and the view toggle on line one. */
+    .pf-filter-bar {
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      padding: 10px 16px;
+      row-gap: 8px;
+    }
+    .pf-search {
+      grid-area: 1 / 1;
+      max-width: none;
+    }
+    .pf-pills-row {
+      grid-area: 2 / 1 / auto / -1;
+    }
+    .pf-clear-filters {
+      grid-area: 1 / 2;
+    }
+    .pf-filter-bar > .pf-view-toggle {
+      grid-area: 1 / 3;
+    }
+
+    .pf-canvas {
+      padding: 16px;
+    }
+    .pf-grid {
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 12px;
+    }
+
+    /* Table: Tags and Last Used go first.
+
+       The alternative — an overflow-x container with a sticky first column —
+       was rejected. `.pf-table` sets `overflow: hidden` for its rounded
+       corners, which kills `position: sticky` on the cells inside it; the
+       sticky cell would need an opaque background of its own, which then
+       stops tracking the row's hover, focus and `in-use` tints; and the table
+       is the whole scrollable body here, so a horizontal scroller nested in
+       the vertical one is a bad thing to hand a thumb.
+
+       Hiding costs less than it looks: every row opens a detail drawer that
+       lists tags and last-used in full, and the grid view — one tap away on
+       the same bar — shows both on the card. The one real loss is sorting by
+       Last Used, since its header goes with the column. */
+    .pf-table th:nth-child(6),
+    .pf-table td:nth-child(6),
+    .pf-table th:nth-child(7),
+    .pf-table td:nth-child(7) {
+      display: none;
+    }
+
+    .pf-pagination {
+      height: auto;
+      min-height: 40px;
+      padding: 8px 16px;
+      flex-wrap: wrap;
+      row-gap: 8px;
+    }
+
+    /* Wizard: claim the width back from the 40px desktop gutter, and take a
+       few px off every band so the body keeps most of what is left. The footer
+       stays reachable because `.wiz-body` is a scroll container, which zeroes
+       the `1fr` track's automatic minimum size. */
+    .wiz-modal {
+      width: calc(100vw - 24px);
+    }
+    .wiz-head {
+      padding: 12px 16px;
+    }
+    .wiz-steps {
+      padding: 12px 16px;
+    }
+    .wiz-body {
+      padding: 18px 16px;
+    }
+    .wiz-foot {
+      padding: 12px 16px;
+    }
+    .wiz-body .grid-2 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .wiz-body .grid-3 {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .review-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .persona-cats {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .persona-cat-list {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  [data-screen='profiles'] {
+    .pf-header {
+      padding: 10px 12px;
+    }
+    .pf-header-left h1 {
+      font-size: 12px;
+      letter-spacing: 0.18em;
+    }
+    .pf-header-stats {
+      gap: 10px;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+    }
+    .pf-header-actions {
+      gap: 8px;
+    }
+    .pf-header-btn {
+      padding: 5px 9px;
+      font-size: 10px;
+      letter-spacing: 0.1em;
+    }
+    .btn-new-agent {
+      padding: 6px 11px;
+      font-size: 10.5px;
+      letter-spacing: 0.12em;
+    }
+
+    .pf-filter-bar {
+      padding: 8px 12px;
+    }
+    .pf-canvas {
+      padding: 12px;
+    }
+
+    /* One column is forced at this width anyway; saying so drops the dead
+       gutter that `minmax(300px, 1fr)` leaves beside a 390px card, and the
+       card tightens to match. */
+    .pf-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 10px;
+    }
+    .pf-card {
+      padding: 12px;
+      gap: 10px;
+      min-height: 0;
+    }
+    .pf-card-head {
+      gap: 10px;
+    }
+    .pf-glyph {
+      width: 34px;
+      height: 34px;
+      font-size: 14px;
+    }
+    .pf-card-name {
+      font-size: 12.5px;
+    }
+    .pf-card-desc {
+      font-size: 11.5px;
+      -webkit-line-clamp: 2;
+    }
+    .pf-empty {
+      padding: 48px 16px;
+    }
+
+    /* Role and Model join Tags and Last Used in the drawer. What is left —
+       agent, tier, status, actions — is the minimum that still answers "which
+       one is running and what can I do to it". */
+    .pf-table th:nth-child(3),
+    .pf-table td:nth-child(3),
+    .pf-table th:nth-child(4),
+    .pf-table td:nth-child(4) {
+      display: none;
+    }
+    .pf-table th,
+    .pf-table td {
+      padding: 9px 10px;
+    }
+
+    .pf-pagination {
+      padding: 8px 12px;
+      gap: 10px;
+      font-size: 9.5px;
+    }
+
+    .wiz-modal {
+      width: calc(100vw - 12px);
+      max-height: calc(100vh - 16px);
+      max-height: calc(100dvh - 16px);
+    }
+    .wiz-head {
+      padding: 10px 14px;
+    }
+    .wiz-head h2 {
+      font-size: 11.5px;
+      letter-spacing: 0.18em;
+    }
+    .wiz-steps {
+      padding: 10px 14px;
+    }
+    .wiz-body {
+      padding: 16px 14px;
+    }
+    .wiz-body h3 {
+      font-size: 16px;
+    }
+    .wiz-body .grid-3 {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .glyph-pick {
+      grid-template-columns: repeat(6, 1fr);
+    }
+    .skill-grid,
+    .memory-providers {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .review-row {
+      grid-template-columns: 90px minmax(0, 1fr);
+    }
+
+    /* Four buttons at 11px + 0.16em tracking overflow a 390px footer. Let the
+       row wrap rather than push Create off the edge, and keep the step counter
+       above the buttons when it does. */
+    .wiz-foot {
+      flex-wrap: wrap;
+      row-gap: 8px;
+      padding: 10px 14px;
+    }
+    .wiz-foot .actions {
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      margin-left: auto;
+    }
+    .btn {
+      padding: 8px 12px;
+      letter-spacing: 0.1em;
+    }
+  }
+}
+
+/* Drawer and confirm dialog are global — the memory screen shares them, and
+   both are improved by the same treatment. `.pf-drawer` already caps at
+   `100vw`, so it is full-bleed on a phone without help; what it needs is its
+   padding back. */
+@media (max-width: 640px) {
+  .pf-drawer-header {
+    padding: 0 14px;
+  }
+  .pf-drawer-body {
+    padding: 14px;
+  }
+  .pf-drawer-actions--bar {
+    padding: 10px 14px;
+  }
+  .pf-drawer-tab {
+    padding: 10px 12px;
+  }
+
+  /* 140px of label beside a `break-all` path leaves the value ~150px wide.
+     Stack them instead; the label keeps its ground tint, so the pairs still
+     read as rows. */
+  .pf-drawer-field-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pf-drawer-field-label {
+    border-bottom: none;
+    padding: 8px 12px 2px;
+  }
+  .pf-drawer-field-value {
+    padding: 2px 12px 9px;
+  }
+
+  .pf-file-head,
+  .pf-trash-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .pf-file-meta,
+  .pf-file-head > .pf-drawer-action-btn,
+  .pf-trash-actions {
+    grid-area: auto;
+    justify-self: start;
+    text-align: left;
+  }
+  .pf-trash-actions {
+    justify-content: flex-start;
+    margin-top: 6px;
+  }
+
+  /* `min-width: 360px` overflowed any viewport narrower than 384px. */
+  .pf-confirm {
+    min-width: 0;
+    width: calc(100vw - 24px);
+    padding: 18px 16px 16px;
+  }
+}
+
+/* Touch devices never fire `:hover`, so an action row that only reveals on
+   hover is an action row a phone cannot reach. The tap target for the card
+   itself is everything around it, and the buttons stop propagation. */
+@media (hover: none) {
+  [data-screen='profiles'] .pf-card-actions {
+    opacity: 1;
+  }
+}
+
+/* Anything that moves, including what was already here: the status dot's
+   pulse and the skeleton shimmer both loop indefinitely. */
+@media (prefers-reduced-motion: reduce) {
+  [data-screen='profiles'] {
+    .pf-card,
+    .pf-card-actions,
+    .pf-tbl-action-btn,
+    .pf-header-btn {
+      transition: none;
+    }
+    .pf-card:hover {
+      transform: none;
+    }
+    .pf-status.active .d,
+    .pf-skeleton,
+    .pf-card--new {
+      animation: none;
+    }
+    .wiz-backdrop,
+    .wiz-modal {
+      animation: none;
+    }
+  }
+  .pf-drawer {
+    transition: none;
+  }
+  .pf-confirm-backdrop {
+    animation: none;
+  }
 }

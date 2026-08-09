@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { readProfile, writeProfile } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import { errorResponse } from './-error-response'
 import type {
   AgentRuntime,
   AgentUIMetadata,
@@ -121,15 +122,7 @@ export const Route = createFileRoute('/api/profiles/update')({
           const profile = writeProfile(name, patch)
           return Response.json({ ok: true, profile })
         } catch (error) {
-          return Response.json(
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Failed to update profile',
-            },
-            { status: 500 },
-          )
+          return errorResponse(error, 'Failed to update profile')
         }
       },
     },

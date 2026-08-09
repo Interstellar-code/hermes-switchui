@@ -3,6 +3,9 @@ import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
 
+import { mergeProfileConfig } from '../lib/profile-merge'
+import { PROFILE_NAME_RE } from '../lib/profile-name'
+
 // ── New types for the Profiles Revamp (PR-04) ──────────────────────────────
 
 /**
@@ -51,13 +54,28 @@ export type AgentRuntime = {
   disabled_toolsets?: Array<string>
 }
 
+/** Lifecycle state of a profile, as shown by the Profiles screen. */
+export type ProfileStatus = 'draft' | 'idle' | 'active'
+
 export type AgentUIMetadata = {
   tier?: 1 | 2 | 3
   glyph?: string
   role?: string
-  status?: 'draft' | 'idle' | 'active'
+  /**
+   * LEGACY / INERT. Written once at creation and never updated — the update
+   * route rejects the field outright — so it drifts immediately and cannot be
+   * trusted. `ProfileSummary.status` is the authoritative value; see the
+   * comment there. Kept on the type only so existing config.yaml files still
+   * round-trip through read/write; a later cleanup can drop it.
+   */
+  status?: ProfileStatus
   tags?: Array<string>
   persona_id?: string | null
+  /**
+   * LEGACY / INERT. Only ever written as `null` (by bootstrap). Nothing
+   * advances it when a session runs, so it is never a real timestamp. Use
+   * `ProfileSummary.lastRunAt`, which is derived from the sessions directory.
+   */
   last_run?: number | null
 }
 
@@ -94,6 +112,31 @@ export type ProfileSummary = {
   // P2 additions — agent_ui metadata + description surfaced for the grid/table
   description?: string
   agent_ui?: AgentUIMetadata
+  /**
+   * Derived lifecycle state — the authoritative one (P-06).
+   *
+   * `agent_ui.status` on disk is stamped once at creation and never advanced
+   * (all four built-ins are hardcoded `active` in `lib/builtin-agents.ts`), so
+   * the Profiles screen used to report a permanent "4 Active" and its status
+   * filter partitioned agents by origin rather than by state. This field is
+   * computed fresh on every uncached `listProfiles()` call and deliberately
+   * ignores whatever `agent_ui.status` claims:
+   *
+   *   active — this is the profile named in `~/.hermes/active_profile`
+   *   idle   — not active, but it has sessions on disk (it has run before)
+   *   draft  — not active and has never run
+   */
+  status: ProfileStatus
+  /**
+   * Derived "last run" timestamp in UNIX SECONDS (P-12), or `null` when the
+   * profile has no sessions.
+   *
+   * Seconds, not milliseconds: the client's `formatRelative` computes
+   * `Date.now() / 1000 - ts`. Sourced from the newest mtime among the files in
+   * the profile's `sessions/` directory, piggybacked on the same traversal
+   * that produces `sessionCount` — `agent_ui.last_run` is inert (see above).
+   */
+  lastRunAt?: number | null
 }
 
 export type ProfileDetail = {
@@ -107,8 +150,12 @@ export type ProfileDetail = {
   skillsDir?: string
 }
 
-const PROFILE_NAME_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/
-const BUILTIN_PROFILE_NAMES = new Set([
+/**
+ * Exported (rather than module-private) so `profiles-export.ts`'s
+ * `importProfile()` can apply the same reserved-name guard this module uses
+ * everywhere else, without re-declaring a second copy of the built-in list.
+ */
+export const BUILTIN_PROFILE_NAMES = new Set([
   'hermes-switch',
   'neo',
   'trinity',
@@ -151,10 +198,35 @@ function getActiveProfilePath(): string {
 }
 
 /**
- * Validate a profile name that will be *written* to disk. The 'default'
- * profile is reserved — callers must not create or mutate it via the UI.
+ * Validate a profile name that will be *written* to disk (create, rename,
+ * delete). The 'default' profile is reserved — callers must not create or
+ * mutate it via the UI.
+ *
+ * This is the ONLY validator that applies `PROFILE_NAME_RE` (P-09). Before it
+ * did, the write path checked nothing but path separators, so the API would
+ * `mkdir` a profile directory named `My Agent!!`. The regex lives in
+ * `lib/profile-name.ts` because the wizard, the rename dialog and this module
+ * all used to carry disagreeing copies of the rule.
  */
 function validateProfileName(name: string): string {
+  const trimmed = validateNonReservedProfileName(name)
+  // Reuses the identifier validator's message on purpose: callers map error
+  // strings to HTTP status codes, and both rejections are the same 400.
+  if (!PROFILE_NAME_RE.test(trimmed)) throw new Error('Invalid profile name')
+  return trimmed
+}
+
+/**
+ * Path-safe + not a reserved name, but WITHOUT the canonical shape rule.
+ *
+ * This is the check for the *subject* of a mutation that must already exist:
+ * `deleteProfile(name)` and `renameProfile(oldName, …)`. Those two are the only
+ * ways to get rid of a badly-named directory, so holding them to
+ * `PROFILE_NAME_RE` would permanently trap any profile created before the rule
+ * existed. The reserved-name guards still apply — `default` and the built-ins
+ * must not be deleted or renamed.
+ */
+function validateNonReservedProfileName(name: string): string {
   const trimmed = validateProfileIdentifier(name)
   if (trimmed === 'default')
     throw new Error('Default profile cannot be modified here')
@@ -164,8 +236,13 @@ function validateProfileName(name: string): string {
 }
 
 /**
- * Validate a profile name that will only be *read* (e.g. \`cloneFrom\` source).
- * Any existing profile name is allowed, including 'default'.
+ * Validate a profile name that will only be *read* (e.g. \`cloneFrom\` source,
+ * `readProfile`, `setActiveProfile`, `updateProfileConfig`).
+ *
+ * Any existing profile name is allowed, including 'default'. This stays
+ * deliberately permissive — it only guards against path traversal. Applying
+ * `PROFILE_NAME_RE` here would make profiles that are already on disk under an
+ * odd name unreadable, and therefore unrenamable and unfixable.
  */
 function validateProfileIdentifier(name: string): string {
   const trimmed = name.trim()
@@ -196,12 +273,39 @@ function readYamlConfig(configPath: string): ProfileConfig {
   }
 }
 
-function countFilesRecursive(
+type WalkFilesResult = {
+  count: number
+  /** Newest mtime in MILLISECONDS among matched files; 0 when none matched. */
+  newestMtimeMs: number
+}
+
+const SESSION_FILE_RE = /\.(jsonl|json|sqlite|db)$/i
+
+const isSessionFile = (fullPath: string): boolean =>
+  SESSION_FILE_RE.test(fullPath)
+
+const isSkillFile = (fullPath: string): boolean =>
+  path.basename(fullPath) === 'SKILL.md'
+
+/**
+ * Single recursive walk producing both the matched-file count and the newest
+ * matched mtime.
+ *
+ * `listProfiles()` needs `sessionCount` and `lastRunAt` from the same
+ * `sessions/` tree, and it runs synchronously for every profile on every
+ * uncached call — a second walk would double the blocking readdir/stat work on
+ * the event loop. `trackMtime` is opt-in so the `skills/` caller, which only
+ * wants a count, does not pay a `statSync` per SKILL.md.
+ */
+function walkFiles(
   rootPath: string,
   predicate: (fullPath: string) => boolean,
-): number {
-  if (!fs.existsSync(rootPath)) return 0
+  options?: { trackMtime?: boolean },
+): WalkFilesResult {
+  if (!fs.existsSync(rootPath)) return { count: 0, newestMtimeMs: 0 }
+  const trackMtime = options?.trackMtime === true
   let count = 0
+  let newestMtimeMs = 0
   const stack = [rootPath]
   while (stack.length > 0) {
     const current = stack.pop() as string
@@ -217,10 +321,38 @@ function countFilesRecursive(
         stack.push(fullPath)
         continue
       }
-      if (predicate(fullPath)) count += 1
+      if (!predicate(fullPath)) continue
+      count += 1
+      if (!trackMtime) continue
+      try {
+        const { mtimeMs } = fs.statSync(fullPath)
+        if (mtimeMs > newestMtimeMs) newestMtimeMs = mtimeMs
+      } catch {
+        // ignore — an unreadable session file still counts, it just cannot
+        // contribute a timestamp
+      }
     }
   }
-  return count
+  return { count, newestMtimeMs }
+}
+
+/** Thin count-only wrapper over {@link walkFiles}. */
+function countFilesRecursive(
+  rootPath: string,
+  predicate: (fullPath: string) => boolean,
+): number {
+  return walkFiles(rootPath, predicate).count
+}
+
+/** Convert a walk's newest mtime (ms) to the UNIX SECONDS the client expects. */
+function toLastRunAt(newestMtimeMs: number): number | null {
+  return newestMtimeMs > 0 ? Math.floor(newestMtimeMs / 1000) : null
+}
+
+/** Derive the authoritative lifecycle state — see `ProfileSummary.status`. */
+function deriveStatus(active: boolean, sessionCount: number): ProfileStatus {
+  if (active) return 'active'
+  return sessionCount > 0 ? 'idle' : 'draft'
 }
 
 function latestMtime(paths: Array<string>): string | undefined {
@@ -256,6 +388,18 @@ let listProfilesCache: { ts: number; results: Array<ProfileSummary> } | null =
   null
 const LIST_PROFILES_TTL_MS = 5000
 
+/**
+ * Drop the cached `listProfiles()` result so the next call re-walks the
+ * filesystem. Every mutation in this module already does this inline (it
+ * owns the module-private variable); this export exists so callers in other
+ * modules — e.g. `profiles-trash.ts`'s restore/purge — can invalidate it too
+ * instead of a restored/purged profile staying invisible for up to
+ * `LIST_PROFILES_TTL_MS`.
+ */
+export function invalidateProfilesCache(): void {
+  listProfilesCache = null
+}
+
 export function listProfiles(): Array<ProfileSummary> {
   const now = Date.now()
   if (listProfilesCache && now - listProfilesCache.ts < LIST_PROFILES_TTL_MS) {
@@ -289,13 +433,13 @@ export function listProfiles(): Array<ProfileSummary> {
       const skillsDir = path.join(profilePath, 'skills')
       const sessionsDir = path.join(profilePath, 'sessions')
       const config = readYamlConfig(configPath)
-      const skillCount = countFilesRecursive(
-        skillsDir,
-        (full) => path.basename(full) === 'SKILL.md',
-      )
-      const sessionCount = countFilesRecursive(sessionsDir, (full) =>
-        /\.(jsonl|json|sqlite|db)$/i.test(full),
-      )
+      const skillCount = countFilesRecursive(skillsDir, isSkillFile)
+      // One walk, two answers: sessionCount (P-06 inputs) and lastRunAt (P-12).
+      const sessions = walkFiles(sessionsDir, isSessionFile, {
+        trackMtime: true,
+      })
+      const sessionCount = sessions.count
+      const isActive = name === activeProfile
       // Resolve model/provider from nested or flat config structure
       let modelName: string | undefined
       let providerName: string | undefined
@@ -316,7 +460,7 @@ export function listProfiles(): Array<ProfileSummary> {
       results.push({
         name,
         path: profilePath,
-        active: name === activeProfile,
+        active: isActive,
         exists: true,
         model: modelName,
         provider: providerName,
@@ -335,6 +479,8 @@ export function listProfiles(): Array<ProfileSummary> {
             ? config.description
             : undefined,
         agent_ui: config.agent_ui,
+        status: deriveStatus(isActive, sessionCount),
+        lastRunAt: toLastRunAt(sessions.newestMtimeMs),
       })
     }
   }
@@ -368,6 +514,11 @@ export function listProfiles(): Array<ProfileSummary> {
   if (!defaultProvider && typeof config.provider === 'string') {
     defaultProvider = config.provider
   }
+  const defaultSessions = walkFiles(
+    path.join(root, 'sessions'),
+    isSessionFile,
+    { trackMtime: true },
+  )
   results.unshift({
     name: 'default',
     path: root,
@@ -375,15 +526,13 @@ export function listProfiles(): Array<ProfileSummary> {
     exists: true,
     model: defaultModel,
     provider: defaultProvider,
-    skillCount: countFilesRecursive(
-      path.join(root, 'skills'),
-      (full) => path.basename(full) === 'SKILL.md',
-    ),
-    sessionCount: countFilesRecursive(path.join(root, 'sessions'), (full) =>
-      /\.(jsonl|json|sqlite|db)$/i.test(full),
-    ),
+    skillCount: countFilesRecursive(path.join(root, 'skills'), isSkillFile),
+    sessionCount: defaultSessions.count,
     hasEnv: fs.existsSync(path.join(root, '.env')),
     updatedAt: latestMtime([root, path.join(root, 'config.yaml')]),
+    // This branch only runs when `default` IS the active profile.
+    status: 'active',
+    lastRunAt: toLastRunAt(defaultSessions.newestMtimeMs),
   })
 
   results.sort((a, b) => {
@@ -399,17 +548,23 @@ export function readProfile(name: string): ProfileDetail {
   const active = getActiveProfileName()
   const normalized = name.trim() || 'default'
 
-  // Allow reading builtin profiles even though they can't be edited
   let isBuiltin = false
   let profilePath: string
   if (normalized === 'default') {
     profilePath = getClaudeRoot()
   } else if (BUILTIN_PROFILE_NAMES.has(normalized)) {
-    // Builtin profiles are read-only
     isBuiltin = true
     profilePath = path.join(getProfilesRoot(), normalized)
   } else {
-    profilePath = path.join(getProfilesRoot(), validateProfileName(normalized))
+    // Read path: `validateProfileIdentifier`, NOT `validateProfileName`. A
+    // profile directory that predates PROFILE_NAME_RE (or was created by hand)
+    // must stay readable, otherwise it can never be renamed into a valid name.
+    // The two branches above already handle the reserved names that
+    // validateProfileName exists to block.
+    profilePath = path.join(
+      getProfilesRoot(),
+      validateProfileIdentifier(normalized),
+    )
   }
 
   if (!fs.existsSync(profilePath)) throw new Error('Profile not found')
@@ -419,13 +574,19 @@ export function readProfile(name: string): ProfileDetail {
   const skillsDir = path.join(profilePath, 'skills')
   const config = readYamlConfig(configPath)
 
-  // Mark builtin profiles as readonly
+  // Built-ins are flagged so the UI can badge them — NOT because they are
+  // read-only (P-17). They are deliberately EDITABLE: `updateProfileConfig()`
+  // uses the permissive identifier validator precisely so `hermes-switch`,
+  // `neo`, `trinity` and `morpheus` can be tuned. What they cannot be is
+  // *created*, *renamed* or *deleted* — `validateProfileName()` blocks their
+  // names on those paths. A `readonly: true` flag used to be stamped here,
+  // contradicting all of that; nothing consumed it, so it is gone. Do not
+  // re-add it.
   const returnConfig: ProfileConfig & {
-    readonly?: boolean
     builtin?: boolean
   } = {
     ...config,
-    ...(isBuiltin && { readonly: true, builtin: true }),
+    ...(isBuiltin && { builtin: true }),
   }
 
   return {
@@ -458,6 +619,11 @@ export function setActiveProfile(name: string): SetActiveProfileResult {
   if (trimmed === 'default') {
     const activePath = getActiveProfilePath()
     if (fs.existsSync(activePath)) fs.unlinkSync(activePath)
+    // Every path out of this function mutates what listProfiles() reports —
+    // `active` flags flip and the synthetic `default` row appears/disappears.
+    // Skipping the reset here left the Profiles screen showing the old active
+    // profile (and hiding `default`) for up to LIST_PROFILES_TTL_MS.
+    listProfilesCache = null
     return { profile: 'default', needsGatewayRestart: true }
   }
   // Activating a profile is a read operation — point `active_profile`
@@ -490,6 +656,7 @@ export function createProfile(
   const configPath = path.join(profilePath, 'config.yaml')
 
   // Clone config from source profile if specified
+  let cloneSourceRoot: string | null = null
   if (options?.cloneFrom) {
     const sourceName = validateProfileIdentifier(options.cloneFrom)
     // The 'default' profile lives at ~/.hermes, not ~/.hermes/profiles/default
@@ -497,9 +664,12 @@ export function createProfile(
       sourceName === 'default'
         ? getClaudeRoot()
         : path.join(getProfilesRoot(), sourceName)
+    cloneSourceRoot = sourceRoot
     const sourceConfigPath = path.join(sourceRoot, 'config.yaml')
     if (fs.existsSync(sourceConfigPath)) {
-      fs.copyFileSync(sourceConfigPath, configPath)
+      const cloned = readYamlConfig(sourceConfigPath)
+      cloned.agent_ui = normalizeClonedAgentUI(cloned.agent_ui)
+      fs.writeFileSync(configPath, YAML.stringify(cloned), 'utf-8')
     } else {
       fs.writeFileSync(
         configPath,
@@ -523,16 +693,72 @@ export function createProfile(
     fs.writeFileSync(configPath, YAML.stringify(config), 'utf-8')
   }
 
-  // Create subdirectories
+  // Create subdirectories. These run BEFORE the clone-asset copy below so the
+  // copy lands inside (and is not clobbered by) the scaffolded `skills/` dir.
   fs.mkdirSync(path.join(profilePath, 'skills'), { recursive: true })
   fs.mkdirSync(path.join(profilePath, 'sessions'), { recursive: true })
+
+  // A clone inherits the source's *authored* assets, never its history or
+  // secrets: `sessions/`, `memories/`, `memory/` and `.env` are deliberately
+  // excluded so the clone starts with a clean run history and its own
+  // credentials. Every copy is existence-guarded — a source profile without a
+  // SOUL.md or skills/ dir must still clone cleanly.
+  if (cloneSourceRoot) {
+    const soulSource = path.join(cloneSourceRoot, 'SOUL.md')
+    if (fs.existsSync(soulSource)) {
+      fs.copyFileSync(soulSource, path.join(profilePath, 'SOUL.md'))
+    }
+    const skillsSource = path.join(cloneSourceRoot, 'skills')
+    if (fs.existsSync(skillsSource)) {
+      fs.cpSync(skillsSource, path.join(profilePath, 'skills'), {
+        recursive: true,
+      })
+    }
+  }
 
   listProfilesCache = null
   return readProfile(normalized)
 }
 
+/**
+ * Reset the identity fields a clone must NOT inherit from its source.
+ *
+ * `createProfile()` copies the source's config.yaml, so cloning a built-in
+ * (`hermes-switch`, tier 1, status `active`) used to mint a Tier-1 ACTIVE
+ * orchestrator that had never run — corrupting the Profiles screen's tier
+ * counters and tier filter, and walking straight around the
+ * "agent_ui.tier must be 3 for user-created profiles" 400 that
+ * `api/profiles/create` enforces on the wizard path.
+ *
+ * This lives in the server layer rather than in the route handler on purpose:
+ * `createProfile()` is where the copy happens, so the invariant cannot be
+ * bypassed by a future caller (CLI, importer, a second route) that forgets to
+ * re-implement it. The clone dialog posts only `{ name, cloneFrom }` — there is
+ * no `agent_ui` in the body for a route-layer check to inspect — while the
+ * wizard path is unaffected because `create.ts` applies its own explicit
+ * `agent_ui` patch afterwards, which deep-merges over these defaults.
+ *
+ * Everything else the source declared (`glyph`, `role`, `tags`, `persona_id`)
+ * is authored identity and is preserved.
+ *
+ * Exported so `profiles-export.ts`'s `importProfile()` can apply the exact
+ * same reset to an imported bundle's `agent_ui` — an imported config is
+ * hostile input in the same way a cloned built-in's config is: without this,
+ * a handed-around bundle could mint a fake Tier-1 "active" agent that has
+ * never actually run.
+ */
+export function normalizeClonedAgentUI(source?: AgentUIMetadata): AgentUIMetadata {
+  return {
+    ...(source ?? {}),
+    tier: 3,
+    status: 'draft',
+    last_run: null,
+  }
+}
+
 export function deleteProfile(name: string): void {
-  const normalized = validateProfileName(name)
+  // Shape-permissive on purpose — see validateNonReservedProfileName.
+  const normalized = validateNonReservedProfileName(name)
   if (normalized === getActiveProfileName())
     throw new Error('Cannot delete the active profile')
   const profilePath = path.join(getProfilesRoot(), normalized)
@@ -574,47 +800,24 @@ export function updateProfileConfig(
   const configPath = path.join(profilePath, 'config.yaml')
   const current = readYamlConfig(configPath)
 
-  // Deep merge helper (same logic as claude-config.ts)
-  function deepMerge(
-    target: Record<string, unknown>,
-    source: Record<string, unknown>,
-  ) {
-    for (const [key, value] of Object.entries(source)) {
-      if (
-        value &&
-        typeof value === 'object' &&
-        !Array.isArray(value) &&
-        target[key] &&
-        typeof target[key] === 'object'
-      ) {
-        deepMerge(
-          target[key] as Record<string, unknown>,
-          value as Record<string, unknown>,
-        )
-      } else {
-        target[key] = value
-      }
-    }
-  }
-
-  // Handle null values as explicit removals
-  const updates = { ...patch }
-  for (const [key, value] of Object.entries(updates)) {
-    if (value === null) {
-      delete current[key]
-      delete updates[key]
-    }
-  }
-  deepMerge(current, updates)
+  // Merge semantics (null-means-delete, mcp_servers replace-whole, deep merge
+  // everything else) live in ../lib/profile-merge so the wizard's client-side
+  // save-preview (predictMergedConfig in profile-config-map.ts) runs the exact
+  // same algorithm instead of a hand-kept copy of it. See that module's doc
+  // comment for why the two must never drift apart again.
+  const merged = mergeProfileConfig(current, patch)
 
   fs.mkdirSync(path.dirname(configPath), { recursive: true })
-  fs.writeFileSync(configPath, YAML.stringify(current), 'utf-8')
+  fs.writeFileSync(configPath, YAML.stringify(merged), 'utf-8')
   listProfilesCache = null
   return readProfile(normalized)
 }
 
 export function renameProfile(oldName: string, newName: string): ProfileDetail {
-  const from = validateProfileName(oldName)
+  // The SOURCE is only dereferenced, so it stays shape-permissive: renaming is
+  // how an oddly-named legacy profile gets fixed. The TARGET is written to
+  // disk, so it must satisfy the canonical rule.
+  const from = validateNonReservedProfileName(oldName)
   const to = validateProfileName(newName)
   const fromPath = path.join(getProfilesRoot(), from)
   const toPath = path.join(getProfilesRoot(), to)

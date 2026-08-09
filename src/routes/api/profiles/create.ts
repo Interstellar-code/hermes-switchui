@@ -9,6 +9,7 @@ import {
   writeProfile,
 } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import { errorResponse } from './-error-response'
 import type {
   AgentRuntime,
   AgentUIMetadata,
@@ -100,6 +101,12 @@ export const Route = createFileRoute('/api/profiles/create')({
             typeof resolvedModel !== 'string'
               ? (resolvedModel?.provider ?? body.provider)
               : body.provider
+          // NOTE(clone-normalisation): the `agent_ui.tier must be 3` guard above
+          // only sees what the caller sent, and the clone dialog posts just
+          // `{ name, cloneFrom }`. Resetting tier/status/last_run on a cloned
+          // config therefore happens inside createProfile(), where the copy
+          // itself is made and no caller can skip it. The wizard path is
+          // unaffected: the explicit agent_ui patch below deep-merges on top.
           const profile = createProfile(body.name || '', {
             cloneFrom,
             model: legacyModel,
@@ -146,15 +153,7 @@ export const Route = createFileRoute('/api/profiles/create')({
 
           return Response.json({ ok: true, profile })
         } catch (error) {
-          return Response.json(
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Failed to create profile',
-            },
-            { status: 500 },
-          )
+          return errorResponse(error, 'Failed to create profile')
         }
       },
     },

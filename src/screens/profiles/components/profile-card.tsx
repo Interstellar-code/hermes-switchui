@@ -1,9 +1,13 @@
 import type { AgentRow } from '../profiles-screen'
+import type { ProfileReachability } from '@/hooks/use-profile-scope-status'
 import { formatRelative } from '@/lib/format'
+import { useProfileScopeStatus } from '@/hooks/use-profile-scope-status'
 
 type Props = {
   agent: AgentRow
-  onClick: () => void
+  /** Opens the detail drawer. Editing is a separate, explicit action (G-01). */
+  onOpen: () => void
+  onActivate?: (profileName: string) => void
   onEdit?: (agent: AgentRow) => void
   onClone?: (agent: AgentRow) => void
   onDelete?: (profileName: string) => void
@@ -18,25 +22,94 @@ function GlyphEl({ glyph, tier }: { glyph: string; tier: 1 | 2 | 3 }) {
   )
 }
 
-function StatusDot({ status }: { status: string }) {
+/**
+ * G-05: whether the *live* gateway can actually reach this profile right
+ * now — independent of, and complementary to, `StatusDot` (which reflects
+ * this workspace's own `active_profile` pointer, not gateway topology).
+ * Quiet by design: `useProfileScopeStatus` only returns a value other than
+ * `'served'` when it is actionable (multiplex gateway that excludes this
+ * profile) or when the probe failed closed, so most cards render nothing
+ * here. See `use-profile-scope-status.ts` for the full semantics.
+ */
+function ScopeBadge({ reachability }: { reachability: ProfileReachability }) {
+  if (reachability === 'served') return null
+  const unknown = reachability === 'unknown'
   return (
-    <div className={`pf-status ${status}`}>
+    <span
+      className={`pf-scope-badge ${unknown ? 'pf-scope-badge--unknown' : 'pf-scope-badge--not-served'}`}
+      title={
+        unknown
+          ? 'Gateway reachability unknown — the topology probe failed, so this cannot be confirmed as servable.'
+          : 'Not served by the live gateway — this profile is not in its multiplexed profile list, so activating it will not respond to chats until the gateway config is updated.'
+      }
+    >
+      {unknown ? 'unknown' : 'not served'}
+    </span>
+  )
+}
+
+/**
+ * The one honest state indicator (P-06).
+ *
+ * The card used to render this dot *and* a separate "⚡ IN USE" badge driven by
+ * `p.active`. Now that `status` is derived from `~/.hermes/active_profile`,
+ * `status === 'active'` and "in use" are the same fact stated twice, so the
+ * badge is gone and the dot carries it.
+ */
+function StatusDot({ status }: { status: AgentRow['status'] }) {
+  return (
+    <div
+      className={`pf-status ${status}`}
+      title={
+        status === 'active'
+          ? 'Currently selected profile — the gateway runs this config'
+          : status === 'idle'
+            ? 'Has run before, but is not the selected profile'
+            : 'Never run'
+      }
+    >
       <div className="d" />
-      {status}
+      {status === 'active' ? 'in use' : status}
     </div>
   )
 }
 
-export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-profile': dataProfile }: Props) {
+export function ProfileCard({
+  agent,
+  onOpen,
+  onActivate,
+  onEdit,
+  onClone,
+  onDelete,
+  'data-profile': dataProfile,
+}: Props) {
   const tierClass = `tier-${agent.tier}`
   const builtinClass = agent.builtin ? ' builtin' : ''
-  const inUseClass = agent.active ? ' pf-card--in-use' : ''
+  const isActive = agent.status === 'active'
+  const inUseClass = isActive ? ' pf-card--in-use' : ''
+  const lastUsed = agent.lastRunAt !== null ? formatRelative(agent.lastRunAt) : 'never run'
+  const hasActions = Boolean(onActivate ?? onEdit ?? onClone ?? onDelete)
+  const { reachability } = useProfileScopeStatus(agent.profileName)
 
   return (
     <article
       className={`pf-card ${tierClass}${builtinClass}${inUseClass}`}
-      onClick={onClick}
-      aria-label={`${agent.name} — ${agent.role} — Tier ${agent.tier} — ${agent.status}${agent.active ? ' — currently selected' : ''}`}
+      // P-16: the card carries the primary action, so it has to be reachable and
+      // operable from the keyboard. `role="button"` deliberately replaces the
+      // implicit `article` role — this is a control, not a document section.
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          // Only when the card itself is focused; nested buttons handle their own
+          // keys and their activation already bubbles a click we stop below.
+          if (e.target !== e.currentTarget) return
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      aria-label={`${agent.name} — ${agent.role} — Tier ${agent.tier} — ${agent.status}. Open details.`}
       data-profile={dataProfile}
     >
       {/* Head: glyph + name/role + tier badge */}
@@ -52,25 +125,9 @@ export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-p
       {/* Status row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <StatusDot status={agent.status} />
-        {agent.active && (
-          <span
-            className="pf-in-use-badge"
-            title="Currently selected profile — the gateway is using this config"
-            style={{
-              fontSize: 10,
-              padding: '2px 6px',
-              borderRadius: 3,
-              background: 'var(--theme-accent, #00ff41)',
-              color: 'var(--theme-bg, #000)',
-              fontWeight: 700,
-              letterSpacing: '0.05em',
-            }}
-          >
-            ⚡ IN USE
-          </span>
-        )}
+        <ScopeBadge reachability={reachability} />
         {agent.builtin && (
-          <span className="pf-lock-badge">
+          <span className="pf-lock-badge" title="Built-in agent — editable and cloneable, but it cannot be renamed or deleted">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
@@ -85,25 +142,61 @@ export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-p
         {agent.description || <span style={{ opacity: 0.4 }}>No description</span>}
       </div>
 
-      {/* Meta: model badge, tags, last run */}
+      {/* Meta: model badge + tags */}
       <div className="pf-card-meta">
         {agent.model && <span className="pf-model-badge">{agent.model}</span>}
         {agent.tags.slice(0, 3).map((t) => (
           <span key={t} className="pf-tag">{t}</span>
         ))}
-        <span className="pf-last-run">
-          {agent.last_run ? formatRelative(agent.last_run) : '—'}
-        </span>
       </div>
 
-      {/* Action buttons — any real profile (not the synthetic default) */}
-      {agent.profileName && agent.profileName !== 'default' && (
-        <div className="pf-card-actions" onClick={(e) => e.stopPropagation()}>
+      {/* Signals the list API already returns but nothing used to show (G-02) */}
+      <div className="pf-card-stats">
+        <span className="pf-stat" title={`${String(agent.skillCount)} skill file(s) in skills/`}>
+          {agent.skillCount} {agent.skillCount === 1 ? 'skill' : 'skills'}
+        </span>
+        <span className="pf-stat" title={`${String(agent.sessionCount)} session file(s) in sessions/`}>
+          {agent.sessionCount} {agent.sessionCount === 1 ? 'session' : 'sessions'}
+        </span>
+        <span className="pf-last-run" title={
+          agent.lastRunAt !== null
+            ? new Date(agent.lastRunAt * 1000).toLocaleString()
+            : 'This profile has no sessions on disk'
+        }>
+          {lastUsed}
+        </span>
+        {agent.hasEnv && (
+          <span className="pf-env-badge" title="This profile has its own .env file">.env</span>
+        )}
+      </div>
+
+      {/* Action buttons — the screen withholds any callback the server would reject */}
+      {hasActions && (
+        <div
+          className="pf-card-actions"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          {onActivate && (
+            <button
+              type="button"
+              className="pf-tbl-action-btn pf-tbl-action-btn--primary"
+              title="Activate — make this the profile the gateway runs"
+              aria-label={`Activate ${agent.name}`}
+              onClick={() => onActivate(agent.profileName!)}
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
+                <circle cx="8" cy="8" r="6.5"/>
+                <path d="M6 8l2 2 3-3"/>
+              </svg>
+            </button>
+          )}
           {onEdit && (
             <button
               type="button"
               className="pf-tbl-action-btn"
               title="Edit"
+              aria-label={`Edit ${agent.name}`}
               onClick={() => onEdit(agent)}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
@@ -116,6 +209,7 @@ export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-p
               type="button"
               className="pf-tbl-action-btn"
               title="Clone"
+              aria-label={`Clone ${agent.name}`}
               onClick={() => onClone(agent)}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
@@ -124,11 +218,12 @@ export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-p
               </svg>
             </button>
           )}
-          {onDelete && !agent.active && (
+          {onDelete && (
             <button
               type="button"
               className="pf-tbl-action-btn pf-tbl-action-btn--danger"
               title="Delete"
+              aria-label={`Delete ${agent.name}`}
               onClick={() => onDelete(agent.profileName!)}
             >
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" width="13" height="13">
@@ -141,4 +236,3 @@ export function ProfileCard({ agent, onClick, onEdit, onClone, onDelete, 'data-p
     </article>
   )
 }
-

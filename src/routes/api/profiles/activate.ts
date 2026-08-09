@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { setActiveProfile } from '../../../server/profiles-browser'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import { errorResponse } from './-error-response'
 
 export const Route = createFileRoute('/api/profiles/activate')({
   server: {
@@ -21,15 +22,7 @@ export const Route = createFileRoute('/api/profiles/activate')({
             needsGatewayRestart: result.needsGatewayRestart,
           })
         } catch (error) {
-          return Response.json(
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Failed to activate profile',
-            },
-            { status: 500 },
-          )
+          return errorResponse(error, 'Failed to activate profile')
         }
       },
     },

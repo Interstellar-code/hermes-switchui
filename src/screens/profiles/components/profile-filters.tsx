@@ -1,15 +1,31 @@
-import type { ProfilesViewMode } from '@/stores/profiles-screen-store'
-import { useProfilesFilterStore, useProfilesViewStore } from '@/stores/profiles-screen-store'
+import { useCallback, useEffect, useState } from 'react'
+import type {
+  ProfileFilterState,
+  ProfilesViewMode,
+} from '@/stores/profiles-screen-store'
+import {
+  DEFAULT_FILTERS,
+  hasActiveFilters,
+  useProfilesViewStore,
+} from '@/stores/profiles-screen-store'
 
-const DEFAULT_SEARCH = ''
-const DEFAULT_TIER = 'all'
-const DEFAULT_STATUS = 'all'
-const DEFAULT_MODEL = 'all'
-const DEFAULT_TAG = 'all'
+/**
+ * How long the search box waits before writing to the URL (G-07).
+ *
+ * This is the *only* debounce in the search path now. The value used to be
+ * debounced again inside the screen; keeping both would stack them in series
+ * and put 300ms between the last keystroke and the filtered list.
+ */
+export const SEARCH_DEBOUNCE_MS = 150
 
 type Props = {
   models: Array<string>
   tags: Array<string>
+  filters: ProfileFilterState
+  onFilterChange: (
+    patch: Partial<ProfileFilterState>,
+    opts?: { replace?: boolean },
+  ) => void
 }
 
 const TIER_OPTIONS = [
@@ -26,19 +42,39 @@ const STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
 ] as const
 
-export function ProfileFilters({ models, tags }: Props) {
-  const { tierFilter, statusFilter, modelFilter, tagFilter,
-          setTierFilter, setStatusFilter, setModelFilter, setTagFilter, setSearch, search,
-          resetFilters } =
-    useProfilesFilterStore()
+export function ProfileFilters({
+  models,
+  tags,
+  filters,
+  onFilterChange,
+}: Props) {
+  const { tierFilter, statusFilter, modelFilter, tagFilter } = filters
   const { viewMode, setViewMode } = useProfilesViewStore()
 
-  const hasActiveFilters =
-    search !== DEFAULT_SEARCH ||
-    tierFilter !== DEFAULT_TIER ||
-    statusFilter !== DEFAULT_STATUS ||
-    modelFilter !== DEFAULT_MODEL ||
-    tagFilter !== DEFAULT_TAG
+  // The input stays instant; only the URL write waits. Without the local copy
+  // the caret would fight a value that lags 150ms behind the keyboard.
+  const [searchDraft, setSearchDraft] = useState(filters.search)
+
+  // Adopt changes that came from anywhere other than this box — a deep link, a
+  // back/forward step, "Clear filters".
+  useEffect(() => {
+    setSearchDraft(filters.search)
+  }, [filters.search])
+
+  useEffect(() => {
+    if (searchDraft === filters.search) return
+    const id = setTimeout(() => {
+      // `replace` so a ten-character query leaves ONE history entry instead of
+      // ten, and Back means "before I searched" rather than "one letter ago".
+      onFilterChange({ search: searchDraft }, { replace: true })
+    }, SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(id)
+  }, [searchDraft, filters.search, onFilterChange])
+
+  const resetFilters = useCallback(() => {
+    setSearchDraft(DEFAULT_FILTERS.search)
+    onFilterChange({ ...DEFAULT_FILTERS })
+  }, [onFilterChange])
 
   return (
     <div className="pf-filter-bar">
@@ -50,8 +86,9 @@ export function ProfileFilters({ models, tags }: Props) {
         <input
           type="text"
           placeholder="Search agents..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          aria-label="Search agents"
+          value={searchDraft}
+          onChange={(e) => setSearchDraft(e.target.value)}
         />
       </div>
 
@@ -65,7 +102,7 @@ export function ProfileFilters({ models, tags }: Props) {
               key={o.value}
               type="button"
               className={`filter-pill${tierFilter === o.value ? ' filter-pill--active' : ''}`}
-              onClick={() => setTierFilter(o.value)}
+              onClick={() => onFilterChange({ tierFilter: o.value })}
             >
               {o.label}
             </button>
@@ -82,7 +119,7 @@ export function ProfileFilters({ models, tags }: Props) {
               key={o.value}
               type="button"
               className={`filter-pill${statusFilter === o.value ? ' filter-pill--active' : ''}`}
-              onClick={() => setStatusFilter(o.value)}
+              onClick={() => onFilterChange({ statusFilter: o.value })}
             >
               {o.label}
             </button>
@@ -97,7 +134,7 @@ export function ProfileFilters({ models, tags }: Props) {
               <button
                 type="button"
                 className={`filter-pill${modelFilter === 'all' ? ' filter-pill--active' : ''}`}
-                onClick={() => setModelFilter('all')}
+                onClick={() => onFilterChange({ modelFilter: 'all' })}
               >
                 All
               </button>
@@ -106,7 +143,7 @@ export function ProfileFilters({ models, tags }: Props) {
                   key={m}
                   type="button"
                   className={`filter-pill${modelFilter === m ? ' filter-pill--active' : ''}`}
-                  onClick={() => setModelFilter(m)}
+                  onClick={() => onFilterChange({ modelFilter: m })}
                 >
                   {m}
                 </button>
@@ -123,7 +160,7 @@ export function ProfileFilters({ models, tags }: Props) {
               <button
                 type="button"
                 className={`filter-pill${tagFilter === 'all' ? ' filter-pill--active' : ''}`}
-                onClick={() => setTagFilter('all')}
+                onClick={() => onFilterChange({ tagFilter: 'all' })}
               >
                 All
               </button>
@@ -132,7 +169,7 @@ export function ProfileFilters({ models, tags }: Props) {
                   key={t}
                   type="button"
                   className={`filter-pill${tagFilter === t ? ' filter-pill--active' : ''}`}
-                  onClick={() => setTagFilter(t)}
+                  onClick={() => onFilterChange({ tagFilter: t })}
                 >
                   {t}
                 </button>
@@ -143,7 +180,7 @@ export function ProfileFilters({ models, tags }: Props) {
       </div>
 
       {/* Clear filters */}
-      {hasActiveFilters && (
+      {hasActiveFilters(filters) && (
         <button
           type="button"
           className="pf-clear-filters"

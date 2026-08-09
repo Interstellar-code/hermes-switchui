@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { draftFromConfig } from '../profile-config-map'
+import { buildCreatePayload, buildUpdatePayload, draftFromConfig } from '../profile-config-map'
 import {
   INITIAL_WIZARD_STATE,
   STEP_LABELS,
@@ -10,6 +10,7 @@ import {
   wizardReducer,
 } from '../types'
 import { ConfirmDialog } from './confirm-dialog'
+import { useFocusTrap } from './use-focus-trap'
 import { WizardStepConfig } from './wizard-step-config'
 import { WizardStepIdentity } from './wizard-step-identity'
 import { WizardStepMcp } from './wizard-step-mcp'
@@ -20,18 +21,26 @@ import { WizardStepReview } from './wizard-step-review'
 import { WizardStepSkills } from './wizard-step-skills'
 import { WizardStepToolset } from './wizard-step-toolset'
 import type { NewAgentDraft, WizardStep } from '../types'
-import type {
-  ProfileConfig,
-  ProfileDetail,
-  ProfileSummary,
-} from '@/server/profiles-browser'
+import type { ProfileConfig, ProfileDetail } from '@/server/profiles-browser'
 import { randomMatrixName } from '@/lib/matrix-names'
+import { useProfilesList } from '@/hooks/use-profiles-list'
 
 type Props = {
   open: boolean
   onClose: () => void
   onSuccess: (profileName: string) => void
   editProfileName?: string | null
+  /**
+   * Step to land on when the wizard opens, from `?step=` (already clamped to
+   * 1–9 by the route schema). Read **once per open**, at the moment the draft
+   * is seeded — see the seeding effect. It is an entry point, not a mirror: the
+   * reducer owns `step` for the rest of the session, and nothing writes it back
+   * to the URL. Mirroring would mean two writers for one value and the effect
+   * could no longer tell "the user pressed Next" from "the URL changed".
+   *
+   * Only honoured in edit mode; the screen withholds it for a create flow.
+   */
+  initialStep?: WizardStep
 }
 
 const TOTAL_STEPS = 9
@@ -53,28 +62,14 @@ export function AgentWizard({
   onClose,
   onSuccess,
   editProfileName,
+  initialStep,
 }: Props) {
   const [state, dispatch] = useReducer(wizardReducer, INITIAL_WIZARD_STATE)
   const queryClient = useQueryClient()
 
   const mode = editProfileName ? 'edit' : 'create'
 
-  const profilesQuery = useQuery({
-    queryKey: ['profiles', 'list'],
-    queryFn: async () => {
-      const r = await fetch('/api/profiles/list')
-      if (!r.ok)
-        return {
-          profiles: [] as Array<ProfileSummary>,
-          activeProfile: undefined as string | undefined,
-        }
-      return (await r.json()) as {
-        profiles: Array<ProfileSummary>
-        activeProfile?: string
-      }
-    },
-    staleTime: 30_000,
-  })
+  const profilesQuery = useProfilesList()
 
   const activeProfile = profilesQuery.data?.activeProfile
   const existingNames = (profilesQuery.data?.profiles ?? []).map((p) => p.name)
@@ -123,7 +118,12 @@ export function AgentWizard({
     seededRef.current = false
   }, [editProfileName])
 
-  // Effect B: seed draft once per open
+  // Effect B: seed draft once per open — and, in the same pass, apply the
+  // deep-linked step. Doing it here rather than in an effect of its own is what
+  // keeps seeding and step-setting from fighting: `seededRef` already means
+  // "this open has been initialised", so both writes happen exactly once, in
+  // one commit, and a later re-render with the same props re-enters and bails
+  // at the guard above instead of dragging the user back to `?step=`.
   useEffect(() => {
     if (!open || seededRef.current) return
 
@@ -135,6 +135,9 @@ export function AgentWizard({
         type: 'SET_DRAFT',
         patch: draftFromConfig(editProfileName!, config),
       })
+      if (initialStep && initialStep !== 1) {
+        dispatch({ type: 'SET_STEP', step: initialStep })
+      }
       seededRef.current = true
     } else {
       // Create mode: inherit Tier-1 active config + random Matrix name
@@ -154,6 +157,8 @@ export function AgentWizard({
       }
 
       dispatch({ type: 'SET_DRAFT', patch })
+      // `initialStep` is intentionally NOT applied in create mode — see the
+      // prop's doc comment and the screen, which never sends it for a create.
       seededRef.current = true
     }
   }, [
@@ -163,6 +168,7 @@ export function AgentWizard({
     editDetailQuery.data,
     activeConfigQuery.data,
     existingNames,
+    initialStep,
   ])
 
   const allTags = Array.from(
@@ -223,6 +229,12 @@ export function AgentWizard({
     onClose()
   }
 
+  // P-16. Escape routes through `handleCancel`, never straight to `onClose`, so
+  // a dirty draft still raises the discard confirmation — Escape must not be a
+  // quiet way to throw away nine steps of input.
+  const modalRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(open, modalRef, handleCancel)
+
   function handleJumpTo(step: WizardStep) {
     dispatch({ type: 'SET_STEP', step })
   }
@@ -249,29 +261,7 @@ export function AgentWizard({
       if (mode === 'edit') {
         // Edit mode: POST /api/profiles/update
         // NOTE: agent_ui MUST NOT include tier or status (update rejects them)
-        const payload = {
-          name: draft.name,
-          description: draft.role || draft.name,
-          system_prompt: draft.system_prompt,
-          model: { default: draft.model, provider: draft.provider },
-          mcp_servers: draft.mcp_servers,
-          skills: { external_dirs: draft.skill_dirs },
-          memory: {
-            memory_enabled: draft.memory_enabled,
-            provider: draft.memory_provider,
-          },
-          agent: {
-            max_turns: draft.max_turns,
-            reasoning_effort: draft.reasoning_effort,
-            disabled_toolsets: draft.disabled_toolsets,
-          },
-          agent_ui: {
-            glyph: draft.glyph,
-            role: draft.role,
-            tags: draft.tags,
-            persona_id: draft.persona_id,
-          },
-        }
+        const payload = buildUpdatePayload(draft)
 
         await postJson('/api/profiles/update', payload)
         await queryClient.invalidateQueries({ queryKey: ['profiles'] })
@@ -280,31 +270,7 @@ export function AgentWizard({
         onClose()
       } else {
         // Create mode: POST /api/profiles/create
-        const payload = {
-          name: draft.name,
-          description: draft.role || draft.name,
-          system_prompt: draft.system_prompt,
-          model: { default: draft.model, provider: draft.provider },
-          mcp_servers: draft.mcp_servers,
-          skills: { external_dirs: draft.skill_dirs },
-          memory: {
-            memory_enabled: draft.memory_enabled,
-            provider: draft.memory_provider,
-          },
-          agent: {
-            max_turns: draft.max_turns,
-            reasoning_effort: draft.reasoning_effort,
-            disabled_toolsets: draft.disabled_toolsets,
-          },
-          agent_ui: {
-            tier: 3,
-            glyph: draft.glyph,
-            role: draft.role,
-            status: 'draft',
-            tags: draft.tags,
-            persona_id: draft.persona_id,
-          },
-        }
+        const payload = buildCreatePayload(draft)
 
         await postJson('/api/profiles/create', payload)
         await queryClient.invalidateQueries({ queryKey: ['profiles'] })
@@ -433,6 +399,7 @@ export function AgentWizard({
 
       {/* Modal shell */}
       <div
+        ref={modalRef}
         className="wiz-modal"
         role="dialog"
         aria-modal="true"

@@ -25,6 +25,7 @@ import {
 } from '@/lib/kanban-block-state'
 import { formatHomeChannelLabel } from '@/lib/messaging-channel-label'
 import { cn } from '@/lib/utils'
+import { useProfilesList } from '@/hooks/use-profiles-list'
 
 
 type LogResponse = { log: { content: string; exists: boolean; truncated: boolean; size_bytes: number } }
@@ -490,11 +491,7 @@ function TaskOverviewTab({ task, detail }: { task: HermesKanbanTask; detail: Her
     queryFn: fetchAssignees,
     staleTime: 60_000,
   })
-  const profilesQuery = useQuery({
-    queryKey: ['profiles', 'list'],
-    queryFn: () => fetch('/api/profiles/list').then(r => r.json()) as Promise<{ profiles: Array<{ name: string }>; activeProfile: string }>,
-    staleTime: 60_000,
-  })
+  const profilesQuery = useProfilesList({ staleTime: 60_000 })
   const assignees = assigneesQuery.data?.assignees ?? []
   const options = unionAssigneesWithProfiles(
     assignees,
