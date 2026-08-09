@@ -51,12 +51,17 @@ describe('buildCorePluginRows', () => {
   })
 
   /**
-   * Membership is `author: Interstellar-code` in the plugin's own manifest.
-   * The gateway ships ~90 plugins and the hub payload carries no author
-   * field, so the rule lives in the curated list and is pinned here.
+   * Membership of the `interstellar` group is `author: Interstellar-code` in
+   * the plugin's own manifest. The gateway ships ~90 plugins and the hub
+   * payload carries no author field, so the rule lives in the curated list
+   * and is pinned here — the point is that nothing upstream drifts into the
+   * group whose heading claims we wrote it.
    */
-  it('lists only the Interstellar-authored plugins', () => {
-    expect(CORE_PLUGINS.map((entry) => entry.name)).toEqual([
+  it('puts exactly the Interstellar-authored plugins in the interstellar group', () => {
+    const ours = CORE_PLUGINS.filter(
+      (entry) => entry.group === 'interstellar',
+    ).map((entry) => entry.name)
+    expect(ours).toEqual([
       'workflow-engine',
       'a2a_fleet',
       'personas',
@@ -65,16 +70,53 @@ describe('buildCorePluginRows', () => {
     ])
   })
 
-  it('excludes upstream plugins that are commonly enabled anyway', () => {
+  it('keeps the upstream screen-gating plugins in their own group', () => {
+    const recommended = CORE_PLUGINS.filter(
+      (entry) => entry.group === 'recommended',
+    ).map((entry) => entry.name)
+    expect(recommended).toEqual(['kanban', 'projects'])
+  })
+
+  it('offers nothing outside the two curated groups', () => {
     const names = new Set(CORE_PLUGINS.map((entry) => entry.name))
-    for (const upstream of [
-      'kanban',
-      'projects',
-      'herdr-agent-state',
-      'matrix-platform',
-    ]) {
-      expect(names.has(upstream)).toBe(false)
+    for (const excluded of ['herdr-agent-state', 'matrix-platform']) {
+      expect(names.has(excluded)).toBe(false)
     }
+  })
+
+  it('carries the group through onto every built row', () => {
+    const rows = buildCorePluginRows([])
+    expect(rows.find((r) => r.name === 'kanban')?.group).toBe('recommended')
+    expect(rows.find((r) => r.name === 'a2a_fleet')?.group).toBe('interstellar')
+  })
+
+  /**
+   * `kanban` ships no plugin.yaml — it is mounted from a dashboard manifest —
+   * so it never appears in a hub snapshot. Reading that absence as "not
+   * installed" told users their Tasks screen was off while they were looking
+   * at it. The gateway's own capability probe is the truth for anything the
+   * hub cannot see.
+   */
+  it('trusts the capability probe for a plugin the hub cannot see', () => {
+    const rows = buildCorePluginRows([], { kanban: true })
+    const row = rows.find((r) => r.name === 'kanban')
+    expect(row?.state).toBe('enabled')
+    // Nothing to toggle: the hub is the only thing that can toggle, and it
+    // does not know this plugin exists.
+    expect(row?.action).toBe('none')
+    expect(row?.cliCommand).toBeNull()
+  })
+
+  it('still reports absent when the probe says the capability is off', () => {
+    const rows = buildCorePluginRows([], { kanban: false })
+    const row = rows.find((r) => r.name === 'kanban')
+    expect(row?.state).toBe('absent')
+    expect(row?.action).toBe('cli')
+  })
+
+  it('treats an unprobed capability as absent rather than assuming it is on', () => {
+    const row = buildCorePluginRows([], {}).find((r) => r.name === 'kanban')
+    expect(row?.state).toBe('absent')
   })
 
   it('non-bundled + disabled also falls back to cli', () => {

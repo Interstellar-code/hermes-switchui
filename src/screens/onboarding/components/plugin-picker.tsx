@@ -8,6 +8,7 @@
  * action it was handed — it never re-derives the constraint itself.
  */
 import { useEffect, useRef, useState } from 'react'
+import { CORE_PLUGIN_GROUPS } from '../lib/core-plugins'
 import type { CorePluginRow, CorePluginState } from '../lib/core-plugins'
 import { writeTextToClipboard } from '@/lib/clipboard'
 
@@ -149,6 +150,12 @@ function PluginRow({
   )
 }
 
+/**
+ * Grouped so the authorship claim stays true: everything under "Interstellar
+ * plugins" is ours, and the upstream ones that happen to gate a screen this
+ * UI ships sit under their own heading rather than being presented as ours.
+ * An empty group renders nothing.
+ */
 export function PluginPicker({
   rows,
   onToggle,
@@ -157,15 +164,28 @@ export function PluginPicker({
 }: PluginPickerProps) {
   return (
     <div className="ob-plugins">
-      {rows.map((row) => (
-        <PluginRow
-          key={row.name}
-          row={row}
-          busy={busyName === row.name}
-          onToggle={onToggle}
-          readOnly={readOnly}
-        />
-      ))}
+      {CORE_PLUGIN_GROUPS.map((group) => {
+        const groupRows = rows.filter((row) => row.group === group.id)
+        if (groupRows.length === 0) return null
+        return (
+          <section
+            key={group.id}
+            className="ob-plugin-group"
+            aria-label={group.label}
+          >
+            <h4 className="ob-plugin-group-label">{group.label}</h4>
+            {groupRows.map((row) => (
+              <PluginRow
+                key={row.name}
+                row={row}
+                busy={busyName === row.name}
+                onToggle={onToggle}
+                readOnly={readOnly}
+              />
+            ))}
+          </section>
+        )
+      })}
     </div>
   )
 }
