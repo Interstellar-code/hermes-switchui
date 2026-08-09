@@ -42,8 +42,27 @@ async function postJson(url: string, signal: AbortSignal, body?: unknown) {
   }
 }
 
+/**
+ * The gateway the workspace is talking to. `/api/gateway-status` is the only
+ * response that carries it, and the "currently configured" strip on the
+ * system-check step has to lead with it — `buildSystemChecks` reduces the same
+ * payload to pass/fail rows and drops the URL on the way.
+ */
+function gatewayUrlOf(gateway: unknown): string | null {
+  if (gateway === null || typeof gateway !== 'object') return null
+  const rec = gateway as Record<string, unknown>
+  const nested = rec.gateway
+  const nestedUrl =
+    nested !== null && typeof nested === 'object'
+      ? (nested as Record<string, unknown>).url
+      : undefined
+  const url = typeof nestedUrl === 'string' ? nestedUrl : rec.claudeUrl
+  return typeof url === 'string' && url.trim() ? url.trim() : null
+}
+
 export type UseSystemChecksResult = {
   checks: Array<SystemCheck>
+  gatewayUrl: string | null
   loading: boolean
   refetch: () => void
   heal: (
@@ -66,6 +85,7 @@ export function useSystemChecks(input: {
 }): UseSystemChecksResult {
   const { enabled, canWrite } = input
   const [checks, setChecks] = useState<Array<SystemCheck>>([])
+  const [gatewayUrl, setGatewayUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [healing, setHealing] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
@@ -88,6 +108,7 @@ export function useSystemChecks(input: {
       .then(([gateway, metrics, agentVersion, update]) => {
         if (controller.signal.aborted || !mountedRef.current) return
         setChecks(buildSystemChecks({ gateway, metrics, agentVersion, update }))
+        setGatewayUrl(gatewayUrlOf(gateway))
       })
       .finally(() => {
         if (controller.signal.aborted || !mountedRef.current) return
@@ -120,14 +141,14 @@ export function useSystemChecks(input: {
         } else if (action === 'reprobe') {
           await postJson('/api/gateway-reprobe', controller.signal)
         } else {
-          const gatewayUrl = payload?.gatewayUrl?.trim()
-          if (gatewayUrl) {
+          const nextGatewayUrl = payload?.gatewayUrl?.trim()
+          if (nextGatewayUrl) {
             try {
               await fetch('/api/connection-settings', {
                 method: 'PUT',
                 signal: controller.signal,
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify({ gateway: gatewayUrl }),
+                body: JSON.stringify({ gateway: nextGatewayUrl }),
               })
             } catch {
               // Best-effort — surfaced by the refetch below.
@@ -142,5 +163,5 @@ export function useSystemChecks(input: {
     [canWrite, load, restartGateway],
   )
 
-  return { checks, loading, refetch: load, heal, healing }
+  return { checks, gatewayUrl, loading, refetch: load, heal, healing }
 }

@@ -30,6 +30,7 @@ import { useCorePlugins } from './hooks/use-core-plugins'
 import { useOnboardingSave } from './hooks/use-onboarding-save'
 import { useSystemChecks } from './hooks/use-system-checks'
 import { buildChecklist } from './lib/checklist'
+import { buildCurrentSetup, factsForStep } from './lib/current-setup'
 import { resolveEntryStep } from './lib/onboarding-mode'
 import { ONBOARDING_STEPS } from './lib/onboarding-steps'
 import {
@@ -518,6 +519,43 @@ function OnboardingFlow({
     )
   }, [branch, system.checks])
 
+  // Everything the wizard already knows about this workspace, assembled once.
+  // `initialTheme` rather than the live theme: selecting in the theme picker
+  // applies immediately, so the mount value is the only thing that can still
+  // answer "what was this workspace on before I started clicking".
+  const currentSetup = useMemo(
+    () =>
+      buildCurrentSetup({
+        config,
+        pluginRows: plugins.rows,
+        checks: system.checks,
+        themeId: initialTheme,
+        verifyOutcome: saveApi.verifyOutcome ?? null,
+        gatewayUrl: system.gatewayUrl,
+      }),
+    [
+      config,
+      initialTheme,
+      plugins.rows,
+      saveApi.verifyOutcome,
+      system.checks,
+      system.gatewayUrl,
+    ],
+  )
+
+  const factsFor = (id: OnboardingStepId) =>
+    factsForStep(id, currentSetup, {
+      providerId: draft.providerId ?? undefined,
+    })
+
+  // Where the selected provider's credential already lives, if anywhere — the
+  // env var *name*, never the key. `hasStoredKey` above answers only "is there
+  // one", which the API-key field could use but no other auth kind could.
+  const storedKeyEnv = draft.providerId
+    ? (currentSetup.storedKeyEnvs[normalizeProviderId(draft.providerId)] ??
+      null)
+    : null
+
   const step = wz.step
   if (!step) return null
 
@@ -557,6 +595,7 @@ function OnboardingFlow({
             onHeal={(action, payload) => void system.heal(action, payload)}
             healing={system.healing}
             canWrite={canWrite}
+            facts={factsFor('system-check')}
           />
         )
 
@@ -568,6 +607,9 @@ function OnboardingFlow({
             onChange={patchDraft}
             errors={wz.errors}
             detecting={false}
+            facts={factsFor('provider')}
+            activeProviderId={currentSetup.activeProviderId}
+            configuredProviderIds={currentSetup.configuredProviderIds}
           />
         )
 
@@ -581,6 +623,8 @@ function OnboardingFlow({
             hasStoredKey={hasStoredKey}
             systemCheckWarning={systemCheckWarning}
             canWrite={canWrite}
+            facts={factsFor('connect')}
+            storedKeyEnv={storedKeyEnv}
           />
         )
 
@@ -594,6 +638,7 @@ function OnboardingFlow({
             saveError={saveApi.saveError}
             saved={saved}
             onSave={handleSave}
+            facts={factsFor('review')}
           />
         ) : (
           <WizardNote tone="warn">
@@ -616,6 +661,7 @@ function OnboardingFlow({
             liveOutcome={saveApi.liveOutcome}
             liveTesting={saveApi.liveTesting}
             onLiveTest={() => void saveApi.liveTest()}
+            facts={factsFor('verify')}
           />
         )
 
@@ -631,6 +677,7 @@ function OnboardingFlow({
             restarting={plugins.restarting}
             onRestart={() => void plugins.restart()}
             canWrite={canWrite}
+            facts={factsFor('plugins')}
           />
         )
 
@@ -639,6 +686,8 @@ function OnboardingFlow({
           <ThemeStep
             selected={draft.themeId ?? initialTheme}
             onSelect={(id) => patchDraft({ themeId: id })}
+            current={initialTheme}
+            facts={factsFor('theme')}
           />
         )
 

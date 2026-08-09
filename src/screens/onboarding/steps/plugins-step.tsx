@@ -5,8 +5,10 @@
  * `PluginPicker` with what these plugins are and the one caveat that
  * matters: nothing here takes effect until the dashboard restarts.
  */
+import { CurrentSetupStrip } from '../components/current-setup-strip'
 import { PluginPicker } from '../components/plugin-picker'
 import type { CorePluginRow } from '../lib/core-plugins'
+import type { SetupFact } from '../lib/current-setup'
 import { WizardNote, WizardPanel } from '@/components/wizard'
 
 export type PluginsStepProps = {
@@ -24,6 +26,7 @@ export type PluginsStepProps = {
    * which the summary describes as read-only — renders neither.
    */
   canWrite: boolean
+  facts: Array<SetupFact>
 }
 
 export function PluginsStep({
@@ -36,9 +39,11 @@ export function PluginsStep({
   restarting,
   onRestart,
   canWrite,
+  facts,
 }: PluginsStepProps) {
   return (
     <WizardPanel>
+      <CurrentSetupStrip facts={facts} />
       <p>
         These are the core Interstellar Hermes Agent plugins. Each one is
         bundled with the agent and unlocks an extra screen once it is turned on.

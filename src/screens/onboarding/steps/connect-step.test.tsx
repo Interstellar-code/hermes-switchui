@@ -90,6 +90,8 @@ describe('ConnectStep', () => {
         hasStoredKey={false}
         systemCheckWarning={null}
         canWrite
+        facts={[]}
+        storedKeyEnv={null}
       />,
     )
 
@@ -133,6 +135,8 @@ describe('ConnectStep — OAuth under a locked relaunch', () => {
         hasStoredKey={false}
         systemCheckWarning={null}
         canWrite={canWrite}
+        facts={[]}
+        storedKeyEnv={null}
       />,
     )
   }
@@ -152,5 +156,68 @@ describe('ConnectStep — OAuth under a locked relaunch', () => {
   it('explains why sign-in is unavailable rather than failing silently', () => {
     renderWith(false)
     expect(screen.getByText(/Change setup/)).toBeTruthy()
+  })
+})
+
+/**
+ * The "you already have a key" copy used to live only in the API-key field's
+ * hint, so an OAuth or CLI provider whose credential the gateway already holds
+ * was shown a screen that read exactly like a first-time sign-in.
+ */
+describe('ConnectStep — an existing credential', () => {
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('says so on an OAuth provider, which has no key field to hang a hint on', () => {
+    render(
+      <ConnectStep
+        choice={{
+          ...CHOICE,
+          id: 'nous',
+          name: 'Nous Portal',
+          authKind: 'oauth',
+          supportsOAuth: true,
+          cliCommand: null,
+        }}
+        draft={{ ...DRAFT, providerId: 'nous' }}
+        onChange={vi.fn()}
+        errors={[]}
+        hasStoredKey
+        systemCheckWarning={null}
+        canWrite
+        facts={[]}
+        storedKeyEnv="auth-store"
+      />,
+    )
+    expect(screen.getByText(/already has a credential stored in/)).toBeTruthy()
+    expect(screen.getByText(/gateway auth store/)).toBeTruthy()
+  })
+
+  it('names the env var in the API-key hint', () => {
+    render(
+      <ConnectStep
+        choice={{
+          ...CHOICE,
+          id: 'openai',
+          name: 'OpenAI',
+          authKind: 'api-key',
+          cliCommand: null,
+          baseUrl: 'https://api.openai.com/v1',
+        }}
+        draft={{ ...DRAFT, providerId: 'openai' }}
+        onChange={vi.fn()}
+        errors={[]}
+        hasStoredKey
+        systemCheckWarning={null}
+        canWrite
+        facts={[]}
+        storedKeyEnv="OPENAI_API_KEY"
+      />,
+    )
+    expect(
+      screen.getByText(/already stored in OPENAI_API_KEY — leave blank/),
+    ).toBeTruthy()
   })
 })

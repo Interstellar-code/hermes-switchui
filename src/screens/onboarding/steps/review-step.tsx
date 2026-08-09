@@ -9,7 +9,9 @@
  * just by being clicked through. This component only ever reads the draft to
  * build a preview.
  */
+import { CurrentSetupStrip } from '../components/current-setup-strip'
 import { buildOnboardingYamlPreview } from '../lib/onboarding-write'
+import type { SetupFact } from '../lib/current-setup'
 import type {
   OnboardingDraft,
   OnboardingTransient,
@@ -25,6 +27,7 @@ export type ReviewStepProps = {
   saveError: string | null
   saved: boolean
   onSave: () => void
+  facts: Array<SetupFact>
 }
 
 export function ReviewStep({
@@ -35,6 +38,7 @@ export function ReviewStep({
   saveError,
   saved,
   onSave,
+  facts,
 }: ReviewStepProps) {
   const preview = buildOnboardingYamlPreview({
     choice,
@@ -67,6 +71,7 @@ export function ReviewStep({
 
   return (
     <div className="ob-review">
+      <CurrentSetupStrip facts={facts} heading="Replacing" />
       <WizardReview
         target="~/.hermes/config.yaml"
         preview={preview.config}

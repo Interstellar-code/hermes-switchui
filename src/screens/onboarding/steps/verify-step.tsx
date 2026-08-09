@@ -9,6 +9,8 @@
  * live test both spend a real request (the live test spends tokens too), so
  * the parent decides when that is worth doing.
  */
+import { CurrentSetupStrip } from '../components/current-setup-strip'
+import type { SetupFact } from '../lib/current-setup'
 import type {
   LiveTestOutcome,
   VerifyOutcome,
@@ -26,6 +28,7 @@ export type VerifyStepProps = {
   liveOutcome: LiveTestOutcome | null
   liveTesting: boolean
   onLiveTest: () => void
+  facts: Array<SetupFact>
 }
 
 const STATE_CLASS: Record<VerifyOutcome['status'], string> = {
@@ -57,6 +60,7 @@ export function VerifyStep({
   liveOutcome,
   liveTesting,
   onLiveTest,
+  facts,
 }: VerifyStepProps) {
   const stateModifier = outcome ? ` ${STATE_CLASS[outcome.status]}` : ''
   const stateMessage = verifying
@@ -67,6 +71,7 @@ export function VerifyStep({
 
   return (
     <div className="ob-verify">
+      <CurrentSetupStrip facts={facts} />
       <div className={`ob-verify-state${stateModifier}`} role="status">
         {outcome && !verifying ? (
           <span className="wz-sr">{STATE_LABEL[outcome.status]}. </span>

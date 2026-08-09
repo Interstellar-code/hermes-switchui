@@ -405,6 +405,105 @@
       transparent
     );
   }
+  /* "This is the one you are running" — the strongest badge in the grammar,
+     matching `.pv-status-pill.pv-active` on the providers screen. */
+  .ob-badge-active {
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+  }
+  /* "Already holds a credential, but is not the live one." */
+  .ob-badge-configured {
+    color: var(--m-green-300, var(--theme-accent-secondary));
+    border-color: color-mix(
+      in srgb,
+      var(--m-green-300, var(--theme-accent-secondary)) 35%,
+      transparent
+    );
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
+  }
+  /* The active card is hoisted to the top of its group; the border says so
+     without depending on having read the badge. */
+  .ob-prov.is-active {
+    border-radius: var(--m-radius-md, 4px);
+    outline: 1px solid
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent)) 45%,
+        transparent
+      );
+    outline-offset: 2px;
+  }
+
+  /* ── "currently configured" strip ─────────────────────────────────────── */
+  /* Context, not content: one or two lines at the top of a step body saying
+     what is already true of this workspace. Renders nothing at all when there
+     is nothing to say — see `current-setup-strip.tsx`. */
+  .ob-current {
+    display: grid;
+    gap: 5px;
+    padding: 8px 10px;
+    border: 1px dashed var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-panel, var(--theme-panel));
+  }
+  .ob-current-heading {
+    margin: 0;
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  /* Wraps rather than overflows: the values are URLs and model ids, which at
+     375px will not share a line with their labels. */
+  .ob-current-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 18px;
+    margin: 0;
+    padding: 0;
+  }
+  .ob-current-fact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    min-width: 0;
+  }
+  .ob-current-label {
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-current-value {
+    /* `<dd>` carries a 40px inline start margin by default. */
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font: 500 11.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text, var(--theme-text));
+  }
+  .ob-current-value.is-set {
+    color: var(--m-text, var(--theme-text));
+  }
+  .ob-current-value.is-active {
+    color: var(--m-green-500, var(--theme-accent));
+    text-shadow: var(--m-text-glow, none);
+  }
+  .ob-current-value.is-active::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .ob-current-value.is-unset {
+    color: var(--m-text-faint, var(--theme-muted));
+  }
 
   /* ── connect ──────────────────────────────────────────────────────────── */
   .ob-connect {
@@ -663,6 +762,11 @@
   .ob-theme-desc {
     font: 400 10.5px var(--m-font-sans, system-ui, sans-serif);
     color: var(--m-text-faint, var(--theme-muted));
+  }
+  /* The CURRENT marker is a grid child of the card, so without this it
+     stretches the full column width and stops reading as a pill. */
+  .ob-theme .ob-badge {
+    justify-self: start;
   }
 
   /* ── checklist ────────────────────────────────────────────────────────── */

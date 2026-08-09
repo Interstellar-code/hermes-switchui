@@ -13,6 +13,13 @@ import { THEMES, setTheme } from '@/lib/theme'
 export type ThemePickerProps = {
   selected: ThemeId
   onSelect: (id: ThemeId) => void
+  /**
+   * The theme this workspace was already on when the wizard opened. Selecting
+   * applies immediately, so without this the grid can only say "what I just
+   * clicked" and never "what this workspace had" — which is the whole question
+   * a relaunched wizard is being asked.
+   */
+  current: ThemeId
 }
 
 /**
@@ -55,11 +62,12 @@ function swatchStyle(id: ThemeId): CSSProperties {
   } as CSSProperties
 }
 
-export function ThemePicker({ selected, onSelect }: ThemePickerProps) {
+export function ThemePicker({ selected, onSelect, current }: ThemePickerProps) {
   return (
     <div className="ob-themes">
       {THEMES.map((theme) => {
         const on = theme.id === selected
+        const isCurrent = theme.id === current
         return (
           <button
             key={theme.id}
@@ -73,6 +81,12 @@ export function ThemePicker({ selected, onSelect }: ThemePickerProps) {
           >
             <span className="ob-theme-swatch" style={swatchStyle(theme.id)} />
             <span className="ob-theme-name">{theme.label}</span>
+            {/* Inside the button, so "current" reaches the accessible name
+                instead of living only in the accent border it shares with the
+                transient selection ring. */}
+            {isCurrent ? (
+              <span className="ob-badge ob-badge-active">Current</span>
+            ) : null}
             <span className="ob-theme-desc">{theme.description}</span>
           </button>
         )
