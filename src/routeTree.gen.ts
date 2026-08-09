@@ -80,6 +80,7 @@ import { Route as ApiDocsAssetRouteImport } from './routes/api/docs-asset'
 import { Route as ApiDocsRouteImport } from './routes/api/docs'
 import { Route as ApiDashboardConfigRouteImport } from './routes/api/dashboard-config'
 import { Route as ApiCrewStatusRouteImport } from './routes/api/crew-status'
+import { Route as ApiCredentialsRouteImport } from './routes/api/credentials'
 import { Route as ApiContextUsageRouteImport } from './routes/api/context-usage'
 import { Route as ApiConnectionStatusRouteImport } from './routes/api/connection-status'
 import { Route as ApiConnectionSettingsRouteImport } from './routes/api/connection-settings'
@@ -94,6 +95,7 @@ import { Route as ApiAuthCheckRouteImport } from './routes/api/auth-check'
 import { Route as ApiAuthRouteImport } from './routes/api/auth'
 import { Route as ApiArtifactsRouteImport } from './routes/api/artifacts'
 import { Route as ApiAgentVersionRouteImport } from './routes/api/agent-version'
+import { Route as ApiAgentCwdRouteImport } from './routes/api/agent-cwd'
 import { Route as ApiHermesProjectsIndexRouteImport } from './routes/api/hermes-projects/index'
 import { Route as ApiWorkspaceAgentsRouteImport } from './routes/api/workspace.agents'
 import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
@@ -588,6 +590,11 @@ const ApiCrewStatusRoute = ApiCrewStatusRouteImport.update({
   path: '/api/crew-status',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCredentialsRoute = ApiCredentialsRouteImport.update({
+  id: '/api/credentials',
+  path: '/api/credentials',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiContextUsageRoute = ApiContextUsageRouteImport.update({
   id: '/api/context-usage',
   path: '/api/context-usage',
@@ -656,6 +663,11 @@ const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
 const ApiAgentVersionRoute = ApiAgentVersionRouteImport.update({
   id: '/api/agent-version',
   path: '/api/agent-version',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAgentCwdRoute = ApiAgentCwdRouteImport.update({
+  id: '/api/agent-cwd',
+  path: '/api/agent-cwd',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiHermesProjectsIndexRoute = ApiHermesProjectsIndexRouteImport.update({
@@ -1422,6 +1434,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/agent-cwd': typeof ApiAgentCwdRoute
   '/api/agent-version': typeof ApiAgentVersionRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
@@ -1436,6 +1449,7 @@ export interface FileRoutesByFullPath {
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
+  '/api/credentials': typeof ApiCredentialsRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/docs': typeof ApiDocsRoute
@@ -1645,6 +1659,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/agent-cwd': typeof ApiAgentCwdRoute
   '/api/agent-version': typeof ApiAgentVersionRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
@@ -1659,6 +1674,7 @@ export interface FileRoutesByTo {
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
+  '/api/credentials': typeof ApiCredentialsRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/docs': typeof ApiDocsRoute
@@ -1871,6 +1887,7 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
   '/workflows': typeof WorkflowsRoute
+  '/api/agent-cwd': typeof ApiAgentCwdRoute
   '/api/agent-version': typeof ApiAgentVersionRoute
   '/api/artifacts': typeof ApiArtifactsRouteWithChildren
   '/api/auth': typeof ApiAuthRoute
@@ -1885,6 +1902,7 @@ export interface FileRoutesById {
   '/api/connection-settings': typeof ApiConnectionSettingsRoute
   '/api/connection-status': typeof ApiConnectionStatusRoute
   '/api/context-usage': typeof ApiContextUsageRoute
+  '/api/credentials': typeof ApiCredentialsRoute
   '/api/crew-status': typeof ApiCrewStatusRoute
   '/api/dashboard-config': typeof ApiDashboardConfigRoute
   '/api/docs': typeof ApiDocsRoute
@@ -2098,6 +2116,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/workflows'
+    | '/api/agent-cwd'
     | '/api/agent-version'
     | '/api/artifacts'
     | '/api/auth'
@@ -2112,6 +2131,7 @@ export interface FileRouteTypes {
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
+    | '/api/credentials'
     | '/api/crew-status'
     | '/api/dashboard-config'
     | '/api/docs'
@@ -2321,6 +2341,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/workflows'
+    | '/api/agent-cwd'
     | '/api/agent-version'
     | '/api/artifacts'
     | '/api/auth'
@@ -2335,6 +2356,7 @@ export interface FileRouteTypes {
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
+    | '/api/credentials'
     | '/api/crew-status'
     | '/api/dashboard-config'
     | '/api/docs'
@@ -2546,6 +2568,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/terminal'
     | '/workflows'
+    | '/api/agent-cwd'
     | '/api/agent-version'
     | '/api/artifacts'
     | '/api/auth'
@@ -2560,6 +2583,7 @@ export interface FileRouteTypes {
     | '/api/connection-settings'
     | '/api/connection-status'
     | '/api/context-usage'
+    | '/api/credentials'
     | '/api/crew-status'
     | '/api/dashboard-config'
     | '/api/docs'
@@ -2772,6 +2796,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   TerminalRoute: typeof TerminalRoute
   WorkflowsRoute: typeof WorkflowsRoute
+  ApiAgentCwdRoute: typeof ApiAgentCwdRoute
   ApiAgentVersionRoute: typeof ApiAgentVersionRoute
   ApiArtifactsRoute: typeof ApiArtifactsRouteWithChildren
   ApiAuthRoute: typeof ApiAuthRoute
@@ -2786,6 +2811,7 @@ export interface RootRouteChildren {
   ApiConnectionSettingsRoute: typeof ApiConnectionSettingsRoute
   ApiConnectionStatusRoute: typeof ApiConnectionStatusRoute
   ApiContextUsageRoute: typeof ApiContextUsageRoute
+  ApiCredentialsRoute: typeof ApiCredentialsRoute
   ApiCrewStatusRoute: typeof ApiCrewStatusRoute
   ApiDashboardConfigRoute: typeof ApiDashboardConfigRoute
   ApiDocsRoute: typeof ApiDocsRoute
@@ -3396,6 +3422,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCrewStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/credentials': {
+      id: '/api/credentials'
+      path: '/api/credentials'
+      fullPath: '/api/credentials'
+      preLoaderRoute: typeof ApiCredentialsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/context-usage': {
       id: '/api/context-usage'
       path: '/api/context-usage'
@@ -3492,6 +3525,13 @@ declare module '@tanstack/react-router' {
       path: '/api/agent-version'
       fullPath: '/api/agent-version'
       preLoaderRoute: typeof ApiAgentVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/agent-cwd': {
+      id: '/api/agent-cwd'
+      path: '/api/agent-cwd'
+      fullPath: '/api/agent-cwd'
+      preLoaderRoute: typeof ApiAgentCwdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hermes-projects/': {
@@ -5038,6 +5078,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   TerminalRoute: TerminalRoute,
   WorkflowsRoute: WorkflowsRoute,
+  ApiAgentCwdRoute: ApiAgentCwdRoute,
   ApiAgentVersionRoute: ApiAgentVersionRoute,
   ApiArtifactsRoute: ApiArtifactsRouteWithChildren,
   ApiAuthRoute: ApiAuthRoute,
@@ -5052,6 +5093,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConnectionSettingsRoute: ApiConnectionSettingsRoute,
   ApiConnectionStatusRoute: ApiConnectionStatusRoute,
   ApiContextUsageRoute: ApiContextUsageRoute,
+  ApiCredentialsRoute: ApiCredentialsRoute,
   ApiCrewStatusRoute: ApiCrewStatusRoute,
   ApiDashboardConfigRoute: ApiDashboardConfigRoute,
   ApiDocsRoute: ApiDocsRoute,

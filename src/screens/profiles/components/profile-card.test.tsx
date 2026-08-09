@@ -108,14 +108,20 @@ function click(el: Element) {
 }
 
 beforeEach(() => {
-  // Default: single-gateway mode, the quiet common case (no scope badge) —
-  // see use-profile-scope-status.ts. Individual tests override this to
-  // exercise multiplex/not-served/unknown.
+  // Default: single-gateway mode, and the running gateway IS serving this
+  // row's profile ('custom-agent', `row()`'s default name) — the quiet
+  // common case (no scope badge). See use-profile-scope-status.ts.
+  // Individual tests override this to exercise multiplex/not-served/unknown.
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
       scopeStatusResponse({
-        scope: { mode: 'single', servedProfiles: null, sessionCounts: {} },
+        scope: {
+          mode: 'single',
+          servedProfiles: null,
+          servingProfile: 'custom-agent',
+          sessionCounts: {},
+        },
       }),
     ),
   )
@@ -355,5 +361,52 @@ describe('ProfileCard / ProfileTableRow — live-gateway scope badge (G-05)', ()
     expect(badgeEl.className).toContain('pf-scope-badge--unknown')
     expect(badgeEl.className).not.toContain('pf-scope-badge--not-served')
     expect(badgeEl.textContent.toLowerCase()).toContain('unknown')
+  })
+
+  it('flags a single-gateway mismatch — Selected vs Serving (W3 audit item 1) — on both card and row', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        scopeStatusResponse({
+          scope: {
+            mode: 'single',
+            servedProfiles: null,
+            servingProfile: 'hermes-switch',
+            sessionCounts: {},
+          },
+        }),
+      ),
+    )
+    // `row()` defaults to profileName 'custom-agent' — NOT what the (single)
+    // gateway is currently serving ('hermes-switch').
+    const card = await renderAsync(<ProfileCard agent={row()} onOpen={() => {}} />)
+    const cardBadge = card.querySelector('.pf-scope-badge')
+    expect(cardBadge).not.toBeNull()
+    expect((cardBadge as Element).className).toContain('pf-scope-badge--not-served')
+    expect((cardBadge as Element).textContent.toLowerCase()).toContain('not served')
+    expect((cardBadge as HTMLElement).title).toContain('hermes-switch')
+
+    const tr = await renderRowAsync(<ProfileTableRow agent={row()} onOpen={() => {}} />)
+    const rowBadge = tr.querySelector('.pf-scope-badge')
+    expect(rowBadge).not.toBeNull()
+    expect((rowBadge as Element).className).toContain('pf-scope-badge--not-served')
+  })
+
+  it('renders no badge for a single-gateway profile the gateway IS running', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        scopeStatusResponse({
+          scope: {
+            mode: 'single',
+            servedProfiles: null,
+            servingProfile: 'custom-agent',
+            sessionCounts: {},
+          },
+        }),
+      ),
+    )
+    const card = await renderAsync(<ProfileCard agent={row()} onOpen={() => {}} />)
+    expect(card.querySelector('.pf-scope-badge')).toBeNull()
   })
 })

@@ -28,19 +28,34 @@ function GlyphEl({ glyph, tier }: { glyph: string; tier: 1 | 2 | 3 }) {
  * this workspace's own `active_profile` pointer, not gateway topology).
  * Quiet by design: `useProfileScopeStatus` only returns a value other than
  * `'served'` when it is actionable (multiplex gateway that excludes this
- * profile) or when the probe failed closed, so most cards render nothing
- * here. See `use-profile-scope-status.ts` for the full semantics.
+ * profile, a single gateway serving a DIFFERENT profile, or the probe failed
+ * closed), so most cards render nothing here. See `use-profile-scope-status.ts`
+ * for the full semantics.
  */
-function ScopeBadge({ reachability }: { reachability: ProfileReachability }) {
+function ScopeBadge({
+  reachability,
+  mode,
+  servingProfile,
+}: {
+  reachability: ProfileReachability
+  mode: 'single' | 'multiplex' | 'unknown' | null
+  servingProfile: string | null
+}) {
   if (reachability === 'served') return null
   const unknown = reachability === 'unknown'
+  const notServedTitle =
+    mode === 'single'
+      ? `Not currently served — the running gateway is serving ${
+          servingProfile ? `"${servingProfile}"` : 'a different profile'
+        } instead of this one. Restart the gateway (or select the profile it's already running) to reach this one.`
+      : 'Not served by the live gateway — this profile is not in its multiplexed profile list, so activating it will not respond to chats until the gateway config is updated.'
   return (
     <span
       className={`pf-scope-badge ${unknown ? 'pf-scope-badge--unknown' : 'pf-scope-badge--not-served'}`}
       title={
         unknown
           ? 'Gateway reachability unknown — the topology probe failed, so this cannot be confirmed as servable.'
-          : 'Not served by the live gateway — this profile is not in its multiplexed profile list, so activating it will not respond to chats until the gateway config is updated.'
+          : notServedTitle
       }
     >
       {unknown ? 'unknown' : 'not served'}
@@ -89,7 +104,7 @@ export function ProfileCard({
   const inUseClass = isActive ? ' pf-card--in-use' : ''
   const lastUsed = agent.lastRunAt !== null ? formatRelative(agent.lastRunAt) : 'never run'
   const hasActions = Boolean(onActivate ?? onEdit ?? onClone ?? onDelete)
-  const { reachability } = useProfileScopeStatus(agent.profileName)
+  const { reachability, mode, servingProfile } = useProfileScopeStatus(agent.profileName)
 
   return (
     <article
@@ -125,7 +140,7 @@ export function ProfileCard({
       {/* Status row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <StatusDot status={agent.status} />
-        <ScopeBadge reachability={reachability} />
+        <ScopeBadge reachability={reachability} mode={mode} servingProfile={servingProfile} />
         {agent.builtin && (
           <span className="pf-lock-badge" title="Built-in agent — editable and cloneable, but it cannot be renamed or deleted">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

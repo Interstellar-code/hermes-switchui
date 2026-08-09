@@ -34,7 +34,13 @@ export function ProfileTableRow({
   // G-05: live-gateway reachability, independent of the `status` column
   // (which reflects this workspace's `active_profile` pointer, not gateway
   // topology). See use-profile-scope-status.ts for the full semantics.
-  const { reachability } = useProfileScopeStatus(agent.profileName)
+  const { reachability, mode, servingProfile } = useProfileScopeStatus(agent.profileName)
+  const notServedTitle =
+    mode === 'single'
+      ? `Not currently served — the running gateway is serving ${
+          servingProfile ? `"${servingProfile}"` : 'a different profile'
+        } instead of this one. Restart the gateway (or select the profile it's already running) to reach this one.`
+      : 'Not served by the live gateway — this profile is not in its multiplexed profile list, so activating it will not respond to chats until the gateway config is updated.'
 
   return (
     <tr
@@ -97,7 +103,7 @@ export function ProfileTableRow({
               title={
                 reachability === 'unknown'
                   ? 'Gateway reachability unknown — the topology probe failed, so this cannot be confirmed as servable.'
-                  : 'Not served by the live gateway — this profile is not in its multiplexed profile list, so activating it will not respond to chats until the gateway config is updated.'
+                  : notServedTitle
               }
             >
               {reachability === 'unknown' ? 'unknown' : 'not served'}

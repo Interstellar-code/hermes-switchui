@@ -1,7 +1,4 @@
-import {
-  CLAUDE_DASHBOARD_URL,
-  dashboardFetch,
-} from './gateway-capabilities'
+import { CLAUDE_DASHBOARD_URL, dashboardFetch } from './gateway-capabilities'
 
 export type DashboardSession = {
   id: string
@@ -61,6 +58,12 @@ export type EnvVarInfo = {
   masked_value?: string | null
   set_in_env?: boolean
   set_in_file?: boolean
+  /**
+   * The dashboard derives this from `load_env()` — i.e. the `.env` FILE for
+   * the scoped profile. A shell-exported value is NOT reflected here, which is
+   * exactly what makes the `env-file` vs `env-shell` distinction in
+   * `credential-status.ts` meaningful.
+   */
   is_set?: boolean
   redacted_value?: string | null
   description?: string
@@ -69,6 +72,35 @@ export type EnvVarInfo = {
   is_password?: boolean
   tools?: Array<string>
   advanced?: boolean
+  /** Provider grouping hints from the gateway's unified provider catalog. */
+  provider?: string
+  provider_label?: string
+  /** Owned by a Channels card rather than the Keys page. */
+  channel_managed?: boolean
+  /** Present in `.env` but in no catalog — a key the user added by hand. */
+  custom?: boolean
+}
+
+/**
+ * What `PUT`/`DELETE /api/env` report back. These endpoints are not thin
+ * `.env` writers: they run `hermes_cli/credential_lifecycle.py`, which
+ * reconciles all three credential stores. The fields below are the evidence
+ * that reconciliation happened, and callers should surface them rather than
+ * assume.
+ */
+export type CredentialWriteResult = {
+  ok?: boolean
+  key?: string
+  /** `config.yaml` mirror paths rewritten to the new value (#62269). */
+  config_updates?: Array<string>
+  /** `config.yaml` mirror paths removed outright. */
+  config_scrubbed?: Array<string>
+  /** Providers whose env-seeded `credential_pool` entries were pruned. */
+  pool_pruned?: Array<string>
+  providers?: Array<string>
+  removed?: boolean
+  /** True when ANY store held the credential — not just `.env`. */
+  found?: boolean
 }
 
 export type CronJob = {
@@ -120,15 +152,16 @@ async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export async function listSessions(limit = 50, offset = 0): Promise<{
+export async function listSessions(
+  limit = 50,
+  offset = 0,
+): Promise<{
   sessions: Array<DashboardSession>
   total: number
   limit: number
   offset: number
 }> {
-  return dashboardJson(
-    `/api/sessions?limit=${limit}&offset=${offset}`,
-  )
+  return dashboardJson(`/api/sessions?limit=${limit}&offset=${offset}`)
 }
 
 export async function getSession(id: string): Promise<DashboardSession> {
@@ -192,7 +225,9 @@ export async function getSessionMessages(
   )
 }
 
-export async function searchSessions(q: string): Promise<SessionSearchResponse> {
+export async function searchSessions(
+  q: string,
+): Promise<SessionSearchResponse> {
   return dashboardJson(`/api/sessions/search?q=${encodeURIComponent(q)}`)
 }
 
@@ -339,26 +374,101 @@ export async function saveConfigRaw(
   })
 }
 
-export async function getEnvVars(): Promise<Record<string, EnvVarInfo>> {
-  return dashboardJson('/api/env')
+/** `?profile=<name>` when a profile is named, else nothing. */
+function profileQuery(profile?: string | null): string {
+  return profile ? `?profile=${encodeURIComponent(profile)}` : ''
 }
 
+export async function getEnvVars(
+  profile?: string | null,
+): Promise<Record<string, EnvVarInfo>> {
+  return dashboardJson(`/api/env${profileQuery(profile)}`)
+}
+
+/**
+ * THE credential write path. Do not add another one.
+ *
+ * `PUT /api/env` runs `save_provider_env_credential`
+ * (`hermes_cli/credential_lifecycle.py:212`), which writes `.env` **and** then
+ * rewrites any `config.yaml` mirror still holding the previous value
+ * (`model.api_key`, `auxiliary.<task>.api_key`, `custom_providers[*].api_key`)
+ * and lifts pool-source suppression. Writing `.env` alone — which is what
+ * `PATCH /api/claude-config` used to do — reproduces upstream #62269: the
+ * rotated key lands in `.env` while the stale, higher-precedence inline copy
+ * keeps authenticating, and the user gets 401s with a key the UI says is
+ * correct.
+ *
+ * The gateway also owns the file mode here (`save_env_value` preserves an
+ * existing mode and applies `0600` to a new file), which is the other reason
+ * to delegate rather than write `.env` ourselves.
+ */
 export async function setEnvVar(
   key: string,
   value: string,
-): Promise<{ ok: boolean }> {
-  return dashboardJson('/api/env', {
+  profile?: string | null,
+): Promise<CredentialWriteResult> {
+  return dashboardJson(`/api/env${profileQuery(profile)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key, value }),
   })
 }
 
-export async function deleteEnvVar(key: string): Promise<{ ok: boolean }> {
-  return dashboardJson('/api/env', {
+/**
+ * Removes the credential from EVERY store, not just `.env`:
+ * `remove_provider_env_credential` prunes env-seeded `credential_pool`
+ * entries in `auth.json` (a stale one keeps the provider alive in the model
+ * picker across restarts — #51071/#59761), clears the provider's model-cache
+ * rows, and drops value-matched `config.yaml` mirrors. OAuth/device-code/
+ * manual pool entries for the same provider are preserved by contract.
+ */
+export async function deleteEnvVar(
+  key: string,
+  profile?: string | null,
+): Promise<CredentialWriteResult> {
+  return dashboardJson(`/api/env${profileQuery(profile)}`, {
     method: 'DELETE',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ key }),
+  })
+}
+
+/**
+ * Live-probe a credential without saving it. `ok:false, reachable:true` means
+ * the provider rejected the key; `reachable:false` means the probe could not
+ * run (offline, or no probe registered for this var) and must NOT be reported
+ * as a bad key.
+ */
+export async function validateProviderCredential(
+  key: string,
+  value: string,
+): Promise<{
+  ok?: boolean
+  reachable?: boolean
+  message?: string
+  models?: Array<string>
+}> {
+  return dashboardJson('/api/providers/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ key, value }),
+  })
+}
+
+/** Probe an OpenAI-compatible endpoint and enumerate the models it serves. */
+export async function validateCustomEndpoint(body: {
+  base_url: string
+  api_key?: string
+}): Promise<{
+  ok?: boolean
+  reachable?: boolean
+  message?: string
+  models?: Array<string>
+}> {
+  return dashboardJson('/api/providers/custom-endpoints/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
 }
 
@@ -415,8 +525,10 @@ export async function getToolsets(): Promise<Array<ToolsetInfo>> {
   return dashboardJson('/api/tools/toolsets')
 }
 
-export async function getOAuthProviders(): Promise<Record<string, unknown>> {
-  return dashboardJson('/api/providers/oauth')
+export async function getOAuthProviders(
+  profile?: string | null,
+): Promise<Record<string, unknown>> {
+  return dashboardJson(`/api/providers/oauth${profileQuery(profile)}`)
 }
 
 export async function getLogs(params: {

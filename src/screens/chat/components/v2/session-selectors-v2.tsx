@@ -14,12 +14,14 @@
 
 import * as React from 'react'
 import {
+  AlertTriangle,
   Bot,
   Brain,
   Briefcase,
   Check,
   ChevronDown,
   FolderKanban,
+  SquareTerminal,
   UserRound,
   X,
 } from 'lucide-react'
@@ -34,6 +36,9 @@ import {
   shouldBlockZeroForkModelSwitch,
 } from '../chat-composer-model-switch'
 import {
+  agentCwdSourceDetail,
+  agentCwdSourceLabel,
+  fetchAgentCwd,
   fetchGatewayMode,
   fetchModelInfo,
   fetchProfiles,
@@ -42,16 +47,19 @@ import {
   getResolvedModelKey,
   nextThinkingLevel,
   profileMeta,
+  setAgentCwd,
   shortPathLabel,
   switchModel,
   thinkingLabel,
 } from '../chat-composer-services'
+import type { AgentCwdWriteResponse } from '../chat-composer-services'
 import type {
   ModelSwitchNotice,
   ThinkingLevel,
   WorkspaceDetectionResponse,
 } from '../chat-composer-types'
 import type { Project } from '@/lib/projects-types'
+import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import {
   Popover,
   PopoverAnchor,
@@ -263,11 +271,20 @@ function SessionSelectorsV2Component({
     retry: false,
     staleTime: 15_000,
   })
+  // The FILES-BROWSER root. Kept, but no longer presented as an agent control.
   const workspaceContextQuery = useQuery({
     queryKey: ['workspace', 'composer-context'],
     queryFn: fetchWorkspaceContext,
     retry: false,
     staleTime: 30_000,
+  })
+  // Where the AGENT actually runs — resolved by replaying the gateway's own
+  // ladder (src/server/agent-cwd.ts), not a Switch-UI-local preference.
+  const agentCwdQuery = useQuery({
+    queryKey: ['agent-cwd', 'composer'],
+    queryFn: fetchAgentCwd,
+    retry: false,
+    staleTime: 15_000,
   })
   const projectsQuery = useProjects(false)
   const sessionProjectQuery = useSessionProject(sessionKey)
@@ -364,6 +381,56 @@ function SessionSelectorsV2Component({
     },
   })
 
+  // ─── agent cwd: preview-then-commit ──────────────────────────────────────
+  // Changing terminal.cwd is the only control here that moves where commands
+  // actually execute, so nothing is written until the user has seen the
+  // before → after directories and confirmed.
+  const markNeedsRestart = useGatewayRestartStore((s) => s.markNeedsRestart)
+  const [cwdDraft, setCwdDraft] = React.useState('')
+  const [cwdPreview, setCwdPreview] = React.useState<AgentCwdWriteResponse | null>(
+    null,
+  )
+  const [cwdError, setCwdError] = React.useState<string | null>(null)
+
+  const previewAgentCwdMutation = useMutation({
+    mutationFn: (target: string) => setAgentCwd(target, { dryRun: true }),
+    onSuccess: (result) => {
+      setCwdError(null)
+      setCwdPreview(result)
+    },
+    onError: (error) => {
+      setCwdPreview(null)
+      setCwdError(error instanceof Error ? error.message : String(error))
+    },
+  })
+
+  const commitAgentCwdMutation = useMutation({
+    mutationFn: (target: string) => setAgentCwd(target),
+    onSuccess: async (result) => {
+      setCwdPreview(null)
+      setCwdError(null)
+      setCwdDraft('')
+      // config.yaml is read once at gateway import time. The restart banner is
+      // owned elsewhere; raising the store is this component's whole job here.
+      if (result.needsGatewayRestart) markNeedsRestart(result.profile)
+      await queryClient.invalidateQueries({ queryKey: ['agent-cwd'] })
+      setWorkspaceMenuOpen(false)
+    },
+    onError: (error) => {
+      setCwdError(error instanceof Error ? error.message : String(error))
+    },
+  })
+
+  const requestAgentCwdPreview = React.useCallback(
+    (target: string) => {
+      const trimmed = target.trim()
+      if (!trimmed) return
+      setCwdDraft(trimmed)
+      previewAgentCwdMutation.mutate(trimmed)
+    },
+    [previewAgentCwdMutation],
+  )
+
   const models = React.useMemo(() => modelsQuery.data ?? [], [modelsQuery.data])
   const modelGroups = React.useMemo(
     () => groupModelsByProvider(models),
@@ -406,11 +473,29 @@ function SessionSelectorsV2Component({
   const activeWorkspace = workspaceEntries.find(
     (workspace) => workspace.path === detectedWorkspacePath,
   )
-  const workspaceButtonLabel =
+  const filesRootLabel =
     activeWorkspace?.name ||
     workspaceContextQuery.data?.folderName ||
     shortPathLabel(detectedWorkspacePath) ||
-    'Workspace'
+    'Files root'
+
+  const agentCwd = agentCwdQuery.data
+  const agentCwdPath = agentCwd?.resolved.path ?? ''
+  const agentCwdWarnings = agentCwd?.resolved.warnings ?? []
+  // The chip names the AGENT's directory, because that is the one that decides
+  // where a command runs. The Files-browser root lives inside the popover.
+  const agentCwdButtonLabel = agentCwdQuery.isError
+    ? 'Agent cwd?'
+    : agentCwdPath
+      ? shortPathLabel(agentCwdPath)
+      : agentCwd
+        ? 'Unknown cwd'
+        : 'Agent cwd'
+  const agentCwdTitle = agentCwd
+    ? `Agent runs in ${agentCwdPath || 'an undetermined directory'} — ${agentCwdSourceDetail(agentCwd.resolved)}. ` +
+      `The ${filesRootLabel} files root is separate and does not affect it.`
+    : 'Where the agent actually runs'
+  const missingTerminalBlock = Boolean(agentCwd && !agentCwd.hasTerminalBlock)
   const projects = projectsQuery.data?.projects ?? []
   // The backend may report a profile-level fallback. The chat control only
   // represents an explicit assignment, so a new chat starts unassigned.
@@ -798,7 +883,17 @@ function SessionSelectorsV2Component({
         </Popover>
       )}
 
-      {/* workspace menu — /api/workspace GET/POST */}
+      {/* Working-directory menu.
+       *
+       * Two mechanisms that used to be conflated, now stated separately:
+       *   1. AGENT working directory — `terminal.cwd` in the active profile's
+       *      config.yaml, resolved through the gateway's own ladder by
+       *      /api/agent-cwd. This decides where `terminal` / `execute_code`
+       *      commands run. Editing it needs a gateway restart, so it is behind
+       *      an explicit before → after confirmation.
+       *   2. FILES BROWSER root — /api/workspace. Switch-UI-local, takes effect
+       *      immediately, and has no effect whatsoever on the agent.
+       */}
       {showModelSelector && (
         <Popover
           open={workspaceMenuOpen}
@@ -809,6 +904,9 @@ function SessionSelectorsV2Component({
               setProfileMenuOpen(false)
               setProjectMenuOpen(false)
               setThinkingMenuOpen(false)
+            } else {
+              setCwdPreview(null)
+              setCwdError(null)
             }
           }}
         >
@@ -816,65 +914,232 @@ function SessionSelectorsV2Component({
             <button
               type="button"
               onClick={() => setWorkspaceMenuOpen((o) => !o)}
-              title={detectedWorkspacePath || 'Workspace context'}
+              title={agentCwdTitle}
+              data-testid="agent-cwd-selector"
               className="hidden max-w-32 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex"
             >
-              <Briefcase className="size-3" />
-              <span className="truncate">{workspaceButtonLabel}</span>
+              {missingTerminalBlock || agentCwdWarnings.length > 0 ? (
+                <AlertTriangle className="size-3 text-[var(--theme-warning)]" />
+              ) : (
+                <SquareTerminal className="size-3" />
+              )}
+              <span className="truncate">{agentCwdButtonLabel}</span>
               <ChevronDown className="size-2.5 opacity-60" />
             </button>
           </PopoverAnchor>
           <PopoverContent
             align="start"
-            className="w-72 p-1"
+            className="w-96 p-1"
             onOpenAutoFocus={(e) => e.preventDefault()}
           >
+            {/* ── 1. Agent working directory ───────────────────────────── */}
             <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-              Workspace context
+              Agent working directory
             </div>
-            <div className="max-h-56 overflow-y-auto">
-              {workspaceEntries.length > 0 ? (
-                workspaceEntries.map((workspace) => {
-                  const selected = workspace.path === detectedWorkspacePath
-                  return (
-                    <button
-                      key={workspace.path}
-                      type="button"
-                      onClick={() => {
-                        if (selected) {
-                          setWorkspaceMenuOpen(false)
-                          return
-                        }
-                        workspaceSelectMutation.mutate(workspace)
-                      }}
-                      className={cn(
-                        'flex w-full flex-col rounded-sm px-2 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground',
-                        selected && 'bg-accent/50',
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-medium">
-                          {workspace.name || shortPathLabel(workspace.path)}
-                        </span>
-                        {selected ? <Check className="size-3.5" /> : null}
-                      </span>
-                      <span className="mt-0.5 max-w-[16rem] truncate text-[10px] text-muted-foreground">
-                        {workspace.path}
-                      </span>
-                    </button>
-                  )
-                })
-              ) : (
-                <div className="px-2 py-2 text-xs text-muted-foreground">
-                  No valid workspaces detected
-                </div>
-              )}
-            </div>
-            {workspaceContextQuery.isError ? (
+
+            {agentCwdQuery.isError ? (
               <div className="px-2 py-2 text-xs text-destructive">
-                Failed to load workspaces
+                Could not determine where the agent runs
+              </div>
+            ) : !agentCwd ? (
+              <div className="px-2 py-2 text-xs text-muted-foreground">
+                Resolving…
+              </div>
+            ) : (
+              <div className="px-2 py-1">
+                <div className="truncate font-mono text-sm">
+                  {agentCwdPath || 'Undetermined'}
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  {agentCwdSourceLabel(agentCwd.resolved.source)} ·{' '}
+                  {agentCwdSourceDetail(agentCwd.resolved)}
+                </div>
+                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                  backend {agentCwd.resolved.backend} · profile{' '}
+                  {agentCwd.resolved.profile}
+                </div>
+              </div>
+            )}
+
+            {/* The inheritance gap, said plainly, with the one-click fix. */}
+            {missingTerminalBlock && agentCwd ? (
+              <div className="mx-1 mt-1 rounded-sm border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-2">
+                <div className="text-[11px] leading-snug">
+                  Profile <b>{agentCwd.resolved.profile}</b> has no{' '}
+                  <code>terminal:</code> block, and profiles do not inherit one.
+                  The agent will run in <b>$HOME</b> ({agentCwd.homeDir}), not in
+                  any project.
+                </div>
+                {agentCwd.editable && agentCwd.suggestedCwd ? (
+                  <button
+                    type="button"
+                    data-testid="agent-cwd-fix"
+                    onClick={() =>
+                      requestAgentCwdPreview(agentCwd.suggestedCwd ?? '')
+                    }
+                    disabled={previewAgentCwdMutation.isPending}
+                    className="mt-1.5 w-full truncate rounded-sm border border-[var(--theme-accent-border)] px-2 py-1 text-left text-[11px] transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                  >
+                    Pin it to {agentCwd.suggestedCwd}
+                  </button>
+                ) : null}
               </div>
             ) : null}
+
+            {agentCwdWarnings.length > 0 ? (
+              <ul className="mx-1 mt-1 space-y-1 px-2 py-1 text-[10px] leading-snug text-muted-foreground">
+                {agentCwdWarnings.map((warning) => (
+                  <li key={warning} className="flex gap-1.5">
+                    <AlertTriangle className="mt-0.5 size-3 shrink-0" />
+                    <span>{warning}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {/* Change flow: nothing is written until before → after is shown. */}
+            {agentCwd?.editable ? (
+              cwdPreview ? (
+                <div
+                  data-testid="agent-cwd-confirm"
+                  className="mx-1 mt-1 rounded-sm border border-[var(--theme-accent-border)] px-2 py-2"
+                >
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Confirm — this changes where commands run
+                  </div>
+                  <div className="mt-1 text-[11px]">
+                    <div className="truncate">
+                      <span className="text-muted-foreground">before </span>
+                      <span className="font-mono">
+                        {cwdPreview.before.path ?? 'undetermined'}
+                      </span>
+                    </div>
+                    <div className="truncate">
+                      <span className="text-muted-foreground">after </span>
+                      <span className="font-mono">
+                        {cwdPreview.after.path ?? 'undetermined'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="mt-1 text-[10px] text-muted-foreground">
+                    Written to the <b>{cwdPreview.profile}</b> profile&apos;s
+                    config.yaml. The gateway reads it only at startup, so a
+                    restart is required.
+                  </div>
+                  <div className="mt-1.5 flex gap-1">
+                    <button
+                      type="button"
+                      data-testid="agent-cwd-commit"
+                      onClick={() => commitAgentCwdMutation.mutate(cwdDraft)}
+                      disabled={commitAgentCwdMutation.isPending}
+                      className="flex-1 rounded-sm border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-1 text-[11px] transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                    >
+                      {commitAgentCwdMutation.isPending
+                        ? 'Writing…'
+                        : 'Change directory'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCwdPreview(null)}
+                      className="rounded-sm px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form
+                  className="mx-1 mt-1 flex gap-1 px-1 pb-1"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    requestAgentCwdPreview(cwdDraft)
+                  }}
+                >
+                  <input
+                    type="text"
+                    value={cwdDraft}
+                    onChange={(event) => setCwdDraft(event.target.value)}
+                    placeholder="Absolute path, e.g. /home/me/project"
+                    aria-label="New agent working directory"
+                    className="min-w-0 flex-1 rounded-sm border border-[var(--theme-accent-border)] bg-transparent px-2 py-1 font-mono text-[11px] outline-none"
+                  />
+                  <button
+                    type="submit"
+                    disabled={
+                      !cwdDraft.trim() || previewAgentCwdMutation.isPending
+                    }
+                    className="rounded-sm border border-[var(--theme-accent-border)] px-2 py-1 text-[11px] transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                  >
+                    Preview
+                  </button>
+                </form>
+              )
+            ) : agentCwd ? (
+              <div className="px-2 py-1.5 text-[10px] text-muted-foreground">
+                Read-only here: this gateway multiplexes profiles, so the
+                directory comes from the launch profile{' '}
+                <b>{agentCwd.resolved.profile}</b> and editing{' '}
+                <b>{agentCwd.activeProfile}</b> would have no effect.
+              </div>
+            ) : null}
+
+            {cwdError ? (
+              <div className="px-2 py-1.5 text-[11px] text-destructive">
+                {cwdError}
+              </div>
+            ) : null}
+
+            {/* ── 2. Files browser root ────────────────────────────────── */}
+            <div className="mt-1 border-t border-[var(--theme-accent-border)] pt-1">
+              <div className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                <Briefcase className="size-3" />
+                Files browser root
+              </div>
+              <div className="px-2 pb-1 text-[10px] leading-snug text-muted-foreground">
+                Scopes the Files page in this UI only. It makes no gateway call
+                and does not move the agent.
+              </div>
+              <div className="max-h-40 overflow-y-auto">
+                {workspaceEntries.length > 0 ? (
+                  workspaceEntries.map((workspace) => {
+                    const selected = workspace.path === detectedWorkspacePath
+                    return (
+                      <button
+                        key={workspace.path}
+                        type="button"
+                        onClick={() => {
+                          if (selected) return
+                          workspaceSelectMutation.mutate(workspace)
+                        }}
+                        className={cn(
+                          'flex w-full flex-col rounded-sm px-2 py-2 text-left transition-colors hover:bg-accent hover:text-accent-foreground',
+                          selected && 'bg-accent/50',
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-medium">
+                            {workspace.name || shortPathLabel(workspace.path)}
+                          </span>
+                          {selected ? <Check className="size-3.5" /> : null}
+                        </span>
+                        <span className="mt-0.5 max-w-[16rem] truncate text-[10px] text-muted-foreground">
+                          {workspace.path}
+                        </span>
+                      </button>
+                    )
+                  })
+                ) : (
+                  <div className="px-2 py-2 text-xs text-muted-foreground">
+                    No valid directories detected
+                  </div>
+                )}
+              </div>
+              {workspaceContextQuery.isError ? (
+                <div className="px-2 py-2 text-xs text-destructive">
+                  Failed to load the files root
+                </div>
+              ) : null}
+            </div>
           </PopoverContent>
         </Popover>
       )}

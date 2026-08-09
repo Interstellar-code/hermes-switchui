@@ -166,7 +166,15 @@ export const Route = createFileRoute('/api/terminal-stream')({
               }
             }
 
-            send('session', { sessionId: session.id, reattach: isReattach })
+            // `cwd` is the RESOLVED spawn directory, not the requested one, so
+            // the UI shows where this PTY really is. It is the Switch UI shell's
+            // cwd only — the agent's shell is a separate process with its own
+            // directory (see src/server/agent-cwd.ts).
+            send('session', {
+              sessionId: session.id,
+              reattach: isReattach,
+              cwd: session.cwd,
+            })
 
             const handleEvent = (evt: { event: string; payload: unknown }) => {
               if (evt.event === 'data') {

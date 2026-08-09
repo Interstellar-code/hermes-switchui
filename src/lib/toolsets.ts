@@ -51,6 +51,17 @@ export const DESTRUCTIVE_TOOLSETS = new Set([
 /**
  * Normalized toolset item — the shared shape consumed by the wizard step and
  * produced by both the live gateway route and the static fallback.
+ *
+ * `gatewayEnabled` is only ever populated from a live gateway response
+ * (`/api/profiles/toolsets` with `source: 'gateway'`) — it mirrors the
+ * `enabled` field GET /v1/toolsets reports, which is
+ * `_get_platform_tools(config, "api_server")` with `agent.disabled_toolsets`
+ * applied LAST as an override (hermes_cli/tools_config.py, verified against
+ * ~/.hermes/hermes-agent). `disabled_toolsets` beats any positive toolset
+ * selection, including a profile's own — so `gatewayEnabled: false` here
+ * means the gateway will suppress this toolset right now regardless of what
+ * a profile draft shows. Left `undefined` for the static fallback, which has
+ * no way to know what the gateway currently suppresses.
  */
 export type NormalizedToolset = {
   key: string
@@ -58,6 +69,23 @@ export type NormalizedToolset = {
   group: string
   destructive: boolean
   plugin: boolean
+  gatewayEnabled?: boolean
+}
+
+/**
+ * A toolset the wizard shows as selected (not in the draft's
+ * `disabled_toolsets`) that the live gateway is actually suppressing right
+ * now via `agent.disabled_toolsets` (e.g. the upstream blank-slate bug that
+ * pre-populates ~27 entries there — issue #49995). Only trust this when the
+ * catalog came from `source: 'gateway'` — the static fallback cannot know
+ * what the gateway suppresses, so it must say nothing rather than guess.
+ */
+export function isToolsetSuppressed(
+  toolset: NormalizedToolset,
+  source: 'gateway' | 'static',
+  locallyEnabled: boolean,
+): boolean {
+  return source === 'gateway' && locallyEnabled && toolset.gatewayEnabled === false
 }
 
 /** Group used for plugin-registered toolsets that have no static mapping. */

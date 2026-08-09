@@ -6,6 +6,7 @@ import {
   TOOLSET_GROUPS,
   buildStaticToolsetCatalog,
   getToolsetSecurityHint,
+  isToolsetSuppressed,
 } from '@/lib/toolsets'
 
 type Props = {
@@ -42,6 +43,16 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
   const total = toolsets.length
   const disabledSet = new Set(draft.disabled_toolsets)
   const enabledCount = total - disabledSet.size
+
+  // Toolsets the wizard shows as selected but the live gateway is actually
+  // suppressing right now (agent.disabled_toolsets applied last, always wins
+  // — see isToolsetSuppressed()). Only meaningful for source: 'gateway'; the
+  // static fallback has no live signal to check against.
+  const suppressedKeys = new Set(
+    toolsets
+      .filter((t) => isToolsetSuppressed(t, source, !disabledSet.has(t.key)))
+      .map((t) => t.key),
+  )
 
   // Distinct groups present, ordered: static TOOLSET_GROUPS first, Plugins last.
   const presentGroups = new Set(toolsets.map((t) => t.group))
@@ -82,6 +93,16 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
               Reflecting the live gateway toolset registry.
             </p>
           )}
+          {suppressedKeys.size > 0 && (
+            <p
+              className="wiz-hint"
+              style={{ marginTop: 4, color: 'var(--m-danger, var(--theme-danger, #e05))' }}
+            >
+              {suppressedKeys.size} selected {suppressedKeys.size === 1 ? 'toolset is' : 'toolsets are'}{' '}
+              suppressed by the gateway's current config and will not actually be available —
+              see the marked entries below.
+            </p>
+          )}
         </div>
         <div className="wiz-toolset-meta">
           <span className="wiz-hint">{enabledCount} of {total} enabled</span>
@@ -116,12 +137,21 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
             <div className="skill-grid">
               {groupToolsets.map(({ key, label, destructive, plugin }) => {
                 const enabled = !disabledSet.has(key)
+                const suppressed = suppressedKeys.has(key)
                 const securityHint = getToolsetSecurityHint(key)
+                const suppressedHint =
+                  "Suppressed by the gateway's current config (agent.disabled_toolsets) — " +
+                  'selected here, but will not actually be available to this agent.'
                 return (
                   <div
                     key={key}
-                    className={`skill${enabled ? ' on' : ''}${destructive ? ' skill-destructive' : ''}`}
-                    title={securityHint ?? undefined}
+                    className={`skill${enabled ? ' on' : ''}${destructive ? ' skill-destructive' : ''}${suppressed ? ' skill-suppressed' : ''}`}
+                    style={
+                      suppressed
+                        ? { outline: '1px dashed var(--m-danger, var(--theme-danger, #e05))', outlineOffset: '-1px' }
+                        : undefined
+                    }
+                    title={suppressed ? suppressedHint : (securityHint ?? undefined)}
                     onClick={() => toggle(key)}
                     role="checkbox"
                     aria-checked={enabled}
@@ -138,6 +168,15 @@ export function WizardStepToolset({ draft, errors, onChange }: Props) {
                     {destructive && (
                       <span className="wiz-toolset-warn-pill" title={securityHint ?? 'Grants powerful system access — disable for read-only or review agents'}>
                         ⚠
+                      </span>
+                    )}
+                    {suppressed && (
+                      <span
+                        className="wiz-toolset-suppressed-pill"
+                        title={suppressedHint}
+                        style={{ color: 'var(--m-danger, var(--theme-danger, #e05))' }}
+                      >
+                        ⛔ suppressed
                       </span>
                     )}
                   </div>

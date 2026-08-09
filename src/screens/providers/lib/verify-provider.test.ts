@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { sendLiveTestPrompt, verifyProviderVisible } from './verify-provider'
+import {
+  parseLiveTestStream,
+  sendLiveTestPrompt,
+  verifyProviderAfterSave,
+  verifyProviderVisible,
+} from './verify-provider'
 
 function modelsResponse(body: unknown) {
   return Promise.resolve({
@@ -144,12 +149,51 @@ describe('sendLiveTestPrompt', () => {
 
   it('surfaces an HTTP failure verbatim', async () => {
     const fetchImpl = vi.fn(() =>
-      Promise.resolve({ ok: false, status: 401 } as Response),
+      Promise.resolve({
+        ok: false,
+        status: 401,
+        text: () => Promise.resolve(''),
+      } as Response),
     ) as unknown as typeof fetch
 
     const result = await sendLiveTestPrompt({ fetchImpl })
     expect(result.ok).toBe(false)
     expect(result.message).toContain('401')
+  })
+
+  // The old implementation returned `ok: true` for this body, because it
+  // treated any non-empty text as a reply. An SSE error event IS non-empty
+  // text, so a 401 from the provider rendered as "the provider answered".
+  it('fails on an SSE error event and repeats the gateway message', async () => {
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            'event: error\ndata: {"message":"401 Unauthorized from api.example.com"}\n\n',
+          ),
+      } as Response),
+    ) as unknown as typeof fetch
+
+    const result = await sendLiveTestPrompt({ fetchImpl })
+    expect(result.ok).toBe(false)
+    expect(result.message).toBe('401 Unauthorized from api.example.com')
+    expect(result.gatewayError).toBe('401 Unauthorized from api.example.com')
+  })
+
+  it('handles the non-stream JSON error body too', async () => {
+    const fetchImpl = vi.fn(() =>
+      Promise.resolve({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('{"ok":false,"error":"invalid_api_key"}'),
+      } as Response),
+    ) as unknown as typeof fetch
+
+    expect((await sendLiveTestPrompt({ fetchImpl })).message).toBe(
+      'invalid_api_key',
+    )
   })
 
   it('reports an empty response rather than claiming success', async () => {
@@ -162,5 +206,76 @@ describe('sendLiveTestPrompt', () => {
     ) as unknown as typeof fetch
 
     expect((await sendLiveTestPrompt({ fetchImpl })).ok).toBe(false)
+  })
+})
+
+describe('parseLiveTestStream', () => {
+  it('finds the first error and ignores later content', () => {
+    expect(
+      parseLiveTestStream(
+        'event: error\ndata: {"message":"boom"}\n\nevent: token\ndata: {"text":"hi"}\n',
+      ).error,
+    ).toBe('boom')
+  })
+
+  it('reports content with no error for a clean stream', () => {
+    expect(
+      parseLiveTestStream(
+        'event: token\ndata: {"text":"ok"}\n\ndata: [DONE]\n',
+      ),
+    ).toEqual({ error: null, sawContent: true })
+  })
+})
+
+describe('verifyProviderAfterSave', () => {
+  /** Models says confirmed; the live prompt 401s. */
+  function fetchWith(liveBody: string) {
+    return vi.fn((input: RequestInfo | URL) => {
+      if (String(input).includes('/api/models')) {
+        return modelsResponse({
+          models: [{ id: 'm1', provider: 'manifest' }],
+          configuredProviders: ['manifest'],
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(liveBody),
+      } as Response)
+    }) as unknown as typeof fetch
+  }
+
+  it('flags a credential failure when the provider resolves but rejects the key', async () => {
+    const outcome = await verifyProviderAfterSave('manifest', {
+      fetchImpl: fetchWith(
+        'event: error\ndata: {"message":"401 invalid_api_key"}\n',
+      ),
+      ...fakeTiming(),
+    })
+    expect(outcome.resolution.status).toBe('confirmed')
+    expect(outcome.live?.ok).toBe(false)
+    expect(outcome.credentialFailed).toBe(true)
+  })
+
+  it('does not flag a credential failure for an unrelated error', async () => {
+    const outcome = await verifyProviderAfterSave('manifest', {
+      fetchImpl: fetchWith(
+        'event: error\ndata: {"message":"upstream timeout"}\n',
+      ),
+      ...fakeTiming(),
+    })
+    expect(outcome.credentialFailed).toBe(false)
+  })
+
+  it('skips the live prompt when the provider is not visible yet', async () => {
+    const fetchImpl = vi.fn(() =>
+      modelsResponse({ models: [], configuredProviders: [] }),
+    ) as unknown as typeof fetch
+    const outcome = await verifyProviderAfterSave('manifest', {
+      fetchImpl,
+      ...fakeTiming(),
+    })
+    expect(outcome.resolution.status).toBe('missing')
+    expect(outcome.live).toBeNull()
   })
 })

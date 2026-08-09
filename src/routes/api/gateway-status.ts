@@ -43,7 +43,15 @@ export const Route = createFileRoute('/api/gateway-status')({
           claudeUrl: CLAUDE_API,
           dashboardUrl: CLAUDE_DASHBOARD_URL,
           gateway: {
-            available: capabilities.health || capabilities.chatCompletions,
+            // A 401 from `/health` means this workspace's own bearer token
+            // doesn't match what the gateway expects — the gateway IS
+            // running, but nothing authenticated will work. That is not
+            // "available"; see gateway-capabilities.ts's probeHealth() (W3
+            // audit item 5).
+            available:
+              (capabilities.health || capabilities.chatCompletions) &&
+              !capabilities.authError,
+            authError: capabilities.authError,
             url: CLAUDE_API,
           },
           dashboard: capabilities.dashboard,
@@ -52,6 +60,13 @@ export const Route = createFileRoute('/api/gateway-status')({
           scope: {
             mode: scopeTopology.mode,
             servedProfiles: scopeTopology.servedProfiles,
+            // The gateway's own active profile in `single` mode — computed
+            // above via `scopeTopology` but previously dropped before this
+            // response went out (W3 audit item 1: "Selected ≠ Serving, and
+            // the UI shows one fact"). `null` for `multiplex` (meaningless —
+            // a bare URL resolves to `default`, not to any "active" profile)
+            // and for `unknown` (topology couldn't be established).
+            servingProfile: scopeTopology.activeProfile,
             sessionCounts,
           },
         })

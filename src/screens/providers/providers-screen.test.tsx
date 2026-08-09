@@ -330,8 +330,8 @@ describe('provider wizard', () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       config: {
         providers: {
+          // No `type:` — the gateway reads no such key off a providers entry.
           anthropic: {
-            type: 'openai',
             base_url: 'https://api.anthropic.com/v1',
             key_env: 'ANTHROPIC_API_KEY',
           },

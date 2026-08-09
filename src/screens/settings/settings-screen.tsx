@@ -34,6 +34,7 @@ const SectionMcpRegistered = lazy(() => import('./sections/section-mcp-registere
 const SectionHermesPlugin = lazy(() => import('./sections/section-hermes-plugin'))
 const SectionStorage = lazy(() => import('./sections/section-storage'))
 const SectionPrivacy = lazy(() => import('./sections/section-privacy'))
+const SectionSafety = lazy(() => import('./sections/section-safety'))
 const SectionTelemetry = lazy(() => import('./sections/section-telemetry'))
 const SectionApiKeys = lazy(() => import('./sections/section-api-keys'))
 const SectionNetwork = lazy(() => import('./sections/section-network'))
@@ -61,6 +62,7 @@ const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
   'hermes-plugin': SectionHermesPlugin,
   storage: SectionStorage,
   privacy: SectionPrivacy,
+  safety: SectionSafety,
   telemetry: SectionTelemetry,
   'api-keys': SectionApiKeys,
   network: SectionNetwork,
@@ -105,6 +107,7 @@ const SECTIONS: Array<SectionDef> = [
   // System
   { id: 'storage', label: 'Storage', group: 'System', p: 5 },
   { id: 'privacy', label: 'Privacy', group: 'System', p: 5 },
+  { id: 'safety', label: 'Safety', group: 'System', p: 5 },
   { id: 'telemetry', label: 'Telemetry', group: 'System', p: 6 },
   { id: 'api-keys', label: 'API Keys', group: 'System', p: 2 },
   { id: 'network', label: 'Network', group: 'System', p: 6 },

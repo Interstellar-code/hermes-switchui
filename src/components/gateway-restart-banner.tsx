@@ -18,7 +18,7 @@ export const RESTART_POLL_TIMEOUT_MS = 30_000
 const SUCCESS_AUTO_DISMISS_MS = 2_500
 
 interface GatewayStatusResponse {
-  capabilities?: { health?: boolean }
+  capabilities?: { health?: boolean; authError?: boolean }
 }
 
 interface GatewayReprobeResponse {
@@ -73,6 +73,12 @@ export function GatewayRestartBanner() {
   const { data } = useGatewayHealth(needsRestart)
   const gatewayUp = data?.capabilities?.health === true
   const gatewayStatusKnown = data?.capabilities?.health !== undefined
+  // A 401 on `/health` means the gateway IS up but this workspace's own
+  // bearer token doesn't match what it expects — a config problem, not a
+  // stopped process. Telling the user "the gateway looks like it stopped"
+  // here would send them to restart/start a gateway that never went away.
+  // See gateway-capabilities.ts's probeHealth() (W3 audit item 5).
+  const authError = data?.capabilities?.authError === true
 
   const clearPollTimer = () => {
     if (pollTimerRef.current !== null) {
@@ -218,9 +224,13 @@ export function GatewayRestartBanner() {
           </>
         ) : null}
         .{' '}
-        {gatewayStatusKnown && !gatewayUp
-          ? 'The gateway looks like it stopped — start it to pick up the new config.'
-          : 'Restart the Hermes Agent gateway for the new config to take effect.'}
+        {authError
+          ? "The gateway is reachable, but its token doesn't match this workspace's " +
+            'HERMES_API_TOKEN — check ~/.hermes/.env\'s API_SERVER_KEY (or HERMES_API_TOKEN) ' +
+            'and restart once they agree.'
+          : gatewayStatusKnown && !gatewayUp
+            ? 'The gateway looks like it stopped — start it to pick up the new config.'
+            : 'Restart the Hermes Agent gateway for the new config to take effect.'}
       </>
     )
   }

@@ -1,5 +1,19 @@
 /**
- * Hermes workspace API.
+ * Hermes workspace API — the FILES-BROWSER root, and nothing else.
+ *
+ * ## What this does NOT do
+ *
+ * This endpoint has never affected where the agent runs. It makes no gateway
+ * call of any kind; it writes a Switch-UI-local state file that scopes the Files
+ * browser. The agent's working directory comes from `terminal.cwd` in the
+ * profile's `config.yaml`, read once at gateway startup — see
+ * `src/server/agent-cwd.ts` for the real ladder and `/api/agent-cwd` for the
+ * endpoint that can actually change it.
+ *
+ * The `scope: 'files-browser'` field on every response exists so no future
+ * caller can mistake this for an agent control.
+ *
+ * ## What it does
  *
  * Important distinction: HERMES_HOME / ~/.hermes is Hermes state/config, not the
  * user's project workspace. Workspace resolution intentionally mirrors the
@@ -13,6 +27,7 @@ import YAML from 'yaml'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
+import { isCwdPlaceholder } from '../../server/agent-cwd'
 import {
   getActiveProfileName,
   readProfile,
@@ -30,7 +45,15 @@ type WorkspaceDetectionResponse = {
   isValid: boolean
   workspaces: Array<WorkspaceEntry>
   last: string
+  /**
+   * Constant marker: this selection scopes the Files browser only. It is on the
+   * wire so a client can never present it as the agent's working directory.
+   * That value lives at `/api/agent-cwd`.
+   */
+  scope: 'files-browser'
 }
+
+const FILES_BROWSER_SCOPE = 'files-browser' as const
 
 type WorkspaceState = {
   workspaces?: Array<WorkspaceEntry>
@@ -302,7 +325,22 @@ async function configuredDefaultWorkspace(): Promise<{
 } | null> {
   const profileHome = activeProfileHome()
   const cfg = await readYamlConfig(path.join(profileHome, 'config.yaml'))
-  const terminalCwd = readString(readRecord(cfg.terminal).cwd)
+  const rawTerminalCwd = readString(readRecord(cfg.terminal).cwd)
+  /*
+   * `terminal.cwd` is only a HINT here — the Files browser and the agent are
+   * separate mechanisms and this read never changed that. But `.` / `auto` /
+   * `cwd` are SENTINELS meaning "not configured" (gateway/cwd_placeholder.py:12),
+   * not relative paths, so they must not be resolved against anything. Resolving
+   * `.` against the profile home used to point this at ~/.hermes, which the
+   * Hermes-state guard then rejected anyway — the filter just makes the intent
+   * explicit instead of relying on that guard. A relative non-sentinel value is
+   * equally unusable: the gateway anchors it to its own process cwd, which this
+   * process cannot see.
+   */
+  const terminalCwd =
+    isCwdPlaceholder(rawTerminalCwd) || !path.isAbsolute(expandHome(rawTerminalCwd))
+      ? ''
+      : rawTerminalCwd
 
   /*
    * Default workspace priority:
@@ -325,11 +363,7 @@ async function configuredDefaultWorkspace(): Promise<{
       path: readString(cfg.default_workspace),
       source: 'config.default_workspace',
     },
-    {
-      path: terminalCwd,
-      source: 'config.terminal.cwd',
-      basePath: profileHome,
-    },
+    { path: terminalCwd, source: 'config.terminal.cwd' },
     ...knowledgeWorkspaceCandidates(cfg),
     { path: path.join(os.homedir(), 'workspace'), source: 'home.workspace' },
     { path: path.join(os.homedir(), 'work'), source: 'home.work' },
@@ -395,6 +429,7 @@ export async function loadWorkspaceCatalog(): Promise<WorkspaceDetectionResponse
         isValid: true,
         workspaces,
         last: envWorkspace,
+        scope: FILES_BROWSER_SCOPE,
       }
     }
   }
@@ -428,6 +463,7 @@ export async function loadWorkspaceCatalog(): Promise<WorkspaceDetectionResponse
     isValid: Boolean(activePath),
     workspaces,
     last: activePath,
+    scope: FILES_BROWSER_SCOPE,
   }
 }
 
@@ -475,6 +511,7 @@ export const Route = createFileRoute('/api/workspace')({
               isValid: false,
               workspaces: [],
               last: '',
+              scope: FILES_BROWSER_SCOPE,
               error: err instanceof Error ? err.message : String(err),
             },
             { status: 500 },

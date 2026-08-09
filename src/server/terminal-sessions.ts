@@ -1,6 +1,24 @@
 /**
  * Terminal sessions using Python PTY helper.
  * Gives us real PTY (echo, colors, resize) without node-pty native addon.
+ *
+ * ## This is NOT the agent's shell
+ *
+ * These are PTYs that the Switch UI **Node server** spawns for the user to type
+ * into. They share nothing with the shell the agent uses for `terminal` /
+ * `execute_code`:
+ *
+ * | | Switch UI terminal | Agent shell |
+ * | --- | --- | --- |
+ * | spawned by | this module, via `pty-helper.py` | `tools/terminal_tool.py` in the gateway |
+ * | cwd from | the `cwd` argument below (UI default `~/.hermes`) | `terminal.cwd` in config.yaml, read at gateway startup |
+ * | backend | always the local host | `terminal.backend` — may be docker/ssh/modal |
+ * | changing it | takes effect on the next session | requires a gateway restart |
+ *
+ * `cd`-ing here moves nothing for the agent, and vice versa. The resolved cwd is
+ * published on the session object (and through the `session` SSE event) so the
+ * UI can show both directories side by side instead of conflating them. See
+ * `src/server/agent-cwd.ts` for the agent side.
  */
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
@@ -67,6 +85,13 @@ export type TerminalSessionEvent = {
 export type TerminalSession = {
   id: string
   createdAt: number
+  /**
+   * The directory the PTY was actually spawned in — fully resolved (`~`
+   * expanded, `..` collapsed, containment-checked), which is often not what the
+   * caller requested. Published so the UI can show the real value next to the
+   * agent's own cwd rather than echoing back the request.
+   */
+  cwd: string
   emitter: EventEmitter
   sendInput: (data: string) => void
   resize: (cols: number, rows: number) => void
@@ -224,6 +249,7 @@ export function createTerminalSession(params: {
   const session: TerminalSession = {
     id: sessionId,
     createdAt: Date.now(),
+    cwd,
     emitter,
 
     sendInput(data: string) {

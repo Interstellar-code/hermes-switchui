@@ -196,10 +196,15 @@ const PROBE_TTL_DISCONNECTED_MS = 15_000
 function effectiveProbeTtl(caps: {
   health: boolean
   chatCompletions: boolean
+  authError: boolean
   dashboard: { available: boolean }
 }): number {
   // Gateway down → re-probe often so we notice it come back.
   if (!caps.health && !caps.chatCompletions) return PROBE_TTL_DISCONNECTED_MS
+  // Token mismatch → also a broken state worth re-checking often, so fixing
+  // HERMES_API_TOKEN / API_SERVER_KEY is picked up within seconds, not up to
+  // two minutes.
+  if (caps.authError) return PROBE_TTL_DISCONNECTED_MS
   // Gateway up but dashboard down → still a partial state; re-probe often so
   // the "Limited mode" banner clears quickly once the dashboard is started.
   if (!caps.dashboard.available) return PROBE_TTL_DISCONNECTED_MS
@@ -216,6 +221,18 @@ export type CoreCapabilities = {
   models: boolean
   streaming: boolean
   probed: boolean
+  /**
+   * True when `/health` answered 401 — this workspace's own bearer token
+   * (`HERMES_API_TOKEN` / `API_SERVER_KEY`) does not match what THIS gateway
+   * process expects. Distinct from `!health`: a token mismatch means the
+   * gateway IS up and reachable — every authenticated request will simply
+   * keep failing until the tokens agree. Conflating the two used to render a
+   * mismatch as "Connected" (the generic `probe()` below treats any
+   * non-404/403 status, 401 included, as "capability present" — correct for
+   * capability-presence probes, wrong for the health/availability signal
+   * users see). See W3 audit item 5.
+   */
+  authError: boolean
 }
 
 export type EnhancedCapabilities = {
@@ -288,6 +305,7 @@ let capabilities: GatewayCapabilities = {
   chatCompletions: false,
   models: false,
   streaming: false,
+  authError: false,
   sessions: false,
   enhancedChat: false,
   skills: false,
@@ -544,6 +562,41 @@ async function probe(requestPath: string): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+/**
+ * Health probe backing the user-facing "gateway available" / connected
+ * status (`gateway-status.ts`'s `gateway.available`, the restart banner, the
+ * dashboard-unavailable banner). Deliberately NOT built on the generic
+ * capability-PRESENCE `probe()` above.
+ *
+ * `probe()`'s "401 counts as available" is correct for capability-presence
+ * probes like `probeEnhancedChatStream()` / `probeConductor()` below, where a
+ * 401 PROVES the route is registered (a vanilla/unauthenticated gateway
+ * would 404 instead) — the caller only cares whether the surface exists.
+ * Here a 401 means something different and worse: THIS workspace's own
+ * bearer token (`HERMES_API_TOKEN` / `API_SERVER_KEY`) does not match what
+ * THIS gateway process expects. The gateway is up, but every authenticated
+ * request will also 401 — that is not "connected". Reusing `probe()` here is
+ * exactly what let a token mismatch render as "Connected" while the user was
+ * pointed at "check your API key in Settings" (the wrong secret — that's the
+ * provider key, not the gateway token — on a screen that doesn't even exist
+ * for this). See W3 audit item 5.
+ */
+async function probeHealth(): Promise<{ healthy: boolean; authError: boolean }> {
+  try {
+    const res = await fetch(`${CLAUDE_API}/health`, {
+      headers: authHeaders(),
+      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+    })
+    if (res.status === 401) return { healthy: false, authError: true }
+    if (res.status === 404 || res.status === 403) {
+      return { healthy: false, authError: false }
+    }
+    return { healthy: true, authError: false }
+  } catch {
+    return { healthy: false, authError: false }
   }
 }
 
@@ -994,7 +1047,7 @@ export async function probeGateway(options?: {
     const dashboard = await probeDashboard()
 
     const [
-      health,
+      healthResult,
       chatCompletions,
       models,
       legacySessions,
@@ -1003,7 +1056,7 @@ export async function probeGateway(options?: {
       legacyConfig,
       legacyJobs,
     ] = await Promise.all([
-      probe('/health'),
+      probeHealth(),
       probeChatCompletions(),
       probe('/v1/models'),
       dashboard.available ? Promise.resolve(false) : probe('/api/sessions'),
@@ -1012,6 +1065,8 @@ export async function probeGateway(options?: {
       dashboard.available ? Promise.resolve(false) : probe('/api/config'),
       dashboard.available ? Promise.resolve(false) : probe('/api/jobs'),
     ])
+    const health = healthResult.healthy
+    const authError = healthResult.authError
 
     // Strict MCP probe runs after dashboard probe so dashboard token
     // resolution (in-page HTML scrape fallback) has had a chance to populate
@@ -1040,6 +1095,7 @@ export async function probeGateway(options?: {
       models,
       streaming: chatCompletions,
       probed: true,
+      authError,
       sessions: dashboard.available || legacySessions,
       enhancedChat,
       skills: dashboard.available || legacySkills,
@@ -1098,6 +1154,7 @@ export function getCoreCapabilities(): CoreCapabilities {
     models: capabilities.models,
     streaming: capabilities.streaming,
     probed: capabilities.probed,
+    authError: capabilities.authError,
   }
 }
 

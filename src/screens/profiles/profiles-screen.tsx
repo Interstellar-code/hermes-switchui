@@ -163,6 +163,64 @@ async function postJson(url: string, body: Record<string, unknown>): Promise<voi
   }
 }
 
+// ── Restart prompt: attach to the mismatch, not to the click (W3) ───────────
+//
+// Activating a profile only ever changes the SELECTED profile
+// (`~/.hermes/active_profile`); it never touches the live gateway process.
+// So whether a restart is actually needed depends entirely on what that
+// process is already SERVING:
+//   - multiplex, and the roster already includes this profile → live already,
+//     no restart — `/p/<profile>/` reaches it right now.
+//   - single, and the gateway is already running exactly this profile (e.g.
+//     re-activating the current one) → no restart.
+//   - anything else — a real mismatch, or topology we couldn't confirm →
+//     warn. A spurious banner is a UI nag; a silently-stale gateway is a
+//     wrong-profile chat, which is the worse failure to fail towards.
+export type GatewayScopePayload = {
+  mode?: string
+  servedProfiles?: Array<string> | null
+  servingProfile?: string | null
+} | null | undefined
+
+export function activationNeedsRestart(
+  scope: GatewayScopePayload,
+  profileName: string,
+): boolean {
+  if (!scope) return true
+  if (scope.mode === 'multiplex') {
+    return !(scope.servedProfiles ?? []).includes(profileName)
+  }
+  if (scope.mode === 'single') {
+    return scope.servingProfile !== profileName
+  }
+  // 'unknown' (or any unrecognised value) — can't confirm either way.
+  return true
+}
+
+/**
+ * Fetches the live topology right after an activate and only raises the
+ * restart banner when `activationNeedsRestart` says this one actually needs
+ * it — replacing the old "fire on every activate" behaviour, which nagged
+ * for a multiplex switch that was already live the moment it landed.
+ */
+async function syncRestartPrompt(profileName: string): Promise<void> {
+  let needsRestart = true
+  try {
+    const res = await fetch('/api/gateway-status')
+    if (res.ok) {
+      const payload = (await res.json().catch(() => null)) as
+        | { scope?: GatewayScopePayload }
+        | null
+      needsRestart = activationNeedsRestart(payload?.scope, profileName)
+    }
+  } catch {
+    needsRestart = true
+  }
+  const store = useGatewayRestartStore.getState()
+  if (needsRestart) store.markNeedsRestart(profileName)
+  else store.dismiss()
+}
+
 // ── Import a profile bundle (G-03) ───────────────────────────────────────────
 //
 // `POST /api/profiles/import` validates every field of the bundle server-side
@@ -539,7 +597,7 @@ export function ProfilesScreen() {
     setBusyName(profileName)
     try {
       await postJson('/api/profiles/activate', { name: profileName })
-      useGatewayRestartStore.getState().markNeedsRestart(profileName)
+      await syncRestartPrompt(profileName)
       toast(`Activated agent ${profileName}`, { type: 'success' })
       await refreshProfiles()
     } catch (error) {
@@ -719,7 +777,7 @@ export function ProfilesScreen() {
     setBusyName('default')
     try {
       await postJson('/api/profiles/activate', { name: 'default' })
-      useGatewayRestartStore.getState().markNeedsRestart('default')
+      await syncRestartPrompt('default')
       toast('Switched back to the default profile', { type: 'success' })
       await refreshProfiles()
     } catch (error) {

@@ -13,6 +13,8 @@ export function buildYamlPreview(input: {
   makeActive: boolean
   defaultModel: string
   inline: boolean
+  /** The recovery path also writes the key inline; show that. */
+  inlineFallback?: boolean
 }): string {
   if (input.inline) {
     return [
@@ -26,13 +28,22 @@ export function buildYamlPreview(input: {
       .join('\n')
   }
 
-  const lines = [
-    'providers:',
-    `  ${input.id}:`,
-    '    type: openai',
-    input.baseUrl ? `    base_url: ${input.baseUrl}` : null,
-    input.envKey ? `    key_env: ${input.envKey}` : null,
-  ].filter(Boolean)
+  // No `type:` line — the gateway reads no such key off a providers entry, and
+  // showing it in the preview taught users a field that does nothing.
+  //
+  // No `providers:` block at all without a base URL: that is a gateway
+  // built-in, which is configured by its env key plus `model.provider` and
+  // ignores a user entry of the same name. Previewing an empty `openrouter:`
+  // key promised a write that would not happen. See write-paths.ts.
+  const lines = input.baseUrl
+    ? [
+        'providers:',
+        `  ${input.id}:`,
+        `    base_url: ${input.baseUrl}`,
+        input.envKey ? `    key_env: ${input.envKey}` : null,
+        input.inlineFallback ? '    api_key: ********' : null,
+      ].filter(Boolean)
+    : [input.envKey ? `~/.hermes/.env → ${input.envKey}` : null].filter(Boolean)
 
   if (input.makeActive) {
     lines.push(

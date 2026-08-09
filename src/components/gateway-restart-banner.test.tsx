@@ -196,6 +196,33 @@ describe('GatewayRestartBanner', () => {
     expect(screen.getByText(/copy: hermes gateway restart/)).toBeTruthy()
   })
 
+  it('names the real problem (token mismatch) instead of "looks like it stopped" when /health 401s', async () => {
+    // A 401 means the gateway IS up but this workspace's own bearer token
+    // doesn't match — gateway-capabilities.ts's probeHealth() reports that as
+    // health:false + authError:true (W3 audit item 5). Telling the user "the
+    // gateway looks like it stopped" here would be actively wrong.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/gateway-status')) {
+          return jsonResponse({ capabilities: { health: false, authError: true } })
+        }
+        return jsonResponse({})
+      }),
+    )
+
+    act(() => {
+      useGatewayRestartStore.getState().markNeedsRestart('hermes-switch')
+    })
+    renderBanner()
+
+    await waitFor(() =>
+      expect(screen.getByText(/token doesn't match/)).toBeTruthy(),
+    )
+    expect(screen.queryByText(/looks like it stopped/)).toBeNull()
+  })
+
   it('keeps the dismiss control working at every phase', async () => {
     vi.stubGlobal(
       'fetch',

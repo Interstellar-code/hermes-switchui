@@ -55,7 +55,9 @@ describe('buildYamlPreview', () => {
   })
 
   describe('non-inline mode', () => {
-    it('emits the providers block with type, base_url, and key_env', () => {
+    // No `type:` line: the gateway reads no such key off a providers entry,
+    // and a preview that shows one teaches a field that does nothing.
+    it('emits the providers block with base_url and key_env, and no type', () => {
       expect(
         buildYamlPreview({
           id: 'openrouter',
@@ -69,31 +71,33 @@ describe('buildYamlPreview', () => {
         [
           'providers:',
           '  openrouter:',
-          '    type: openai',
           '    base_url: https://openrouter.ai/api/v1',
           '    key_env: OPENROUTER_API_KEY',
         ].join('\n'),
       )
     })
 
-    it('omits base_url and key_env when blank', () => {
+    // A providers block with no base_url is dropped whole by the gateway, so
+    // previewing an empty `openrouter:` key promised a write that never
+    // happened. Built-ins are configured by their env key instead.
+    it('shows the env key instead of an empty providers block when there is no base URL', () => {
       expect(
         buildYamlPreview({
           id: 'openrouter',
           baseUrl: '',
-          envKey: '',
+          envKey: 'OPENROUTER_API_KEY',
           makeActive: false,
           defaultModel: '',
           inline: false,
         }),
-      ).toBe(['providers:', '  openrouter:', '    type: openai'].join('\n'))
+      ).toBe('~/.hermes/.env → OPENROUTER_API_KEY')
     })
 
     it('appends the model block with provider and default when makeActive is set', () => {
       expect(
         buildYamlPreview({
           id: 'openrouter',
-          baseUrl: '',
+          baseUrl: 'https://openrouter.ai/api/v1',
           envKey: '',
           makeActive: true,
           defaultModel: 'anthropic/claude-sonnet-4-6',
@@ -103,7 +107,7 @@ describe('buildYamlPreview', () => {
         [
           'providers:',
           '  openrouter:',
-          '    type: openai',
+          '    base_url: https://openrouter.ai/api/v1',
           'model:',
           '  provider: openrouter',
           '  default: anthropic/claude-sonnet-4-6',
@@ -115,7 +119,7 @@ describe('buildYamlPreview', () => {
       expect(
         buildYamlPreview({
           id: 'openrouter',
-          baseUrl: '',
+          baseUrl: 'https://openrouter.ai/api/v1',
           envKey: '',
           makeActive: true,
           defaultModel: '',
@@ -125,7 +129,7 @@ describe('buildYamlPreview', () => {
         [
           'providers:',
           '  openrouter:',
-          '    type: openai',
+          '    base_url: https://openrouter.ai/api/v1',
           'model:',
           '  provider: openrouter',
           '  default: auto',
@@ -136,13 +140,27 @@ describe('buildYamlPreview', () => {
     it('does not append the model block when makeActive is false', () => {
       const preview = buildYamlPreview({
         id: 'openrouter',
-        baseUrl: '',
+        baseUrl: 'https://openrouter.ai/api/v1',
         envKey: '',
         makeActive: false,
         defaultModel: 'gpt-4o',
         inline: false,
       })
       expect(preview).not.toContain('model:')
+    })
+
+    it('shows the inline copy the fallback adds, still masked', () => {
+      const preview = buildYamlPreview({
+        id: 'manifest',
+        baseUrl: 'https://x.example/v1',
+        envKey: 'MY_KEY',
+        makeActive: false,
+        defaultModel: '',
+        inline: false,
+        inlineFallback: true,
+      })
+      expect(preview).toContain('    key_env: MY_KEY')
+      expect(preview).toContain('    api_key: ********')
     })
 
     it('never includes an API key anywhere in the output', () => {

@@ -19,7 +19,6 @@ describe('buildProviderPatch', () => {
       config: {
         providers: {
           openrouter: {
-            type: 'openai',
             base_url: 'https://openrouter.ai/api/v1',
             key_env: 'OPENROUTER_API_KEY',
           },
@@ -63,7 +62,6 @@ describe('buildProviderPatch', () => {
     })
     expect(patch.config?.providers).toEqual({
       manifest: {
-        type: 'openai',
         base_url: 'https://interstellar-llm.example/v1',
         key_env: 'MY_KEY',
       },
@@ -90,8 +88,88 @@ describe('buildProviderPatch', () => {
 
   it('refuses to drop a key on the floor when no env var name is known', () => {
     expect(() =>
-      buildProviderPatch({ id: 'vertex', apiKey: 'secret' }),
+      buildProviderPatch({
+        id: 'vertex',
+        baseUrl: 'https://vertex.example/v1',
+        apiKey: 'secret',
+      }),
     ).toThrow(/env var/i)
+  })
+
+  // The gateway drops a `providers.<id>` entry whose URL does not parse
+  // (config.py:5075 returns None), so a save without one is a no-op that
+  // reports success. For a custom endpoint the URL is the whole point.
+  it('refuses a custom endpoint with no base URL at all', () => {
+    expect(() => buildProviderPatch({ id: 'manifest' })).toThrow(
+      /needs a base URL/i,
+    )
+  })
+
+  // …but a gateway built-in resolves from its own registry and IGNORES a
+  // same-named user entry (runtime_provider.py:640-655), so writing one was
+  // never doing anything. Configure it by env key + model.provider.
+  it('writes no providers entry for a built-in with no base URL', () => {
+    const patch = buildProviderPatch({
+      id: 'zai',
+      apiKey: 'sk-zai',
+      makeActive: true,
+    })
+    expect(patch.config?.providers).toBeUndefined()
+    expect(patch.config?.model).toEqual({ provider: 'zai', default: 'auto' })
+    expect(patch.env).toEqual({ GLM_API_KEY: 'sk-zai' })
+  })
+
+  it('refuses an inline fallback for a built-in, which has nowhere to put it', () => {
+    expect(() =>
+      buildProviderPatch({ id: 'zai', apiKey: 'sk-zai', inlineFallback: true }),
+    ).toThrow(/nowhere to store an inline key/i)
+  })
+
+  it('refuses a base URL with no scheme or host', () => {
+    expect(() =>
+      buildProviderPatch({ id: 'manifest', baseUrl: 'localhost:8080/v1' }),
+    ).toThrow(/scheme and a host/i)
+  })
+
+  // `type:` is read by no gateway code path — see the header comment in
+  // write-paths.ts. Writing it made the entry look more configured than it was.
+  it('does not write a type key', () => {
+    const patch = buildProviderPatch({ id: 'openrouter' })
+    const entry = (patch.config?.providers as Record<string, unknown>)
+      .openrouter as Record<string, unknown>
+    expect(entry).not.toHaveProperty('type')
+  })
+
+  // The wizard's recovery path after a live prompt proves `key_env` did not
+  // resolve. Both copies are written: env still wins on this shape the moment
+  // it resolves, so the fallback is not a one-way door.
+  it('writes the key inline as well as to key_env under the inline fallback', () => {
+    const patch = buildProviderPatch({
+      id: 'manifest',
+      baseUrl: 'https://x.example/v1',
+      envKey: 'MY_KEY',
+      apiKey: 'sk-live',
+      inlineFallback: true,
+    })
+    expect(patch.config?.providers).toEqual({
+      manifest: {
+        base_url: 'https://x.example/v1',
+        key_env: 'MY_KEY',
+        api_key: 'sk-live',
+      },
+    })
+    expect(patch.env).toEqual({ MY_KEY: 'sk-live' })
+  })
+
+  it('refuses an inline fallback with no key to fall back to', () => {
+    expect(() =>
+      buildProviderPatch({
+        id: 'manifest',
+        baseUrl: 'https://x.example/v1',
+        envKey: 'MY_KEY',
+        inlineFallback: true,
+      }),
+    ).toThrow(/needs the key value/i)
   })
 })
 

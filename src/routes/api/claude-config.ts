@@ -13,7 +13,15 @@ import {
   getCapabilities,
 } from '../../server/gateway-capabilities'
 import { requireJsonContentType } from '../../server/rate-limit'
+import {
+  readAuthStore,
+  removeCredential,
+  saveCredential,
+  secureFile,
+} from '../../server/credential-status'
+import type { CredentialWriteOutcome } from '../../server/credential-status'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
+import { maskSecrets } from '@/lib/secret-mask'
 import {
   PROVIDER_CATALOG,
   getProviderEnvKey,
@@ -87,15 +95,20 @@ function writeConfig(config: Record<string, unknown>): void {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
       fs.copyFileSync(CONFIG_PATH, `${CONFIG_PATH}.bak`)
+      // The backup holds the same inline credentials as the original.
+      secureFile(`${CONFIG_PATH}.bak`)
     }
   } catch {
     // A failed backup must not block the write.
   }
 
   // Write-then-rename: a crash mid-write cannot leave a truncated config.yaml.
+  // `mode` on the temp file matters because the rename carries it across:
+  // config.yaml can hold an inline `api_key`, so it is a secret file.
   const tmpPath = `${CONFIG_PATH}.tmp`
-  fs.writeFileSync(tmpPath, serialized, 'utf-8')
+  fs.writeFileSync(tmpPath, serialized, { encoding: 'utf-8', mode: 0o600 })
   fs.renameSync(tmpPath, CONFIG_PATH)
+  secureFile(CONFIG_PATH)
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -149,54 +162,35 @@ function readEnv(): Record<string, string> {
 }
 
 /**
- * Apply key updates to ~/.hermes/.env, editing lines in place.
+ * Apply credential updates through the ONE reconciling write path.
  *
- * A previous version serialised `Object.entries(env)` back out, which silently
- * destroyed every comment, blank line and commented-out example in the file —
- * a .env shipped with documentation would lose ~490 of its 500 lines the first
- * time a user saved an API key. Values were preserved, but the file was not.
+ * What used to live here was a hand-rolled `.env` line editor. It was careful
+ * about comments and blank lines — and completely wrong about everything else:
+ * it wrote `.env` and stopped. The dashboard's `PUT /api/env` runs
+ * `hermes_cli/credential_lifecycle.py`, which additionally rewrites
+ * value-matched `config.yaml` mirrors and prunes env-seeded `credential_pool`
+ * entries in `auth.json`. Two write paths where one reconciles and one does
+ * not is exactly upstream #51071/#62269: settings rotated the key correctly,
+ * the wizard and onboarding rotated it into a shadowed copy, and the user got
+ * persistent 401s against a key the UI showed as current.
+ *
+ * The editor itself now lives in `credential-status.ts` as the offline
+ * fallback only, and it chmods `0600` (this one left `.env` at `0644`).
  *
  * `null` or `''` deletes a key, matching the PATCH contract.
  */
-function applyEnvUpdates(updates: Record<string, string | null>): void {
-  fs.mkdirSync(CLAUDE_HOME, { recursive: true })
-
-  let existing = ''
-  try {
-    existing = fs.readFileSync(ENV_PATH, 'utf-8')
-  } catch {
-    existing = ''
+async function applyEnvUpdates(
+  updates: Record<string, string | null>,
+): Promise<Array<CredentialWriteOutcome>> {
+  const outcomes: Array<CredentialWriteOutcome> = []
+  for (const [key, value] of Object.entries(updates)) {
+    outcomes.push(
+      value === null || value === ''
+        ? await removeCredential(key)
+        : await saveCredential(key, value),
+    )
   }
-
-  const lines = existing ? existing.split('\n') : []
-  const pending = new Map(Object.entries(updates))
-
-  const kept: Array<string> = []
-  for (const line of lines) {
-    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=/.exec(line)
-    const key = match?.[1]
-    if (!key || !pending.has(key)) {
-      kept.push(line)
-      continue
-    }
-    const value = pending.get(key) ?? null
-    pending.delete(key)
-    // Deletion drops the line entirely; an update rewrites just that line.
-    if (value !== null && value !== '') kept.push(`${key}=${value}`)
-  }
-
-  // Whatever is left is new — append it, keeping a trailing newline.
-  const additions: Array<string> = []
-  for (const [key, value] of pending) {
-    if (value !== null && value !== '') additions.push(`${key}=${value}`)
-  }
-  if (additions.length > 0) {
-    while (kept.length > 0 && kept[kept.length - 1].trim() === '') kept.pop()
-    kept.push(...additions)
-  }
-
-  const body = kept.join('\n')
-  fs.writeFileSync(ENV_PATH, body.endsWith('\n') ? body : `${body}\n`, 'utf-8')
+  return outcomes
 }
 
 function maskKey(key: string): string {
@@ -204,33 +198,37 @@ function maskKey(key: string): string {
   return key.slice(0, 4) + '...' + key.slice(-4)
 }
 
+/**
+ * Does the auth store hold a credential for this provider?
+ *
+ * This used to open `auth-profiles.json` and look for a `profiles` map keyed
+ * `"<provider>:…"`. The gateway has never written that file or that shape —
+ * the store is `auth.json` with `providers` / `credential_pool` sections
+ * (`hermes_cli/auth.py:891`). The lookup therefore missed on every provider,
+ * every time, so `configured` was false for every OAuth provider permanently.
+ * The corrected reader lives in `server/credential-status.ts` (which also
+ * handles the profile → root read-only fallback), and reports which store
+ * answered.
+ */
 function checkAuthStore(providerId: string): {
   hasToken: boolean
   source: string
   maskedKey?: string
 } {
-  // Check Claude auth store
-  const storePath = path.join(CLAUDE_HOME, 'auth-profiles.json')
-  try {
-    if (fs.existsSync(storePath)) {
-      const store = JSON.parse(fs.readFileSync(storePath, 'utf-8'))
-      const profiles = store?.profiles || {}
-      for (const [key, value] of Object.entries(profiles)) {
-        if (!key.startsWith(`${providerId}:`)) continue
-        if (typeof value !== 'object' || value === null) continue
-        const p = value as Record<string, unknown>
-        const token = String(p.token || p.key || p.access || '').trim()
-        if (token) {
-          return {
-            hasToken: true,
-            source: 'claude-auth-store',
-            maskedKey: maskKey(token),
-          }
-        }
-      }
-    }
-  } catch {}
-  return { hasToken: false, source: '' }
+  const entry = readAuthStore(providerId)
+  if (!entry || (!entry.oauth && !entry.pool)) {
+    return { hasToken: false, source: '' }
+  }
+  return {
+    hasToken: true,
+    // Names the store that answered, so a profile borrowing the root grant is
+    // visible rather than silently attributed to the profile.
+    source: entry.oauth
+      ? entry.scope === 'root'
+        ? 'auth-store'
+        : `auth-store:${entry.scope}`
+      : 'credential-pool',
+  }
 }
 
 export const Route = createFileRoute('/api/claude-config')({
@@ -299,7 +297,15 @@ export const Route = createFileRoute('/api/claude-config')({
         }
 
         return Response.json({
-          config,
+          // Masked server-side, not in the client. Env-sourced keys were
+          // already masked above, but `config` was shipped verbatim — and
+          // config.yaml is precisely where inline `api_key` values live, so
+          // the one credential the masking missed was the one most likely to
+          // be a plaintext secret. `maskSecrets` is the shared hardened
+          // masker (word-boundary key matching + value-shape detection); it
+          // deliberately leaves `key_env` readable, since that names a
+          // variable rather than holding a secret.
+          config: maskSecrets(config),
           providers: providerStatus,
           activeProvider,
           activeModel,
@@ -366,9 +372,24 @@ export const Route = createFileRoute('/api/claude-config')({
         }
 
         // Handle env var updates
+        let credentialWrites: Array<CredentialWriteOutcome> = []
         if (body.env && typeof body.env === 'object') {
-          applyEnvUpdates(body.env as Record<string, string | null>)
+          credentialWrites = await applyEnvUpdates(
+            body.env as Record<string, string | null>,
+          )
         }
+
+        // A write that could not be reconciled is not a silent success: the
+        // caller has to be able to tell the user that a stale copy may still
+        // win. Same for mirrors the gateway rewrote — those are the proof the
+        // rotation actually took.
+        const warnings = credentialWrites
+          .map((outcome) => outcome.warning)
+          .filter((warning): warning is string => Boolean(warning))
+        const reconciledMirrors = credentialWrites.flatMap((outcome) => [
+          ...(outcome.config_updates ?? []),
+          ...(outcome.config_scrubbed ?? []),
+        ])
 
         return Response.json({
           ok: true,
@@ -378,6 +399,11 @@ export const Route = createFileRoute('/api/claude-config')({
             'or `pnpm start:all` if you launched everything together) for the provider ' +
             'change to take effect.',
           requiresGatewayRestart: true,
+          credentialsReconciled: credentialWrites.every(
+            (outcome) => outcome.reconciled,
+          ),
+          reconciledMirrors,
+          warnings: warnings.length > 0 ? warnings : undefined,
         })
       },
 
@@ -520,17 +546,19 @@ export const Route = createFileRoute('/api/claude-config')({
         }
 
         // 5. credential — opt-in, and never if another provider still uses it.
+        //    Routed through the reconciling remove so the credential leaves
+        //    the pool and the model cache too; a `.env`-only delete left the
+        //    provider advertising models forever (#51071/#59761).
         let removedEnvKey: string | null = null
+        let credentialWarning: string | undefined
         if (body.removeKey === true && keyEnv) {
           const stillReferenced = Object.values(
             isRecord(config.providers) ? config.providers : {},
           ).some((entry) => isRecord(entry) && entry.key_env === keyEnv)
           if (!stillReferenced) {
-            const env = readEnv()
-            if (keyEnv in env) {
-              applyEnvUpdates({ [keyEnv]: null })
-              removedEnvKey = keyEnv
-            }
+            const outcome = await removeCredential(keyEnv)
+            if (outcome.found !== false) removedEnvKey = keyEnv
+            credentialWarning = outcome.warning
           }
         }
 
@@ -542,6 +570,7 @@ export const Route = createFileRoute('/api/claude-config')({
           removedEnvKey,
           clearedActiveProvider,
           requiresGatewayRestart: true,
+          warnings: credentialWarning ? [credentialWarning] : undefined,
           message: `Removed ${rawId} from ~/.hermes/config.yaml. Restart the Hermes Agent gateway for the change to take effect.`,
         })
       },

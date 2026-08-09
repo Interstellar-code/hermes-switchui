@@ -52,6 +52,10 @@ export const Route = createFileRoute('/api/profiles/toolsets')({
               group: known ? TOOLSET_GROUP_BY_KEY[key] : PLUGINS_GROUP,
               destructive: DESTRUCTIVE_TOOLSETS.has(key),
               plugin,
+              // `t.enabled` reflects the gateway's live resolution for this
+              // toolset (platform_toolsets + agent.disabled_toolsets applied
+              // last) — see isToolsetSuppressed() in lib/toolsets.ts.
+              gatewayEnabled: t.enabled,
             }
           })
 

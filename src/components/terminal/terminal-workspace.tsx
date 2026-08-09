@@ -8,6 +8,7 @@ import {
   Copy01Icon,
   SidebarLeft01Icon,
 } from '@hugeicons/core-free-icons'
+import { useQuery } from '@tanstack/react-query'
 import type { FitAddon } from '@xterm/addon-fit'
 import type * as FitAddonModule from '@xterm/addon-fit'
 import type { Terminal } from '@xterm/xterm'
@@ -20,6 +21,7 @@ import { cn } from '@/lib/utils'
 import { clampContextMenuPosition } from '@/lib/context-menu'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import { useProjects } from '@/lib/projects-api'
+import { fetchAgentCwd } from '@/screens/chat/components/chat-composer-services'
 import {
   closeTerminalSession,
   createTerminalInputQueue,
@@ -67,10 +69,22 @@ type TerminalWorkspaceProps = {
 
 type TerminalSessionResponse = {
   sessionId?: string
+  /** The directory the PTY was actually spawned in, resolved server-side. */
+  cwd?: string
 }
 
 type SplitMode = 'single' | 'horizontal' | 'vertical'
 
+/**
+ * Default cwd for a Switch UI shell.
+ *
+ * This is the UI's OWN terminal — a PTY that the Switch UI Node server spawns on
+ * the local host for you to type into. It is not the agent's shell: the agent
+ * runs `terminal` / `execute_code` in a separate process whose directory comes
+ * from `terminal.cwd` in the profile config, possibly on a different backend
+ * entirely. `cd`-ing in here moves nothing for the agent. The footer shows both
+ * so the two are never read as one.
+ */
 const DEFAULT_TERMINAL_CWD = '~/.hermes'
 const MAX_RECONNECT_ATTEMPTS = 4
 
@@ -105,7 +119,23 @@ export function TerminalWorkspace({
   const [secondaryTabId, setSecondaryTabId] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(50)
   const [newSessionCwd, setNewSessionCwd] = useState(DEFAULT_TERMINAL_CWD)
+  /** Server-resolved spawn directory per tab — the requested `tab.cwd` may be
+   *  `~` or a path the containment guard rewrote, so we show the real one. */
+  const [sessionCwds, setSessionCwds] = useState<Record<string, string>>({})
   const projectsQuery = useProjects(false, panelVisible)
+  // The AGENT's shell directory, for contrast. Different process, different
+  // backend, different lifecycle — see /api/agent-cwd.
+  const agentCwdQuery = useQuery({
+    queryKey: ['agent-cwd', 'terminal'],
+    queryFn: fetchAgentCwd,
+    enabled: panelVisible,
+    retry: false,
+    staleTime: 30_000,
+  })
+  const agentCwdPath = agentCwdQuery.data?.resolved.path ?? null
+  const agentCwdLabel = agentCwdQuery.isError
+    ? 'unavailable'
+    : (agentCwdPath ?? 'undetermined')
 
   const containerMapRef = useRef(new Map<string, HTMLDivElement>())
   const terminalMapRef = useRef(new Map<string, Terminal>())
@@ -136,8 +166,21 @@ export function TerminalWorkspace({
   }, [sessionFilter, tabs])
   const cwdOptions = useMemo(
     () => [
-      { id: 'hermes', value: DEFAULT_TERMINAL_CWD, label: 'Hermes home' },
-      { id: 'home', value: '~', label: 'User home' },
+      {
+        id: 'hermes',
+        value: DEFAULT_TERMINAL_CWD,
+        label: `Hermes state dir (${DEFAULT_TERMINAL_CWD})`,
+      },
+      { id: 'home', value: '~', label: 'User home (~)' },
+      // Offered only so you can match the agent by hand. Starting a UI shell
+      // here does NOT move the agent, and moving the agent does not move this.
+      ...(agentCwdPath ? [
+        {
+          id: 'agent-cwd',
+          value: agentCwdPath,
+          label: `Match agent cwd (${agentCwdPath})`,
+        },
+      ] : []),
       ...(projectsQuery.data?.projects ?? [])
         .filter((project) => project.primary_path)
         .map((project) => ({
@@ -146,7 +189,7 @@ export function TerminalWorkspace({
           label: project.name,
         })),
     ],
-    [projectsQuery.data?.projects],
+    [agentCwdPath, projectsQuery.data?.projects],
   )
   const visibleTerminalTabs = useMemo(() => {
     if (splitMode === 'single') return [activeTab]
@@ -392,6 +435,14 @@ export function TerminalWorkspace({
             if (payload.sessionId) {
               setTabSessionId(tab.id, payload.sessionId)
               setTabStatus(tab.id, 'active')
+              if (payload.cwd) {
+                const resolvedCwd = payload.cwd
+                setSessionCwds((prev) =>
+                  prev[tab.id] === resolvedCwd
+                    ? prev
+                    : { ...prev, [tab.id]: resolvedCwd },
+                )
+              }
               const nextTitle = tab.cwd === '~' ? tab.title : tab.cwd
               renameTab(tab.id, nextTitle)
               // Resize only now that the session exists server-side. Firing at
@@ -929,7 +980,7 @@ export function TerminalWorkspace({
                   <span className="name">
                     {tab.title}
                     <span className="pwd">
-                      {tab.cwd || DEFAULT_TERMINAL_CWD}
+                      {sessionCwds[tab.id] || tab.cwd || DEFAULT_TERMINAL_CWD}
                     </span>
                   </span>
                   <span className="item-ct">{tab.status}</span>
@@ -1232,12 +1283,21 @@ export function TerminalWorkspace({
                   active={panelVisible && isVisible}
                   className="matrix-rain-canvas"
                 />
-                <div className="term-hud">
+                <div
+                  className="term-hud"
+                  title={
+                    'This is a Switch UI shell (local PTY). The agent runs its ' +
+                    `commands in ${agentCwdLabel} — a separate process.`
+                  }
+                >
                   <span className="d" />
                   <span>
                     <b>{tab.status}</b>
                   </span>
-                  <span>{tab.cwd || DEFAULT_TERMINAL_CWD}</span>
+                  <span>
+                    ui shell{' '}
+                    {sessionCwds[tab.id] || tab.cwd || DEFAULT_TERMINAL_CWD}
+                  </span>
                   <span>{tab.sessionId ? 'attached' : 'starting'}</span>
                 </div>
                 <div
@@ -1289,8 +1349,25 @@ export function TerminalWorkspace({
             active <b>{activeTab.title}</b>
           </span>
           <span className="sep" />
-          <span>
-            workspace <b>{DEFAULT_TERMINAL_CWD}</b>
+          {/* Two directories, named for what they are. The left one is this
+              local PTY; the right one is the gateway's own shell. They are
+              independent, and only the latter decides where the agent works. */}
+          <span title="Working directory of this Switch UI shell (a local PTY spawned by the Switch UI server).">
+            ui shell{' '}
+            <b>
+              {sessionCwds[activeTab.id] ||
+                activeTab.cwd ||
+                DEFAULT_TERMINAL_CWD}
+            </b>
+          </span>
+          <span className="sep" />
+          <span
+            title={
+              'Working directory of the AGENT shell (terminal_tool in the gateway). ' +
+              'Set by terminal.cwd in the profile config; changing it needs a gateway restart.'
+            }
+          >
+            agent shell <b>{agentCwdLabel}</b>
           </span>
           <span
             className={cn('ok', activeTab.status === 'error' ? 'error' : '')}

@@ -83,18 +83,75 @@ describe('useProfileScopeStatus', () => {
     )
   })
 
-  it('reads "served" (quiet, no badge) under single-gateway mode regardless of profile name', async () => {
+  it('reads "served" under single-gateway mode when this IS the profile the gateway is running', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        scope: {
+          mode: 'single',
+          servedProfiles: null,
+          servingProfile: 'hermes-switch',
+          sessionCounts: {},
+        },
+      }),
+    )
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useProfileScopeStatus('hermes-switch'), {
+      wrapper: Wrapper,
+    })
+    await waitFor(() => expect(result.current.mode).toBe('single'))
+    expect(result.current.reachability).toBe('served')
+    expect(result.current.servingProfile).toBe('hermes-switch')
+  })
+
+  it('reads "not-served" under single-gateway mode when the gateway is running a DIFFERENT profile — the fix for W3 audit item 1', async () => {
+    // This hook used to answer 'served' unconditionally in single mode
+    // because the serving profile was unavailable to it. `servingProfile`
+    // (forwarded by /api/gateway-status) closes that gap.
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        scope: {
+          mode: 'single',
+          servedProfiles: null,
+          servingProfile: 'hermes-switch',
+          sessionCounts: {},
+        },
+      }),
+    )
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useProfileScopeStatus('neo'), {
+      wrapper: Wrapper,
+    })
+    await waitFor(() => expect(result.current.reachability).toBe('not-served'))
+    expect(result.current.servingProfile).toBe('hermes-switch')
+  })
+
+  it('fails closed to "unknown" in single mode when servingProfile is absent', async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({
         scope: { mode: 'single', servedProfiles: null, sessionCounts: {} },
       }),
     )
     const { Wrapper } = createWrapper()
-    const { result } = renderHook(() => useProfileScopeStatus('anything'), {
+    const { result } = renderHook(() => useProfileScopeStatus('neo'), {
       wrapper: Wrapper,
     })
     await waitFor(() => expect(result.current.mode).toBe('single'))
-    expect(result.current.reachability).toBe('served')
+    expect(result.current.reachability).toBe('unknown')
+  })
+
+  it('fails closed to "unknown" when the gateway-status scope.mode itself is "unknown" (remote-gated or probe-failed topology)', async () => {
+    mockFetch.mockResolvedValue(
+      jsonResponse({
+        scope: { mode: 'unknown', servedProfiles: null, sessionCounts: {} },
+      }),
+    )
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useProfileScopeStatus('neo'), {
+      wrapper: Wrapper,
+    })
+    await waitFor(() => expect(result.current.mode).toBe('unknown'))
+    expect(result.current.reachability).toBe('unknown')
+    expect(result.current.servingProfile).toBeNull()
   })
 
   it('fails closed to "unknown" — never "served" — when the probe errors', async () => {

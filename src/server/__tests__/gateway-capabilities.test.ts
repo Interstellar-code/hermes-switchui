@@ -242,4 +242,54 @@ describe('gateway-capabilities', () => {
       expect(capabilities.dashboard.available).toBe(true)
     })
   })
+
+  describe('probeHealth / health 401 (W3 audit item 5)', () => {
+    it('a 401 on /health is NOT healthy — a token mismatch must not render as "Connected"', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/health')) {
+          return Promise.resolve(new Response(null, { status: 401 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      expect(capabilities.health).toBe(false)
+      expect(capabilities.authError).toBe(true)
+    })
+
+    it('a 404 on /health is unhealthy but NOT an auth error', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/health')) {
+          return Promise.resolve(new Response(null, { status: 404 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      expect(capabilities.health).toBe(false)
+      expect(capabilities.authError).toBe(false)
+    })
+
+    it('a 200 on /health is healthy with no auth error', async () => {
+      vi.spyOn(globalThis, 'fetch').mockImplementation((url) => {
+        const value = String(url)
+        if (value.endsWith('/health')) {
+          return Promise.resolve(new Response(null, { status: 200 }))
+        }
+        return Promise.resolve(new Response(null, { status: 404 }))
+      })
+      const mod = await loadMod()
+
+      const capabilities = await mod.probeGateway({ force: true })
+
+      expect(capabilities.health).toBe(true)
+      expect(capabilities.authError).toBe(false)
+    })
+  })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  activationNeedsRestart,
   canActivateRow,
   canCloneRow,
   canDeleteRow,
@@ -151,6 +152,57 @@ describe('emptyStateVariant — P-14', () => {
     )
     expect(builtinsOnly.every((r) => r.tier < 3)).toBe(true)
     expect(emptyStateVariant(builtinsOnly.length)).toBe('no-matches')
+  })
+})
+
+describe('activationNeedsRestart — attach the prompt to the mismatch, not the click (W3)', () => {
+  it('needs no restart when the multiplexer already serves the activated profile', () => {
+    expect(
+      activationNeedsRestart(
+        { mode: 'multiplex', servedProfiles: ['default', 'neo'] },
+        'neo',
+      ),
+    ).toBe(false)
+  })
+
+  it('needs a restart when multiplexed but this profile is not yet in the roster', () => {
+    expect(
+      activationNeedsRestart(
+        { mode: 'multiplex', servedProfiles: ['default'] },
+        'neo',
+      ),
+    ).toBe(true)
+  })
+
+  it('needs no restart re-activating the profile a single gateway already runs', () => {
+    expect(
+      activationNeedsRestart(
+        { mode: 'single', servingProfile: 'hermes-switch' },
+        'hermes-switch',
+      ),
+    ).toBe(false)
+  })
+
+  it('needs a restart when a single gateway is running a different profile', () => {
+    expect(
+      activationNeedsRestart(
+        { mode: 'single', servingProfile: 'hermes-switch' },
+        'neo',
+      ),
+    ).toBe(true)
+  })
+
+  it('fails closed (needs restart) when topology is unknown', () => {
+    expect(activationNeedsRestart({ mode: 'unknown' }, 'neo')).toBe(true)
+  })
+
+  it('fails closed (needs restart) when the scope payload itself is missing', () => {
+    expect(activationNeedsRestart(null, 'neo')).toBe(true)
+    expect(activationNeedsRestart(undefined, 'neo')).toBe(true)
+  })
+
+  it('treats a missing servedProfiles array as empty, not as "everything served"', () => {
+    expect(activationNeedsRestart({ mode: 'multiplex' }, 'neo')).toBe(true)
   })
 })
 

@@ -144,11 +144,13 @@ describe('scopedPath', () => {
       'fetch',
       vi.fn(() => Promise.reject(new Error('ECONNREFUSED'))),
     )
-    const { scopedPath, ProfileScopeUnavailableError } =
+    // Topology couldn't be established at all — distinct from "known to be
+    // single, and this isn't the profile it runs" (ProfileScopeUnavailableError).
+    const { scopedPath, ProfileScopeIndeterminateError } =
       await import('./profile-scope')
-    await expect(scopedPath('/api/sessions', 'neo')).rejects.toBeInstanceOf(
-      ProfileScopeUnavailableError,
-    )
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('probe-failed')
   })
 
   it('fails closed when multiplexing is on but the profile is not served', async () => {
@@ -425,13 +427,15 @@ describe('non-multiplexed gateway: its own profile is reachable unprefixed', () 
   it('fails closed when the probe cannot determine the active profile', async () => {
     // No `gateways[]` — topology unknown beyond "not multiplexed". Guessing
     // here would be the wrong-profile write this module exists to prevent.
+    // This is a LOCAL dashboard (no `auth_required`), so the reason is
+    // 'probe-failed' rather than 'remote-gated' — see the next describe block.
     stubFetch({ gateway_mode: 'single', profiles: ['hermes-switch'] })
-    const { scopedPath, ProfileScopeUnavailableError } = await import(
+    const { scopedPath, ProfileScopeIndeterminateError } = await import(
       './profile-scope'
     )
-    await expect(
-      scopedPath('/api/sessions', 'hermes-switch'),
-    ).rejects.toBeInstanceOf(ProfileScopeUnavailableError)
+    const err = await scopedPath('/api/sessions', 'hermes-switch').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('probe-failed')
   })
 
   it('under multiplex, the multiplexer\'s own profile is STILL prefixed', async () => {
@@ -441,6 +445,77 @@ describe('non-multiplexed gateway: its own profile is reachable unprefixed', () 
     const { scopedPath } = await import('./profile-scope')
     await expect(scopedPath('/api/sessions', 'default')).resolves.toBe(
       '/p/default/api/sessions',
+    )
+  })
+})
+
+describe('"multiple" gateway_mode is NOT multiplex (W3 audit item 2)', () => {
+  // hermes_cli/web_server.py's `_collect_profile_gateway_topology` reports
+  // "multiple" for several INDEPENDENT single-profile gateway processes —
+  // never for one multiplexer. None of them understands `/p/<profile>/`, and
+  // this payload has no port info tying any one entry to the specific
+  // CLAUDE_API host this workspace actually talks to.
+  const MULTIPLE = {
+    gateway_mode: 'multiple',
+    profiles: ['default', 'coder'],
+    gateways: [{ profile: 'default', ports: {} }, { profile: 'coder', ports: {} }],
+  }
+
+  it('never resolves to multiplex — every explicit profile fails closed', async () => {
+    stubFetch(MULTIPLE)
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'coder').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('probe-failed')
+  })
+
+  it('does not guess an active profile from the first entry', async () => {
+    // Guessing "default" here (the first `gateways[]` entry) could attribute
+    // CLAUDE_API's answers to the wrong one of the two live processes.
+    stubFetch(MULTIPLE)
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    await expect(
+      scopedPath('/api/sessions', 'default'),
+    ).rejects.toBeInstanceOf(ProfileScopeIndeterminateError)
+  })
+})
+
+describe('remote/gated dashboard: topology unknown, not "not multiplexed" (W3 audit item 3)', () => {
+  // hermes_cli/web_server.py gates `gateways[]` / `hermes_home` behind
+  // `!auth_required` — a remote (non-loopback) client gets the public shape
+  // only. `gateway_mode` and `auth_required` themselves survive the gate.
+  it('fails closed to a distinct reason when the dashboard is gated — never blames multiplex config', async () => {
+    stubFetch({ gateway_mode: 'single', profiles: ['default'], auth_required: true })
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'default').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('remote-gated')
+    expect(err.message).not.toMatch(/enable gateway\.multiplex_profiles/i)
+  })
+
+  it('does not manufacture an empty served roster when multiplex is on but gated', async () => {
+    // `gateway_mode: 'multiplex'` survives the gate; `gateways[]` (and thus
+    // `served_profiles`) does not. An empty roster here must not read as
+    // "confirmed not served" (404) — it's "cannot confirm from here".
+    stubFetch({ gateway_mode: 'multiplex', profiles: ['default', 'neo'], auth_required: true })
+    const { scopedPath, ProfileScopeIndeterminateError, ProfileNotServedError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err).not.toBeInstanceOf(ProfileNotServedError)
+    expect(err.reason).toBe('remote-gated')
+  })
+
+  it('a local (non-gated) probe with an empty multiplex roster still 404s as "not served"', async () => {
+    // Regression guard: the new remote-gated branch must not swallow the
+    // pre-existing local behaviour for the same-shaped payload.
+    stubFetch({ gateway_mode: 'multiplex', profiles: ['default', 'neo'] })
+    const { scopedPath, ProfileNotServedError } = await import('./profile-scope')
+    await expect(scopedPath('/api/sessions', 'neo')).rejects.toBeInstanceOf(
+      ProfileNotServedError,
     )
   })
 })

@@ -13,7 +13,7 @@ import { isOAuthSupported, useNousOAuth } from '../hooks/use-nous-oauth'
 import { useProviderMutations } from '../hooks/use-provider-mutations'
 import {
   sendLiveTestPrompt,
-  verifyProviderVisible,
+  verifyProviderAfterSave,
 } from '../lib/verify-provider'
 import { ProviderWriteError } from '../lib/write-paths'
 import { buildYamlPreview } from '../lib/yaml-preview'
@@ -73,6 +73,11 @@ export function ProviderWizardDialog({
   const [liveResult, setLiveResult] = useState<LiveTestOutcome | null>(null)
   const [liveTesting, setLiveTesting] = useState(false)
   const [restarting, setRestarting] = useState(false)
+  // Set when the post-save live prompt failed for a credential reason. The
+  // provider resolves; the key does not. Offering "restart the gateway" here
+  // would be the wrong advice, so we offer the inline fallback instead.
+  const [credentialFailed, setCredentialFailed] = useState(false)
+  const [inlineFallbackDone, setInlineFallbackDone] = useState(false)
   const oauth = useNousOAuth()
   // Verification polls for up to 20s; it must not outlive the dialog.
   const verifyAbort = useRef<AbortController | null>(null)
@@ -97,6 +102,8 @@ export function ProviderWizardDialog({
     setLiveResult(null)
     setVerifying(false)
     setLiveTesting(false)
+    setCredentialFailed(false)
+    setInlineFallbackDone(false)
     verifyAbort.current?.abort()
     oauth.reset()
     if (providerId) {
@@ -124,9 +131,17 @@ export function ProviderWizardDialog({
     selected != null &&
     (selected.authKind === 'oauth' || selected.authKind === 'cli-token')
 
-  async function handleSave() {
+  /**
+   * Save, then prove it. Verification is not optional and not a separate
+   * button: a save whose credential does not resolve is indistinguishable
+   * from a working one until someone tries to chat, and the whole point of
+   * this wizard is that the user finds out now, from us, with the gateway's
+   * own error text.
+   */
+  async function runSave(inlineFallback: boolean) {
     if (!selected) return
     setSaveError('')
+    setCredentialFailed(false)
     try {
       await saveProvider.mutateAsync({
         id: selected.id,
@@ -135,23 +150,29 @@ export function ProviderWizardDialog({
         apiKey,
         defaultModel,
         makeActive,
+        inlineFallback,
         shape: isInline ? 'inline-model' : 'providers-map',
       })
       onSaved()
+      if (inlineFallback) setInlineFallbackDone(true)
       // Stay open and prove it landed rather than declaring success blind.
       setStep('verify')
       setVerifying(true)
+      setLiveResult(null)
       verifyAbort.current?.abort()
       const controller = new AbortController()
       verifyAbort.current = controller
-      const outcome = await verifyProviderVisible(selected.id, {
+      const outcome = await verifyProviderAfterSave(selected.id, {
         signal: controller.signal,
       })
       if (!controller.signal.aborted) {
-        setVerifyResult(outcome)
+        setVerifyResult(outcome.resolution)
+        setLiveResult(outcome.live)
+        setCredentialFailed(outcome.credentialFailed && !inlineFallback)
         setVerifying(false)
       }
     } catch (error) {
+      setStep('review')
       setSaveError(
         error instanceof ProviderWriteError || error instanceof Error
           ? error.message
@@ -160,9 +181,21 @@ export function ProviderWizardDialog({
     }
   }
 
+  const handleSave = () => runSave(false)
+
   async function handleLiveTest() {
     setLiveTesting(true)
-    setLiveResult(await sendLiveTestPrompt())
+    const outcome = await sendLiveTestPrompt()
+    setLiveResult(outcome)
+    // A re-run that now passes must clear the fallback offer, and one that
+    // newly fails on auth must raise it.
+    setCredentialFailed(
+      !inlineFallbackDone &&
+        !outcome.ok &&
+        /\b(401|403|unauthor|api[_ -]?key|credential|authentication)\b/i.test(
+          outcome.gatewayError ?? outcome.message,
+        ),
+    )
     setLiveTesting(false)
   }
 
@@ -176,11 +209,13 @@ export function ProviderWizardDialog({
       verifyAbort.current?.abort()
       const controller = new AbortController()
       verifyAbort.current = controller
-      const outcome = await verifyProviderVisible(selected.id, {
+      const outcome = await verifyProviderAfterSave(selected.id, {
         signal: controller.signal,
       })
       if (!controller.signal.aborted) {
-        setVerifyResult(outcome)
+        setVerifyResult(outcome.resolution)
+        setLiveResult(outcome.live)
+        setCredentialFailed(outcome.credentialFailed && !inlineFallbackDone)
         setVerifying(false)
       }
     } catch (restartError) {
@@ -459,11 +494,62 @@ export function ProviderWizardDialog({
                 </div>
               ) : null}
 
+              {credentialFailed ? (
+                <div className="pv-panel-card">
+                  <h4>The credential did not resolve</h4>
+                  <p>
+                    The gateway can see {selected.name}, but the request came
+                    back with an authentication error, so{' '}
+                    <code>{envKey || 'the env var'}</code> is not reaching it.
+                    Under <code>gateway.multiplex_profiles</code> a{' '}
+                    <code>key_env</code> is resolved only against the active
+                    profile&rsquo;s <code>.env</code> — never your shell — and a
+                    per-profile <code>.env</code> is copied once at profile
+                    creation rather than inherited, so a key added at the root
+                    afterwards never arrives.
+                  </p>
+                  <p>
+                    Saving the key inline in <code>config.yaml</code> works
+                    regardless. The <code>key_env</code> entry stays, and wins
+                    again the moment it resolves — the gateway checks it first
+                    on this provider shape.
+                  </p>
+                  {apiKey ? (
+                    <button
+                      type="button"
+                      className="pv-btn pv-btn-primary"
+                      disabled={saveProvider.isPending}
+                      onClick={() => void runSave(true)}
+                      style={{ justifySelf: 'start' }}
+                    >
+                      {saveProvider.isPending
+                        ? 'Saving…'
+                        : 'Also store the key inline'}
+                    </button>
+                  ) : (
+                    <div className="pv-note pv-warn">
+                      Go back and re-enter the API key to use the inline
+                      fallback — the wizard does not keep it after a save.
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {inlineFallbackDone ? (
+                <div className="pv-note pv-warn">
+                  The key is now stored inline in ~/.hermes/config.yaml as well
+                  as in {envKey || 'the env var'}. It is masked everywhere the
+                  UI shows the config, but it is a plaintext secret in that file
+                  — move it back to the env var once that resolves.
+                </div>
+              ) : null}
+
               <div className="pv-panel-card">
                 <h4>Live test</h4>
                 <p>
-                  Sends one real prompt through this provider. It costs tokens
-                  and can hit a rate limit, so it is opt-in.
+                  One real prompt runs automatically after each save — it is the
+                  only check that proves the credential resolved. Run it again
+                  after a restart or a key change.
                 </p>
                 <button
                   type="button"
