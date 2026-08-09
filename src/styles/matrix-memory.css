@@ -8,7 +8,7 @@
     height: 100%;
     min-height: 0;
     overflow: hidden;
-    background: var(--m-bg, #000802);
+    background: var(--m-bg, var(--theme-bg));
     font-family: var(--m-font-mono, ui-monospace, monospace);
   }
 
@@ -41,7 +41,7 @@
     margin: 0 2px;
   }
   .mem-header h1 .cur {
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     text-shadow: 0 0 6px rgba(0, 255, 65, 0.3);
   }
   .mem-header-stats {
@@ -103,8 +103,8 @@
     color: var(--m-text, var(--theme-text));
   }
   .mem-tab.is-active {
-    color: var(--m-green-500, #00ff41);
-    border-bottom-color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
+    border-bottom-color: var(--m-green-500, var(--theme-accent));
     text-shadow: 0 0 6px rgba(0, 255, 65, 0.35);
   }
   .mem-tab svg {
@@ -189,12 +189,12 @@
       border-color 100ms ease;
   }
   .mem-agent-row:hover {
-    background: var(--m-fill-subtle, rgba(0, 255, 65, 0.04));
+    background: var(--m-fill-subtle, var(--theme-accent-subtle));
   }
   .mem-agent-row.is-active {
-    background: var(--m-fill, rgba(0, 255, 65, 0.08));
+    background: var(--m-fill, var(--theme-accent-subtle));
     border-color: var(--m-border, var(--theme-border));
-    box-shadow: inset 2px 0 0 var(--m-green-500, #00ff41);
+    box-shadow: inset 2px 0 0 var(--m-green-500, var(--theme-accent));
   }
   .mem-agent-glyph {
     width: 32px;
@@ -202,10 +202,10 @@
     display: grid;
     place-items: center;
     border-radius: var(--m-radius-md, 6px);
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     border: 1px solid var(--m-border, var(--theme-border));
     font: 700 13px var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     text-shadow: 0 0 6px rgba(0, 255, 65, 0.4);
     flex-shrink: 0;
   }
@@ -229,7 +229,7 @@
     display: block;
   }
   .mem-agent-row.is-active .mem-agent-name {
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
   }
   .mem-agent-tier {
     font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
@@ -243,8 +243,8 @@
     flex-shrink: 0;
   }
   .mem-agent-row.is-active .mem-agent-tier {
-    border-color: var(--m-green-500, #00ff41);
-    color: var(--m-green-500, #00ff41);
+    border-color: var(--m-green-500, var(--theme-accent));
+    color: var(--m-green-500, var(--theme-accent));
   }
 
   /* ── right pane ── */
@@ -271,10 +271,10 @@
     display: grid;
     place-items: center;
     border-radius: var(--m-radius-md, 6px);
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     border: 1px solid var(--m-border, var(--theme-border));
     font: 700 18px var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     text-shadow: 0 0 8px rgba(0, 255, 65, 0.5);
   }
   .mem-pane-title {
@@ -324,8 +324,8 @@
     color: var(--m-text, var(--theme-text));
   }
   .mem-file-tab.is-active {
-    color: var(--m-green-500, #00ff41);
-    border-bottom-color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
+    border-bottom-color: var(--m-green-500, var(--theme-accent));
   }
   .mem-file-tab .mem-file-sz {
     font-size: 9.5px;
@@ -335,8 +335,8 @@
     border-radius: 9999px;
   }
   .mem-file-tab.is-active .mem-file-sz {
-    color: var(--m-green-500, #00ff41);
-    border-color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
   }
   .mem-file-tabs-add {
     margin-left: auto;
@@ -348,7 +348,7 @@
   .mem-editor-wrap {
     overflow: auto;
     min-height: 0;
-    background: var(--m-bg, #000802);
+    background: var(--m-bg, var(--theme-bg));
   }
   .mem-editor {
     width: 100%;
@@ -456,13 +456,13 @@
     white-space: nowrap;
   }
   .mem-btn:hover {
-    color: var(--m-green-500, #00ff41);
-    border-color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
   }
   .mem-btn.is-primary {
     background: rgba(0, 255, 65, 0.08);
-    color: var(--m-green-500, #00ff41);
-    border-color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
   }
   .mem-btn.is-primary:hover {
     background: rgba(0, 255, 65, 0.14);
@@ -499,9 +499,9 @@
     max-width: 560px;
     width: 100%;
     padding: 22px 24px 20px;
-    border: 1px solid var(--m-green-500, #00ff41);
+    border: 1px solid var(--m-green-500, var(--theme-accent));
     border-radius: 12px;
-    background: var(--m-panel, #0c1410);
+    background: var(--m-panel, var(--theme-panel));
     box-shadow:
       0 24px 60px rgba(0, 0, 0, 0.6),
       0 0 0 1px rgba(0, 255, 65, 0.18);
@@ -512,7 +512,7 @@
     font: 600 13px var(--m-font-mono, ui-monospace, monospace);
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
   }
   .mem-modal-field {
     margin-bottom: 14px;
@@ -530,7 +530,7 @@
     padding: 8px 12px;
     font: 500 13px var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text, var(--theme-text));
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
     outline: none;
@@ -538,7 +538,7 @@
     transition: border-color 120ms ease;
   }
   .mem-modal-input:focus {
-    border-color: var(--m-green-500, #00ff41);
+    border-color: var(--m-green-500, var(--theme-accent));
     box-shadow: 0 0 0 2px rgba(0, 255, 65, 0.14);
   }
   .mem-modal-textarea {
@@ -547,7 +547,7 @@
     padding: 10px 12px;
     font: 500 12px/1.6 var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text, var(--theme-text));
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
     outline: none;
@@ -556,7 +556,7 @@
     transition: border-color 120ms ease;
   }
   .mem-modal-textarea:focus {
-    border-color: var(--m-green-500, #00ff41);
+    border-color: var(--m-green-500, var(--theme-accent));
     box-shadow: 0 0 0 2px rgba(0, 255, 65, 0.14);
   }
   .mem-modal-actions {
@@ -592,7 +592,7 @@
     margin: 0 4px 8px;
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
   }
   .wiki-tree-search svg {
     width: 12px;
@@ -665,7 +665,7 @@
   .wiki-group-ct {
     margin-left: auto;
     font-size: 9px;
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     padding: 1px 5px;
     border-radius: 9999px;
     border: 1px solid var(--m-border-subtle, var(--theme-border));
@@ -698,7 +698,7 @@
     background: rgba(0, 255, 65, 0.05);
   }
   .wiki-page-item.is-active {
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     background: rgba(0, 255, 65, 0.08);
   }
   .wiki-page-item.indent {
@@ -712,7 +712,7 @@
   }
   .wiki-page-ct {
     font-size: 9px;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     flex-shrink: 0;
   }
 
@@ -746,12 +746,12 @@
     flex-wrap: wrap;
   }
   .wiki-reader .meta b {
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     font-weight: 600;
   }
   .wiki-reader h2 {
     font: 600 13px var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     margin: 22px 0 8px;
     text-transform: uppercase;
     letter-spacing: 0.22em;
@@ -766,10 +766,10 @@
     color: var(--m-text, var(--theme-text));
   }
   .wiki-reader code {
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     padding: 1px 6px;
     border-radius: 3px;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     font: 500 12px var(--m-font-mono, ui-monospace, monospace);
   }
   .wiki-reader .backlinks {
@@ -799,8 +799,8 @@
       border-color 100ms;
   }
   .wiki-backlink-btn:hover {
-    color: var(--m-green-500, #00ff41);
-    border-color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
+    border-color: var(--m-green-500, var(--theme-accent));
   }
 
   .wiki-reader-actions {
@@ -900,7 +900,7 @@
   }
   .mdd-body-preview h2 {
     font: 600 13px var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     margin: 18px 0 6px;
     text-transform: uppercase;
     letter-spacing: 0.18em;
@@ -914,16 +914,16 @@
     color: var(--m-text, var(--theme-text));
   }
   .mdd-body-preview code {
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     padding: 1px 5px;
     border-radius: 3px;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     font: 500 12px var(--m-font-mono, ui-monospace, monospace);
   }
   .mdd-editor {
     flex: 1;
     width: 100%;
-    background: var(--m-bg, #000802);
+    background: var(--m-bg, var(--theme-bg));
     border: none;
     outline: none;
     padding: 20px 22px;
@@ -978,7 +978,7 @@
   .mem-file-tab:hover .mem-file-detail-icon:hover,
   .wiki-page-item:hover .mem-file-detail-icon:hover {
     opacity: 1;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
   }
 
   /* ===== Settings tab ===== */
@@ -1001,7 +1001,7 @@
   }
   .mset-section-title {
     font: 600 11px var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     text-transform: uppercase;
     letter-spacing: 0.18em;
     margin: 0 0 6px;
@@ -1016,7 +1016,7 @@
     max-width: 560px;
   }
   .mset-card {
-    background: var(--m-bg-card, rgba(0, 255, 65, 0.03));
+    background: var(--m-bg-card, var(--theme-accent-subtle));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
     padding: 16px 18px;
@@ -1054,7 +1054,7 @@
     font: 600 9px var(--m-font-mono, ui-monospace, monospace);
     text-transform: uppercase;
     letter-spacing: 0.14em;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     background: rgba(0, 255, 65, 0.07);
   }
   .mset-actions {
@@ -1074,7 +1074,7 @@
     letter-spacing: 0.14em;
   }
   .mset-input {
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: 4px;
     padding: 7px 10px;
@@ -1084,7 +1084,7 @@
     transition: border-color 120ms;
   }
   .mset-input:focus {
-    border-color: var(--m-green-500, #00ff41);
+    border-color: var(--m-green-500, var(--theme-accent));
   }
   .mset-radio-group {
     display: flex;
@@ -1099,7 +1099,7 @@
     cursor: pointer;
   }
   .mset-radio input[type='radio'] {
-    accent-color: var(--m-green-500, #00ff41);
+    accent-color: var(--m-green-500, var(--theme-accent));
   }
   .mset-error {
     font: 500 12px var(--m-font-mono, ui-monospace, monospace);
@@ -1165,7 +1165,7 @@
     text-align: center;
   }
   .chat-empty svg {
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     opacity: 0.5;
   }
   .chat-empty-sub {
@@ -1196,7 +1196,7 @@
     color: #5fcfff;
   }
   .chat-bubble-content {
-    background: var(--m-bg-card, rgba(0, 255, 65, 0.04));
+    background: var(--m-bg-card, var(--theme-accent-subtle));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
     padding: 10px 14px;
@@ -1214,7 +1214,7 @@
     color: var(--m-text-strong, var(--theme-text));
   }
   .chat-typing {
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
     animation: blink 0.9s step-end infinite;
   }
   @keyframes blink {
@@ -1248,7 +1248,7 @@
     width: 11px;
     height: 11px;
     flex-shrink: 0;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
   }
   .chat-inputbar {
     flex-shrink: 0;
@@ -1257,11 +1257,11 @@
     display: flex;
     gap: 10px;
     align-items: flex-end;
-    background: var(--m-bg, #000802);
+    background: var(--m-bg, var(--theme-bg));
   }
   .chat-input {
     flex: 1;
-    background: var(--m-bg-deep, #000802);
+    background: var(--m-bg-deep, var(--theme-bg));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
     padding: 9px 12px;
@@ -1277,7 +1277,7 @@
     max-height: 140px;
   }
   .chat-input:focus {
-    border-color: var(--m-green-500, #00ff41);
+    border-color: var(--m-green-500, var(--theme-accent));
   }
   .chat-input::placeholder {
     color: var(--m-text-faint, var(--theme-muted));
@@ -1312,7 +1312,7 @@
   .mbrowse-panel,
   .mbrowse-stat-card,
   .mbrowse-summary-item {
-    background: var(--m-bg-card, rgba(0, 255, 65, 0.04));
+    background: var(--m-bg-card, var(--theme-accent-subtle));
     border: 1px solid var(--m-border, var(--theme-border));
     border-radius: var(--m-radius-md, 6px);
     box-shadow: none;
@@ -1327,7 +1327,7 @@
     font: 600 10px var(--m-font-mono, ui-monospace, monospace);
     letter-spacing: 0.18em;
     text-transform: uppercase;
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
   }
 
   .mbrowse-hero h2,
@@ -1423,7 +1423,7 @@
   .mbrowse-stat-detail {
     margin-top: 10px;
     font: 500 10px/1.45 var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-green-500, #00ff41);
+    color: var(--m-green-500, var(--theme-accent));
   }
 
   .mbrowse-callout {
@@ -1475,4 +1475,3 @@
     }
   }
 }
-

@@ -9,8 +9,8 @@
   overflow: auto;
   padding: 24px;
   box-sizing: border-box;
-  color: var(--theme-text, var(--m-text, #e8e8e8));
-  background: var(--theme-bg, var(--m-bg, #0d0d0d));
+  color: var(--m-text, var(--theme-text));
+  background: var(--m-bg, var(--theme-bg));
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────────*/
@@ -251,7 +251,7 @@
 }
 
 .si-delta--down {
-  color: var(--m-green-400, #4ade80);
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
 }
 
 /* ── Sparkline ───────────────────────────────────────────────────────────────*/
@@ -270,7 +270,7 @@
 }
 
 .si-sparkline--down polyline {
-  stroke: var(--m-green-400, #4ade80);
+  stroke: var(--m-green-400, var(--theme-accent, #4ade80));
 }
 
 .si-sparkline--flat polyline {
@@ -440,7 +440,7 @@
   font-family: monospace;
   color: var(--theme-text, #e8e8e8);
   font-size: 11px;
-  background: var(--theme-code-bg, rgba(255, 255, 255, 0.05));
+  background: var(--code-bg, rgba(255, 255, 255, 0.05));
   padding: 1px 5px;
   border-radius: 3px;
 }
@@ -514,8 +514,8 @@
 }
 
 .si-action-btn--approve {
-  border-color: var(--m-green-400, #4ade80);
-  color: var(--m-green-400, #4ade80);
+  border-color: var(--m-green-400, var(--theme-accent, #4ade80));
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
 }
 
 .si-action-btn--approve:hover:not(:disabled) {
@@ -532,7 +532,7 @@
 }
 
 .si-action-btn--edit {
-  border-color: var(--theme-accent-muted, #888);
+  border-color: var(--theme-accent-subtle, #888);
 }
 
 /* ── Inline dialogs ──────────────────────────────────────────────────────────*/
@@ -607,8 +607,8 @@
 }
 
 .si-state-badge--live {
-  border-color: var(--m-green-400, #4ade80);
-  color: var(--m-green-400, #4ade80);
+  border-color: var(--m-green-400, var(--theme-accent, #4ade80));
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
   background: rgba(74, 222, 128, 0.08);
 }
 
@@ -715,7 +715,7 @@
 .si-lc-progress-fill {
   height: 100%;
   border-radius: 2px;
-  background: var(--m-green-400, #4ade80);
+  background: var(--m-green-400, var(--theme-accent, #4ade80));
   transition: width 0.3s ease;
 }
 
@@ -736,7 +736,7 @@
 .si-lc-sha code {
   font-family: monospace;
   color: var(--theme-text, #bbb);
-  background: var(--theme-code-bg, rgba(255, 255, 255, 0.05));
+  background: var(--code-bg, rgba(255, 255, 255, 0.05));
   padding: 1px 4px;
   border-radius: 3px;
 }
@@ -1653,7 +1653,7 @@
 
 .si-score-bar-fill {
   height: 100%;
-  background: var(--m-green-400, #4ade80);
+  background: var(--m-green-400, var(--theme-accent, #4ade80));
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -1691,7 +1691,7 @@
 }
 
 .si-score-delta--up {
-  color: var(--m-green-400, #4ade80);
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
 }
 
 .si-score-delta--down {
@@ -1733,7 +1733,7 @@
 }
 
 .si-stepper-connector--done {
-  background: var(--m-green-400, #4ade80);
+  background: var(--m-green-400, var(--theme-accent, #4ade80));
 }
 
 .si-stepper-step {
@@ -1759,8 +1759,8 @@
 }
 
 .si-stepper-step--done .si-stepper-dot {
-  border-color: var(--m-green-400, #4ade80);
-  color: var(--m-green-400, #4ade80);
+  border-color: var(--m-green-400, var(--theme-accent, #4ade80));
+  color: var(--m-green-400, var(--theme-accent, #4ade80));
   background: rgba(74, 222, 128, 0.1);
 }
 

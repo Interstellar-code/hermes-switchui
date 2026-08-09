@@ -298,10 +298,18 @@
     margin: 12px 24px 0;
     padding: 10px 14px;
     border: 1px solid
-      color-mix(in srgb, var(--m-warning, #d6ff5f) 40%, transparent);
-    border-left: 3px solid var(--m-warning, #d6ff5f);
+      color-mix(
+        in srgb,
+        var(--m-warning, var(--theme-warning)) 40%,
+        transparent
+      );
+    border-left: 3px solid var(--m-warning, var(--theme-warning));
     border-radius: var(--m-radius-md, 4px);
-    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 7%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 7%,
+      transparent
+    );
     display: flex;
     align-items: center;
     gap: 10px;
@@ -560,14 +568,18 @@
     color: var(--m-text-muted, var(--theme-muted));
   }
   .pv-tag.pv-auth {
-    color: var(--m-info, #5fcfff);
-    border-color: color-mix(in srgb, var(--m-info, #5fcfff) 35%, transparent);
-  }
-  .pv-tag.pv-local {
-    color: var(--m-warning, #d6ff5f);
+    color: var(--m-info, var(--theme-link));
     border-color: color-mix(
       in srgb,
-      var(--m-warning, #d6ff5f) 35%,
+      var(--m-info, var(--theme-link)) 35%,
+      transparent
+    );
+  }
+  .pv-tag.pv-local {
+    color: var(--m-warning, var(--theme-warning));
+    border-color: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 35%,
       transparent
     );
   }
@@ -604,11 +616,15 @@
     border-color: var(--m-border-subtle, var(--theme-border-subtle));
   }
   .pv-status-pill.pv-needs-key {
-    color: var(--m-warning, #d6ff5f);
-    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 8%, transparent);
+    color: var(--m-warning, var(--theme-warning));
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 8%,
+      transparent
+    );
     border-color: color-mix(
       in srgb,
-      var(--m-warning, #d6ff5f) 35%,
+      var(--m-warning, var(--theme-warning)) 35%,
       transparent
     );
   }
@@ -618,9 +634,17 @@
     border-color: var(--m-border-subtle, var(--theme-border-subtle));
   }
   .pv-status-pill.pv-available {
-    color: var(--m-info, #5fcfff);
-    background: color-mix(in srgb, var(--m-info, #5fcfff) 8%, transparent);
-    border-color: color-mix(in srgb, var(--m-info, #5fcfff) 35%, transparent);
+    color: var(--m-info, var(--theme-link));
+    background: color-mix(
+      in srgb,
+      var(--m-info, var(--theme-link)) 8%,
+      transparent
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--m-info, var(--theme-link)) 35%,
+      transparent
+    );
   }
 
   .pv-card .pv-ft {
@@ -688,7 +712,7 @@
     color: var(--m-green-500, var(--theme-accent));
   }
   .pv-foot .pv-warn {
-    color: var(--m-warning, #d6ff5f);
+    color: var(--m-warning, var(--theme-warning));
   }
   .pv-foot .pv-sep {
     width: 1px;
@@ -739,13 +763,21 @@
     );
   }
   .pv-btn.pv-btn-danger {
-    color: var(--m-danger, #ff5f6d);
-    border-color: color-mix(in srgb, var(--m-danger, #ff5f6d) 30%, transparent);
+    color: var(--m-danger, var(--theme-danger));
+    border-color: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 30%,
+      transparent
+    );
   }
   .pv-btn.pv-btn-danger:hover:not(:disabled) {
-    border-color: var(--m-danger, #ff5f6d);
-    background: color-mix(in srgb, var(--m-danger, #ff5f6d) 8%, transparent);
-    color: var(--m-danger, #ff5f6d);
+    border-color: var(--m-danger, var(--theme-danger));
+    background: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 8%,
+      transparent
+    );
+    color: var(--m-danger, var(--theme-danger));
   }
   .pv-btn.pv-btn-sm {
     padding: 4px 10px;
@@ -1209,16 +1241,28 @@
   .pv-note.pv-warn {
     border-color: color-mix(
       in srgb,
-      var(--m-warning, #d6ff5f) 40%,
+      var(--m-warning, var(--theme-warning)) 40%,
       transparent
     );
-    background: color-mix(in srgb, var(--m-warning, #d6ff5f) 7%, transparent);
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 7%,
+      transparent
+    );
     color: var(--m-text, var(--theme-text));
   }
   .pv-note.pv-err {
-    border-color: color-mix(in srgb, var(--m-danger, #ff5f6d) 40%, transparent);
-    background: color-mix(in srgb, var(--m-danger, #ff5f6d) 8%, transparent);
-    color: var(--m-danger, #ff5f6d);
+    border-color: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 40%,
+      transparent
+    );
+    background: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 8%,
+      transparent
+    );
+    color: var(--m-danger, var(--theme-danger));
   }
   .pv-note.pv-ok {
     border-color: color-mix(

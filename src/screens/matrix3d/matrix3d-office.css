@@ -27,8 +27,8 @@
   overflow: hidden;
   background:
     radial-gradient(circle at 50% 0%, rgba(0, 255, 65, 0.05), transparent 34%),
-    var(--m-bg);
-  color: var(--m-text);
+    var(--m-bg, var(--theme-bg));
+  color: var(--m-text, var(--theme-text));
 }
 
 .matrix3d-main {
@@ -107,7 +107,7 @@
 }
 
 .matrix3d-canvas-title {
-  color: var(--m-warning);
+  color: var(--m-warning, var(--theme-warning));
   font: 500 10.5px var(--m-font-mono);
   letter-spacing: 0.38em;
   text-shadow: 0 0 14px rgba(214, 255, 95, 0.5);
@@ -119,11 +119,19 @@
   height: 1px;
   max-width: 100px;
   flex: 1;
-  background: linear-gradient(90deg, transparent, var(--m-border-sub));
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--m-border-sub, var(--theme-border-subtle))
+  );
 }
 
 .matrix3d-canvas-title-line.right {
-  background: linear-gradient(270deg, transparent, var(--m-border-sub));
+  background: linear-gradient(
+    270deg,
+    transparent,
+    var(--m-border-sub, var(--theme-border-subtle))
+  );
 }
 
 .matrix3d-canvas-bottom-bar {
@@ -133,7 +141,7 @@
   gap: 7px;
   padding: 8px 16px;
   background: linear-gradient(0deg, rgba(2, 6, 23, 0.95) 0%, transparent 100%);
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 10px var(--m-font-mono);
 }
 
@@ -143,8 +151,8 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--m-green-500);
-  box-shadow: 0 0 6px var(--m-green-500);
+  background: var(--m-green-500, var(--theme-accent));
+  box-shadow: 0 0 6px var(--m-green-500, var(--theme-accent));
 }
 
 .matrix3d-sep {
@@ -161,9 +169,9 @@
   flex: 1;
   margin: 8px 14px 10px;
   overflow: hidden;
-  border: 1px solid var(--m-border-sub);
+  border: 1px solid var(--m-border-sub, var(--theme-border-subtle));
   border-radius: 14px;
-  background: var(--m-card);
+  background: var(--m-card, var(--theme-card));
 }
 
 .matrix3d-bottom-zone.is-side-collapsed {
@@ -185,7 +193,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  border-bottom: 1px solid var(--m-border-faint);
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
   padding: 6px 14px 4px;
 }
 
@@ -195,14 +203,14 @@
 }
 
 .matrix3d-roster-label {
-  color: var(--m-text-faint);
+  color: var(--m-text-faint, var(--theme-muted));
   font: 600 9px var(--m-font-mono);
   letter-spacing: 0.26em;
   text-transform: uppercase;
 }
 
 .matrix3d-roster-summary {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 400 9.5px var(--m-font-mono);
 }
 
@@ -220,7 +228,7 @@
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   cursor: pointer;
   font: 600 8.5px var(--m-font-mono);
   letter-spacing: 0.13em;
@@ -229,14 +237,14 @@
 }
 
 .matrix3d-roster-tab:hover {
-  border-color: var(--m-border-faint);
-  color: var(--m-text-muted);
+  border-color: var(--m-border-faint, var(--theme-border));
+  color: var(--m-text-muted, var(--theme-muted));
 }
 
 .matrix3d-roster-tab.is-on {
-  border-color: var(--m-border-sub);
-  background: var(--m-fill-sub);
-  color: var(--m-green-500);
+  border-color: var(--m-border-sub, var(--theme-border-subtle));
+  background: var(--m-fill-sub, var(--theme-accent-subtle));
+  color: var(--m-green-500, var(--theme-accent));
   box-shadow: 0 0 12px rgba(0, 255, 65, 0.08);
 }
 
@@ -245,7 +253,7 @@
   gap: 8px;
   overflow-x: auto;
   padding: 7px 14px 9px;
-  scrollbar-color: var(--m-border-faint) transparent;
+  scrollbar-color: var(--m-border-faint, var(--theme-border)) transparent;
   scrollbar-width: thin;
 }
 
@@ -257,9 +265,9 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 10px;
-  background: var(--m-card-2);
+  background: var(--m-card-2, var(--theme-card2));
   padding: 7px 6px 8px;
   color: inherit;
   cursor: pointer;
@@ -270,12 +278,12 @@
 }
 
 .matrix3d-agent-card:hover {
-  border-color: var(--m-border-sub);
-  background: var(--m-card-3);
+  border-color: var(--m-border-sub, var(--theme-border-subtle));
+  background: var(--m-card-3, var(--theme-card2));
 }
 
 .matrix3d-agent-card.is-selected {
-  border-color: var(--m-border-strong);
+  border-color: var(--m-border-strong, var(--theme-accent-border));
   background: rgba(0, 255, 65, 0.09);
   box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.12) inset;
 }
@@ -321,7 +329,7 @@
 
 .matrix3d-agent-role,
 .matrix3d-agent-status-label {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 400 8.5px var(--m-font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -347,7 +355,7 @@
   flex: 1;
   flex-direction: column;
   overflow: hidden;
-  border-top: 1px solid var(--m-border-faint);
+  border-top: 1px solid var(--m-border-faint, var(--theme-border));
 }
 
 .matrix3d-rain {
@@ -369,14 +377,14 @@
   flex: 0 0 auto;
   align-items: center;
   gap: 5px;
-  border-bottom: 1px solid var(--m-border-faint);
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
   background: linear-gradient(180deg, rgba(4, 16, 8, 0.9) 0%, transparent 100%);
   padding: 5px 14px;
 }
 
 .matrix3d-console-label {
   margin-right: 4px;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 600 9px var(--m-font-mono);
   letter-spacing: 0.26em;
   text-transform: uppercase;
@@ -389,7 +397,7 @@
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   cursor: pointer;
   font: 500 8.5px var(--m-font-mono);
   letter-spacing: 0.12em;
@@ -398,9 +406,9 @@
 }
 
 .matrix3d-console-tab.is-on {
-  border-color: var(--m-border-sub);
-  background: var(--m-fill-sub);
-  color: var(--m-green-500);
+  border-color: var(--m-border-sub, var(--theme-border-subtle));
+  background: var(--m-fill-sub, var(--theme-accent-subtle));
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 .matrix3d-console-toggle {
@@ -413,7 +421,7 @@
   align-items: center;
   gap: 4px;
   margin-left: auto;
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
   font: 500 8.5px var(--m-font-mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -443,7 +451,7 @@
 
 .matrix3d-console-time,
 .matrix3d-console-duration {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font-size: 9px;
   white-space: nowrap;
 }
@@ -469,26 +477,26 @@
 .matrix3d-console-message {
   min-width: 0;
   overflow: hidden;
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font-size: 10.5px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .matrix3d-type-sys {
-  color: var(--m-text-faint);
+  color: var(--m-text-faint, var(--theme-muted));
   background: rgba(216, 255, 227, 0.04);
 }
 .matrix3d-type-route {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
   background: rgba(0, 255, 65, 0.1);
 }
 .matrix3d-type-tool {
-  color: var(--m-warning);
+  color: var(--m-warning, var(--theme-warning));
   background: rgba(214, 255, 95, 0.1);
 }
 .matrix3d-type-trace {
-  color: var(--m-info);
+  color: var(--m-info, var(--theme-link));
   background: rgba(95, 207, 255, 0.1);
 }
 .matrix3d-type-review {
@@ -496,11 +504,11 @@
   background: rgba(167, 139, 250, 0.1);
 }
 .matrix3d-type-dispatch {
-  color: var(--m-pink);
+  color: var(--m-pink, #ff5fa2);
   background: rgba(255, 95, 162, 0.1);
 }
 .matrix3d-type-err {
-  color: var(--m-danger);
+  color: var(--m-danger, var(--theme-danger));
   background: rgba(255, 95, 109, 0.1);
 }
 
@@ -525,7 +533,7 @@
 .matrix3d-a2a-list {
   min-width: 0;
   overflow-y: auto;
-  border-right: 1px solid var(--m-border-faint);
+  border-right: 1px solid var(--m-border-faint, var(--theme-border));
   background: rgba(1, 8, 4, 0.48);
   scrollbar-color: rgba(0, 255, 65, 0.12) transparent;
   scrollbar-width: thin;
@@ -538,7 +546,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 96px;
   gap: 6px;
-  border-bottom: 1px solid var(--m-border-faint);
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
   background: rgba(2, 10, 5, 0.94);
   padding: 7px 9px;
 }
@@ -546,10 +554,10 @@
 .matrix3d-a2a-search input,
 .matrix3d-a2a-search select {
   min-width: 0;
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 7px;
   background: rgba(0, 0, 0, 0.24);
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 500 9.5px var(--m-font-mono);
   outline: none;
 }
@@ -566,19 +574,19 @@
 
 .matrix3d-a2a-search input:focus,
 .matrix3d-a2a-search select:focus {
-  border-color: var(--m-border-sub);
+  border-color: var(--m-border-sub, var(--theme-border-subtle));
   box-shadow: 0 0 0 1px rgba(0, 255, 65, 0.08);
 }
 
 .matrix3d-a2a-search input::placeholder {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
 }
 
 .matrix3d-a2a-conversation {
   display: block;
   width: 100%;
   border: 0;
-  border-bottom: 1px solid var(--m-border-faint);
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -592,7 +600,7 @@
 }
 
 .matrix3d-a2a-conversation.is-selected {
-  box-shadow: inset 2px 0 0 var(--m-green-500);
+  box-shadow: inset 2px 0 0 var(--m-green-500, var(--theme-accent));
 }
 
 .matrix3d-a2a-conversation-top,
@@ -614,7 +622,7 @@
 .matrix3d-a2a-peer {
   min-width: 0;
   overflow: hidden;
-  color: var(--m-text);
+  color: var(--m-text, var(--theme-text));
   font: 700 10.5px var(--m-font-mono);
   letter-spacing: 0.1em;
   text-overflow: ellipsis;
@@ -627,14 +635,18 @@
 .matrix3d-a2a-mode-badge {
   flex: 0 0 auto;
   border: 1px solid
-    color-mix(in srgb, var(--a2a-mode-accent, var(--m-text-ghost)) 45%, transparent);
+    color-mix(
+      in srgb,
+      var(--a2a-mode-accent, var(--m-text-ghost, var(--theme-muted))) 45%,
+      transparent
+    );
   border-radius: 999px;
   background: color-mix(
     in srgb,
-    var(--a2a-mode-accent, var(--m-text-ghost)) 14%,
+    var(--a2a-mode-accent, var(--m-text-ghost, var(--theme-muted))) 14%,
     transparent
   );
-  color: var(--a2a-mode-accent, var(--m-text-ghost));
+  color: var(--a2a-mode-accent, var(--m-text-ghost, var(--theme-muted)));
   font: 700 8px var(--m-font-mono);
   letter-spacing: 0.1em;
   padding: 1px 6px;
@@ -651,7 +663,7 @@
   border: 1px solid rgba(0, 255, 65, 0.2);
   border-radius: 999px;
   background: rgba(0, 255, 65, 0.08);
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
   font: 700 8.5px var(--m-font-mono);
   padding: 1px 6px;
 }
@@ -668,19 +680,19 @@
 
 .matrix3d-a2a-context {
   margin-top: 4px;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 8.5px var(--m-font-mono);
 }
 
 .matrix3d-a2a-preview {
   margin-top: 6px;
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 400 10px/1.45 var(--m-font-mono);
 }
 
 .matrix3d-a2a-meta {
   margin-top: 6px;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 8.5px var(--m-font-mono);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -699,7 +711,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border-bottom: 1px solid var(--m-border-faint);
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
   background: rgba(3, 16, 8, 0.64);
   padding: 8px 13px;
 }
@@ -709,7 +721,7 @@
 }
 
 .matrix3d-a2a-thread-title {
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
   font: 700 11px var(--m-font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -729,7 +741,7 @@
   border: 1px solid rgba(0, 255, 65, 0.11);
   border-radius: 999px;
   background: rgba(0, 255, 65, 0.035);
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 600 8px var(--m-font-mono);
   letter-spacing: 0.08em;
   padding: 1px 6px;
@@ -749,10 +761,10 @@
 .matrix3d-a2a-thread-tools input,
 .matrix3d-a2a-thread-tools select,
 .matrix3d-a2a-thread-tools button {
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 7px;
   background: rgba(0, 0, 0, 0.22);
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 600 8.5px var(--m-font-mono);
   outline: none;
 }
@@ -781,8 +793,8 @@
 .matrix3d-a2a-thread-tools button:hover:not(:disabled),
 .matrix3d-a2a-thread-tools input:focus,
 .matrix3d-a2a-thread-tools select:focus {
-  border-color: var(--m-border-sub);
-  color: var(--m-green-500);
+  border-color: var(--m-border-sub, var(--theme-border-subtle));
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 .matrix3d-a2a-thread-tools button:disabled {
@@ -791,12 +803,12 @@
 }
 
 .matrix3d-a2a-thread-tools input::placeholder {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
 }
 
 .matrix3d-a2a-thread-state {
   flex: 0 0 auto;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 600 8.5px var(--m-font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -836,17 +848,17 @@
 }
 
 .matrix3d-a2a-message-meta {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 600 8.5px var(--m-font-mono);
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
 .matrix3d-a2a-bubble {
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 11px;
   background: rgba(5, 20, 10, 0.78);
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 400 11px/1.5 var(--m-font-mono);
   padding: 8px 10px;
 }
@@ -874,15 +886,15 @@
 .matrix3d-a2a-message.is-executor .matrix3d-a2a-message-meta {
   color: color-mix(
     in srgb,
-    var(--a2a-mode-accent, var(--m-text-ghost)) 70%,
-    var(--m-text-ghost)
+    var(--a2a-mode-accent, var(--m-text-ghost, var(--theme-muted))) 70%,
+    var(--m-text-ghost, var(--theme-muted))
   );
 }
 
 .matrix3d-a2a-message.is-ack .matrix3d-a2a-bubble {
   border-color: rgba(216, 255, 227, 0.1);
   background: rgba(216, 255, 227, 0.035);
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font-size: 9.5px;
   padding-block: 5px;
 }
@@ -907,13 +919,13 @@
 .matrix3d-a2a-bubble code {
   border-radius: 4px;
   background: rgba(0, 0, 0, 0.26);
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
   padding: 0.05em 0.35em;
 }
 
 .matrix3d-a2a-bubble pre {
   overflow-x: auto;
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 8px;
   background: rgba(0, 0, 0, 0.25);
   padding: 8px;
@@ -925,14 +937,14 @@
 }
 
 .matrix3d-a2a-bubble a {
-  color: var(--m-info);
+  color: var(--m-info, var(--theme-link));
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
 .matrix3d-a2a-empty {
   padding: 22px 14px;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 600 10px/1.55 var(--m-font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -943,7 +955,7 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border-left: 1px solid var(--m-border-sub);
+  border-left: 1px solid var(--m-border-sub, var(--theme-border-subtle));
   background: linear-gradient(
     180deg,
     rgba(4, 16, 8, 0.98),
@@ -967,7 +979,7 @@
   gap: 12px;
   align-items: center;
   padding: 13px 14px 11px;
-  border-bottom: 1px solid var(--m-border-sub);
+  border-bottom: 1px solid var(--m-border-sub, var(--theme-border-subtle));
 }
 
 .matrix3d-side-close {
@@ -976,17 +988,17 @@
   right: 10px;
   width: 26px;
   height: 26px;
-  border: 1px solid var(--m-border-sub);
+  border: 1px solid var(--m-border-sub, var(--theme-border-subtle));
   border-radius: 5px;
   background: transparent;
-  color: var(--m-text-faint);
+  color: var(--m-text-faint, var(--theme-muted));
   cursor: pointer;
   font: 600 16px/1 var(--m-font-mono);
 }
 
 .matrix3d-side-close:hover {
-  border-color: var(--m-border);
-  color: var(--m-text-muted);
+  border-color: var(--m-border, var(--theme-border));
+  color: var(--m-text-muted, var(--theme-muted));
 }
 
 .matrix3d-side-avatar {
@@ -997,7 +1009,7 @@
   place-items: center;
   border: 1px solid;
   border-radius: 10px;
-  background: var(--m-fill-sub);
+  background: var(--m-fill-sub, var(--theme-accent-subtle));
 }
 
 .matrix3d-side-avatar-glyph {
@@ -1010,7 +1022,7 @@
   bottom: -3px;
   width: 10px;
   height: 10px;
-  border: 2px solid var(--m-card);
+  border: 2px solid var(--m-card, var(--theme-card));
   border-radius: 50%;
 }
 
@@ -1020,7 +1032,7 @@
 
 .matrix3d-side-name {
   margin-bottom: 3px;
-  color: var(--m-text-strong);
+  color: var(--m-text-strong, var(--theme-text));
   font: 700 15px var(--m-font-mono);
   letter-spacing: -0.2px;
   line-height: 1.1;
@@ -1040,7 +1052,7 @@
 }
 
 .matrix3d-side-model {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 400 9px var(--m-font-mono);
 }
 
@@ -1063,21 +1075,21 @@
 }
 
 .matrix3d-side-stat {
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 7px;
-  background: var(--m-card);
+  background: var(--m-card, var(--theme-card));
   padding: 8px 10px;
 }
 
 .matrix3d-side-stat-v {
-  color: var(--m-text-strong);
+  color: var(--m-text-strong, var(--theme-text));
   font: 700 13px var(--m-font-mono);
   letter-spacing: -0.2px;
 }
 
 .matrix3d-side-stat-l,
 .matrix3d-side-sec-lbl {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 8px var(--m-font-mono);
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1088,17 +1100,17 @@
 }
 
 .matrix3d-side-task {
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 7px;
-  background: var(--m-card);
+  background: var(--m-card, var(--theme-card));
   padding: 9px 11px;
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 400 10.5px/1.5 var(--m-font-mono);
 }
 
 .matrix3d-side-task::before {
   content: '▸ ';
-  color: var(--m-green-500);
+  color: var(--m-green-500, var(--theme-accent));
 }
 
 .matrix3d-side-tl {
@@ -1125,20 +1137,20 @@
 .matrix3d-side-tl-msg {
   min-width: 0;
   overflow: hidden;
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 400 10.5px/1.4 var(--m-font-mono);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .matrix3d-side-tl-ts {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 400 9px var(--m-font-mono);
   white-space: nowrap;
 }
 
 .matrix3d-side-empty {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 400 10px var(--m-font-mono);
 }
 
@@ -1152,21 +1164,21 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  border: 1px solid var(--m-border-faint);
+  border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: 7px;
-  background: var(--m-card);
+  background: var(--m-card, var(--theme-card));
   padding: 7px 9px;
 }
 
 .matrix3d-side-details span {
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 8px var(--m-font-mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .matrix3d-side-details b {
-  color: var(--m-text-muted);
+  color: var(--m-text-muted, var(--theme-muted));
   font: 600 10px var(--m-font-mono);
 }
 
@@ -1238,7 +1250,7 @@
 
   .matrix3d-side-panel {
     border-left: none;
-    border-top: 1px solid var(--m-border-sub);
+    border-top: 1px solid var(--m-border-sub, var(--theme-border-subtle));
   }
 
   .matrix3d-console-row {
@@ -1256,7 +1268,7 @@
   .matrix3d-a2a-list {
     max-height: 170px;
     border-right: none;
-    border-bottom: 1px solid var(--m-border-faint);
+    border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
   }
 
   .matrix3d-a2a-message {
@@ -1268,7 +1280,7 @@
   position: relative;
   z-index: 1;
   padding: 22px 14px;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 10px var(--m-font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1276,14 +1288,14 @@
 
 .matrix3d-roster-empty {
   padding: 14px;
-  color: var(--m-text-ghost);
+  color: var(--m-text-ghost, var(--theme-muted));
   font: 500 10px var(--m-font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .matrix3d-agent-meta {
-  color: var(--m-text-faint);
+  color: var(--m-text-faint, var(--theme-muted));
   font: 400 7.75px var(--m-font-mono);
   letter-spacing: 0.08em;
   text-align: center;
