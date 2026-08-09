@@ -40,4 +40,28 @@ describe('setup-wizard-store', () => {
     expect(useSetupWizardStore.getState().open).toBe(true)
     expect(useSetupWizardStore.getState().target).toBeNull()
   })
+
+  /**
+   * The sidebar passed this action straight to an `onClick`, so React handed
+   * it a MouseEvent as the deep-link target. The wizard could not resolve that
+   * to a step and reconciled the user onto the welcome fork instead of the
+   * read-only relaunch summary.
+   */
+  it('ignores a non-step argument such as a click event', () => {
+    const clickEvent = { type: 'click', currentTarget: null, bubbles: true }
+    ;(useSetupWizardStore.getState().openSetupWizard as (at?: unknown) => void)(
+      clickEvent,
+    )
+
+    expect(useSetupWizardStore.getState().open).toBe(true)
+    expect(useSetupWizardStore.getState().target).toBeNull()
+  })
+
+  it('ignores a string that is not a known step id', () => {
+    ;(useSetupWizardStore.getState().openSetupWizard as (at?: unknown) => void)(
+      'not-a-step',
+    )
+
+    expect(useSetupWizardStore.getState().target).toBeNull()
+  })
 })

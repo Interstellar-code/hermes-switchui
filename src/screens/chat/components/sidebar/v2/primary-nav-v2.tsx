@@ -875,7 +875,10 @@ export function PrimaryNavV2() {
         <NavItem
           label="Setup Wizard"
           iconKey="setup"
-          onClick={openSetupWizard}
+          // Wrapped, not passed by reference: React hands an onClick its event
+          // as the first argument, which `openSetupWizard(at?)` would read as
+          // a deep-link target.
+          onClick={() => openSetupWizard()}
           active={false}
           collapsed={collapsed}
           badge={

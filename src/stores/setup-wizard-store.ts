@@ -20,6 +20,25 @@
  */
 import { create } from 'zustand'
 import type { OnboardingStepId } from '@/screens/onboarding/lib/onboarding-steps'
+import { ONBOARDING_STEPS } from '@/screens/onboarding/lib/onboarding-steps'
+
+const STEP_IDS = new Set<string>(ONBOARDING_STEPS.map((step) => step.id))
+
+/**
+ * Anything that is not a known step id becomes `null`.
+ *
+ * This is not defensive padding. `openSetupWizard` is passed straight to an
+ * `onClick` in the sidebar, and React hands a click handler its event as the
+ * first argument — so the store was receiving a `MouseEvent` as the deep-link
+ * target. The wizard could not resolve that to a step and reconciled the user
+ * onto the welcome fork instead of the read-only relaunch summary. Validating
+ * here keeps that class of miswiring from reaching the wizard at all.
+ */
+function normalizeTarget(at: unknown): OnboardingStepId | null {
+  return typeof at === 'string' && STEP_IDS.has(at)
+    ? (at as OnboardingStepId)
+    : null
+}
 
 export type SetupWizardState = {
   open: boolean
@@ -36,6 +55,6 @@ export const useSetupWizardStore = create<
 >((set) => ({
   open: false,
   target: null,
-  openSetupWizard: (at) => set({ open: true, target: at ?? null }),
+  openSetupWizard: (at) => set({ open: true, target: normalizeTarget(at) }),
   closeSetupWizard: () => set({ open: false, target: null }),
 }))

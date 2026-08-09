@@ -53,9 +53,20 @@
 [data-wizard] {
   display: grid;
   grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   box-sizing: border-box;
   color: var(--m-text, var(--theme-text));
   font-family: var(--m-font-sans, system-ui, sans-serif);
+
+  /* A grid item's automatic minimum size is its content's min-content width,
+     so any single row — the rail, a long model id, a `white-space: pre`
+     preview — could otherwise size the shell's whole column and push every
+     other row under `overflow: hidden`. The explicit `minmax(0, 1fr)` column
+     above and these floors keep the shell at the width its container gives
+     it, and make each row responsible for its own overflow. */
+  > * {
+    min-width: 0;
+  }
 
   *,
   *::before,
@@ -174,17 +185,25 @@
     background: var(--m-panel, var(--theme-panel));
   }
 
+  /* `repeat(auto-fit, minmax(...))`, not `grid-auto-flow: column` with
+     `grid-auto-columns: 1fr`. `1fr` is `minmax(auto, 1fr)`, so a single-row
+     rail carries a min-content floor equal to the sum of every label — seven
+     steps need ~980px. Because the rail is a row of the shell's own grid,
+     that floor sized the shell's column too, so `.wz-modal`'s
+     `overflow: hidden` clipped the header, body and footer along with it.
+     Auto-fit wraps onto a second line instead of forcing the overflow. */
   .wz-steps {
     display: grid;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
     gap: 8px;
     list-style: none;
     margin: 0;
     padding: 0;
+    min-width: 0;
   }
   .wz-steps li {
     display: flex;
+    min-width: 0;
   }
   .wz-steps li > button {
     display: flex;
@@ -203,6 +222,16 @@
     color: var(--m-text-faint, var(--theme-muted));
     cursor: pointer;
     transition: all var(--m-dur-fast, 120ms);
+    min-width: 0;
+  }
+  /* Last-resort degradation: at the narrowest track a long label truncates
+     rather than widening its column. The numeral stays legible either way,
+     and `.wz-progress` carries the full name for screen readers. */
+  .wz-steps li > button > .wz-step-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .wz-steps li > button:disabled {
     cursor: default;
