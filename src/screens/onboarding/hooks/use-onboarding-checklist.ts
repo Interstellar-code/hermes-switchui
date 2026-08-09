@@ -147,6 +147,7 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
             verified: false,
             pluginsTouched: false,
             profileTouched: false,
+            memoryTouched: false,
           })
         : EMPTY_ITEMS,
     [activeProvider, ready, snapshot],

@@ -49,14 +49,16 @@ describe('ONBOARDING_STEPS rail', () => {
     expect(ids).toEqual(['provider', 'connect', 'review', 'verify'])
   })
 
-  it('FULL rail is exactly system-check, provider, connect, review, verify, profile, plugins, theme', () => {
+  it('FULL rail is exactly system-check, provider, connect, review, verify, profile, memory, plugins, theme', () => {
     const ids = railSteps(ONBOARDING_STEPS, ctx({ branch: 'full' })).map(
       (step) => step.id,
     )
     // `profile` sits after `verify` and before `plugins`: switching the agent
     // identity only makes sense once the provider behind it is known to work,
     // and it shares the plugins step's "nothing happens until the gateway
-    // restarts" caveat, so the two read as one band.
+    // restarts" caveat, so the two read as one band. `memory` joins that band
+    // between them — it is a property of the identity chosen on the step
+    // before, and it carries the same restart caveat.
     expect(ids).toEqual([
       'system-check',
       'provider',
@@ -64,9 +66,20 @@ describe('ONBOARDING_STEPS rail', () => {
       'review',
       'verify',
       'profile',
+      'memory',
       'plugins',
       'theme',
     ])
+  })
+
+  it('the memory step exists on the full branch only', () => {
+    const memory = ONBOARDING_STEPS.find((step) => step.id === 'memory')
+    expect(memory).toBeDefined()
+    expect(memory?.enabled?.(ctx({ branch: 'full' }))).toBe(true)
+    expect(memory?.enabled?.(ctx({ branch: 'quick' }))).toBe(false)
+    expect(memory?.enabled?.(ctx({ branch: 'summary' }))).toBe(false)
+    // Choosing a memory provider is never a precondition for finishing setup.
+    expect(memory?.validate).toBeUndefined()
   })
 
   it('the profile step exists on the full branch only', () => {
@@ -115,11 +128,12 @@ describe('ONBOARDING_STEPS rail', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
-  it('system-check, verify, profile, plugins, and theme are optional', () => {
+  it('system-check, verify, profile, memory, plugins, and theme are optional', () => {
     for (const id of [
       'system-check',
       'verify',
       'profile',
+      'memory',
       'plugins',
       'theme',
     ] as const) {

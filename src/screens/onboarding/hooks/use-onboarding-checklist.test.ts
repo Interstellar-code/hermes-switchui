@@ -47,10 +47,10 @@ describe('useOnboardingChecklist', () => {
 
     await waitFor(() => expect(result.current.ready).toBe(true))
 
-    expect(result.current.items).toHaveLength(6)
+    expect(result.current.items).toHaveLength(7)
     // Fresh install: no active provider, nothing skipped/completed — every
     // item that isn't the (blocked) verify step counts as outstanding.
-    expect(result.current.outstanding).toBe(5)
+    expect(result.current.outstanding).toBe(6)
   })
 
   it('re-reads when the onboarding-complete event fires', async () => {
@@ -114,9 +114,10 @@ describe('useOnboardingChecklist', () => {
   })
 
   it('clears the badge entirely after a completed full run', async () => {
-    // The regression this pins: `verified`, `pluginsTouched` and
-    // `profileTouched` are hardcoded false out here (they are live in-wizard
-    // probes), the draft is deleted on finish, and `writeOnboardingComplete`
+    // The regression this pins: `verified`, `pluginsTouched`,
+    // `profileTouched` and `memoryTouched` are hardcoded false out here (they
+    // are live in-wizard probes), the draft is deleted on finish, and
+    // `writeOnboardingComplete`
     // used to persist only `skipped`. A user who completed the full branch —
     // verified, chose a profile, reviewed plugins, picked a theme — was left
     // with a permanent count on the sidebar nav and "Setup Wizard (N left)" in
@@ -132,7 +133,14 @@ describe('useOnboardingChecklist', () => {
         at: Date.now(),
         branch: 'full',
         skipped: [],
-        completed: ['verify', 'profile', 'plugins', 'theme', 'system-check'],
+        completed: [
+          'verify',
+          'profile',
+          'memory',
+          'plugins',
+          'theme',
+          'system-check',
+        ],
       }),
     )
 

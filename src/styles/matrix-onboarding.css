@@ -858,6 +858,128 @@
     );
   }
 
+  /* ── memory provider picker ───────────────────────────────────────────── */
+  /* Same card grammar as `.ob-profile` — `.ob-badge-active` plus the accent
+     outline on `.is-active` — because "this is the one you are running" is one
+     idea and must not be taught twice. The only additions are the
+     RECOMMENDED pill and a readiness pill; the latter borrows
+     `.ob-plugin-state`'s shape rather than inventing a third pill form. */
+  .ob-memory {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .ob-memory-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-md, 4px);
+    background: var(--m-bg-deep, var(--theme-bg));
+  }
+  .ob-memory-card.is-active {
+    border-color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+    outline: 1px solid
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent)) 45%,
+        transparent
+      );
+    outline-offset: 2px;
+  }
+  .ob-memory-body {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+  }
+  .ob-memory-name {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font: 600 11.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .ob-memory-desc {
+    margin: 0;
+    font: 400 10.5px var(--m-font-sans, system-ui, sans-serif);
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  /* What this provider still needs, the read-only line, and the store-size
+     evidence all share this: typography only, no grid placement. */
+  .ob-memory-req {
+    margin: 0;
+    font: 400 10.5px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-faint, var(--theme-muted));
+    overflow-wrap: anywhere;
+  }
+  /* "Point a fresh install here." Distinct from `.ob-badge-active`, which
+     means "this is what is running" — the two can and do appear together. */
+  .ob-badge-recommended {
+    color: var(--m-info, var(--theme-link));
+    border-color: color-mix(
+      in srgb,
+      var(--m-info, var(--theme-link)) 45%,
+      transparent
+    );
+    background: color-mix(
+      in srgb,
+      var(--m-info, var(--theme-link)) 8%,
+      transparent
+    );
+  }
+  /* Readiness, as the gateway reports it. Every variant's word is in the DOM;
+     the colour is the second channel, never the only one. */
+  .ob-memory-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 6px;
+    border: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+    border-radius: var(--m-radius-pill, 9999px);
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ob-memory-state.is-ready {
+    color: var(--m-green-500, var(--theme-accent));
+    background: var(--m-fill, var(--theme-accent-subtle));
+    border-color: var(--m-border, var(--theme-border));
+  }
+  .ob-memory-state.is-needs-config {
+    color: var(--m-warning, var(--theme-warning));
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 8%,
+      transparent
+    );
+    border-color: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-warning)) 35%,
+      transparent
+    );
+  }
+  .ob-memory-state.is-unavailable,
+  .ob-memory-state.is-missing {
+    color: var(--m-text-faint, var(--theme-muted));
+    background: color-mix(in srgb, currentColor 6%, transparent);
+  }
+  /* "Couldn't check" is not a failure — the dashboard that answers the
+     readiness question is a separate process and is routinely not running —
+     so it stays neutral rather than borrowing the warning colour. */
+  .ob-memory-state.is-unknown {
+    color: var(--m-text-faint, var(--theme-muted));
+    border-style: dashed;
+  }
+
   /* ── theme picker ─────────────────────────────────────────────────────── */
   .ob-themes {
     display: grid;
@@ -1051,6 +1173,16 @@
       grid-template-columns: auto minmax(0, 1fr);
     }
     .ob-profile > .wz-btn {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+
+    /* Same problem, same answer: a description and a "Use this" button cannot
+       share a 292px line. */
+    .ob-memory-card {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .ob-memory-card > .wz-btn {
       grid-column: 1 / -1;
       justify-self: start;
     }

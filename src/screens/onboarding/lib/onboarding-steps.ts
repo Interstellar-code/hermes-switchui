@@ -22,6 +22,7 @@ export type OnboardingStepId =
   | 'review'
   | 'verify'
   | 'profile'
+  | 'memory'
   | 'plugins'
   | 'theme'
   | 'finish'
@@ -170,6 +171,18 @@ export const ONBOARDING_STEPS: ReadonlyArray<
     label: 'Agent profile',
     title: 'Choose an agent profile',
     blurb: 'Pick which agent identity the gateway runs.',
+    enabled: (ctx) => ctx.branch === 'full',
+    optional: true,
+  },
+  {
+    id: 'memory',
+    label: 'Memory',
+    title: 'Set up memory',
+    blurb: 'Choose where the agent keeps what it remembers.',
+    // After `profile` and before `plugins`: memory is a property of the agent
+    // identity chosen on the previous step, and it shares the plugins step's
+    // "nothing happens until the gateway restarts" caveat, so the three read
+    // as one band.
     enabled: (ctx) => ctx.branch === 'full',
     optional: true,
   },
