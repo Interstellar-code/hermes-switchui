@@ -10,6 +10,98 @@ const AUTO_START_DELAY_MS = 4_000
 
 type Platform = 'macos' | 'windows' | 'linux' | 'unknown'
 
+// ── Diagnostics ───────────────────────────────────────────────────
+// Structurally mirrors `src/server/setup-diagnostics.ts`'s exported types.
+// Declared locally rather than imported so nothing in this client component
+// can ever pull the server module (and its node:fs import) into the bundle.
+
+type DiagnosticSeverity = 'ok' | 'info' | 'unknown' | 'warning' | 'error'
+
+type DiagnosticFinding = {
+  id: string
+  severity: DiagnosticSeverity
+  title: string
+  detail?: string
+  remedy?: string
+}
+
+type SetupDiagnostics = {
+  severity: DiagnosticSeverity
+  /** `true` → a gateway is already up; Auto-Start cannot help and must not be
+   *  offered. `null` → unknown, so prefer the non-destructive action. */
+  gatewayProcessRunning: boolean | null
+  missingCapabilities: Array<string>
+  /** No sign of a Hermes install at all — a genuinely new user, who should
+   *  see the welcome rather than a diagnostic dump. */
+  firstRun: boolean
+  findings: Array<DiagnosticFinding>
+  gatewayUrl?: string
+}
+
+/** Labels so the screen can name what is missing instead of saying
+ *  "backend not connected". Keys match the gateway capability keys. */
+const CAPABILITY_LABELS: Record<string, string> = {
+  health: 'health checks',
+  chatCompletions: 'chat',
+  models: 'model list',
+  streaming: 'streaming replies',
+  sessions: 'sessions',
+  enhancedChat: 'enhanced chat',
+  skills: 'skills',
+  memory: 'memory',
+  config: 'settings',
+  jobs: 'jobs',
+  mcp: 'MCP servers',
+  conductor: 'conductor',
+  kanban: 'task board',
+  projects: 'projects',
+  dashboard: 'dashboard',
+}
+
+const SEVERITY_STYLES: Record<
+  DiagnosticSeverity,
+  { box: string; dot: string; label: string; text: string }
+> = {
+  error: {
+    box: 'border-red-500/25 bg-red-950/30',
+    dot: 'bg-red-400',
+    label: 'Blocking',
+    text: 'text-red-300',
+  },
+  warning: {
+    box: 'border-amber-500/25 bg-amber-950/30',
+    dot: 'bg-amber-400',
+    label: 'Check this',
+    text: 'text-amber-300',
+  },
+  unknown: {
+    box: 'border-white/10 bg-white/5',
+    dot: 'bg-white/40',
+    label: 'Unknown',
+    text: 'text-white/60',
+  },
+  info: {
+    box: 'border-sky-500/20 bg-sky-950/25',
+    dot: 'bg-sky-400',
+    label: 'Note',
+    text: 'text-sky-300',
+  },
+  ok: {
+    box: 'border-emerald-500/20 bg-emerald-950/25',
+    dot: 'bg-emerald-400',
+    label: 'OK',
+    text: 'text-emerald-300',
+  },
+}
+
+const SEVERITY_ORDER: Record<DiagnosticSeverity, number> = {
+  error: 0,
+  warning: 1,
+  unknown: 2,
+  info: 3,
+  ok: 4,
+}
+
 function detectPlatform(): Platform {
   if (typeof navigator === 'undefined') return 'unknown'
   const ua = navigator.userAgent.toLowerCase()
@@ -47,6 +139,56 @@ function getSetupSteps(
   ]
 }
 
+/**
+ * Should the screen show a diagnosis instead of the welcome?
+ *
+ * A real first run and a broken install are different situations and must
+ * look different. We only replace the welcome when we have a diagnosis AND it
+ * says this machine has an install (`firstRun === false`). Everything else —
+ * no diagnostics, diagnostics still loading, a genuinely fresh machine —
+ * keeps the original welcome path exactly as it was.
+ *
+ * `info` findings do not qualify: "nothing configured yet" is a description
+ * of a fresh setup, not a fault, and does not deserve to take over the
+ * screen. `unknown` does qualify — the user is already stuck on a screen that
+ * will not connect, and "we could not check X" is a real lead.
+ */
+export function shouldShowDiagnostics(
+  diagnostics: SetupDiagnostics | null,
+): diagnostics is SetupDiagnostics {
+  if (!diagnostics) return false
+  if (diagnostics.firstRun) return false
+  return diagnostics.findings.some(
+    (f) =>
+      f.severity === 'error' ||
+      f.severity === 'warning' ||
+      f.severity === 'unknown',
+  )
+}
+
+/**
+ * Auto-Start is only honest when nothing is running. `true` means a gateway
+ * is already up (starting a second is the useless action that made the
+ * original screen actively misleading); `null` means we could not tell, and
+ * the non-destructive action is the right default there too.
+ */
+export function shouldOfferAutoStart(
+  diagnostics: SetupDiagnostics | null,
+): boolean {
+  if (!diagnostics) return true
+  return diagnostics.gatewayProcessRunning === false
+}
+
+export function describeMissingCapabilities(
+  missing: Array<string>,
+): string | null {
+  if (missing.length === 0) return null
+  const labels = missing.map((key) => CAPABILITY_LABELS[key] ?? key)
+  const shown = labels.slice(0, 6)
+  const rest = labels.length - shown.length
+  return rest > 0 ? `${shown.join(', ')}, and ${rest} more` : shown.join(', ')
+}
+
 type Props = { onConnected: (status: AuthStatus) => void }
 
 declare global {
@@ -62,6 +204,8 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
   const [serverLog, setServerLog] = useState<Array<string>>([])
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [showManual, setShowManual] = useState(false)
+  const [diagnostics, setDiagnostics] = useState<SetupDiagnostics | null>(null)
+  const [rechecking, setRechecking] = useState(false)
 
   const platform = useRef<Platform>(detectPlatform())
   const steps = getSetupSteps(platform.current)
@@ -93,11 +237,30 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
       }
     }, FAILURE_REVEAL_MS)
 
+    // Start the diagnosis immediately, in parallel with the first connect
+    // attempt. Its answer gates the silent auto-start below, so it must be
+    // in flight before that timer fires rather than started on reveal.
+    const diagnosticsPromise = fetchDiagnostics()
+    void diagnosticsPromise.then((result) => {
+      if (isDone.current || !result) return
+      setDiagnostics(result)
+    })
+
     // After a short grace period, fire /api/start-claude once silently.
     // If hermes-agent is installed and just not running, this brings it back
     // up without making the user click anything. The polling loop will see it.
+    //
+    // Gated on the diagnosis: when a gateway process is ALREADY running (or we
+    // could not establish that it isn't), starting another one cannot help and
+    // muddies the picture — that was the original failure this screen had.
     const fireSilentAutoStart = async () => {
-      if (autoStartFired || isDone.current) return
+      if (autoStartFired) return
+      // Waited on, not read from state: the timer can fire before the
+      // diagnosis has landed, and starting a duplicate gateway because the
+      // answer had not arrived yet is the same mistake, one race later.
+      const diagnosis = await diagnosticsPromise
+      if (isDone.current) return
+      if (!shouldOfferAutoStart(diagnosis)) return
       autoStartFired = true
       try {
         const res = await fetch('/api/start-claude', {
@@ -132,7 +295,7 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
         isDone.current = true
         clearTimeout(failureTimer)
         clearTimeout(autoStartTimer)
-        clearTimeout(pollTimer)
+        if (pollTimer) clearTimeout(pollTimer)
         onConnectedRef.current(status)
       } catch {
         if (isDone.current) return
@@ -209,6 +372,36 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
     }
   }
 
+  /**
+   * The accurate action when something IS already running: re-probe the
+   * gateway and re-run the diagnosis, rather than launching a duplicate.
+   */
+  const handleRecheck = async () => {
+    setRechecking(true)
+    setServerError(null)
+    try {
+      await fetch('/api/gateway-reprobe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      }).catch(() => null)
+      const next = await fetchDiagnostics()
+      if (next) setDiagnostics(next)
+    } finally {
+      setRechecking(false)
+    }
+  }
+
+  const showDiagnostics = shouldShowDiagnostics(diagnostics)
+  const offerAutoStart = shouldOfferAutoStart(diagnostics)
+  const problems = showDiagnostics
+    ? [...diagnostics.findings]
+        .filter((f) => f.severity !== 'ok')
+        .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
+    : []
+  const missingSummary = showDiagnostics
+    ? describeMissingCapabilities(diagnostics.missingCapabilities)
+    : null
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto px-6 py-10 text-white"
@@ -245,42 +438,147 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
           className={[
             'w-full overflow-hidden transition-all duration-500 ease-out',
             showFailureState
-              ? 'mt-6 max-h-[60rem] translate-y-0 opacity-100'
+              ? 'mt-6 max-h-[120rem] translate-y-0 opacity-100'
               : 'max-h-0 translate-y-2 opacity-0',
           ].join(' ')}
         >
           <div className="w-full rounded-3xl border border-white/10 bg-white/5 p-5 text-left shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-sm">
-            <p className="text-base font-medium text-white">
-              Welcome! Let&apos;s connect your backend
-            </p>
-            <p className="mt-2 text-sm leading-6 text-white/60">
-              Hermes Switch UI works with any OpenAI-compatible backend. Hermes Agent
-              gateway APIs unlock enhanced features automatically when they are
-              available.
-            </p>
+            {showDiagnostics ? (
+              <>
+                <p className="text-base font-medium text-white">
+                  Your Hermes install is not serving this app
+                </p>
+                <p className="mt-2 text-sm leading-6 text-white/60">
+                  {diagnostics.gatewayUrl
+                    ? `This app talks to Hermes at ${diagnostics.gatewayUrl}. `
+                    : ''}
+                  Here is what it found, most important first.
+                </p>
 
-            {/* Auto-start section */}
+                {missingSummary ? (
+                  <p
+                    className="mt-3 text-xs leading-5 text-white/45"
+                    data-testid="missing-capabilities"
+                  >
+                    Currently unavailable: {missingSummary}.
+                  </p>
+                ) : null}
+
+                <ul
+                  className="mt-4 space-y-3"
+                  data-testid="diagnostic-findings"
+                >
+                  {problems.map((finding) => {
+                    const style = SEVERITY_STYLES[finding.severity]
+                    return (
+                      <li
+                        key={finding.id}
+                        className={['rounded-xl border p-4', style.box].join(
+                          ' ',
+                        )}
+                        data-severity={finding.severity}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span
+                            className={[
+                              'mt-1.5 h-2 w-2 shrink-0 rounded-full',
+                              style.dot,
+                            ].join(' ')}
+                          />
+                          <div className="min-w-0">
+                            <p
+                              className={[
+                                'text-[0.7rem] font-semibold uppercase tracking-wide',
+                                style.text,
+                              ].join(' ')}
+                            >
+                              {style.label}
+                            </p>
+                            <p className="mt-1 text-sm font-medium leading-6 text-white/90">
+                              {finding.title}
+                            </p>
+                            {finding.detail ? (
+                              <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-white/55">
+                                {finding.detail}
+                              </p>
+                            ) : null}
+                            {finding.remedy ? (
+                              <p className="mt-2 whitespace-pre-wrap break-words rounded-lg bg-black/25 p-2.5 font-mono text-xs leading-5 text-white/70">
+                                {finding.remedy}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </>
+            ) : (
+              <>
+                <p className="text-base font-medium text-white">
+                  Welcome! Let&apos;s connect your backend
+                </p>
+                <p className="mt-2 text-sm leading-6 text-white/60">
+                  Hermes Switch UI works with any OpenAI-compatible backend.
+                  Hermes Agent gateway APIs unlock enhanced features
+                  automatically when they are available.
+                </p>
+              </>
+            )}
+
+            {/* Primary action — Auto-Start only when nothing is already running */}
             <div className="mt-5">
-              <button
-                type="button"
-                disabled={serverStarting}
-                onClick={handleAutoStart}
-                className={[
-                  'w-full rounded-xl px-5 py-3 text-sm font-semibold transition',
-                  serverStarting
-                    ? 'cursor-not-allowed bg-indigo-900/70 text-indigo-200'
-                    : 'bg-indigo-500 text-white hover:bg-indigo-400',
-                ].join(' ')}
-              >
-                {serverStarting ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white/90" />
-                    Detecting...
-                  </span>
-                ) : (
-                  'Auto-Start Hermes Agent Gateway'
-                )}
-              </button>
+              {offerAutoStart ? (
+                <button
+                  type="button"
+                  disabled={serverStarting}
+                  onClick={handleAutoStart}
+                  className={[
+                    'w-full rounded-xl px-5 py-3 text-sm font-semibold transition',
+                    serverStarting
+                      ? 'cursor-not-allowed bg-indigo-900/70 text-indigo-200'
+                      : 'bg-indigo-500 text-white hover:bg-indigo-400',
+                  ].join(' ')}
+                >
+                  {serverStarting ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white/90" />
+                      Detecting...
+                    </span>
+                  ) : (
+                    'Auto-Start Hermes Agent Gateway'
+                  )}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={rechecking}
+                    onClick={handleRecheck}
+                    className={[
+                      'w-full rounded-xl px-5 py-3 text-sm font-semibold transition',
+                      rechecking
+                        ? 'cursor-not-allowed bg-indigo-900/70 text-indigo-200'
+                        : 'bg-indigo-500 text-white hover:bg-indigo-400',
+                    ].join(' ')}
+                  >
+                    {rechecking ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white/90" />
+                        Re-checking...
+                      </span>
+                    ) : (
+                      'Re-check connection'
+                    )}
+                  </button>
+                  <p className="mt-2 text-xs leading-5 text-white/40">
+                    {diagnostics?.gatewayProcessRunning === true
+                      ? 'Hermes is already running, so starting it again would change nothing. Fix the problem above, restart it yourself, then re-check.'
+                      : 'We could not confirm whether Hermes is already running, so this screen will not start a second copy. Fix anything listed above, then re-check.'}
+                  </p>
+                </>
+              )}
 
               {/* Server log */}
               {serverLog.length > 0 ? (
@@ -377,4 +675,33 @@ export function ConnectionStartupScreen({ onConnected }: Props) {
       </div>
     </div>
   )
+}
+
+/** Fetch the diagnosis. Resolves to `null` on any failure — a screen that
+ *  cannot diagnose falls back to the original welcome path rather than
+ *  showing an error about the error. */
+async function fetchDiagnostics(): Promise<SetupDiagnostics | null> {
+  try {
+    const res = await fetch('/api/setup-diagnostics')
+    if (!res.ok) return null
+    const ct = res.headers.get('content-type') || ''
+    if (!ct.includes('application/json')) return null
+    const body = (await res.json()) as Partial<SetupDiagnostics>
+    if (!Array.isArray(body.findings)) return null
+    return {
+      severity: body.severity ?? 'unknown',
+      gatewayProcessRunning:
+        typeof body.gatewayProcessRunning === 'boolean'
+          ? body.gatewayProcessRunning
+          : null,
+      missingCapabilities: Array.isArray(body.missingCapabilities)
+        ? body.missingCapabilities
+        : [],
+      firstRun: body.firstRun === true,
+      findings: body.findings,
+      gatewayUrl: body.gatewayUrl,
+    }
+  } catch {
+    return null
+  }
 }
