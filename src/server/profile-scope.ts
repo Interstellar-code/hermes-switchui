@@ -20,6 +20,16 @@
  *     the profile I am already on". Note this is NOT the rejected rev-1 rule
  *     ("omit whenever profile === active"), which was unsafe precisely because
  *     it also omitted under multiplex, where bare means `default`.
+ *
+ *     `gateway_mode: 'multiple'` (several independent per-profile gateways) is
+ *     the same case with one extra step: there is more than one candidate for
+ *     "the gateway `CLAUDE_API` addresses", so it has to be identified from
+ *     `gateways[].ports` before the same proof applies. That is
+ *     `matchConfiguredGateway()`, whose obligations and residual risk are
+ *     documented on it. When it cannot identify exactly one, the topology
+ *     resolves to `'unknown'` with reason `'multiple-gateways'` — a REFUSAL,
+ *     but never reported as a failed probe: the dashboard answered correctly
+ *     and telling the user to go restart it is a fabricated diagnosis.
  *  2. Until recently, when multiplexing was OFF the gateway *silently
  *     ignored* a `/p/<profile>/` prefix (`_resolve_request_profile` returned
  *     `None`) and resolved the raw session ID against whichever `state.db`
@@ -66,6 +76,30 @@ import { CLAUDE_API, CLAUDE_DASHBOARD_URL } from './gateway-capabilities'
 
 // ── Topology ──────────────────────────────────────────────────────
 
+/**
+ * One row of the dashboard's `gateways[]` (`/api/status`), normalised.
+ *
+ * The dashboard lists an entry ONLY for a profile with a live gateway process
+ * (`_check_gateway_running`), and fills `ports` ONLY from platforms the running
+ * process reported as not-dead in its `gateway_state.json`
+ * (`_profile_platform_ports`). So the three states are all distinguishable and
+ * all meaningful to a user:
+ *
+ *   - no entry at all      → no gateway process is running for that profile
+ *   - entry, `apiPort: null` → a gateway IS running, but it has no live
+ *     `api_server` platform, i.e. no HTTP port anything can be sent to
+ *   - entry, `apiPort: N`  → a gateway is running and serving HTTP on N
+ */
+export type ProfileGatewayEntry = {
+  profile: string
+  /** `api_server` port for this profile's live gateway; `null` when it has no
+   *  live `api_server` platform (see above). */
+  apiPort: number | null
+  /** True for the single entry proven to be the gateway `CLAUDE_API` addresses
+   *  — see `matchConfiguredGateway()`. At most one entry is ever flagged. */
+  matchesConfiguredApi: boolean
+}
+
 export type GatewayMode =
   /** Multiplexing off: the gateway serves exactly one profile (its own) and a
    *  `/p/` prefix would be rejected (or, on an unpatched gateway, silently
@@ -74,11 +108,28 @@ export type GatewayMode =
    *  variant always carries a real profile name; when the probe can't
    *  determine one, the result is `'unknown'` below instead of `activeProfile:
    *  null` — there is no ambiguous half-known `single`. */
-  | { mode: 'single'; servedProfiles: null; activeProfile: string }
+  | {
+      mode: 'single'
+      servedProfiles: null
+      activeProfile: string
+      /** Non-null ONLY under `gateway_mode: 'multiple'` — several independent
+       *  per-profile gateways, of which exactly one was proven to be the one
+       *  `CLAUDE_API` addresses (`matchConfiguredGateway()`). Reachability for
+       *  the requested profile is then decided exactly as in ordinary `single`
+       *  mode; the roster rides along so the refusal for every OTHER profile
+       *  can say what is actually true of it (no gateway / no API server / a
+       *  different port) instead of "enable multiplex_profiles". */
+      profileGateways: Array<ProfileGatewayEntry> | null
+    }
   /** Multiplexing on: authoritative list of profiles the LIVE process serves.
    *  `activeProfile` is meaningless here — a bare URL resolves to `default`,
    *  not to any "active" profile — so it is always `null`. */
-  | { mode: 'multiplex'; servedProfiles: Array<string>; activeProfile: null }
+  | {
+      mode: 'multiplex'
+      servedProfiles: Array<string>
+      activeProfile: null
+      profileGateways: null
+    }
   /** Topology could not be established well enough to authorise (or refuse)
    *  a specific profile — distinct from `single` (topology IS known: not
    *  multiplexed) and from `multiplex` with an empty roster (topology IS
@@ -103,8 +154,18 @@ export type GatewayMode =
        *  `'probe-failed'`: the dashboard was unreachable, errored, timed
        *  out, or answered with a shape we don't recognise. The remedy here
        *  genuinely is local: check the dashboard is running, or that
-       *  multiplex_profiles + a restart is what's needed. */
-      reason: 'remote-gated' | 'probe-failed'
+       *  multiplex_profiles + a restart is what's needed.
+       *  `'multiple-gateways'`: the probe SUCCEEDED and reported a topology we
+       *  fully understand — `gateway_mode: 'multiple'`, i.e. several
+       *  independent single-profile gateways, none of which multiplexes — but
+       *  none of them could be matched to the `CLAUDE_API` this workspace
+       *  talks to (different host, no port reported, or two entries claiming
+       *  the same port). Nothing is wrong with the dashboard, so the message
+       *  must not send anyone to go restart it. */
+      reason: 'remote-gated' | 'probe-failed' | 'multiple-gateways'
+      /** The per-profile roster for `'multiple-gateways'` (else `null`), so
+       *  the refusal can name which profiles do have a gateway and where. */
+      profileGateways: Array<ProfileGatewayEntry> | null
     }
 
 /** Fail-closed fallback for a probe that couldn't be completed at all
@@ -117,6 +178,7 @@ const PROBE_FAILED: GatewayMode = {
   servedProfiles: null,
   activeProfile: null,
   reason: 'probe-failed',
+  profileGateways: null,
 }
 
 /** Fail-closed fallback for a probe that completed but was answered from
@@ -127,6 +189,7 @@ const REMOTE_GATED: GatewayMode = {
   servedProfiles: null,
   activeProfile: null,
   reason: 'remote-gated',
+  profileGateways: null,
 }
 
 /** Short TTL, not a permanent cache: multiplexing can be turned off by a
@@ -195,6 +258,88 @@ export async function getGatewayMode(
   return entry.promise
 }
 
+/** `host:port` of a URL, with the loopback spellings folded together so
+ *  `localhost`, `127.0.0.1`, `::1` and `0.0.0.0` compare equal. Returns null
+ *  for anything unparseable — callers then fail closed. */
+function urlEndpoint(raw: string): { host: string; port: number } | null {
+  let url: URL
+  try {
+    url = new URL(raw)
+  } catch {
+    return null
+  }
+  const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  const normalized =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '::1' ||
+    host === '0.0.0.0'
+      ? 'localhost'
+      : host
+  const port = url.port
+    ? Number(url.port)
+    : url.protocol === 'https:'
+      ? 443
+      : 80
+  if (!Number.isInteger(port) || port <= 0) return null
+  return { host: normalized, port }
+}
+
+/** `ports.api_server` from one `gateways[]` entry, or null when that profile's
+ *  gateway has no live `api_server` platform. */
+function readApiPort(ports: unknown): number | null {
+  if (!ports || typeof ports !== 'object') return null
+  const raw = (ports as Record<string, unknown>).api_server
+  const value =
+    typeof raw === 'number'
+      ? raw
+      : typeof raw === 'string' && raw.trim()
+        ? Number(raw)
+        : NaN
+  return Number.isInteger(value) && value > 0 && value < 65536 ? value : null
+}
+
+/**
+ * Under `gateway_mode: 'multiple'`, decide which of the N independent
+ * per-profile gateways is the one `CLAUDE_API` actually addresses.
+ *
+ * The precedent is the non-multiplex carve-out below: when a bare URL PROVABLY
+ * resolves to a known profile, refusing it buys nothing. The proof obligations
+ * here are stricter than that carve-out's, because there is more than one
+ * candidate:
+ *
+ *  1. `CLAUDE_API` must be on the same host as the dashboard we probed. The
+ *     dashboard enumerates gateway processes on ITS host and reports ports on
+ *     ITS host, so a port number says nothing about a different machine.
+ *  2. Exactly ONE entry may report that port. Two entries claiming it (a
+ *     misconfiguration — they cannot both be bound) is ambiguity, not a match.
+ *  3. Entries with `apiPort: null` are not candidates and cannot silently be
+ *     the one: the dashboard omits the port only when the profile's gateway
+ *     reported no live `api_server` platform at all, so that process is not
+ *     listening on anything.
+ *
+ * Residual, documented rather than hidden: the dashboard derives the port from
+ * the profile's `config.yaml` (+ adapter default) and explicitly does NOT
+ * resolve an `API_SERVER_PORT` override from that profile's `.env`
+ * (`_profile_platform_ports`'s own docstring). An install that overrides
+ * api_server ports via `.env` in two or more profiles could therefore produce a
+ * unique-but-wrong match. That is a strictly smaller assumption than the one
+ * `single` mode already makes unconditionally (there the port is never checked
+ * at all — the lone live gateway is simply assumed to be `CLAUDE_API`'s), and
+ * it is the same class of hazard as the TTL race in the header: bounded,
+ * observable, and preferable to refusing the topology outright.
+ */
+function matchConfiguredGateway(
+  roster: Array<ProfileGatewayEntry>,
+  dashboardUrl: string,
+): ProfileGatewayEntry | null {
+  const api = urlEndpoint(CLAUDE_API)
+  const dashboard = urlEndpoint(dashboardUrl)
+  if (!api || !dashboard || api.host !== dashboard.host) return null
+  const matches = roster.filter((entry) => entry.apiPort === api.port)
+  return matches.length === 1 ? matches[0] : null
+}
+
 async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
   try {
     const res = await fetch(`${dashboardUrl}/api/status`, {
@@ -205,7 +350,11 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
       gateway_mode?: string
       hermes_home?: string
       auth_required?: boolean
-      gateways?: Array<{ profile?: string; served_profiles?: Array<string> }>
+      gateways?: Array<{
+        profile?: string
+        served_profiles?: Array<string>
+        ports?: Record<string, unknown>
+      }>
       profiles?: Array<string>
     }
     const entries = body.gateways ?? []
@@ -224,15 +373,48 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
 
     // "multiple" (hermes_cli/web_server.py's `_collect_profile_gateway_topology`)
     // means several INDEPENDENT single-profile gateway processes — not one
-    // multiplexer, and none of them understands `/p/<profile>/`. Worse, this
-    // payload carries no port info tying any one `entries[]` item to the
-    // specific CLAUDE_API host this workspace actually talks to, so guessing
-    // "the first entry with a profile" (the single-mode fallback below) could
+    // multiplexer, and none of them understands `/p/<profile>/`. Falling into
+    // the single-mode fallback below ("the first entry with a profile") could
     // attribute CLAUDE_API's answers to the WRONG one of several live
     // profiles — exactly the wrong-profile write this module exists to
-    // prevent. Fail closed instead of guessing.
+    // prevent.
+    //
+    // But this is NOT a failed probe, and it used to be reported as one: a
+    // healthy dashboard answering with a topology we fully understand sent the
+    // user off to debug a dashboard that was working. `gateways[]` also
+    // carries `ports`, which is precisely the tie-break the old comment said
+    // was missing — so resolve the one gateway CLAUDE_API provably addresses
+    // when the payload allows it (`matchConfiguredGateway`), and otherwise
+    // fail closed under a reason that says what is actually true.
     if (!isMultiplex && body.gateway_mode === 'multiple') {
-      return remoteGated ? REMOTE_GATED : PROBE_FAILED
+      if (remoteGated) return REMOTE_GATED
+      const roster: Array<ProfileGatewayEntry> = entries
+        .filter((g): g is typeof g & { profile: string } => Boolean(g.profile))
+        .map((g) => ({
+          profile: String(g.profile),
+          apiPort: readApiPort(g.ports),
+          matchesConfiguredApi: false,
+        }))
+      const matched = matchConfiguredGateway(roster, dashboardUrl)
+      if (matched) {
+        matched.matchesConfiguredApi = true
+        // Same guarantee as `single`: this workspace talks to exactly one
+        // non-multiplexing gateway, and a bare URL provably resolves to the
+        // profile that gateway runs. The roster rides along for messaging.
+        return {
+          mode: 'single',
+          servedProfiles: null,
+          activeProfile: matched.profile,
+          profileGateways: roster,
+        }
+      }
+      return {
+        mode: 'unknown',
+        servedProfiles: null,
+        activeProfile: null,
+        reason: 'multiple-gateways',
+        profileGateways: roster,
+      }
     }
 
     const homeProfile = body.hermes_home
@@ -244,7 +426,12 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
 
     if (!isMultiplex) {
       if (active) {
-        return { mode: 'single', servedProfiles: null, activeProfile: String(active) }
+        return {
+          mode: 'single',
+          servedProfiles: null,
+          activeProfile: String(active),
+          profileGateways: null,
+        }
       }
       return remoteGated ? REMOTE_GATED : PROBE_FAILED
     }
@@ -268,6 +455,7 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
       mode: 'multiplex',
       servedProfiles: served.map(String),
       activeProfile: null,
+      profileGateways: null,
     }
   } catch {
     return PROBE_FAILED
@@ -275,6 +463,24 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
 }
 
 // ── Typed failures ────────────────────────────────────────────────
+
+/** What the dashboard's `gateways[]` says about ONE profile, as a sentence.
+ *  The three states are genuinely different problems with different fixes, and
+ *  the payload distinguishes all three — see `ProfileGatewayEntry`. */
+function describeProfileGateway(
+  profile: string,
+  roster: Array<ProfileGatewayEntry>,
+): string {
+  const entry = roster.find((g) => g.profile === profile)
+  if (!entry) return `no gateway is running for "${profile}"`
+  if (entry.apiPort === null) {
+    return (
+      `a gateway process is running for "${profile}", but it has no API server ` +
+      'listening (no live api_server platform), so nothing can be sent to it'
+    )
+  }
+  return `the gateway for "${profile}" listens on port ${entry.apiPort}`
+}
 
 /** Gateway is not multiplexing, so the prefix would be rejected (or, on an
  *  unpatched gateway, silently ignored — see the header). Maps to HTTP 409 at
@@ -284,16 +490,41 @@ export class ProfileScopeUnavailableError extends Error {
   readonly profile: string
   /** The profile the non-multiplexed gateway IS running. */
   readonly activeProfile: string
-  constructor(profile: string, activeProfile: string) {
+  /** Non-null under `gateway_mode: 'multiple'` — see `GatewayMode`'s `single`
+   *  variant. Changes only the wording: the refusal itself is identical. */
+  readonly profileGateways: Array<ProfileGatewayEntry> | null
+  constructor(
+    profile: string,
+    activeProfile: string,
+    profileGateways: Array<ProfileGatewayEntry> | null = null,
+  ) {
+    // Several independent per-profile gateways. "Enable multiplex_profiles" is
+    // still one valid remedy, but it is not the diagnosis — the diagnosis is
+    // whatever is (or isn't) running for the profile the user picked, and the
+    // payload already states it. Saying it here is the difference between a
+    // user restarting a healthy dashboard and a user starting the gateway they
+    // are actually missing.
+    const connected = profileGateways?.find((g) => g.matchesConfiguredApi)
     super(
-      `Profile "${profile}" cannot be targeted: this gateway is running the ` +
-        `"${activeProfile}" profile and is not multiplexed, so it can only serve ` +
-        `"${activeProfile}". Switch to "${activeProfile}", or enable ` +
-        'gateway.multiplex_profiles and restart the gateway to reach several profiles at once.',
+      profileGateways
+        ? `Profile "${profile}" cannot be targeted: ` +
+            `${describeProfileGateway(profile, profileGateways)}. This host runs a ` +
+            'separate gateway per profile, and this workspace is connected to the ' +
+            `"${activeProfile}" gateway${
+              connected?.apiPort ? ` (port ${connected.apiPort})` : ''
+            } — which is not multiplexed, so a /p/${profile}/ prefix would be ` +
+            `rejected by it. Start an API-serving gateway for "${profile}" and point ` +
+            'this workspace at its port, or enable gateway.multiplex_profiles on the ' +
+            `"${activeProfile}" gateway and restart it so one process serves every profile.`
+        : `Profile "${profile}" cannot be targeted: this gateway is running the ` +
+            `"${activeProfile}" profile and is not multiplexed, so it can only serve ` +
+            `"${activeProfile}". Switch to "${activeProfile}", or enable ` +
+            'gateway.multiplex_profiles and restart the gateway to reach several profiles at once.',
     )
     this.name = 'ProfileScopeUnavailableError'
     this.profile = profile
     this.activeProfile = activeProfile
+    this.profileGateways = profileGateways
   }
 }
 
@@ -309,10 +540,28 @@ export class ProfileScopeUnavailableError extends Error {
  *  `.reason`. */
 export class ProfileScopeIndeterminateError extends Error {
   readonly profile: string
-  readonly reason: 'remote-gated' | 'probe-failed'
-  constructor(profile: string, reason: 'remote-gated' | 'probe-failed') {
+  readonly reason: 'remote-gated' | 'probe-failed' | 'multiple-gateways'
+  readonly profileGateways: Array<ProfileGatewayEntry> | null
+  constructor(
+    profile: string,
+    reason: 'remote-gated' | 'probe-failed' | 'multiple-gateways',
+    profileGateways: Array<ProfileGatewayEntry> | null = null,
+  ) {
+    const live = (profileGateways ?? [])
+      .filter((g) => g.apiPort !== null)
+      .map((g) => `"${g.profile}" (port ${g.apiPort})`)
     super(
-      reason === 'remote-gated'
+      reason === 'multiple-gateways'
+        ? // The probe SUCCEEDED. Never blame the dashboard here.
+          `Profile "${profile}" cannot be targeted: this host runs several independent ` +
+          'per-profile gateways and none of them multiplexes, so a /p/<profile>/ prefix ' +
+          `would be rejected. Here, ${describeProfileGateway(profile, profileGateways ?? [])}, and ` +
+          `the gateway this workspace is configured to use (${CLAUDE_API}) could not be matched ` +
+          `to any of them${live.length ? ` (reachable right now: ${live.join(', ')})` : ''}, so ` +
+          'there is no way to prove a request would land in the right profile. Point this ' +
+          `workspace at the gateway for "${profile}", or enable gateway.multiplex_profiles on ` +
+          'one gateway and restart it so a single process serves every profile.'
+        : reason === 'remote-gated'
         ? `Profile "${profile}" cannot be verified from here: this workspace is talking to a ` +
           'gated (non-loopback) Hermes dashboard, which withholds gateway topology detail from ' +
           'remote clients for security. This is NOT necessarily a multiplex configuration ' +
@@ -325,6 +574,7 @@ export class ProfileScopeIndeterminateError extends Error {
     this.name = 'ProfileScopeIndeterminateError'
     this.profile = profile
     this.reason = reason
+    this.profileGateways = profileGateways
   }
 }
 
@@ -408,7 +658,11 @@ export async function assertProfileServed(
     // and not "known to be multiplex with an empty roster". Say so, with the
     // right remedy for why (see `ProfileScopeIndeterminateError`), instead of
     // falling into the `single` branch below and blaming multiplex config.
-    throw new ProfileScopeIndeterminateError(profile, topology.reason)
+    throw new ProfileScopeIndeterminateError(
+      profile,
+      topology.reason,
+      topology.profileGateways,
+    )
   }
   if (topology.mode !== 'multiplex') {
     // Not multiplexed. The only profile reachable at all is the one this
@@ -419,7 +673,11 @@ export async function assertProfileServed(
     if (profile === topology.activeProfile) {
       return topology
     }
-    throw new ProfileScopeUnavailableError(profile, topology.activeProfile)
+    throw new ProfileScopeUnavailableError(
+      profile,
+      topology.activeProfile,
+      topology.profileGateways,
+    )
   }
   if (!topology.servedProfiles.includes(profile)) {
     throw new ProfileNotServedError(profile, topology.servedProfiles)

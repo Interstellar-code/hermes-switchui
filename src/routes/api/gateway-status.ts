@@ -67,6 +67,16 @@ export const Route = createFileRoute('/api/gateway-status')({
             // a bare URL resolves to `default`, not to any "active" profile)
             // and for `unknown` (topology couldn't be established).
             servingProfile: scopeTopology.activeProfile,
+            // Why the topology is `unknown`, when it is. `'multiple-gateways'`
+            // in particular is NOT a probe failure — the picker must not tell
+            // anyone to go restart a dashboard that answered correctly.
+            reason: scopeTopology.mode === 'unknown' ? scopeTopology.reason : null,
+            // Per-profile gateway roster, non-null only under the dashboard's
+            // `gateway_mode: 'multiple'`. The picker uses it to mark (and
+            // explain) profiles nothing is serving, so the user finds out at
+            // pick time instead of at send time. Ports here are already public
+            // on this route via `claudeUrl`/`dashboardUrl`.
+            profileGateways: scopeTopology.profileGateways,
             sessionCounts,
           },
         })

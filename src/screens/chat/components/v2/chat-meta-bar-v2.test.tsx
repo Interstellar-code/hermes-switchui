@@ -485,6 +485,60 @@ describe('ChatMetaBarV2', () => {
       expect(mockNavigate).toHaveBeenCalledTimes(1)
     })
 
+    it('multi-gateway topology: marks the unreachable profile at pick time, with the reason', () => {
+      // One gateway per profile: `default` owns the port this workspace talks
+      // to, `other` has a gateway process with no API server. Selecting
+      // `other` can never send, so the picker says so here rather than letting
+      // the send fail after the user has typed a message.
+      mockQueries['profiles|scope-status'] = {
+        data: {
+          mode: 'single',
+          servedProfiles: null,
+          servingProfile: 'default',
+          reason: null,
+          profileGateways: [
+            { profile: 'default', apiPort: 8642, matchesConfiguredApi: true },
+            { profile: 'other', apiPort: null, matchesConfiguredApi: false },
+          ],
+          sessionCounts: {},
+        },
+        isLoading: false,
+        isError: false,
+      }
+
+      const container = renderInto(
+        <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+      )
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
+          ?.click()
+      })
+
+      const reachable = document.body.querySelector<HTMLButtonElement>(
+        '[data-testid="profile-option-default"]',
+      )
+      expect(reachable?.dataset.reachability).toBe('served')
+      // Quiet for the healthy row: no badge, no explanation.
+      expect(reachable?.textContent).not.toContain('Not served')
+
+      const unreachable = document.body.querySelector<HTMLButtonElement>(
+        '[data-testid="profile-option-other"]',
+      )
+      expect(unreachable?.dataset.reachability).toBe('not-served')
+      expect(unreachable?.textContent).toContain('Not served')
+      expect(unreachable?.textContent).toMatch(/exposes no API server/i)
+      expect(unreachable?.title).toMatch(/messages cannot be sent to it/i)
+
+      // These tests share `document.body`; close the popover so its portal
+      // content doesn't leak into the next one.
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('[data-testid="profile-selector"]')
+          ?.click()
+      })
+    })
+
     it('keeps the selected profile when its row is clicked again', () => {
       mockSearch.profile = 'other'
       mockQueries['profiles|scope-status'] = {

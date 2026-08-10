@@ -244,10 +244,12 @@ export function readEnvKeys(filePath: string): Array<string> | null {
   return keys
 }
 
-/** Value of a single dotenv key, or '' when absent/unreadable. */
-function readEnvValue(filePath: string, name: string): string {
-  const raw = readTextOrNull(filePath)
-  if (raw === null) return ''
+/** Value of a single `KEY=value` line in already-read dotenv text, or '' when
+ *  absent. Factored out of `readEnvValue` so a caller that needs to
+ *  distinguish "file missing" from "file unreadable" (see
+ *  `readTextWithStatus`) can read the raw text once and still reuse the same
+ *  parsing rules. */
+function extractEnvValue(raw: string, name: string): string {
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim()
     if (!trimmed || trimmed.startsWith('#')) continue
@@ -266,6 +268,13 @@ function readEnvValue(filePath: string, name: string): string {
       .replace(/^['"]|['"]$/g, '')
   }
   return ''
+}
+
+/** Value of a single dotenv key, or '' when absent/unreadable. */
+function readEnvValue(filePath: string, name: string): string {
+  const raw = readTextOrNull(filePath)
+  if (raw === null) return ''
+  return extractEnvValue(raw, name)
 }
 
 /** Top-level keys of a YAML config, or null when the file is absent. */
@@ -1034,6 +1043,284 @@ export function checkGatewayToken(input: {
   }
 }
 
+// ── Check: local API service access key (fresh-install variant) ──
+
+/**
+ * The fresh-install sibling of `checkGatewayToken` above. That check
+ * compares two keys that already exist; this one catches the case where the
+ * gateway's own startup guard refuses to bring the key-protected service up
+ * at all, which looks identical from here (nothing answers, health check
+ * times out) but has a different fix.
+ *
+ * Traced in the gateway source (`~/.hermes/hermes-agent`):
+ *  - `gateway/config.py:2007` — `API_SERVER_ENABLED` is read as a truthy
+ *    string (`is_truthy_value`, `utils.py:19`: "1"/"true"/"yes"/"on").
+ *  - `gateway/config.py:2012` — the `api_server` platform is switched on by
+ *    EITHER `API_SERVER_ENABLED` being truthy OR `API_SERVER_KEY` being set —
+ *    not both.
+ *  - `gateway/platforms/api_server.py:1007` — the key actually used is
+ *    `extra.get("key", os.getenv("API_SERVER_KEY", ""))`: a key already
+ *    present in `config.yaml`'s `platforms.api_server.extra.key` is used
+ *    as-is and is what is live for as long as the env var stays unset —
+ *    editing only a `.env` file then visibly changes nothing.
+ *  - `gateway/platforms/api_server.py:6019` — `_api_key_passes_startup_guard`
+ *    refuses to start with NO key at all, explicitly including loopback-only
+ *    binds: this is a real network listener, not a config nicety.
+ *  - `gateway/platforms/api_server.py:6029` — separately refuses a key that
+ *    fails `hermes_cli.auth.has_usable_secret(key, min_length=16)`
+ *    (`hermes_cli/auth.py:556`): shorter than 16 characters, or one of a
+ *    fixed set of placeholder strings. Mirrored verbatim below rather than
+ *    re-derived, so this reports the same verdict the gateway will reach.
+ *
+ * This project's own installer sets `API_SERVER_ENABLED=true` and stops
+ * there, so a fresh install enables the platform and the gateway then
+ * refuses to bind it: the process comes up, other platforms connect, and
+ * only `api_server` — the one this workspace talks to — is silently
+ * missing. The user sees a health-check timeout and a UI offering to start
+ * a gateway that is already running.
+ *
+ * `gatewayEnvPath`/`configPath` must be the files the LIVE gateway process
+ * actually booted from (see `checkGatewayProcess`'s `liveHome`), because
+ * under profile scoping neither is necessarily the one at the Hermes root.
+ */
+
+const TRUTHY_ENV_VALUES = new Set(['1', 'true', 'yes', 'on'])
+
+function isTruthyEnvValue(value: string): boolean {
+  return TRUTHY_ENV_VALUES.has(value.trim().toLowerCase())
+}
+
+/** Verbatim from `hermes_cli/auth.py:540` (`_PLACEHOLDER_SECRET_VALUES`) and
+ *  the `min_length=16` the API server passes at `api_server.py:6029` — not
+ *  the module's own default of 4, which is used elsewhere for looser
+ *  checks. */
+const API_SERVER_KEY_MIN_LENGTH = 16
+const PLACEHOLDER_API_SERVER_KEYS = new Set([
+  '*',
+  '**',
+  '***',
+  'changeme',
+  'your_api_key',
+  'your_api_key_here',
+  'your-api-key',
+  'placeholder',
+  'example',
+  'dummy',
+  'null',
+  'none',
+])
+
+function apiServerKeyIsUsable(value: string): boolean {
+  const cleaned = value.trim()
+  if (cleaned.length < API_SERVER_KEY_MIN_LENGTH) return false
+  return !PLACEHOLDER_API_SERVER_KEYS.has(cleaned.toLowerCase())
+}
+
+/**
+ * Read a text file while distinguishing "does not exist" (a normal,
+ * legitimate state — not every install serves the API, and a profile with
+ * no `.env` yet is not evidence of anything broken) from "exists but could
+ * not be read" (a permissions problem this check cannot see past, so it
+ * must degrade to `unknown` rather than assert "no key configured").
+ */
+function readTextWithStatus(filePath: string): {
+  raw: string | null
+  unreadable: boolean
+} {
+  try {
+    return { raw: fs.readFileSync(filePath, 'utf-8'), unreadable: false }
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return { raw: null, unreadable: false }
+    }
+    return { raw: null, unreadable: true }
+  }
+}
+
+/**
+ * `platforms.api_server.extra.key` (and its sibling `enabled`) from
+ * config.yaml, when present. Returns `null` when the file is absent,
+ * unreadable, unparsable, or simply does not mention `api_server` — all of
+ * which mean "nothing to say here", not "unknown"; config.yaml not
+ * mentioning this platform at all is the common case.
+ */
+function readConfiguredApiServer(configPath: string): {
+  enabled: boolean
+  key: string
+} | null {
+  const raw = readTextOrNull(configPath)
+  if (raw === null) return null
+  try {
+    const parsed = YAML.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object') return null
+    const platforms = (parsed as Record<string, unknown>).platforms
+    if (!platforms || typeof platforms !== 'object') return null
+    const apiServer = (platforms as Record<string, unknown>).api_server
+    if (!apiServer || typeof apiServer !== 'object') return null
+    const section = apiServer as Record<string, unknown>
+    const extra = section.extra
+    const key =
+      extra && typeof extra === 'object'
+        ? (extra as Record<string, unknown>).key
+        : undefined
+    return {
+      enabled: section.enabled === true,
+      key: typeof key === 'string' ? key : '',
+    }
+  } catch {
+    return null
+  }
+}
+
+export function checkApiServerKey(input: {
+  gatewayEnvPath: string
+  configPath: string
+}): DiagnosticFinding {
+  const id = 'api-server-key'
+  const { gatewayEnvPath, configPath } = input
+
+  const envStatus = readTextWithStatus(gatewayEnvPath)
+  if (envStatus.unreadable) {
+    return {
+      id,
+      severity: 'unknown',
+      title:
+        "Could not check whether the gateway's local API service has a working access key.",
+      detail:
+        `${gatewayEnvPath} exists but this app could not read it — most likely a file-permission ` +
+        'problem, not a missing setting. Whether the service can start is unknown until this file ' +
+        'is readable again.',
+      remedy: `Make sure this app's user account can read ${gatewayEnvPath}, then reload this page.`,
+      data: { gatewayEnvPath, configPath },
+    }
+  }
+
+  const envRaw = envStatus.raw ?? ''
+  const envEnabled = isTruthyEnvValue(
+    extractEnvValue(envRaw, 'API_SERVER_ENABLED'),
+  )
+  const envKey = extractEnvValue(envRaw, 'API_SERVER_KEY')
+
+  const configured = readConfiguredApiServer(configPath)
+  const configKey = configured?.key ?? ''
+  // A key alone does not switch the platform on (verified against
+  // `PlatformConfig.from_dict`, `gateway/config.py:668`: `enabled` defaults
+  // to `False` and is read only from an explicit `enabled` key) — it takes
+  // one of: an explicit `enabled: true` in config.yaml, or either env var
+  // being truthy.
+  const enabled = envEnabled || Boolean(envKey) || Boolean(configured?.enabled)
+
+  const data = {
+    gatewayEnvPath,
+    configPath,
+    enabled,
+    envServerEnabled: envEnabled,
+    configEnabled: configured?.enabled ?? false,
+    envKeyFingerprint: fingerprint(envKey),
+    configKeyFingerprint: fingerprint(configKey),
+  }
+
+  if (!enabled) {
+    return {
+      id,
+      severity: 'ok',
+      title:
+        "This install is not set up to expose the agent's local API service, so no access key is needed for it.",
+      detail:
+        'Most setups never turn this on — it only matters if something (such as this workspace) needs to reach ' +
+        `the agent directly over HTTP. Checked ${gatewayEnvPath} and ${configPath}; neither switches it on.`,
+      data,
+    }
+  }
+
+  // The service IS switched on. If config.yaml already sets a key and the
+  // env file sets none, that config value — not any .env file — is what the
+  // gateway is actually using right now.
+  if (configKey && !envKey) {
+    const weak = !apiServerKeyIsUsable(configKey)
+    return {
+      id,
+      severity: weak ? 'error' : 'info',
+      title: weak
+        ? "The access key set directly in the gateway's configuration file is too weak, so its local API service will refuse to start."
+        : "The agent's local API service is using an access key set directly in its configuration file, not in a settings (.env) file.",
+      detail:
+        `${configPath} sets platforms.api_server.extra.key directly, and ${gatewayEnvPath} sets no ` +
+        'API_SERVER_KEY. That configuration value is what the gateway actually uses right now — if you edit only ' +
+        'a .env file to fix this, nothing will visibly change, because nothing there is in force. Setting ' +
+        'API_SERVER_KEY in the env file above WOULD take over, but only starting the next time the gateway ' +
+        'restarts.' +
+        (weak
+          ? ' On top of that, the configured value is too short or a recognizable placeholder, which the gateway ' +
+            'refuses outright regardless of which file it came from.'
+          : ''),
+      remedy: weak
+        ? 'Generate a real secret and set it on both sides — a key on only one side just moves the failure:\n' +
+          '    openssl rand -hex 32\n' +
+          `Put the result in API_SERVER_KEY in ${gatewayEnvPath} (this takes over on the next restart, replacing ` +
+          `the configured value) and in HERMES_API_TOKEN in this workspace's .env, then restart the gateway.`
+        : 'Nothing is broken — this is only worth knowing if a future .env edit here does not seem to do ' +
+          `anything. To change this key: edit platforms.api_server.extra.key in ${configPath} directly, or set ` +
+          `API_SERVER_KEY in ${gatewayEnvPath} (it takes over on the next restart). Either way, keep ` +
+          "HERMES_API_TOKEN in this workspace's .env matching whichever one wins.",
+      data,
+    }
+  }
+
+  const effectiveKey = envKey || configKey
+
+  if (!effectiveKey) {
+    return {
+      id,
+      severity: 'error',
+      title:
+        "The agent's local API service is switched on but has no access key, so it will refuse to start.",
+      detail:
+        'A "local API service" is the door this workspace (and any other tool) uses to reach the agent ' +
+        'directly, instead of through a chat app. Hermes refuses to open that door without a key protecting it — ' +
+        'even when everything runs on one machine, because an unlocked door to an agent that can run commands on ' +
+        `this computer is too dangerous to leave open by accident. ${gatewayEnvPath} switches the service on ` +
+        '(API_SERVER_ENABLED) but never sets API_SERVER_KEY next to it. This is a common gap on a fresh install, ' +
+        'not a sign anything else is wrong: the health-check timeout and the button offering to start a gateway ' +
+        'that is already running are both downstream of exactly this.',
+      remedy:
+        'Generate one key and set it on both sides — a key on only one side just moves the failure to the other ' +
+        'one:\n' +
+        '    openssl rand -hex 32\n' +
+        `Put the result in API_SERVER_KEY in ${gatewayEnvPath} (the agent's settings) and in HERMES_API_TOKEN in ` +
+        "this workspace's .env (a separate file). Then restart the gateway.",
+      data,
+    }
+  }
+
+  if (!apiServerKeyIsUsable(effectiveKey)) {
+    return {
+      id,
+      severity: 'error',
+      title:
+        "The agent's local API service has an access key, but the gateway considers it too weak and will refuse to start.",
+      detail:
+        'The gateway requires a real secret here: at least 16 characters, and not one of a handful of obvious ' +
+        'placeholders (things like "changeme", "placeholder", or "your_api_key"). The key currently set in ' +
+        `${gatewayEnvPath} does not clear that bar, so the gateway logs a refusal and never opens the service, ` +
+        'even though everything looks "enabled".',
+      remedy:
+        'Replace it with a real random value and set it on both sides:\n' +
+        '    openssl rand -hex 32\n' +
+        `Put the result in API_SERVER_KEY in ${gatewayEnvPath} and in HERMES_API_TOKEN in this workspace's .env, ` +
+        'then restart the gateway.',
+      data,
+    }
+  }
+
+  return {
+    id,
+    severity: 'ok',
+    title: "The agent's local API service has a working access key configured.",
+    data,
+  }
+}
+
 // ── Capability naming ─────────────────────────────────────────────
 
 const CORE_CAPABILITY_KEYS = [
@@ -1231,13 +1518,17 @@ export async function runSetupDiagnostics(
     }),
   )
 
+  // The home the LIVE gateway process booted from, when known — under
+  // profile scoping this is not necessarily the Hermes root, and getting it
+  // wrong would send the user to edit a file the gateway never reads.
+  const liveHome =
+    processResult.liveHome ?? profileHomeFor(hermesRoot, activeProfile)
+
   // 7. Access key — compared against the .env of the home the LIVE process
   //    booted from when we know it, the active profile's otherwise.
   findings.push(
-    safeCheck('gateway-token', 'The gateway access key', () => {
-      const liveHome =
-        processResult.liveHome ?? profileHomeFor(hermesRoot, activeProfile)
-      return checkGatewayToken({
+    safeCheck('gateway-token', 'The gateway access key', () =>
+      checkGatewayToken({
         workspaceToken:
           deps.workspaceToken ??
           process.env.HERMES_API_TOKEN ??
@@ -1246,8 +1537,21 @@ export async function runSetupDiagnostics(
         gatewayEnvPath: path.join(liveHome, '.env'),
         rootEnvPath: path.join(hermesRoot, '.env'),
         authError: Boolean(caps?.authError),
-      })
-    }),
+      }),
+    ),
+  )
+
+  // 8. The api_server startup guard — the fresh-install variant of #7: not
+  //    "the keys disagree" but "the platform is enabled and refuses to bind
+  //    at all", which #7 alone cannot distinguish from "no key configured
+  //    anywhere".
+  findings.push(
+    safeCheck('api-server-key', "The agent's local API service key", () =>
+      checkApiServerKey({
+        gatewayEnvPath: path.join(liveHome, '.env'),
+        configPath: path.join(liveHome, 'config.yaml'),
+      }),
+    ),
   )
 
   let firstRun = false

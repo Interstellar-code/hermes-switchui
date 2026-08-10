@@ -185,6 +185,122 @@ describe('useProfileScopeStatus', () => {
     expect(result.current.reachability).toBe('served')
   })
 
+  describe('multi-gateway topology (gateway_mode: "multiple")', () => {
+    // One gateway per profile. `/api/gateway-status` resolves the one this
+    // workspace is connected to into `mode: 'single'` + `servingProfile`, and
+    // forwards the whole roster so an unreachable profile can say WHY at pick
+    // time instead of blowing up at send time.
+    const scope = {
+      mode: 'single',
+      servedProfiles: null,
+      servingProfile: 'default',
+      reason: null,
+      profileGateways: [
+        { profile: 'default', apiPort: 8642, matchesConfiguredApi: true },
+        {
+          profile: 'hermes-switch',
+          apiPort: null,
+          matchesConfiguredApi: false,
+        },
+        { profile: 'neo', apiPort: 8700, matchesConfiguredApi: false },
+      ],
+      sessionCounts: {},
+    }
+
+    it('reads "served" — with no reason noise — for the connected profile', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ scope }))
+      const { Wrapper } = createWrapper()
+      const { result } = renderHook(() => useProfileScopeStatus('default'), {
+        wrapper: Wrapper,
+      })
+      await waitFor(() => expect(result.current.reachability).toBe('served'))
+      expect(result.current.reason).toBeNull()
+    })
+
+    it('marks a profile whose gateway has no API server, and says so', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ scope }))
+      const { Wrapper } = createWrapper()
+      const { result } = renderHook(
+        () => useProfileScopeStatus('hermes-switch'),
+        { wrapper: Wrapper },
+      )
+      await waitFor(() =>
+        expect(result.current.reachability).toBe('not-served'),
+      )
+      expect(result.current.reason).toMatch(/exposes no API server/i)
+      expect(result.current.reason).toMatch(/connected to the "default" gateway/)
+    })
+
+    it('names the other gateway\'s port when a profile is served elsewhere', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ scope }))
+      const { Wrapper } = createWrapper()
+      const { result } = renderHook(() => useProfileScopeStatus('neo'), {
+        wrapper: Wrapper,
+      })
+      await waitFor(() =>
+        expect(result.current.reachability).toBe('not-served'),
+      )
+      expect(result.current.reason).toMatch(/listens on port 8700/)
+    })
+
+    it('marks a profile with no gateway at all', async () => {
+      mockFetch.mockResolvedValue(jsonResponse({ scope }))
+      const { Wrapper } = createWrapper()
+      const { result } = renderHook(() => useProfileScopeStatus('trinity'), {
+        wrapper: Wrapper,
+      })
+      await waitFor(() =>
+        expect(result.current.reachability).toBe('not-served'),
+      )
+      expect(result.current.reason).toMatch(/No gateway is running for "trinity"/i)
+    })
+
+    it('never blames the dashboard when the topology is unresolvable but healthy', async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          scope: {
+            mode: 'unknown',
+            servedProfiles: null,
+            servingProfile: null,
+            reason: 'multiple-gateways',
+            profileGateways: [
+              { profile: 'neo', apiPort: 8700, matchesConfiguredApi: false },
+            ],
+            sessionCounts: {},
+          },
+        }),
+      )
+      const { Wrapper } = createWrapper()
+      const { result } = renderHook(() => useProfileScopeStatus('neo'), {
+        wrapper: Wrapper,
+      })
+      await waitFor(() => expect(result.current.mode).toBe('unknown'))
+      expect(result.current.reachability).toBe('unknown')
+      expect(result.current.reason).toMatch(/one gateway per profile/i)
+      expect(result.current.reason).not.toMatch(/unreachable|probe failed/i)
+    })
+
+    it('still says "probe failed" for a genuinely failed probe', async () => {
+      mockFetch.mockResolvedValue(
+        jsonResponse({
+          scope: {
+            mode: 'unknown',
+            servedProfiles: null,
+            reason: 'probe-failed',
+            profileGateways: null,
+            sessionCounts: {},
+          },
+        }),
+      )
+      const { Wrapper } = createWrapper()
+      const { result } = renderHook(() => useProfileScopeStatus('neo'), {
+        wrapper: Wrapper,
+      })
+      await waitFor(() => expect(result.current.mode).toBe('unknown'))
+      expect(result.current.reason).toMatch(/probe failed/i)
+    })
+  })
+
   it('dedupes across many simultaneous observers — one fetch, not N (the 96-card requirement)', async () => {
     mockFetch.mockResolvedValue(
       jsonResponse({

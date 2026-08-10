@@ -14,6 +14,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  checkApiServerKey,
   checkGatewayProcess,
   checkGatewayReachability,
   checkGatewayToken,
@@ -630,6 +631,152 @@ describe('checkGatewayToken', () => {
   })
 })
 
+// ── Check: api_server startup guard (fresh-install variant) ───────
+
+describe('checkApiServerKey', () => {
+  const STRONG_KEY = 'a-strong-random-secret-key-value-32chars'
+
+  it('THE fresh-install bug: enabled and no key anywhere errors', () => {
+    write('.env', 'API_SERVER_ENABLED=true\n')
+    write('config.yaml', ROOT_CONFIG)
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('error')
+    expect(finding.title).toContain('no access key')
+    expect(finding.detail).toContain('API_SERVER_ENABLED')
+    expect(finding.remedy).toContain('API_SERVER_KEY')
+    expect(finding.remedy).toContain('HERMES_API_TOKEN')
+    // No secret in the payload.
+    expect(JSON.stringify(finding)).not.toContain(STRONG_KEY)
+  })
+
+  it('is ok when enabled with a strong key', () => {
+    write('.env', `API_SERVER_ENABLED=true\nAPI_SERVER_KEY=${STRONG_KEY}\n`)
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('ok')
+  })
+
+  it('errors on a weak/placeholder key even though one is set', () => {
+    write('.env', 'API_SERVER_ENABLED=true\nAPI_SERVER_KEY=changeme\n')
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('error')
+    expect(finding.title).toContain('too weak')
+
+    const short = checkApiServerKey({
+      gatewayEnvPath: write(
+        '.env',
+        'API_SERVER_ENABLED=true\nAPI_SERVER_KEY=short123\n',
+      ),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(short.severity).toBe('error')
+  })
+
+  it('flags the config.yaml extra.key trap: an env-only remedy would appear to do nothing', () => {
+    write('.env', 'API_SERVER_ENABLED=true\n')
+    write(
+      'config.yaml',
+      [
+        'platforms:',
+        '  api_server:',
+        '    enabled: true',
+        '    extra:',
+        `      key: ${STRONG_KEY}`,
+      ].join('\n'),
+    )
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('info')
+    expect(finding.detail).toContain('config.yaml')
+    expect(finding.detail).toContain('nothing there is in force')
+    expect(JSON.stringify(finding)).not.toContain(STRONG_KEY)
+  })
+
+  it('the config.yaml trap variant still errors when the configured key is itself weak', () => {
+    write('.env', 'API_SERVER_ENABLED=true\n')
+    write(
+      'config.yaml',
+      [
+        'platforms:',
+        '  api_server:',
+        '    enabled: true',
+        '    extra:',
+        '      key: placeholder',
+      ].join('\n'),
+    )
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('error')
+  })
+
+  it('is ok (not an error) when the service is simply never switched on — a legitimate state', () => {
+    write('.env', 'OPENAI_API_KEY=sk-abc\n')
+    write('config.yaml', ROOT_CONFIG)
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('ok')
+    expect(finding.title).toContain('not set up to expose')
+  })
+
+  it('degrades to unknown, not error, when the env file exists but cannot be read', () => {
+    // A directory at the expected .env path is unreadable-as-a-file (EISDIR),
+    // which is a real permissions/shape problem — unlike a plain missing
+    // file (ENOENT), which is a legitimate, common state.
+    fs.mkdirSync(path.join(root, '.env'))
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    expect(finding.severity).toBe('unknown')
+  })
+
+  it('a plain missing env file (no install yet) is ok, not unknown', () => {
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, 'nope', '.env'),
+      configPath: path.join(root, 'nope', 'config.yaml'),
+    })
+    expect(finding.severity).toBe('ok')
+  })
+
+  it('an env-set key always wins over a config.yaml key, matching the gateway itself', () => {
+    write(
+      '.env',
+      'API_SERVER_ENABLED=true\nAPI_SERVER_KEY=env-side-strong-secret-value\n',
+    )
+    write(
+      'config.yaml',
+      [
+        'platforms:',
+        '  api_server:',
+        '    enabled: true',
+        '    extra:',
+        '      key: placeholder',
+      ].join('\n'),
+    )
+    const finding = checkApiServerKey({
+      gatewayEnvPath: path.join(root, '.env'),
+      configPath: path.join(root, 'config.yaml'),
+    })
+    // The env key is used (and it's strong), so this must be ok — not
+    // dragged down by the weak placeholder sitting unused in config.yaml.
+    expect(finding.severity).toBe('ok')
+  })
+})
+
 // ── Capabilities + install evidence ───────────────────────────────
 
 describe('capability + install helpers', () => {
@@ -715,6 +862,7 @@ describe('runSetupDiagnostics', () => {
       'profile-config',
       'profile-serving',
       'gateway-token',
+      'api-server-key',
     ])
     expect(result.findings.find((f) => f.id === 'profile-env')?.severity).toBe(
       'error',

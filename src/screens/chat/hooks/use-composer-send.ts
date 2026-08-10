@@ -79,6 +79,16 @@ export function useComposerSend(params: {
     preferredFriendlyId?: string,
   ) => Promise<{ sessionKey: string; friendlyId: string }>
   upsertSessionInCache: (friendlyId: string, lastMessage: ChatMessage) => void
+  /**
+   * The app's one send-failure surface (`useSendMessageState`): marks the
+   * optimistic row, clears sending/waiting, sets the inline error and raises
+   * the toast (routing profile refusals through the error-toast classifier).
+   * Session creation is part of sending, so its failures belong here too —
+   * before this, a refused `POST /api/sessions` rejected out of an un-awaited
+   * promise and the user got a console stack trace, no toast, and a message
+   * that silently never sent.
+   */
+  onError: (message: string) => void
 
   // Navigation
   navigate: (opts: {
@@ -123,6 +133,7 @@ export function useComposerSend(params: {
     scrollChatToBottom,
     createSessionForMessage,
     upsertSessionInCache,
+    onError,
     navigate,
     setSending,
     setWaitingForResponse,
@@ -206,12 +217,35 @@ export function useComposerSend(params: {
         // immediately streamed against the UUID. If registration lagged or the
         // backend returned a different persisted id, the first send hit
         // /api/sessions/<uuid>/chat/stream with a session that never existed.
-        const { sessionKey: threadId, friendlyId: routeFriendlyId } =
-          await resolveNewChatBootstrapSession({
+        let bootstrap: { sessionKey: string; friendlyId: string }
+        try {
+          bootstrap = await resolveNewChatBootstrapSession({
             createSessionForMessage,
             generateThreadId: () => crypto.randomUUID(),
             isPortableMode,
           })
+        } catch (err) {
+          // Creating the session is the first half of sending, and it can be
+          // refused for the same reasons a send can (most visibly a profile
+          // scope refusal: `POST /api/sessions` → 409). Route it through the
+          // same failure surface as every other send error instead of letting
+          // it escape as an unhandled rejection.
+          //
+          // `helpers.reset()` already emptied the composer above, on the
+          // assumption the message was on its way. It wasn't — nothing was
+          // written anywhere, so put the user's text and attachments back
+          // rather than making them retype. The raw body is restored (not the
+          // slash-expanded one) so a retry behaves identically to the first
+          // attempt.
+          helpers.setValue(body)
+          if (attachments.length > 0) helpers.setAttachments(attachments)
+          // The 500ms identical-content guard above would otherwise swallow an
+          // immediate retry of the message that just failed.
+          lastSendKeyRef.current = ''
+          onError(err instanceof Error ? err.message : String(err))
+          return
+        }
+        const { sessionKey: threadId, friendlyId: routeFriendlyId } = bootstrap
         const { optimisticMessage } = createOptimisticMessage(
           messageBody,
           attachmentPayload,
@@ -270,7 +304,9 @@ export function useComposerSend(params: {
       isComposerLoadingRef,
       isNewChat,
       isPortableMode,
+      lastSendKeyRef,
       navigate,
+      onError,
       scrollChatToBottom,
       sendMessage,
       upsertSessionInCache,

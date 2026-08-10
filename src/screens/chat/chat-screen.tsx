@@ -1109,6 +1109,10 @@ export function ChatScreen({
     scrollChatToBottom,
     createSessionForMessage,
     upsertSessionInCache,
+    // Session creation is part of sending: its failures (e.g. a 409 profile
+    // refusal from POST /api/sessions) go to the same place every other send
+    // failure does, instead of rejecting into the console.
+    onError,
     navigate,
     setSending,
     setWaitingForResponse,

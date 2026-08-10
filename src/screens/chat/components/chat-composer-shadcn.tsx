@@ -76,6 +76,7 @@ import type {
   SlashCommandMenuHandle,
 } from '@/components/slash-command-menu'
 import { cn } from '@/lib/utils'
+import { showErrorToast } from '@/components/error-toast'
 import { htmlToMarkdown } from '@/lib/html-to-markdown'
 import { Button } from '@/components/shadcn/ui/button'
 import { Textarea } from '@/components/shadcn/ui/textarea'
@@ -566,10 +567,22 @@ function ChatComposerShadcn({
       await Promise.resolve(
         onSubmit(body, attachmentPayload, effectiveFastMode, helpers),
       )
-      setValue('')
-      setAttachments([])
+      // `onSubmit` may have deliberately put content BACK (a refused send
+      // restoring the message it could not deliver, via `helpers`). Clearing
+      // unconditionally here would throw that away one tick later, so only
+      // clear what is still the text we submitted.
+      setValue((prev) => (prev === value ? '' : prev))
+      setAttachments((prev) => (prev === attachments ? [] : prev))
       setIsSlashMenuDismissed(false)
       onClearReply?.()
+      focusPrompt()
+    } catch (err) {
+      // `handleSubmit` is wired to onClick/onKeyDown, which ignore the promise
+      // it returns: anything thrown past here becomes an uncaught rejection —
+      // a red console trace and a message that silently never sent. Keep the
+      // composer's content and surface it through the app's error toast (whose
+      // classifier turns raw failures into something readable).
+      showErrorToast(err instanceof Error ? err.message : String(err))
       focusPrompt()
     } finally {
       window.setTimeout(() => {

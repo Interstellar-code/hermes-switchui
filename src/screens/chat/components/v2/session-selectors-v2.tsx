@@ -74,6 +74,10 @@ import {
 } from '@/components/shadcn/ui/command'
 import { formatModelName } from '@/lib/format-model-name'
 import { usePinnedModels } from '@/hooks/use-pinned-models'
+// The one place profile reachability is decided. The picker and the Profiles
+// screen read the same payload through it, so a row can never say "Served"
+// while the send path fails closed on the same profile.
+import { profileReachability } from '@/hooks/use-profile-scope-status'
 import { cn } from '@/lib/utils'
 import {
   useBindSessionProject,
@@ -329,9 +333,11 @@ function SessionSelectorsV2Component({
     staleTime: 5_000,
     retry: false,
   })
-  const scopeMode = scopeStatusQuery.data?.mode ?? 'single'
-  const servedProfiles = scopeStatusQuery.data?.servedProfiles ?? null
-  const sessionCounts = scopeStatusQuery.data?.sessionCounts ?? {}
+  const scopeData = scopeStatusQuery.isError
+    ? undefined
+    : scopeStatusQuery.data
+  const scopeMode = scopeData?.mode ?? 'single'
+  const sessionCounts = scopeData?.sessionCounts ?? {}
 
   // The profile this chat TAB is scoped to via `?profile=` — set only by
   // navigating (below), read here so a browser back/forward also updates the
@@ -340,6 +346,10 @@ function SessionSelectorsV2Component({
   const navigate = useNavigate()
   const routeSearch = useSearch({ strict: false })
   const scopedProfileName = routeSearch.profile?.trim() || null
+  /** Reachability of the profile this tab is scoped to — drives the trigger's
+   *  tooltip. Same pure helper the per-row annotations use, so the button and
+   *  the menu can never disagree about who is reachable. */
+  const scopedReach = profileReachability(scopeData, scopedProfileName)
 
   /** The `?profile=` write/clear trigger — the only place this composer sets
    * scope. Routes through the existing `validateSearch` contract on
@@ -793,11 +803,9 @@ function SessionSelectorsV2Component({
                   ? `Bound to ${displayedProfileName}. Start a new chat to use another profile.`
                   : scopedProfileName
                   ? `Scoped to ${scopedProfileName}${
-                      scopeMode === 'multiplex'
-                        ? servedProfiles?.includes(scopedProfileName)
-                          ? ' — sending enabled'
-                          : ' — not served by this gateway, view only'
-                        : ' — gateway not multiplexing, view only'
+                      scopedReach.reachability === 'served'
+                        ? ' — sending enabled'
+                        : ` — view only. ${scopedReach.reason ?? 'This gateway cannot be confirmed to serve it.'}`
                     }`
                   : activeProfile
                     ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
@@ -823,14 +831,38 @@ function SessionSelectorsV2Component({
           >
             <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
               Agent profile
-              {scopeMode === 'single' ? ' — scoping is view-only' : ''}
+              {scopeMode === 'single'
+                ? ' — only the connected profile can send'
+                : scopeMode === 'unknown'
+                  ? ' — sending unavailable'
+                  : ''}
             </div>
             {profiles.map((profile) => {
               const selected = profile.name === activeProfileName
               const isScoped = profile.name === scopedProfileName
-              const served =
-                scopeMode === 'multiplex'
-                  ? (servedProfiles?.includes(profile.name) ?? false)
+              // Reachability for THIS row, from the same payload the send path
+              // fails closed on. A profile nothing is serving is marked here,
+              // at pick time, with the reason — rather than accepted and then
+              // refused after the user has composed a message.
+              const reach = profileReachability(scopeData, profile.name)
+              const sendable = reach.reachability === 'served'
+              const badge =
+                reach.reachability === 'served'
+                  ? scopeMode === 'multiplex'
+                    ? 'Served'
+                    : null
+                  : reach.reachability === 'not-served'
+                    ? 'Not served'
+                    : 'Unverified'
+              // The badge alone is enough for the ordinary single/multiplex
+              // gateway. Spell out the reason only where "not served" hides a
+              // specific, fixable fact: a per-profile gateway that is missing,
+              // API-less, or on another port, and topology we couldn't read.
+              const detail =
+                !sendable &&
+                reach.reason &&
+                (scopeData?.profileGateways != null || scopeMode === 'unknown')
+                  ? reach.reason
                   : null
               const count = sessionCounts[profile.name]
               return (
@@ -839,12 +871,14 @@ function SessionSelectorsV2Component({
                     type="button"
                     onClick={() => setScopedProfile(profile.name)}
                     data-testid={`profile-option-${profile.name}`}
+                    data-reachability={reach.reachability}
                     title={
-                      scopeMode === 'multiplex'
-                        ? served
-                          ? `Scope this tab to ${profile.name} — sending enabled, no restart`
-                          : `Scope this tab to ${profile.name} — not served, view only`
-                        : `Scope this tab to ${profile.name} — view only (gateway not multiplexing)`
+                      sendable
+                        ? `Scope this tab to ${profile.name} — sending enabled`
+                        : `Scope this tab to ${profile.name} — view only, messages cannot be sent to it. ${
+                            reach.reason ??
+                            'This gateway cannot be confirmed to serve it.'
+                          }`
                     }
                     className={cn(
                       'flex w-full flex-col rounded-sm px-2 py-2 text-left text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
@@ -863,19 +897,24 @@ function SessionSelectorsV2Component({
                           Scoped
                         </span>
                       ) : null}
-                      {served !== null ? (
+                      {badge ? (
                         <span
                           className={cn(
                             'ml-auto shrink-0 rounded-sm px-1 text-[9px] uppercase tracking-wide',
-                            served
+                            sendable
                               ? 'bg-[var(--theme-accent-subtle)] text-card-foreground'
                               : 'text-muted-foreground',
                           )}
                         >
-                          {served ? 'Served' : 'Not served'}
+                          {badge}
                         </span>
                       ) : null}
                     </span>
+                    {detail ? (
+                      <span className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                        {detail}
+                      </span>
+                    ) : null}
                     {profileMeta(profile) || typeof count === 'number' ? (
                       <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         {profileMeta(profile) ? (

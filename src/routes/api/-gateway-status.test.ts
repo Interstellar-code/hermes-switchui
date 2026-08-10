@@ -119,6 +119,51 @@ describe('GET /api/gateway-status', () => {
     expect(body.scope.servingProfile).toBeNull()
   })
 
+  it('forwards the per-profile gateway roster so the picker can mark what nothing serves', async () => {
+    vi.mocked(getGatewayScopeMode).mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      activeProfile: 'default',
+      profileGateways: [
+        { profile: 'default', apiPort: 8642, matchesConfiguredApi: true },
+        { profile: 'hermes-switch', apiPort: null, matchesConfiguredApi: false },
+      ],
+    } as never)
+
+    const res = await handler({ request: new Request('http://x/api/gateway-status') })
+    const body = (await res.json()) as {
+      scope: {
+        servingProfile: string | null
+        reason: string | null
+        profileGateways: Array<{ profile: string; apiPort: number | null }>
+      }
+    }
+
+    expect(body.scope.servingProfile).toBe('default')
+    expect(body.scope.reason).toBeNull()
+    expect(body.scope.profileGateways).toEqual([
+      { profile: 'default', apiPort: 8642, matchesConfiguredApi: true },
+      { profile: 'hermes-switch', apiPort: null, matchesConfiguredApi: false },
+    ])
+  })
+
+  it('forwards the "unknown" reason so the UI never mislabels a healthy dashboard as unreachable', async () => {
+    vi.mocked(getGatewayScopeMode).mockResolvedValue({
+      mode: 'unknown',
+      servedProfiles: null,
+      activeProfile: null,
+      reason: 'multiple-gateways',
+      profileGateways: [
+        { profile: 'neo', apiPort: 8700, matchesConfiguredApi: false },
+      ],
+    } as never)
+
+    const res = await handler({ request: new Request('http://x/api/gateway-status') })
+    const body = (await res.json()) as { scope: { reason: string | null } }
+
+    expect(body.scope.reason).toBe('multiple-gateways')
+  })
+
   it('gateway.available is false when authError is true, even though health/chatCompletions read true', async () => {
     const caps = { ...baseCapabilities, authError: true }
     vi.mocked(ensureGatewayProbed).mockResolvedValue(caps)

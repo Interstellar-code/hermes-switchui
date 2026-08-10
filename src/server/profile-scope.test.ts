@@ -452,33 +452,208 @@ describe('non-multiplexed gateway: its own profile is reachable unprefixed', () 
 describe('"multiple" gateway_mode is NOT multiplex (W3 audit item 2)', () => {
   // hermes_cli/web_server.py's `_collect_profile_gateway_topology` reports
   // "multiple" for several INDEPENDENT single-profile gateway processes —
-  // never for one multiplexer. None of them understands `/p/<profile>/`, and
-  // this payload has no port info tying any one entry to the specific
-  // CLAUDE_API host this workspace actually talks to.
-  const MULTIPLE = {
+  // never for one multiplexer. None of them understands `/p/<profile>/`, so
+  // the ONLY profile addressable at all is whichever one owns the gateway
+  // CLAUDE_API (http://127.0.0.1:8642 in these tests) points at. `ports`
+  // is what identifies it.
+
+  /** No entry carries a port — nothing ties CLAUDE_API to a profile. */
+  const NO_PORTS = {
     gateway_mode: 'multiple',
     profiles: ['default', 'coder'],
     gateways: [{ profile: 'default', ports: {} }, { profile: 'coder', ports: {} }],
   }
 
-  it('never resolves to multiplex — every explicit profile fails closed', async () => {
-    stubFetch(MULTIPLE)
+  /** The real-world shape: `default` is live on the configured port, the
+   *  selected profile has a gateway process with no API server at all. */
+  const DEFAULT_ON_8642 = {
+    gateway_mode: 'multiple',
+    profiles: ['default', 'hermes-switch', 'neo'],
+    gateways: [
+      { profile: 'default', ports: { api_server: 8642 } },
+      { profile: 'hermes-switch', ports: {} },
+    ],
+  }
+
+  it('never resolves to multiplex', async () => {
+    stubFetch(DEFAULT_ON_8642)
+    const { getGatewayMode } = await import('./profile-scope')
+    expect((await getGatewayMode()).mode).not.toBe('multiplex')
+  })
+
+  it('reports its own reason — NOT "probe-failed" — when no port identifies the gateway', async () => {
+    // The regression this whole change exists for: a healthy dashboard
+    // answering with a topology we understand was reported as a failed probe,
+    // sending the user off to debug a dashboard that was working fine.
+    stubFetch(NO_PORTS)
     const { scopedPath, ProfileScopeIndeterminateError } =
       await import('./profile-scope')
     const err = await scopedPath('/api/sessions', 'coder').catch((e) => e)
     expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
-    expect(err.reason).toBe('probe-failed')
+    expect(err.reason).toBe('multiple-gateways')
+    expect(err.message).not.toMatch(/probe failed|unreachable|timed out/i)
+    expect(err.message).toMatch(/several independent/i)
   })
 
   it('does not guess an active profile from the first entry', async () => {
     // Guessing "default" here (the first `gateways[]` entry) could attribute
     // CLAUDE_API's answers to the wrong one of the two live processes.
-    stubFetch(MULTIPLE)
+    stubFetch(NO_PORTS)
     const { scopedPath, ProfileScopeIndeterminateError } =
       await import('./profile-scope')
     await expect(
       scopedPath('/api/sessions', 'default'),
     ).rejects.toBeInstanceOf(ProfileScopeIndeterminateError)
+  })
+
+  it('serves the profile whose gateway owns the configured CLAUDE_API port, unprefixed', async () => {
+    // Same proof as the non-multiplex carve-out: exactly one live gateway is
+    // bound to the port this workspace talks to, it does not multiplex, so a
+    // bare URL provably resolves to that gateway's profile.
+    stubFetch(DEFAULT_ON_8642)
+    const { scopedPath, getGatewayMode } = await import('./profile-scope')
+    await expect(scopedPath('/api/sessions', 'default')).resolves.toBe(
+      '/api/sessions',
+    )
+    const topology = await getGatewayMode()
+    expect(topology.mode).toBe('single')
+    expect(topology.activeProfile).toBe('default')
+    expect(topology.profileGateways).toEqual([
+      { profile: 'default', apiPort: 8642, matchesConfiguredApi: true },
+      { profile: 'hermes-switch', apiPort: null, matchesConfiguredApi: false },
+    ])
+  })
+
+  it('refuses a profile with no API server, naming what is actually wrong', async () => {
+    stubFetch(DEFAULT_ON_8642)
+    const { scopedPath, ProfileScopeUnavailableError, profileErrorStatus } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'hermes-switch').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeUnavailableError)
+    expect(profileErrorStatus(err)).toBe(409)
+    // The truthful diagnosis: its gateway is up but exposes no HTTP API, and
+    // the one we ARE connected to is default's.
+    expect(err.message).toMatch(/no API server listening/i)
+    expect(err.message).toMatch(/"default" gateway \(port 8642\)/)
+    // And never the old lie.
+    expect(err.message).not.toMatch(/probe failed|dashboard was unreachable/i)
+  })
+
+  it('refuses a profile whose gateway is on a port this workspace is not using', async () => {
+    stubFetch({
+      gateway_mode: 'multiple',
+      profiles: ['default', 'neo'],
+      gateways: [
+        { profile: 'default', ports: { api_server: 8642 } },
+        { profile: 'neo', ports: { api_server: 8700 } },
+      ],
+    })
+    const { scopedPath } = await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err.message).toMatch(/gateway for "neo" listens on port 8700/)
+  })
+
+  it('refuses a profile with no gateway at all', async () => {
+    stubFetch({
+      gateway_mode: 'multiple',
+      profiles: ['default', 'trinity', 'neo'],
+      gateways: [
+        { profile: 'default', ports: { api_server: 8642 } },
+        { profile: 'neo', ports: { api_server: 8700 } },
+      ],
+    })
+    const { scopedPath } = await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'trinity').catch((e) => e)
+    expect(err.message).toMatch(/no gateway is running for "trinity"/i)
+  })
+
+  it('fails closed when two entries claim the configured port (ambiguous)', async () => {
+    // They cannot both be bound to 8642; the payload is inconsistent, so
+    // there is no unique owner to prove anything about.
+    stubFetch({
+      gateway_mode: 'multiple',
+      profiles: ['default', 'neo'],
+      gateways: [
+        { profile: 'default', ports: { api_server: 8642 } },
+        { profile: 'neo', ports: { api_server: 8642 } },
+      ],
+    })
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'default').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('multiple-gateways')
+  })
+
+  it('fails closed when no live gateway is on the configured port', async () => {
+    stubFetch({
+      gateway_mode: 'multiple',
+      profiles: ['neo', 'trinity'],
+      gateways: [
+        { profile: 'neo', ports: { api_server: 8700 } },
+        { profile: 'trinity', ports: { api_server: 8701 } },
+      ],
+    })
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('multiple-gateways')
+    expect(err.message).toMatch(/reachable right now: "neo" \(port 8700\)/)
+  })
+
+  it('a gated dashboard still reports remote-gated, not multiple-gateways', async () => {
+    // `gateway_mode` survives the loopback gate but `gateways[]` does not, so
+    // there is no roster to reason about — and the remedy is different.
+    stubFetch({
+      gateway_mode: 'multiple',
+      profiles: ['default', 'neo'],
+      auth_required: true,
+    })
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('remote-gated')
+  })
+
+  it('never matches on port alone when CLAUDE_API is on a different host', async () => {
+    // `gateways[]` ports describe processes on the DASHBOARD's host. A port
+    // number says nothing about some other machine, so the match is refused
+    // even though 8642 appears in both.
+    vi.resetModules()
+    vi.doMock('./gateway-capabilities', () => ({
+      BEARER_TOKEN: 'test-token',
+      CLAUDE_API: 'http://gateway.example.com:8642',
+      CLAUDE_DASHBOARD_URL: 'http://127.0.0.1:9119',
+      SESSIONS_API_UNAVAILABLE_MESSAGE: 'unavailable',
+      dashboardFetch: vi.fn(),
+      ensureGatewayProbed: vi.fn(),
+      getCapabilities: vi.fn(() => ({
+        dashboard: { available: false },
+        enhancedChat: true,
+      })),
+      probeGateway: vi.fn(),
+    }))
+    stubFetch(DEFAULT_ON_8642)
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'default').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('multiple-gateways')
+    vi.doUnmock('./gateway-capabilities')
+  })
+
+  it('a genuinely failed probe still reports probe-failed', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('nope', { status: 500 }))),
+    )
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    const err = await scopedPath('/api/sessions', 'default').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('probe-failed')
   })
 })
 
