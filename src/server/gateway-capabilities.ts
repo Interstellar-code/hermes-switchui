@@ -961,7 +961,14 @@ async function probeConductor(dashboardAvailable: boolean): Promise<boolean> {
 // sessions, skills, config, jobs. Dashboard-only endpoints (themes/plugins) and the
 // legacy enhanced-fork chat stream are optional — their absence should not emit the
 // "Missing Hermes APIs detected" warning, which only applies to critical gaps.
-const OPTIONAL_APIS = new Set([
+/**
+ * Capabilities whose absence is a degraded feature rather than a broken
+ * install. Exported so the classification is testable: a capability missing
+ * from this set makes the upgrade warning fire, and that warning tells the
+ * user to reinstall the agent — useless advice when the agent is healthy and
+ * merely lacks an optional plugin.
+ */
+export const OPTIONAL_APIS = new Set([
   'jobs',
   'chatCompletions',
   'streaming',
@@ -972,6 +979,13 @@ const OPTIONAL_APIS = new Set([
   'mcpFallback',
   'kanban', // task board degrades gracefully when Agent Kanban plugin is absent
   'projects', // projects screen degrades gracefully when Projects plugin is absent
+  // Conductor renders an 'upstream not ready' placeholder when the dashboard
+  // does not expose /api/conductor/missions (see the `conductor` field's doc
+  // comment and #262), so its absence is a degraded feature, not a broken
+  // install. Omitting it here made the upgrade warning fire on a fully
+  // healthy setup and tell the user to reinstall an agent that was already
+  // running — the one thing they could do that would not help.
+  'conductor',
 ])
 
 function logCapabilities(next: GatewayCapabilities): void {
@@ -1017,7 +1031,9 @@ function logCapabilities(next: GatewayCapabilities): void {
   const criticalMissing = missing.filter((key) => !OPTIONAL_APIS.has(key))
   if (criticalMissing.length > 0 && (next.health || next.dashboard.available)) {
     console.warn(
-      `[gateway] Missing Hermes APIs detected. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
+      // Name the gaps. The bare form sent users to reinstall a healthy agent
+      // without telling them which capability was actually absent.
+      `[gateway] Missing Hermes APIs detected: ${criticalMissing.join(', ')}. ${CLAUDE_UPGRADE_INSTRUCTIONS}`,
     )
   }
 }
