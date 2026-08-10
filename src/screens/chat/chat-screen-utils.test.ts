@@ -117,6 +117,36 @@ describe('hasUnansweredLatestUserTurn', () => {
 
     expect(hasUnansweredLatestUserTurn(messages)).toBe(false)
   })
+
+  // Pressing Stop used to flip the user message straight to 'sent', which
+  // reads as answered and retroactively disarmed the "may have continued
+  // server-side — resend?" affordance. A stop the gateway never confirmed must
+  // warn at least as loudly as a dropped connection, not less.
+  it('keeps the turn open while a stop is still unconfirmed', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'do the thing' }],
+        clientId: 'client-1',
+        status: 'stopping',
+      } as unknown as ChatMessage,
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(true)
+  })
+
+  it('closes the turn once a confirmed stop promotes the message to sent', () => {
+    const messages: Array<ChatMessage> = [
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'do the thing' }],
+        clientId: 'client-1',
+        status: 'sent',
+      } as unknown as ChatMessage,
+    ]
+
+    expect(hasUnansweredLatestUserTurn(messages)).toBe(false)
+  })
 })
 
 describe('isChatRuntimeBusy', () => {

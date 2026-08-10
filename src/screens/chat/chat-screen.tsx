@@ -38,6 +38,7 @@ import { useRealtimeChatHistory } from './hooks/use-realtime-chat-history'
 import { useSmoothStreamingText } from './hooks/use-smooth-streaming-text'
 import { useStreamingMessage } from './hooks/use-streaming-message'
 import { useActiveRunCheck } from './hooks/use-active-run-check'
+import { useRunStop } from './hooks/use-run-stop'
 import { useActiveRunPoller } from './hooks/use-active-run-poller'
 import { useFocusMode } from './hooks/use-focus-mode'
 import { useActivityStream } from './hooks/use-activity-stream'
@@ -345,6 +346,15 @@ export function ChatScreen({
   // useStreamingMessage returns, same pattern as startStreamingRef.
   const cancelStreamingRef = useRef<(() => void) | null>(null)
 
+  // The gateway half of Stop. Declared before useSendMessageState because
+  // handleAbortStreaming calls requestStop; it depends on nothing but the
+  // query client, so it needs no bridge ref of its own.
+  const { requestStop, stopNotice, dismissStopNotice } = useRunStop({
+    queryClient,
+  })
+  const requestStopRef = useRef(requestStop)
+  requestStopRef.current = requestStop
+
   const {
     sending,
     setSending,
@@ -387,6 +397,7 @@ export function ChatScreen({
     navigate,
     embedded,
     cancelStreamingRef,
+    requestStopRef,
   })
 
   const { liveToolActivity } = useActivityStream({
@@ -1067,10 +1078,7 @@ export function ChatScreen({
     queryClient,
     finalDisplayMessages,
     enabledUserCommands,
-    cancelStreaming,
-    setSending,
-    setWaitingForResponse,
-    activeSendRef,
+    handleAbortStreaming,
     handleThinkingLevelChange,
     renameSession,
     sendRef,
@@ -1384,6 +1392,8 @@ export function ChatScreen({
             errorNotice={errorNotice}
             isCurrentSessionInterrupted={isCurrentSessionInterrupted}
             onResendInterrupted={handleResendInterrupted}
+            stopNotice={stopNotice}
+            onDismissStopNotice={dismissStopNotice}
           />
 
           {activeTab === 'tool' ? (

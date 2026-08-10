@@ -1,16 +1,12 @@
 import { useCallback, useEffect } from 'react'
 
-import {
-  clearHistoryMessages,
-  updateHistoryMessageByClientIdEverywhere,
-} from '../chat-queries'
+import { clearHistoryMessages } from '../chat-queries'
 import {
   CHAT_OPEN_SETTINGS_EVENT,
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from '../chat-events'
 import { textFromMessage } from '../utils'
-import { setPendingGeneration } from '../pending-send'
 import type {
   ChatComposerAttachment,
   ChatComposerHelpers,
@@ -18,9 +14,8 @@ import type {
 } from '../components/chat-composer-types'
 import type { ChatMessage } from '../types'
 import type { ChatRunCommandDetail } from '../chat-events'
-import type { Dispatch, RefObject, SetStateAction } from 'react'
+import type { RefObject } from 'react'
 import type { UserCommandRecord } from '@/lib/commands-api'
-import type { ActiveSendRecord } from './use-send-message-state'
 import type { QueryClient } from '@tanstack/react-query'
 import {
   expandUserCommandPrompt,
@@ -102,11 +97,12 @@ export type UseSlashCommandsParams = {
   finalDisplayMessages: Array<ChatMessage>
   enabledUserCommands: Array<UserCommandRecord>
 
-  // Stream control (from useSendMessageState + useStreamingMessage)
-  cancelStreaming: () => void
-  setSending: Dispatch<SetStateAction<boolean>>
-  setWaitingForResponse: (waiting: boolean) => void
-  activeSendRef: RefObject<ActiveSendRecord | null>
+  /**
+   * Stream control (from useSendMessageState). `/stop` shares the Stop
+   * button's exact handler — including its gateway call — instead of
+   * re-implementing it.
+   */
+  handleAbortStreaming: () => void
 
   // UI callbacks
   handleThinkingLevelChange: (level: ThinkingLevel) => void
@@ -154,10 +150,7 @@ export function useSlashCommands(
     queryClient,
     finalDisplayMessages,
     enabledUserCommands,
-    cancelStreaming,
-    setSending,
-    setWaitingForResponse,
-    activeSendRef,
+    handleAbortStreaming,
     handleThinkingLevelChange,
     renameSession,
     sendRef,
@@ -229,23 +222,16 @@ export function useSlashCommands(
       }
 
       if (slashToken === '/stop') {
-        // Inline abort — mirrors handleAbortStreaming, which is declared later
-        // in the component; referencing it here would hit the same render-time
-        // TDZ as the interrupted-affordance handlers.
-        const activeSend = activeSendRef.current
-        if (activeSend?.clientId) {
-          updateHistoryMessageByClientIdEverywhere(
-            queryClient,
-            activeSend.clientId,
-            (message) => ({ ...message, status: 'sent' }),
-          )
-        }
-        activeSendRef.current = null
-        cancelStreaming()
-        setSending(false)
-        setPendingGeneration(false)
-        setWaitingForResponse(false)
-        toast('Agent stopped', { type: 'info' })
+        // Delegates rather than duplicating. This branch used to be a hand
+        // copy of handleAbortStreaming (the two drifted apart the moment the
+        // gateway call was added to one of them); the TDZ that forced the copy
+        // is gone since useSendMessageState was extracted into its own hook,
+        // so /stop and the Stop button are now literally the same code path.
+        //
+        // No toast: handleAbortStreaming's stop notice reports what actually
+        // happened. "Agent stopped" was a lie the moment it was printed —
+        // stop is cooperative and the run may still be unwinding.
+        handleAbortStreaming()
         return true
       }
 
@@ -282,9 +268,9 @@ export function useSlashCommands(
     [
       activeFriendlyId,
       activeSessionKey,
-      cancelStreaming,
       finalDisplayMessages,
       forcedSessionKey,
+      handleAbortStreaming,
       handleThinkingLevelChange,
       navigate,
       queryClient,

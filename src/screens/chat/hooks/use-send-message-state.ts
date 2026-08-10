@@ -159,6 +159,15 @@ export function useSendMessageState(params: {
   navigate: (opts: { to: string; replace: boolean }) => void
   embedded: boolean
   cancelStreamingRef: RefObject<(() => void) | null>
+  /**
+   * Bridge to `useRunStop().requestStop` — the explicit "stop this run"
+   * signal to the gateway. A ref (and optional) for the same reason
+   * `cancelStreamingRef` is one: the producing hook is declared later in the
+   * screen's render order. Absent in tests that only exercise local state.
+   */
+  requestStopRef?: RefObject<
+    ((params: { sessionKey: string; clientId?: string | null }) => void) | null
+  >
 }): {
   // State
   sending: boolean
@@ -225,6 +234,7 @@ export function useSendMessageState(params: {
     navigate,
     embedded,
     cancelStreamingRef,
+    requestStopRef,
   } = params
 
   // --- Group A: State declarations + refs ---
@@ -674,15 +684,46 @@ export function useSendMessageState(params: {
     [streamFinish],
   )
 
+  /**
+   * The one path that expresses "the user wants this run to stop" — the Stop
+   * button and `/stop` both land here, so the two cannot drift apart.
+   *
+   * Three things it must keep straight:
+   *
+   * 1. **The local unlock is synchronous and unconditional.** Closing the
+   *    browser's SSE reader and clearing sending/waiting/pendingGeneration
+   *    happens before any network call and is never gated on one. A stop
+   *    request that hangs or fails must still leave the composer usable.
+   *
+   * 2. **The gateway call is the only thing that actually stops the agent.**
+   *    Aborting the reader does not: `send-stream.ts`'s `cancel()` handler
+   *    deliberately leaves the upstream run alive so navigation and unmount
+   *    can recover it, which makes stop and navigation indistinguishable
+   *    server-side without an explicit signal. That is what `requestStop` is.
+   *    It is fire-and-forget by contract — see `use-run-stop.ts`.
+   *
+   * 3. **The user message goes to `stopping`, not `sent`.** `sent` reads as
+   *    non-pending and would retroactively disarm `useActiveRunCheck`'s
+   *    "Run may have continued server-side — resend?" affordance — the only
+   *    warning a failed stop would ever produce. `useRunStop` promotes it to
+   *    `sent` if and when the gateway confirms the run is terminal.
+   *
+   * Navigation, unmount and stream errors deliberately do NOT come here: they
+   * call `cancelStreaming` (or nothing at all) so the run survives for
+   * recovery. Killing those runs would be a worse bug than the one this fixes.
+   */
   const handleAbortStreaming = useCallback(() => {
     const activeSend = activeSendRef.current
-    if (activeSend?.clientId) {
+    const clientId = activeSend?.clientId
+    const stopSessionKey =
+      activeSend?.sessionKey || sessionKeyForWaiting.current || ''
+    if (clientId) {
       updateHistoryMessageByClientIdEverywhere(
         queryClient,
-        activeSend.clientId,
+        clientId,
         (message) => ({
           ...message,
-          status: 'sent',
+          status: 'stopping',
         }),
       )
     }
@@ -691,7 +732,21 @@ export function useSendMessageState(params: {
     setSending(false)
     setPendingGeneration(false)
     setWaitingForResponse(false)
-  }, [queryClient])
+    if (stopSessionKey) {
+      // Guarded, not because requestStop is expected to throw, but because the
+      // local unlock above must be unreachable from anything the gateway call
+      // does. A synchronous throw here would abort the React flush and leave
+      // the composer disabled — the exact failure mode this whole change is
+      // meant to prevent.
+      try {
+        requestStopRef?.current?.({ sessionKey: stopSessionKey, clientId })
+      } catch (err) {
+        if (import.meta.env.DEV) {
+          console.warn('[chat] run stop signal failed (non-fatal):', err)
+        }
+      }
+    }
+  }, [queryClient, requestStopRef])
 
   return {
     sending,

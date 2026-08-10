@@ -6,7 +6,6 @@ import {
   CHAT_RUN_COMMAND_EVENT,
 } from '../chat-events'
 import { useSlashCommands } from './use-slash-commands'
-import type { RefObject } from 'react'
 
 import type { UseSlashCommandsParams } from './use-slash-commands'
 import type {
@@ -15,7 +14,9 @@ import type {
 } from '../components/chat-composer-types'
 import type { ChatMessage } from '../types'
 import type { UserCommandRecord } from '@/lib/commands-api'
-import type { ActiveSendRecord } from './use-send-message-state'
+import { toast } from '@/components/ui/toast'
+
+vi.mock('@/components/ui/toast', () => ({ toast: vi.fn() }))
 
 const SESSION = 'session-abc'
 const FRIENDLY_ID = 'friendly-1'
@@ -24,10 +25,6 @@ const commandHelpers: ChatComposerHelpers = {
   reset() {},
   setValue() {},
   setAttachments() {},
-}
-
-function makeRef<T>(value: T | null = null): RefObject<T | null> {
-  return { current: value }
 }
 
 function makeMessage(role: string, text: string): ChatMessage {
@@ -73,10 +70,7 @@ function defaultParams(
     } as unknown as UseSlashCommandsParams['queryClient'],
     finalDisplayMessages: [],
     enabledUserCommands: [],
-    cancelStreaming: vi.fn(),
-    setSending: vi.fn(),
-    setWaitingForResponse: vi.fn(),
-    activeSendRef: makeRef<ActiveSendRecord>(null),
+    handleAbortStreaming: vi.fn(),
     handleThinkingLevelChange: vi.fn(),
     renameSession: vi.fn().mockResolvedValue(undefined),
     sendRef: { current: send },
@@ -215,48 +209,44 @@ describe('useSlashCommands', () => {
       expect(navigate).toHaveBeenCalledWith({ to: '/plugins' })
     })
 
-    it('/stop cancels streaming and resets sending state', () => {
-      const cancelStreaming = vi.fn()
-      const setSending = vi.fn()
-      const setWaitingForResponse = vi.fn()
-      const activeSendRef = makeRef<ActiveSendRecord>({
-        sessionKey: SESSION,
-        friendlyId: FRIENDLY_ID,
-        clientId: 'client-123',
-      })
+    // `/stop` and the Stop button must be indistinguishable — they were two
+    // hand-maintained copies of the same logic, and only one of them would
+    // have got the gateway call. These pin the delegation, not the internals.
+    it('/stop delegates to the shared abort handler', () => {
+      const handleAbortStreaming = vi.fn()
 
       const { result } = renderHook(() =>
-        useSlashCommands(
-          defaultParams({
-            cancelStreaming,
-            setSending,
-            setWaitingForResponse,
-            activeSendRef,
-          }),
-        ),
+        useSlashCommands(defaultParams({ handleAbortStreaming })),
       )
 
       act(() => {
         result.current.handleUiSlashCommand('/stop')
       })
 
-      expect(cancelStreaming).toHaveBeenCalledTimes(1)
-      expect(setSending).toHaveBeenCalledWith(false)
-      expect(setWaitingForResponse).toHaveBeenCalledWith(false)
-      expect(activeSendRef.current).toBeNull()
+      expect(handleAbortStreaming).toHaveBeenCalledTimes(1)
     })
 
-    it('/stop without an active send still cancels', () => {
-      const cancelStreaming = vi.fn()
-      const activeSendRef = makeRef<ActiveSendRecord>(null)
+    it('/stop is handled even with no active send', () => {
+      const handleAbortStreaming = vi.fn()
 
       const { result } = renderHook(() =>
-        useSlashCommands(defaultParams({ cancelStreaming, activeSendRef })),
+        useSlashCommands(defaultParams({ handleAbortStreaming })),
       )
 
       const handled = result.current.handleUiSlashCommand('/stop')
       expect(handled).toBe(true)
-      expect(cancelStreaming).toHaveBeenCalledTimes(1)
+      expect(handleAbortStreaming).toHaveBeenCalledTimes(1)
+    })
+
+    it('/stop shows no toast — the stop notice reports the real outcome', () => {
+      const { result } = renderHook(() => useSlashCommands(defaultParams()))
+      vi.mocked(toast).mockClear()
+
+      act(() => {
+        result.current.handleUiSlashCommand('/stop')
+      })
+
+      expect(toast).not.toHaveBeenCalled()
     })
 
     it('/title without arg shows usage toast', () => {

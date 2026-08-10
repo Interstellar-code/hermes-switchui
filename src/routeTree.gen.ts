@@ -205,6 +205,8 @@ import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self
 import { Route as ApiSelfImproveProfilesProfileRouteImport } from './routes/api/self-improve/profiles.$profile'
 import { Route as ApiSelfImproveMetricsLatestRouteImport } from './routes/api/self-improve/metrics.latest'
 import { Route as ApiSelfImproveExperimentsIdRouteImport } from './routes/api/self-improve/experiments.$id'
+import { Route as ApiRunsRunIdStopRouteImport } from './routes/api/runs.$runId.stop'
+import { Route as ApiRunsRunIdStatusRouteImport } from './routes/api/runs.$runId.status'
 import { Route as ApiRunsRunIdApprovalRouteImport } from './routes/api/runs.$runId.approval'
 import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
@@ -1239,6 +1241,16 @@ const ApiSelfImproveExperimentsIdRoute =
     path: '/$id',
     getParentRoute: () => ApiSelfImproveExperimentsRoute,
   } as any)
+const ApiRunsRunIdStopRoute = ApiRunsRunIdStopRouteImport.update({
+  id: '/api/runs/$runId/stop',
+  path: '/api/runs/$runId/stop',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRunsRunIdStatusRoute = ApiRunsRunIdStatusRouteImport.update({
+  id: '/api/runs/$runId/status',
+  path: '/api/runs/$runId/status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiRunsRunIdApprovalRoute = ApiRunsRunIdApprovalRouteImport.update({
   id: '/api/runs/$runId/approval',
   path: '/api/runs/$runId/approval',
@@ -1633,6 +1645,8 @@ export interface FileRoutesByFullPath {
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
+  '/api/runs/$runId/status': typeof ApiRunsRunIdStatusRoute
+  '/api/runs/$runId/stop': typeof ApiRunsRunIdStopRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
@@ -1862,6 +1876,8 @@ export interface FileRoutesByTo {
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
+  '/api/runs/$runId/status': typeof ApiRunsRunIdStatusRoute
+  '/api/runs/$runId/stop': typeof ApiRunsRunIdStopRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
@@ -2094,6 +2110,8 @@ export interface FileRoutesById {
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
+  '/api/runs/$runId/status': typeof ApiRunsRunIdStatusRoute
+  '/api/runs/$runId/stop': typeof ApiRunsRunIdStopRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
@@ -2327,6 +2345,8 @@ export interface FileRouteTypes {
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
     | '/api/runs/$runId/approval'
+    | '/api/runs/$runId/status'
+    | '/api/runs/$runId/stop'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/profiles/$profile'
@@ -2556,6 +2576,8 @@ export interface FileRouteTypes {
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
     | '/api/runs/$runId/approval'
+    | '/api/runs/$runId/status'
+    | '/api/runs/$runId/stop'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/profiles/$profile'
@@ -2787,6 +2809,8 @@ export interface FileRouteTypes {
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
     | '/api/runs/$runId/approval'
+    | '/api/runs/$runId/status'
+    | '/api/runs/$runId/stop'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/profiles/$profile'
@@ -2972,6 +2996,8 @@ export interface RootRouteChildren {
   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
   ApiHermesProjectsIndexRoute: typeof ApiHermesProjectsIndexRoute
   ApiRunsRunIdApprovalRoute: typeof ApiRunsRunIdApprovalRoute
+  ApiRunsRunIdStatusRoute: typeof ApiRunsRunIdStatusRoute
+  ApiRunsRunIdStopRoute: typeof ApiRunsRunIdStopRoute
   ApiSelfImproveProfilesProfileRoute: typeof ApiSelfImproveProfilesProfileRouteWithChildren
 }
 
@@ -4349,6 +4375,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSelfImproveExperimentsIdRouteImport
       parentRoute: typeof ApiSelfImproveExperimentsRoute
     }
+    '/api/runs/$runId/stop': {
+      id: '/api/runs/$runId/stop'
+      path: '/api/runs/$runId/stop'
+      fullPath: '/api/runs/$runId/stop'
+      preLoaderRoute: typeof ApiRunsRunIdStopRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/runs/$runId/status': {
+      id: '/api/runs/$runId/status'
+      path: '/api/runs/$runId/status'
+      fullPath: '/api/runs/$runId/status'
+      preLoaderRoute: typeof ApiRunsRunIdStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/runs/$runId/approval': {
       id: '/api/runs/$runId/approval'
       path: '/api/runs/$runId/approval'
@@ -5287,6 +5327,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,
   ApiHermesProjectsIndexRoute: ApiHermesProjectsIndexRoute,
   ApiRunsRunIdApprovalRoute: ApiRunsRunIdApprovalRoute,
+  ApiRunsRunIdStatusRoute: ApiRunsRunIdStatusRoute,
+  ApiRunsRunIdStopRoute: ApiRunsRunIdStopRoute,
   ApiSelfImproveProfilesProfileRoute:
     ApiSelfImproveProfilesProfileRouteWithChildren,
 }

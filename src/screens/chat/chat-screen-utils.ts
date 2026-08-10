@@ -96,7 +96,17 @@ function isPendingUserMessage(message: ChatMessage): boolean {
     return false
   }
 
-  if (status === 'sending' || status === 'queued' || status === 'pending') {
+  // `stopping` is pending ON PURPOSE. The Stop button marks the user message
+  // `stopping` the moment it is pressed and only promotes it to `sent` once the
+  // gateway confirms the run is terminal. Until then the run may still be
+  // going, so the recovery predicate must stay armed — a stop that silently
+  // failed should warn at least as loudly as a dropped connection, not less.
+  if (
+    status === 'sending' ||
+    status === 'queued' ||
+    status === 'pending' ||
+    status === 'stopping'
+  ) {
     return true
   }
 

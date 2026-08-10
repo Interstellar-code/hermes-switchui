@@ -131,6 +131,9 @@ function makeParams(overrides?: {
   navigate?: (opts: { to: string; replace: boolean }) => void
   embedded?: boolean
   cancelStreamingRef?: RefObject<(() => void) | null>
+  requestStopRef?: RefObject<
+    ((params: { sessionKey: string; clientId?: string | null }) => void) | null
+  >
 }): Parameters<typeof useSendMessageState>[0] {
   const o = overrides ?? {}
   return {
@@ -161,6 +164,7 @@ function makeParams(overrides?: {
     cancelStreamingRef: o.cancelStreamingRef ?? {
       current: null,
     },
+    requestStopRef: o.requestStopRef,
   }
 }
 
@@ -782,6 +786,255 @@ describe('useSendMessageState', () => {
       expect(result.current.sending).toBe(false)
       expect(clearSessionWaiting).toHaveBeenCalledWith('sess-1')
 
+      vi.restoreAllMocks()
+    })
+
+    // --- The gateway half. Aborting the browser's reader does NOT stop the
+    // agent: send-stream.ts deliberately keeps the upstream run alive on a
+    // disconnect so navigation can recover it. Only this explicit signal stops
+    // anything, and it must never be something the composer waits on.
+
+    it('signals the gateway with the session key and client id', () => {
+      const requestStop = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            cancelStreamingRef: { current: vi.fn() },
+            requestStopRef: { current: requestStop },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-live',
+        friendlyId: 'sess-1',
+        clientId: 'client-stop',
+      }
+
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      expect(requestStop).toHaveBeenCalledTimes(1)
+      expect(requestStop).toHaveBeenCalledWith({
+        sessionKey: 'sk-live',
+        clientId: 'client-stop',
+      })
+
+      vi.restoreAllMocks()
+    })
+
+    it('falls back to the waiting session key when the send record is gone', () => {
+      const requestStop = vi.fn()
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            cancelStreamingRef: { current: vi.fn() },
+            requestStopRef: { current: requestStop },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-fallback'
+      result.current.activeSendRef.current = null
+
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      expect(requestStop).toHaveBeenCalledWith({
+        sessionKey: 'sess-fallback',
+        clientId: undefined,
+      })
+    })
+
+    it('marks the user message stopping, not sent, so the resend net stays armed', () => {
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            cancelStreamingRef: { current: vi.fn() },
+            requestStopRef: { current: vi.fn() },
+          }),
+        ),
+      )
+
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-live',
+        friendlyId: 'sess-1',
+        clientId: 'client-stop',
+      }
+
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      const patch = vi
+        .mocked(updateHistoryMessageByClientIdEverywhere)
+        .mock.calls.at(-1)?.[2] as (
+        m: Record<string, unknown>,
+      ) => Record<string, unknown>
+      expect(patch({ status: 'queued' })).toMatchObject({ status: 'stopping' })
+    })
+
+    it('unlocks the composer even when the gateway call throws', () => {
+      const cancelStreamingFn = vi.fn()
+      const requestStop = vi.fn(() => {
+        throw new Error('network down')
+      })
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            cancelStreamingRef: { current: cancelStreamingFn },
+            requestStopRef: { current: requestStop },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      act(() => {
+        result.current.setSending(true)
+      })
+
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      // The throw is swallowed: it must not abort the React flush that
+      // re-enables the composer.
+      expect(requestStop).toHaveBeenCalledTimes(1)
+      expect(cancelStreamingFn).toHaveBeenCalledTimes(1)
+      expect(result.current.sending).toBe(false)
+    })
+
+    it('unlocks the composer with no stop bridge wired at all', () => {
+      const cancelStreamingFn = vi.fn()
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ cancelStreamingRef: { current: cancelStreamingFn } }),
+        ),
+      )
+
+      act(() => {
+        result.current.setSending(true)
+      })
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      expect(cancelStreamingFn).toHaveBeenCalledTimes(1)
+      expect(result.current.sending).toBe(false)
+    })
+
+    it('does not signal the gateway when there is no session to name', () => {
+      const requestStop = vi.fn()
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            activeFriendlyId: undefined,
+            cancelStreamingRef: { current: vi.fn() },
+            requestStopRef: { current: requestStop },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = undefined
+      result.current.activeSendRef.current = null
+
+      act(() => {
+        result.current.handleAbortStreaming()
+      })
+
+      expect(requestStop).not.toHaveBeenCalled()
+    })
+  })
+
+  // Navigation, unmount and stream errors preserve the run on purpose so the
+  // user can come back and recover the answer. Killing them would be a worse
+  // bug than the one the Stop button had.
+  describe('paths that must NOT stop the run', () => {
+    it('onAbort (stream teardown) never signals the gateway', () => {
+      const requestStop = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ requestStopRef: { current: requestStop } }),
+        ),
+      )
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-live',
+        friendlyId: 'sess-1',
+        clientId: 'client-nav',
+      }
+
+      act(() => {
+        result.current.onAbort()
+      })
+
+      expect(requestStop).not.toHaveBeenCalled()
+      vi.restoreAllMocks()
+    })
+
+    it('onError (stream failure) never signals the gateway', () => {
+      const requestStop = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ requestStopRef: { current: requestStop } }),
+        ),
+      )
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+      result.current.activeSendRef.current = {
+        sessionKey: 'sk-live',
+        friendlyId: 'sess-1',
+        clientId: 'client-err',
+      }
+
+      act(() => {
+        result.current.onError('upstream exploded')
+      })
+
+      expect(requestStop).not.toHaveBeenCalled()
+      vi.restoreAllMocks()
+    })
+
+    it('reconcileStuckBusyState (lost-run watchdog) never signals the gateway', () => {
+      const requestStop = vi.fn()
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+        clearStreamingSession: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({ requestStopRef: { current: requestStop } }),
+        ),
+      )
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.reconcileStuckBusyState('sk-live')
+      })
+
+      expect(requestStop).not.toHaveBeenCalled()
       vi.restoreAllMocks()
     })
   })
