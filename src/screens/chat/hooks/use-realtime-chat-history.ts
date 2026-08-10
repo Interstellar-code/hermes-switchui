@@ -104,7 +104,6 @@ type UseRealtimeChatHistoryOptions = {
   historyMessages: Array<ChatMessage>
   enabled?: boolean
   onUserMessage?: (message: ChatMessage, source?: string) => void
-  onApprovalRequest?: (approval: Record<string, unknown>) => void
   onCompactionStart?: () => void
   onCompactionEnd?: () => void
 }
@@ -127,7 +126,6 @@ export function useRealtimeChatHistory({
   enabled = true,
   portableMode = false,
   onUserMessage,
-  onApprovalRequest,
   onCompactionStart,
   onCompactionEnd,
 }: UseRealtimeChatHistoryOptions & { portableMode?: boolean }) {

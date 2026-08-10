@@ -64,6 +64,11 @@ import type {
   OpenAICompatMessage,
 } from '../../server/openai-compat-api'
 import { normalizeClarifyChoices } from '@/lib/clarify-choices'
+import {
+  approvalQuestion,
+  fallbackApprovalChoices,
+  parseApprovalDetail,
+} from '@/lib/approvals'
 // Claude agent runs can take 5+ minutes with complex tool chains
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
 const SESSION_BOOTSTRAP_KEYS = new Set(['main', 'new'])
@@ -1440,6 +1445,18 @@ export const Route = createFileRoute('/api/send-stream')({
                         event === 'interaction.request'
                       ) {
                         const d = data
+                        const kind = readString(d.kind) || undefined
+                        // An approval rides the clarify event with
+                        // `kind: 'approval'` (contract §1). Its fields are FLAT
+                        // on the gateway payload; nest them so the browser
+                        // half has one obvious place to look. Gated on `kind`
+                        // because an ordinary clarify also carries `run_id`
+                        // and must not be mistaken for a decision request.
+                        const approval =
+                          kind === 'approval'
+                            ? (parseApprovalDetail({ ...d, run_id: readString(d.run_id) || runId }) ??
+                              undefined)
+                            : undefined
                         const clarifyPayload = {
                           type:
                             event === 'interaction.request'
@@ -1448,16 +1465,22 @@ export const Route = createFileRoute('/api/send-stream')({
                           clarifyId:
                             readString(d.clarify_id) ||
                             readString(d.interaction_id) ||
+                            readString(d.approval_id) ||
                             '',
                           interactionId:
                             readString(d.interaction_id) ||
                             readString(d.clarify_id) ||
                             undefined,
-                          kind: readString(d.kind) || undefined,
+                          kind,
                           toolName: readString(d.tool_name) || undefined,
                           messageId: readString(d.message_id) || undefined,
-                          question: readString(d.question) || '',
-                          choices: normalizeClarifyChoices(d.choices),
+                          question:
+                            readString(d.question) ||
+                            (approval ? approvalQuestion(approval) : ''),
+                          choices:
+                            normalizeClarifyChoices(d.choices) ??
+                            (approval ? fallbackApprovalChoices(approval) : null),
+                          approval,
                           sessionKey: sessionKeyFromEvent,
                           runId,
                         }

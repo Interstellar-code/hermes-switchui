@@ -386,7 +386,7 @@
 | `GOOGLE_API_KEY`       | Google Gemini API key passthrough (optional)       |
 | `HERMES_API_TOKEN`     | Auth token for gateway API_SERVER_KEY              |
 | `BEARER_TOKEN`         | Bearer token for backend auth                      |
-| `PORT`                 | Server port (default: 3002 dev, 3000 prod)         |
+| `PORT`                 | Server port (default: 3000)                        |
 
 ### 4.6 Claude Config Management
 
@@ -666,7 +666,7 @@ Web Audio API synthesized sounds (no audio files):
 ### 10.1 Local Development
 
 ```bash
-pnpm dev  # Vite dev server with HMR on port 3002
+pnpm dev  # Vite dev server with HMR on port 3000
 ```
 
 ### 10.2 Production Build

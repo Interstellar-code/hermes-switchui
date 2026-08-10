@@ -62,7 +62,6 @@ import { useErrorRedirect } from './hooks/use-error-redirect'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
 import { useRenameSession } from './hooks/use-rename-session'
 import { useContextAlert } from './hooks/use-context-alert'
-import { usePendingApprovals } from './hooks/use-pending-approvals'
 import { useSendMessageState } from './hooks/use-send-message-state'
 import { useSessionLifecycle } from './hooks/use-session-lifecycle'
 import { useComposerSend } from './hooks/use-composer-send'
@@ -311,17 +310,15 @@ export function ChatScreen({
     ? storeWaitingForSession
     : hasPendingSend() || hasPendingGeneration()
 
-  // activeRealtimeStreamingRef is initialized false here (activeIsRealtimeStreaming
-  // is derived later from useRealtimeChatHistory's return, which itself needs
-  // applyApprovalRequest from usePendingApprovals — a cycle). It is mirrored to
-  // the live value during render at the derivation site below, so E28's first
-  // synchronous mount read already sees the correct value.
+  // Mirrored to the live value during render at the derivation site below.
+  // `activeIsRealtimeStreaming` is derived from useRealtimeChatHistory's
+  // return, which is declared later, so the ref starts false.
   const activeRealtimeStreamingRef = useRef(false)
 
   // --- Bridge refs for sendMessage dependencies (seam #4 PR 2) ---
   // These values are produced by hooks called AFTER useSendMessageState in
-  // the render order (due to the waitingForResponseRef → usePendingApprovals
-  // → useRealtimeChatHistory chain). They are synced during render right
+  // the render order (the waitingForResponseRef → useRealtimeChatHistory
+  // chain). They are synced during render right
   // after their source hooks so sendMessage always reads the latest value.
   const thinkingLevelBridgeRef = useRef<string>('off')
   const setLocalActivity = useChatActivityStore((s) => s.setLocalActivity)
@@ -449,9 +446,6 @@ export function ChatScreen({
     messages: recoveryMessages,
   })
 
-  const { pendingApprovals, resolvePendingApproval, applyApprovalRequest } =
-    usePendingApprovals({ waitingForResponseRef, activeRealtimeStreamingRef })
-
   // Wire SSE realtime stream for instant message delivery
   const {
     messages: realtimeMessages,
@@ -491,7 +485,6 @@ export function ChatScreen({
       setWaitingForResponse(true)
       setPendingGeneration(true)
     }, []),
-    onApprovalRequest: applyApprovalRequest,
     onCompactionStart: useCallback(() => {
       setIsCompacting(true)
     }, []),
@@ -681,10 +674,8 @@ export function ChatScreen({
     ? localIsStreaming
     : isRealtimeStreaming
   // Mirror the latest value into the ref during render (not in an effect) so
-  // usePendingApprovals' E28 poller — whose effect runs before any effect
-  // declared here — reads the correct value on its first synchronous mount
-  // check, preserving the 2 s active-stream cadence when mounting onto an
-  // already-active stream.
+  // effects declared above this point already read the correct value on their
+  // first synchronous mount check.
   activeRealtimeStreamingRef.current = activeIsRealtimeStreaming
   const activeRealtimeStreamingText = isPortableMode
     ? localStreamingText
@@ -1393,8 +1384,6 @@ export function ChatScreen({
             errorNotice={errorNotice}
             isCurrentSessionInterrupted={isCurrentSessionInterrupted}
             onResendInterrupted={handleResendInterrupted}
-            pendingApprovals={pendingApprovals}
-            onResolveApproval={resolvePendingApproval}
           />
 
           {activeTab === 'tool' ? (

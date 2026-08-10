@@ -21,6 +21,7 @@ import {
   writeQueuedMessages,
 } from './run-persistence'
 import type {RunPhase, RunPhaseTrigger} from './run-phase';
+import type { PendingApprovalDetail } from '../lib/approvals'
 import type {
   ChatMessage,
   MessageContent,
@@ -178,6 +179,12 @@ export type ChatStreamEvent =
       question: string
       /** Multiple-choice options, or null/empty for a free-text question. */
       choices?: Array<string> | null
+      /**
+       * Command-approval payload — present only when `kind === 'approval'`.
+       * Carries the run id resolution is keyed by, the verbatim command, the
+       * allowlist pattern keys and the absolute expiry. See `lib/approvals.ts`.
+       */
+      approval?: PendingApprovalDetail
       sessionKey: string
       runId?: string
       transport?: 'chat-events' | 'send-stream'
@@ -253,6 +260,20 @@ export type PendingClarify = {
   resolved?: boolean
   /** The answer the user submitted (choice label or free text). */
   answer?: string
+  /**
+   * Command-approval payload (contract v1). Present only for `kind:
+   * 'approval'` requests that arrived live or via catch-up; historical
+   * approval receipts replayed from tool messages carry `kind: 'approval'`
+   * with no `approval`, and render as an ordinary answered clarify.
+   */
+  approval?: PendingApprovalDetail
+  /**
+   * Terminal explanation for a card closed WITHOUT the user answering it: the
+   * countdown lapsed (gateway auto-denied, no event), or the gateway reported
+   * the approval already gone (409/404). Distinct from `answer`, which the
+   * user chose.
+   */
+  closedNote?: string
 }
 
 export type MessageQueueActivity = {
@@ -345,6 +366,19 @@ type ChatState = {
    * an answered card persists for the visual record until the next turn.
    */
   dismissUnresolvedClarify: (sessionKey: string) => void
+  /**
+   * Close an approval card that the user did NOT answer: the client-side
+   * countdown lapsed (the gateway auto-denies silently and emits no event —
+   * contract §4), or the resolve endpoint reported the approval already gone
+   * (409/404 — contract §2, benign). Leaves the card mounted in its read-only
+   * state carrying `closedNote` so the user learns what happened, and unblocks
+   * the composer the same way an answer does.
+   */
+  closeApprovalCard: (
+    sessionKey: string,
+    clarifyId: string,
+    note: string,
+  ) => void
   /**
    * Sessions where the liveness snapshot is absent but the history predicate
    * (`hasUnansweredLatestUserTurn` + F1 guard) indicates a turn was likely
@@ -1102,6 +1136,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set({ pendingClarify: next })
   },
 
+  closeApprovalCard: (sessionKeyRaw, clarifyId, note) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    const current = get().pendingClarify[sessionKey]
+    if (!current) return
+    // Only close the card the caller is looking at — a countdown that fires
+    // late must not close whatever card replaced it.
+    if (
+      clarifyId &&
+      current.clarifyId !== clarifyId &&
+      current.interactionId !== clarifyId
+    ) {
+      return
+    }
+    if (current.resolved) return
+    set({
+      pendingClarify: {
+        ...get().pendingClarify,
+        [sessionKey]: { ...current, resolved: true, closedNote: note },
+      },
+    })
+  },
+
   setSessionInterrupted: (sessionKeyRaw) => {
     const sessionKey = activeScopeKey(sessionKeyRaw)
     const nextKeys = new Set(get().interruptedSessionKeys)
@@ -1200,6 +1256,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
           eventId &&
           (current.clarifyId === eventId || current.interactionId === eventId),
         )
+
+        // ONE decision card per run (contract §2). Resolution is keyed by
+        // run_id alone and the gateway pops the OLDEST queue entry FIFO, so a
+        // second outstanding card for the same run would silently answer the
+        // first one. The older card is the one the gateway will consume, so it
+        // wins and the newcomer is dropped — across every session, since a run
+        // is not confined to the session key we index by.
+        const incomingRunId = event.approval?.runId
+        if (incomingRunId && !sameInteraction) {
+          const alreadyHeld = Object.values(state.pendingClarify).some(
+            (entry) =>
+              entry &&
+              !entry.resolved &&
+              entry.approval?.runId === incomingRunId,
+          )
+          if (alreadyHeld) break
+        }
+
         set({
           pendingClarify: {
             ...state.pendingClarify,
@@ -1209,9 +1283,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
               messageId: event.messageId || (sameInteraction ? current?.messageId : undefined),
               kind: event.kind || (sameInteraction ? current?.kind : undefined),
               toolName: event.toolName || (sameInteraction ? current?.toolName : undefined) || 'clarify',
-              question: question || (sameInteraction ? current?.question : ''),
+              question: question || (sameInteraction ? current?.question ?? '' : ''),
               choices: choices ?? (sameInteraction ? current?.choices ?? null : null),
-              runId: event.runId ?? null,
+              approval:
+                event.approval ?? (sameInteraction ? current?.approval : undefined),
+              runId: event.approval?.runId ?? event.runId ?? null,
               requestedAt: now,
             },
           },

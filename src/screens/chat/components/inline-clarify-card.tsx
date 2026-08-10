@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useChatStore } from '../../../stores/chat-store'
+import { InlineApprovalCard } from './inline-approval-card'
 import type { PendingClarify } from '../../../stores/chat-store'
 import type { ChatMessage } from '../types'
 import { cn } from '@/lib/utils'
@@ -105,6 +106,22 @@ function formatClarifyError(value: unknown): string {
  * after the user chooses an option or submits free text.
  */
 export function InlineClarifyCard({
+  clarify,
+  sessionKey,
+}: InlineClarifyCardProps) {
+  // A command approval rides the clarify pipeline but is not a clarify: its
+  // options are unequal, its command must be shown verbatim, and it expires
+  // silently. `clarify.approval` is what separates a live/recovered approval
+  // from a historical approval RECEIPT replayed out of a tool message — the
+  // latter has `kind: 'approval'` and nothing to decide, so it keeps rendering
+  // as an ordinary answered clarify below.
+  if (clarify.approval) {
+    return <InlineApprovalCard clarify={clarify} sessionKey={sessionKey} />
+  }
+  return <ClarifyCardBody clarify={clarify} sessionKey={sessionKey} />
+}
+
+function ClarifyCardBody({
   clarify,
   sessionKey,
 }: InlineClarifyCardProps) {

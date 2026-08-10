@@ -6,6 +6,7 @@ import type { SessionSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd } from '@/lib/format'
 import { SOURCE_COLORS, SOURCE_LABELS } from '@/screens/chat/source-visuals'
+import { ApprovalsBell } from '@/screens/gateway/components/approvals-bell'
 
 type ChatHeaderV2Props = {
   activeTitle: string
@@ -77,6 +78,10 @@ function ChatHeaderV2Component({
         collapsed={fileExplorerCollapsed}
         onToggle={onToggleFileExplorer}
       />
+
+      {/* Pending approvals — count and a link to the card, never a decision.
+          Renders nothing when the queue is empty. */}
+      <ApprovalsBell className="shrink-0" />
 
       {/* Session cost pill */}
       <SessionCostPill sessionKey={sessionKey} />

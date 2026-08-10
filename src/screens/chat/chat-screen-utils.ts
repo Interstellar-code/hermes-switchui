@@ -1,4 +1,3 @@
-import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatAttachment, ChatMessage } from './types'
 
 export type StickyStreamingTextState = {
@@ -259,30 +258,6 @@ export function verbForTool(name: string): string {
   if (n.includes('fetch') || n.includes('http') || n.includes('web'))
     return 'Fetching'
   return name ? `Running ${name}` : 'Working'
-}
-
-/**
- * Shallow structural equality for the pending-approvals list. Used by the
- * approvals poller to skip redundant setState when nothing changed. Compares
- * length then id/status/gatewayApprovalId per entry, positionally.
- */
-export function samePending(
-  a: Array<ApprovalRequest>,
-  b: Array<ApprovalRequest>,
-): boolean {
-  if (a.length !== b.length) return false
-  for (let i = 0; i < a.length; i += 1) {
-    const x = a[i]
-    const y = b[i]
-    if (
-      x.id !== y.id ||
-      x.status !== y.status ||
-      x.gatewayApprovalId !== y.gatewayApprovalId
-    ) {
-      return false
-    }
-  }
-  return true
 }
 
 /**

@@ -5,19 +5,9 @@ import {
   hasUnansweredLatestUserTurn,
   isChatRuntimeBusy,
   latestTurnIsToolOnly,
-  samePending,
   verbForTool,
 } from './chat-screen-utils'
-import type { ApprovalRequest } from '@/screens/gateway/lib/approvals-store'
 import type { ChatMessage } from './types'
-
-const approval = (over: Partial<ApprovalRequest> = {}): ApprovalRequest =>
-  ({
-    id: 'a1',
-    status: 'pending',
-    gatewayApprovalId: 'g1',
-    ...over,
-  }) as ApprovalRequest
 
 describe('advanceStickyStreamingText', () => {
   it('preserves the last non-empty streaming text when a tool phase temporarily reports empty text', () => {
@@ -347,32 +337,5 @@ describe('verbForTool', () => {
 
   it('is case-insensitive', () => {
     expect(verbForTool('BASH')).toBe('Running terminal')
-  })
-})
-
-describe('samePending', () => {
-  it('returns true for structurally equal lists', () => {
-    expect(samePending([approval()], [approval()])).toBe(true)
-    expect(samePending([], [])).toBe(true)
-  })
-
-  it('returns false when length differs', () => {
-    expect(samePending([approval()], [])).toBe(false)
-  })
-
-  it('returns false when id, status, or gatewayApprovalId differ', () => {
-    expect(samePending([approval()], [approval({ id: 'a2' })])).toBe(false)
-    expect(
-      samePending([approval()], [approval({ status: 'approved' })]),
-    ).toBe(false)
-    expect(
-      samePending([approval()], [approval({ gatewayApprovalId: 'g2' })]),
-    ).toBe(false)
-  })
-
-  it('compares positionally', () => {
-    const a = [approval({ id: 'a1' }), approval({ id: 'a2' })]
-    const b = [approval({ id: 'a2' }), approval({ id: 'a1' })]
-    expect(samePending(a, b)).toBe(false)
   })
 })

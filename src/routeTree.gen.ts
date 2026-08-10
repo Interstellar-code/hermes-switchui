@@ -193,6 +193,7 @@ import { Route as ApiBackupsListRouteImport } from './routes/api/backups/list'
 import { Route as ApiBackupsDownloadRouteImport } from './routes/api/backups/download'
 import { Route as ApiBackupsCreateRouteImport } from './routes/api/backups/create'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
+import { Route as ApiApprovalsPendingRouteImport } from './routes/api/approvals.pending'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
@@ -204,6 +205,7 @@ import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self
 import { Route as ApiSelfImproveProfilesProfileRouteImport } from './routes/api/self-improve/profiles.$profile'
 import { Route as ApiSelfImproveMetricsLatestRouteImport } from './routes/api/self-improve/metrics.latest'
 import { Route as ApiSelfImproveExperimentsIdRouteImport } from './routes/api/self-improve/experiments.$id'
+import { Route as ApiRunsRunIdApprovalRouteImport } from './routes/api/runs.$runId.approval'
 import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
@@ -1166,6 +1168,11 @@ const ApiArtifactsArtifactIdRoute = ApiArtifactsArtifactIdRouteImport.update({
   path: '/$artifactId',
   getParentRoute: () => ApiArtifactsRoute,
 } as any)
+const ApiApprovalsPendingRoute = ApiApprovalsPendingRouteImport.update({
+  id: '/api/approvals/pending',
+  path: '/api/approvals/pending',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWorkflowRunsRunIdApproveRoute =
   ApiWorkflowRunsRunIdApproveRouteImport.update({
     id: '/approve',
@@ -1232,6 +1239,11 @@ const ApiSelfImproveExperimentsIdRoute =
     path: '/$id',
     getParentRoute: () => ApiSelfImproveExperimentsRoute,
   } as any)
+const ApiRunsRunIdApprovalRoute = ApiRunsRunIdApprovalRouteImport.update({
+  id: '/api/runs/$runId/approval',
+  path: '/api/runs/$runId/approval',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOperationsDispatchPreviewRoute =
   ApiOperationsDispatchPreviewRouteImport.update({
     id: '/preview',
@@ -1511,6 +1523,7 @@ export interface FileRoutesByFullPath {
   '/docs/': typeof DocsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/website/': typeof WebsiteIndexRoute
+  '/api/approvals/pending': typeof ApiApprovalsPendingRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/backups/create': typeof ApiBackupsCreateRoute
   '/api/backups/download': typeof ApiBackupsDownloadRoute
@@ -1619,6 +1632,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
@@ -1738,6 +1752,7 @@ export interface FileRoutesByTo {
   '/docs': typeof DocsIndexRoute
   '/settings': typeof SettingsIndexRoute
   '/website': typeof WebsiteIndexRoute
+  '/api/approvals/pending': typeof ApiApprovalsPendingRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/backups/create': typeof ApiBackupsCreateRoute
   '/api/backups/download': typeof ApiBackupsDownloadRoute
@@ -1846,6 +1861,7 @@ export interface FileRoutesByTo {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
@@ -1968,6 +1984,7 @@ export interface FileRoutesById {
   '/docs/': typeof DocsIndexRoute
   '/settings/': typeof SettingsIndexRoute
   '/website/': typeof WebsiteIndexRoute
+  '/api/approvals/pending': typeof ApiApprovalsPendingRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/backups/create': typeof ApiBackupsCreateRoute
   '/api/backups/download': typeof ApiBackupsDownloadRoute
@@ -2076,6 +2093,7 @@ export interface FileRoutesById {
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
+  '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
   '/api/self-improve/experiments/$id': typeof ApiSelfImproveExperimentsIdRouteWithChildren
   '/api/self-improve/metrics/latest': typeof ApiSelfImproveMetricsLatestRoute
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
@@ -2199,6 +2217,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/settings/'
     | '/website/'
+    | '/api/approvals/pending'
     | '/api/artifacts/$artifactId'
     | '/api/backups/create'
     | '/api/backups/download'
@@ -2307,6 +2326,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/runs/$runId/approval'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/profiles/$profile'
@@ -2426,6 +2446,7 @@ export interface FileRouteTypes {
     | '/docs'
     | '/settings'
     | '/website'
+    | '/api/approvals/pending'
     | '/api/artifacts/$artifactId'
     | '/api/backups/create'
     | '/api/backups/download'
@@ -2534,6 +2555,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/runs/$runId/approval'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/profiles/$profile'
@@ -2655,6 +2677,7 @@ export interface FileRouteTypes {
     | '/docs/'
     | '/settings/'
     | '/website/'
+    | '/api/approvals/pending'
     | '/api/artifacts/$artifactId'
     | '/api/backups/create'
     | '/api/backups/download'
@@ -2763,6 +2786,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources/$id'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
+    | '/api/runs/$runId/approval'
     | '/api/self-improve/experiments/$id'
     | '/api/self-improve/metrics/latest'
     | '/api/self-improve/profiles/$profile'
@@ -2881,6 +2905,7 @@ export interface RootRouteChildren {
   WebsiteSplatRoute: typeof WebsiteSplatRoute
   ChatIndexRoute: typeof ChatIndexRoute
   WebsiteIndexRoute: typeof WebsiteIndexRoute
+  ApiApprovalsPendingRoute: typeof ApiApprovalsPendingRoute
   ApiBackupsCreateRoute: typeof ApiBackupsCreateRoute
   ApiBackupsDownloadRoute: typeof ApiBackupsDownloadRoute
   ApiBackupsListRoute: typeof ApiBackupsListRoute
@@ -2946,6 +2971,7 @@ export interface RootRouteChildren {
   ApiUpdateStatusRoute: typeof ApiUpdateStatusRoute
   ApiUpdateWorkspaceRoute: typeof ApiUpdateWorkspaceRoute
   ApiHermesProjectsIndexRoute: typeof ApiHermesProjectsIndexRoute
+  ApiRunsRunIdApprovalRoute: typeof ApiRunsRunIdApprovalRoute
   ApiSelfImproveProfilesProfileRoute: typeof ApiSelfImproveProfilesProfileRouteWithChildren
 }
 
@@ -4239,6 +4265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiArtifactsArtifactIdRouteImport
       parentRoute: typeof ApiArtifactsRoute
     }
+    '/api/approvals/pending': {
+      id: '/api/approvals/pending'
+      path: '/api/approvals/pending'
+      fullPath: '/api/approvals/pending'
+      preLoaderRoute: typeof ApiApprovalsPendingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workflow-runs/$runId/approve': {
       id: '/api/workflow-runs/$runId/approve'
       path: '/approve'
@@ -4315,6 +4348,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/self-improve/experiments/$id'
       preLoaderRoute: typeof ApiSelfImproveExperimentsIdRouteImport
       parentRoute: typeof ApiSelfImproveExperimentsRoute
+    }
+    '/api/runs/$runId/approval': {
+      id: '/api/runs/$runId/approval'
+      path: '/api/runs/$runId/approval'
+      fullPath: '/api/runs/$runId/approval'
+      preLoaderRoute: typeof ApiRunsRunIdApprovalRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/operations/dispatch/preview': {
       id: '/api/operations/dispatch/preview'
@@ -5179,6 +5219,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsiteSplatRoute: WebsiteSplatRoute,
   ChatIndexRoute: ChatIndexRoute,
   WebsiteIndexRoute: WebsiteIndexRoute,
+  ApiApprovalsPendingRoute: ApiApprovalsPendingRoute,
   ApiBackupsCreateRoute: ApiBackupsCreateRoute,
   ApiBackupsDownloadRoute: ApiBackupsDownloadRoute,
   ApiBackupsListRoute: ApiBackupsListRoute,
@@ -5245,6 +5286,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiUpdateStatusRoute: ApiUpdateStatusRoute,
   ApiUpdateWorkspaceRoute: ApiUpdateWorkspaceRoute,
   ApiHermesProjectsIndexRoute: ApiHermesProjectsIndexRoute,
+  ApiRunsRunIdApprovalRoute: ApiRunsRunIdApprovalRoute,
   ApiSelfImproveProfilesProfileRoute:
     ApiSelfImproveProfilesProfileRouteWithChildren,
 }

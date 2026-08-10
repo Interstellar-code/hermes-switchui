@@ -5,6 +5,7 @@ import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 import { useChatStore } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
+import { parseApprovalDetail } from '@/lib/approvals'
 import {
   activeScopeKey,
   profileBody,
@@ -827,11 +828,20 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             // event is silently discarded and the inline card never renders.
             transport: 'send-stream',
             clarifyId: (payload.clarifyId as string) || '',
+            interactionId:
+              (payload.interactionId as string | undefined) || undefined,
             messageId: (payload.messageId as string | undefined) || undefined,
+            // `kind` and `toolName` were dropped here while the sibling
+            // resolved-case forwarded them, so a `kind: 'approval'` request
+            // arrived at the store as a generic clarify and nothing
+            // downstream could tell it was an approval. Issue #353.
+            kind: (payload.kind as string | undefined) || undefined,
+            toolName: (payload.toolName as string | undefined) || undefined,
             question: (payload.question as string) || '',
             choices: Array.isArray(payload.choices)
               ? (payload.choices as Array<string>)
               : null,
+            approval: parseApprovalDetail(payload.approval) ?? undefined,
             sessionKey: activeSessionKeyRef.current,
             runId: activeRunIdRef.current ?? undefined,
           })

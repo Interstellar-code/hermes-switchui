@@ -111,8 +111,8 @@ function buildPortableHistory(
  * dependency between the hook and the screen.
  *
  * `lastCompletedRunAt` cannot be a direct param due to a dependency
- * cycle (this hook's `waitingForResponseRef` → usePendingApprovals →
- * useRealtimeChatHistory → lastCompletedRunAt). Instead the screen
+ * cycle (this hook's `waitingForResponseRef` → useRealtimeChatHistory →
+ * lastCompletedRunAt). Instead the screen
  * calls `syncLastCompletedRunAt` after the realtime hook returns; a
  * state bump re-triggers the 10 s failsafe effect exactly as before.
  *
@@ -246,9 +246,8 @@ export function useSendMessageState(params: {
   const lastSendAtRef = useRef(0)
   const activeSendRef = useRef<ActiveSendRecord | null>(null)
 
-  // Hoist refs before useRealtimeChatHistory so applyApprovalRequest (returned
-  // by usePendingApprovals) is available when the hook is called. These refs
-  // are read non-reactively inside E28's timer callback.
+  // Hoisted above useRealtimeChatHistory so the screen can pass it down. Read
+  // non-reactively inside timer callbacks.
   const waitingForResponseRef = useRef(waitingForResponse)
   useEffect(() => {
     waitingForResponseRef.current = waitingForResponse
@@ -267,9 +266,8 @@ export function useSendMessageState(params: {
     }
   }, [])
 
-  // lastCompletedRunAt decoupling: the realtime chat-history hook depends on
-  // applyApprovalRequest (from usePendingApprovals) which depends on
-  // waitingForResponseRef (from this hook) — a cycle. The screen calls
+  // lastCompletedRunAt decoupling: the realtime chat-history hook is declared
+  // after this one, so it cannot be a dependency here. The screen calls
   // syncLastCompletedRunAt after the realtime hook returns; the state bump
   // re-triggers the 10 s failsafe effect exactly as the original dep did.
   const lastCompletedRunAtRef = useRef<number | null>(null)
@@ -354,7 +352,7 @@ export function useSendMessageState(params: {
   // the useCallback deps. This is necessary because the producing hooks
   // (useRealtimeChatHistory, useStreamingMessage, useMemo) run AFTER
   // this hook in the render order due to the waitingForResponseRef →
-  // usePendingApprovals → useRealtimeChatHistory dependency chain.
+  // useRealtimeChatHistory dependency chain.
 
   const sendMessage = useCallback(
     function sendChatMessage(
