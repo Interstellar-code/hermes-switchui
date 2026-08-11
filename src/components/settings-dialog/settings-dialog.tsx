@@ -18,7 +18,8 @@ import {
   Sun01Icon,
   VolumeHighIcon,
 } from '@hugeicons/core-free-icons'
-import { Component, useCallback, useEffect, useState } from 'react'
+import { Component, useCallback, useEffect, useRef, useState } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type * as React from 'react'
 import type { SettingsThemeMode } from '@/hooks/use-settings'
 import type { LocaleId } from '@/lib/i18n'
@@ -41,6 +42,8 @@ import { getUnavailableReason } from '@/lib/feature-gates'
 import { LOCALE_LABELS, getLocale, setLocale } from '@/lib/i18n'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
 import { ProviderLogo } from '@/components/provider-logo'
+import { getConfig, setModelAssignment } from '@/lib/hermes-client'
+import { settingsSaver } from '@/screens/settings/lib/saver'
 import {
   Dialog,
   DialogClose,
@@ -248,8 +251,79 @@ const PROVIDER_CARDS: Array<{
   },
 ]
 
+// ── Gateway config transport ────────────────────────────────────────────
+//
+// Every control below that ends up in `~/.hermes/config.yaml` writes through
+// `settingsSaver` — the exact same transport the `/settings` route screen's
+// save bar uses (`PUT /api/config`, deep-merged server-side by the live
+// gateway). Before this, `AgentBehaviorContent`, `SmartRoutingContent`,
+// `VoiceContent` and `DisplayContent` each PATCHed this app's own
+// `/api/claude-config` route, which edits `config.yaml` **directly on disk**
+// and explicitly tells the user to restart the gateway for it to take
+// effect. That is a second, divergent write path to the same file — and for
+// `config.agent.max_turns` / `gateway_timeout` / `tool_use_enforcement`, a
+// literal duplicate of keys the route screen's "Runtime" section already
+// owns (`section-registry.ts`'s `agent-runtime` spec), so the two surfaces
+// could silently race each other.
+//
+// Genuinely browser-local prefs (theme, chat display density, loader style,
+// notifications threshold, interface language) are untouched — they stay in
+// the studio/chat-settings stores, which is the correct home for them.
+//
+// This intentionally does NOT route through `useSettingsStore`'s
+// draft/dirty/save() cycle: that store models an explicit "Save" bar, and
+// these controls are switches/selects that write immediately (the dialog's
+// footer literally says "Changes saved automatically"). Writing immediately
+// via the shared saver — the same pattern `section-provider.tsx` uses for
+// "Active provider"/"Default model" (`setModelAssignment`, immediate) and
+// `section-memory-wiki.tsx` uses for its self-saving cards — keeps that UX
+// while still going through the one honest transport.
+function useGatewayConfigSection(section: string) {
+  const qc = useQueryClient()
+  const configQuery = useQuery({
+    queryKey: ['config'],
+    queryFn: getConfig,
+    staleTime: 60_000,
+  })
+  const [local, setLocal] = useState<Record<string, unknown>>({})
+  const [msg, setMsg] = useState<string | null>(null)
+  const seededRef = useRef<unknown>(undefined)
+
+  useEffect(() => {
+    if (!configQuery.data || seededRef.current === configQuery.data) return
+    seededRef.current = configQuery.data
+    setLocal(
+      ((configQuery.data as Record<string, unknown>)[section] ?? {}) as Record<
+        string,
+        unknown
+      >,
+    )
+  }, [configQuery.data, section])
+
+  const save = useCallback(
+    async (key: string, value: unknown) => {
+      setMsg(null)
+      const outcome = await settingsSaver({
+        [`config.${section}.${key}`]: value,
+      })
+      if (outcome.failed.length > 0) {
+        setMsg(`Failed: ${outcome.failed[0].reason}`)
+        return
+      }
+      setLocal((prev) => ({ ...prev, [key]: value }))
+      setMsg('Saved')
+      setTimeout(() => setMsg(null), 2000)
+      void qc.invalidateQueries({ queryKey: ['config'] })
+    },
+    [section, qc],
+  )
+
+  return { config: local, save, msg }
+}
+
 function HermesContent() {
   const configAvailable = useFeatureAvailable('config')
+  const qc = useQueryClient()
   const [activeProvider, setActiveProvider] = useState('')
   const [activeModel, setActiveModel] = useState('')
   const [availableModels, setAvailableModels] = useState<Array<string>>([])
@@ -312,8 +386,17 @@ function HermesContent() {
       .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    fetch('/api/claude-config')
+  /**
+   * Read-only status view: masked keys, per-provider "configured" state
+   * (env var present, OAuth token present, or auth-store scope), and the
+   * active provider/model. Deliberately NOT `getConfig()` — that live-gateway
+   * endpoint has no notion of credential masking or auth-store status, both
+   * of which only `/api/claude-config`'s GET computes server-side. This is a
+   * read, never a write; every mutation below goes through `settingsSaver` or
+   * `setModelAssignment` instead, then calls this to refresh the display.
+   */
+  const refreshStatus = useCallback(() => {
+    return fetch('/api/claude-config')
       .then((r) => r.json())
       .then((d: any) => {
         setActiveProvider(d.activeProvider || '')
@@ -336,32 +419,37 @@ function HermesContent() {
         if (customCfg.base_url) setCustomBaseUrl(customCfg.base_url)
       })
       .catch(() => {})
+  }, [fetchModelsForProvider])
+
+  useEffect(() => {
+    // Intentionally mount-only — refreshStatus itself is stable-ish via
+    // useCallback, and re-running it on every fetchModelsForProvider identity
+    // change would refetch on every localDiscovery update too.
+    void refreshStatus()
   }, [])
 
-  const save = async (updates: {
-    config?: Record<string, unknown>
-    env?: Record<string, string>
-  }) => {
+  /**
+   * API keys land in `~/.hermes/.env`, not `config.yaml` — a different file
+   * with its own already-reconciling writer. `applyEnvUpdates` in
+   * `api/claude-config.ts` routes through `server/credential-status.ts`,
+   * which additionally rewrites value-matched `config.yaml` mirrors and
+   * prunes env-seeded `credential_pool` entries in `auth.json` — the
+   * "one reconciling write path" that `.env` upstream bug #51071/#62269 was
+   * about. That is unrelated to the gateway-config double-write this pass
+   * fixes, so it is untouched.
+   */
+  const saveEnvKey = async (key: string, value: string) => {
     setSaving(true)
     setMsg(null)
     try {
       const res = await fetch('/api/claude-config', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
+        body: JSON.stringify({ env: { [key]: value } }),
       })
       const r = (await res.json()) as { message?: string }
       setMsg(r.message || 'Saved')
-      const ref = await fetch('/api/claude-config')
-      const d = await ref.json()
-      setActiveProvider(d.activeProvider || '')
-      setActiveModel(d.activeModel || '')
-      const keys: Record<string, string> = {}
-      for (const p of d.providers || []) {
-        if (p.configured && p.envKeys?.[0])
-          keys[p.envKeys[0]] = p.maskedKeys?.[p.envKeys[0]] || '••••'
-      }
-      setConfiguredKeys(keys)
+      await refreshStatus()
       setTimeout(() => setMsg(null), 3000)
     } catch {
       setMsg('Failed to save')
@@ -369,16 +457,53 @@ function HermesContent() {
     setSaving(false)
   }
 
+  /**
+   * Gateway config (`config.yaml`) writes — provider wiring and memory
+   * toggles. See the module-level comment above `useGatewayConfigSection`
+   * for why this goes through `settingsSaver` (`PUT /api/config` on the live
+   * gateway) instead of this app's own `/api/claude-config` file writer.
+   */
+  const saveConfigPatch = async (patch: Record<string, unknown>) => {
+    setSaving(true)
+    setMsg(null)
+    const outcome = await settingsSaver(patch)
+    if (outcome.failed.length > 0) {
+      setMsg(`Failed to save: ${outcome.failed[0].reason}`)
+    } else {
+      setMsg('Saved')
+      await refreshStatus()
+      void qc.invalidateQueries({ queryKey: ['config'] })
+      setTimeout(() => setMsg(null), 3000)
+    }
+    setSaving(false)
+  }
+
   const selectProvider = (providerId: string, model?: string) => {
     setActiveProvider(providerId)
-    if (model) {
-      setActiveModel(model)
-      save({ config: { model, provider: providerId } })
-    } else {
-      // Switching provider without a model — fetch models and pick the first one
+    if (!model) {
+      // No model chosen yet — just point the picker at this provider's
+      // models. The old code persisted `provider` alone here, which left
+      // `config.model` and `config.provider` briefly inconsistent on disk
+      // for no benefit; nothing is worth writing until a model is picked.
       fetchModelsForProvider(providerId)
-      save({ config: { provider: providerId } })
+      return
     }
+    setActiveModel(model)
+    setSaving(true)
+    setMsg(null)
+    // Model/provider assignment is a live gateway operation, not a raw
+    // config write — `setModelAssignment` (`POST /api/model/set`) is the same
+    // call `section-provider.tsx`'s "Active provider"/"Default model" rows
+    // use on the route screen, so both surfaces assign models identically.
+    setModelAssignment({ scope: 'main', provider: providerId, model })
+      .then(() => refreshStatus())
+      .then(() => {
+        setMsg('Saved')
+        setTimeout(() => setMsg(null), 3000)
+        void qc.invalidateQueries({ queryKey: ['config'] })
+      })
+      .catch(() => setMsg('Failed to save'))
+      .finally(() => setSaving(false))
   }
 
   if (!configAvailable) {
@@ -564,17 +689,13 @@ function HermesContent() {
                           autoFocus
                           onKeyDown={(e) => {
                             if (e.key === 'Enter') {
-                              save({
-                                config: {
-                                  model: { provider: 'manifest' },
-                                  providers: {
-                                    manifest: {
-                                      type: 'openai',
-                                      base_url: customBaseUrl,
-                                      key_env: 'CUSTOM_API_KEY',
-                                    },
-                                  },
-                                },
+                              saveConfigPatch({
+                                'config.model.provider': 'manifest',
+                                'config.providers.manifest.type': 'openai',
+                                'config.providers.manifest.base_url':
+                                  customBaseUrl,
+                                'config.providers.manifest.key_env':
+                                  'CUSTOM_API_KEY',
                               }).then(() => setEditingKey(null))
                             }
                             if (e.key === 'Escape') setEditingKey(null)
@@ -599,17 +720,13 @@ function HermesContent() {
                         <button
                           type="button"
                           onClick={() => {
-                            save({
-                              config: {
-                                model: { provider: 'manifest' },
-                                providers: {
-                                  manifest: {
-                                    type: 'openai',
-                                    base_url: customBaseUrl,
-                                    key_env: 'CUSTOM_API_KEY',
-                                  },
-                                },
-                              },
+                            saveConfigPatch({
+                              'config.model.provider': 'manifest',
+                              'config.providers.manifest.type': 'openai',
+                              'config.providers.manifest.base_url':
+                                customBaseUrl,
+                              'config.providers.manifest.key_env':
+                                'CUSTOM_API_KEY',
                             }).then(() => setEditingKey(null))
                           }}
                           className="text-xs font-medium text-green-400"
@@ -697,7 +814,7 @@ function HermesContent() {
                         autoFocus
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && keyInput) {
-                            save({ env: { [key]: keyInput } })
+                            void saveEnvKey(key, keyInput)
                             setEditingKey(null)
                             setKeyInput('')
                           }
@@ -727,7 +844,7 @@ function HermesContent() {
                         type="button"
                         onClick={() => {
                           if (keyInput) {
-                            save({ env: { [key]: keyInput } })
+                            void saveEnvKey(key, keyInput)
                           }
                           setEditingKey(null)
                           setKeyInput('')
@@ -793,7 +910,7 @@ function HermesContent() {
               checked={memEnabled}
               onCheckedChange={(c) => {
                 setMemEnabled(c)
-                save({ config: { memory: { memory_enabled: c } } })
+                void saveConfigPatch({ 'config.memory.memory_enabled': c })
               }}
             />
           </div>
@@ -811,7 +928,9 @@ function HermesContent() {
               checked={userProfileEnabled}
               onCheckedChange={(c) => {
                 setUserProfileEnabled(c)
-                save({ config: { memory: { user_profile_enabled: c } } })
+                void saveConfigPatch({
+                  'config.memory.user_profile_enabled': c,
+                })
               }}
             />
           </div>
@@ -1309,32 +1428,16 @@ class SettingsErrorBoundary extends Component<
 // ── Agent Behavior ──────────────────────────────────────────────────────
 
 function AgentBehaviorContent() {
-  const [config, setConfig] = useState<Record<string, unknown>>({})
-  const [msg, setMsg] = useState<string | null>(null)
+  const configAvailable = useFeatureAvailable('config')
+  const { config, save, msg } = useGatewayConfigSection('agent')
 
-  useEffect(() => {
-    fetch('/api/claude-config')
-      .then((r) => r.json())
-      .then((d: any) => {
-        setConfig((d.config?.agent || {}) as Record<string, unknown>)
-      })
-      .catch(() => {})
-  }, [])
-
-  const save = async (key: string, value: unknown) => {
-    setMsg(null)
-    try {
-      await fetch('/api/claude-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: { agent: { [key]: value } } }),
-      })
-      setConfig((prev) => ({ ...prev, [key]: value }))
-      setMsg('Saved')
-      setTimeout(() => setMsg(null), 2000)
-    } catch {
-      setMsg('Failed')
-    }
+  if (!configAvailable) {
+    return (
+      <BackendUnavailableState
+        feature="Agent Behavior"
+        description={getUnavailableReason('config')}
+      />
+    )
   }
 
   return (
@@ -1398,19 +1501,11 @@ function AgentBehaviorContent() {
 // ── Smart Routing ───────────────────────────────────────────────────────
 
 function SmartRoutingContent() {
-  const [config, setConfig] = useState<Record<string, unknown>>({})
+  const configAvailable = useFeatureAvailable('config')
+  const { config, save, msg } = useGatewayConfigSection('smart_model_routing')
   const [models, setModels] = useState<Array<{ id: string; name?: string }>>([])
-  const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch('/api/claude-config')
-      .then((r) => r.json())
-      .then((d: any) => {
-        setConfig(
-          (d.config?.smart_model_routing || {}) as Record<string, unknown>,
-        )
-      })
-      .catch(() => {})
     fetch('/api/models')
       .then((r) => r.json())
       .then((d: any) => {
@@ -1419,22 +1514,13 @@ function SmartRoutingContent() {
       .catch(() => {})
   }, [])
 
-  const save = async (key: string, value: unknown) => {
-    setMsg(null)
-    try {
-      await fetch('/api/claude-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          config: { smart_model_routing: { [key]: value } },
-        }),
-      })
-      setConfig((prev) => ({ ...prev, [key]: value }))
-      setMsg('Saved')
-      setTimeout(() => setMsg(null), 2000)
-    } catch {
-      setMsg('Failed')
-    }
+  if (!configAvailable) {
+    return (
+      <BackendUnavailableState
+        feature="Smart Routing"
+        description={getUnavailableReason('config')}
+      />
+    )
   }
 
   return (
@@ -1510,50 +1596,26 @@ function SmartRoutingContent() {
 // ── Voice (TTS + STT) ──────────────────────────────────────────────────
 
 function VoiceContent() {
-  const [tts, setTts] = useState<Record<string, unknown>>({})
-  const [stt, setStt] = useState<Record<string, unknown>>({})
-  const [msg, setMsg] = useState<string | null>(null)
+  const configAvailable = useFeatureAvailable('config')
+  const {
+    config: tts,
+    save: saveTts,
+    msg: ttsMsg,
+  } = useGatewayConfigSection('tts')
+  const {
+    config: stt,
+    save: saveStt,
+    msg: sttMsg,
+  } = useGatewayConfigSection('stt')
+  const msg = ttsMsg ?? sttMsg
 
-  useEffect(() => {
-    fetch('/api/claude-config')
-      .then((r) => r.json())
-      .then((d: any) => {
-        setTts((d.config?.tts || {}) as Record<string, unknown>)
-        setStt((d.config?.stt || {}) as Record<string, unknown>)
-      })
-      .catch(() => {})
-  }, [])
-
-  const saveTts = async (key: string, value: unknown) => {
-    setMsg(null)
-    try {
-      await fetch('/api/claude-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: { tts: { [key]: value } } }),
-      })
-      setTts((prev) => ({ ...prev, [key]: value }))
-      setMsg('Saved')
-      setTimeout(() => setMsg(null), 2000)
-    } catch {
-      setMsg('Failed')
-    }
-  }
-
-  const saveStt = async (key: string, value: unknown) => {
-    setMsg(null)
-    try {
-      await fetch('/api/claude-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: { stt: { [key]: value } } }),
-      })
-      setStt((prev) => ({ ...prev, [key]: value }))
-      setMsg('Saved')
-      setTimeout(() => setMsg(null), 2000)
-    } catch {
-      setMsg('Failed')
-    }
+  if (!configAvailable) {
+    return (
+      <BackendUnavailableState
+        feature="Voice"
+        description={getUnavailableReason('config')}
+      />
+    )
   }
 
   const ttsProvider = String(tts.provider || 'edge')
@@ -1645,32 +1707,16 @@ function VoiceContent() {
 // ── Display ─────────────────────────────────────────────────────────────
 
 function DisplayContent() {
-  const [config, setConfig] = useState<Record<string, unknown>>({})
-  const [msg, setMsg] = useState<string | null>(null)
+  const configAvailable = useFeatureAvailable('config')
+  const { config, save, msg } = useGatewayConfigSection('display')
 
-  useEffect(() => {
-    fetch('/api/claude-config')
-      .then((r) => r.json())
-      .then((d: any) => {
-        setConfig((d.config?.display || {}) as Record<string, unknown>)
-      })
-      .catch(() => {})
-  }, [])
-
-  const save = async (key: string, value: unknown) => {
-    setMsg(null)
-    try {
-      await fetch('/api/claude-config', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: { display: { [key]: value } } }),
-      })
-      setConfig((prev) => ({ ...prev, [key]: value }))
-      setMsg('Saved')
-      setTimeout(() => setMsg(null), 2000)
-    } catch {
-      setMsg('Failed')
-    }
+  if (!configAvailable) {
+    return (
+      <BackendUnavailableState
+        feature="Display"
+        description={getUnavailableReason('config')}
+      />
+    )
   }
 
   return (
