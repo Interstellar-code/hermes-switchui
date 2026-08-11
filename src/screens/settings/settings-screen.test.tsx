@@ -8,22 +8,29 @@ import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
 
 vi.mock('@/lib/hermes-client', () => ({
   getConfig: () => Promise.resolve({ terminal: { timeout: 90 } }),
+  // The schema and defaults are best-effort: the screen must render without
+  // them, so the mock rejects rather than resolving something plausible.
+  getConfigSchema: () => Promise.reject(new Error('no schema in this test')),
+  getConfigDefaults: () => Promise.reject(new Error('no defaults in this test')),
 }))
 
 const s = () => useSettingsStore.getState()
 
-function renderScreen() {
+/**
+ * Rendered without a router on purpose: the active section is a plain optional
+ * prop, so the shell stays testable while the route owns `?section=`.
+ */
+function renderScreen(section?: string) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={client}>
-      <SettingsScreen />
+      <SettingsScreen section={section} />
     </QueryClientProvider>,
   )
 }
 
 beforeEach(() => {
   resetSettingsStore()
-  localStorage.setItem('hermes.settings.section', 'execution')
 })
 
 afterEach(() => {
@@ -114,8 +121,7 @@ describe('SettingsScreen', () => {
   })
 
   it('tells the truth about a self-saving section with nothing dirty', async () => {
-    localStorage.setItem('hermes.settings.section', 'raw-config')
-    renderScreen()
+    renderScreen('raw-config')
     await waitFor(() =>
       expect(screen.getByText('This section saves its own changes')).toBeTruthy(),
     )

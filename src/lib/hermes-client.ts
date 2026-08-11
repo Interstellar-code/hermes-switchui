@@ -128,8 +128,25 @@ export type ModelAuxiliary = {
   [key: string]: unknown
 }
 
+/**
+ * One entry of `GET /api/config/schema`. Keyed by a *bare* dotted path
+ * (`terminal.backend`) — the Settings store prefixes those with `config.`.
+ *
+ * `description` is auto-generated title-case for anything without a curated
+ * override (`"Agent → Max Turns"`), and there are no min/max bounds, so the
+ * schema is authoritative for *what exists and what values are legal*, not for
+ * good copy.
+ */
+export type ConfigSchemaField = {
+  type?: string
+  description?: string
+  category?: string
+  options?: Array<string>
+  [key: string]: unknown
+}
+
 export type ConfigSchema = {
-  fields: Record<string, unknown>
+  fields: Record<string, ConfigSchemaField>
   category_order: Array<string>
   [key: string]: unknown
 }
@@ -458,6 +475,15 @@ export async function putConfig(
 
 export async function getConfigSchema(): Promise<ConfigSchema> {
   return proxyGet<ConfigSchema>('/api/config/schema')
+}
+
+/**
+ * The gateway's built-in config defaults, shaped exactly like `GET /api/config`
+ * — a bare nested dict, no envelope. Flatten it with `flattenConfig` to get
+ * `config.*` store keys.
+ */
+export async function getConfigDefaults(): Promise<Record<string, unknown>> {
+  return proxyGet<Record<string, unknown>>('/api/config/defaults')
 }
 
 export async function getConfigRaw(): Promise<{ yaml: string }> {

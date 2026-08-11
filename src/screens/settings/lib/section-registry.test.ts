@@ -4,8 +4,10 @@ import {
   SECTION_COMPONENTS,
   SECTION_SPECS,
   SECTION_SPEC_BY_ID,
+  curatedSectionIdsForKey,
   dirtySectionIds,
   sectionIdForKey,
+  sectionIdsForKey,
   sectionOwnsKey,
 } from './section-registry'
 
@@ -88,8 +90,32 @@ describe('sectionIdForKey', () => {
     expect(sectionIdForKey('config.network.force_ipv4')).toBe('network')
   })
 
-  it('returns undefined for a key no section claims', () => {
-    expect(sectionIdForKey('config.nothing.claims.this')).toBe(undefined)
+  /**
+   * The All-settings browser claims `config.` as a fail-open catch-all, so an
+   * orphan key resolves to *something* and still lights a sidebar dot instead
+   * of going dirty invisibly. A key outside the config namespace has no owner
+   * at all — the saver has no route for it either.
+   */
+  it('falls back to the All-settings catch-all for an unclaimed config key', () => {
+    expect(sectionIdForKey('config.nothing.claims.this')).toBe('all-settings')
+  })
+
+  it('returns undefined for a key outside the config namespace', () => {
+    expect(sectionIdForKey('hermes.nothing.claims.this')).toBe(undefined)
+  })
+
+  /**
+   * The whole risk of a catch-all is that it *masks* a registry gap: a key a
+   * curated section really edits would light All-settings instead of that
+   * section, and look fine. Every declared key must resolve to its own owner.
+   */
+  it('never lets the catch-all swallow a curated section key', () => {
+    for (const spec of SECTION_SPECS) {
+      for (const key of spec.keys ?? []) {
+        expect(sectionIdsForKey(key), `${spec.id} / ${key}`).toContain(spec.id)
+        expect(sectionIdsForKey(key)).not.toContain('all-settings')
+      }
+    }
   })
 
   it('prefers an exact match over any prefix rule', () => {
@@ -116,8 +142,14 @@ describe('dirtySectionIds', () => {
     expect(ids.has('workspace')).toBe(false)
   })
 
-  it('ignores unknown keys instead of throwing', () => {
-    expect(dirtySectionIds(new Set(['config.unknown'])).size).toBe(0)
+  it('routes an unknown config key to the catch-all rather than nowhere', () => {
+    expect([...dirtySectionIds(new Set(['config.unknown']))]).toEqual([
+      'all-settings',
+    ])
+  })
+
+  it('ignores keys no section can claim instead of throwing', () => {
+    expect(dirtySectionIds(new Set(['hermes.unknown'])).size).toBe(0)
   })
 
   it('lights every section that genuinely edits a shared key', () => {
@@ -137,5 +169,38 @@ describe('SECTION_SPEC_BY_ID', () => {
     expect(SECTION_SPEC_BY_ID.get('safety')?.ownership).toBe('store')
     expect(SECTION_SPEC_BY_ID.get('raw-config')?.ownership).toBe('self-saving')
     expect(SECTION_SPEC_BY_ID.get('memory-wiki')?.ownership).toBe('mixed')
+  })
+})
+
+describe('the All-settings catch-all', () => {
+  const spec = SECTION_SPEC_BY_ID.get('all-settings')
+
+  it('exists, owns the whole config namespace, and writes the store', () => {
+    expect(spec).toBeTruthy()
+    expect(spec?.keyPrefixes).toEqual(['config.'])
+    expect(spec?.ownership).toBe('store')
+  })
+
+  it('is the only prefix owner, so nothing competes for the fall-through', () => {
+    const prefixOwners = SECTION_SPECS.filter(
+      (s) => (s.keyPrefixes?.length ?? 0) > 0,
+    ).map((s) => s.id)
+    expect(prefixOwners).toEqual(['all-settings'])
+  })
+})
+
+describe('curatedSectionIdsForKey', () => {
+  it('names only sections that declare the key exactly', () => {
+    expect(curatedSectionIdsForKey('config.terminal.timeout')).toEqual([
+      'execution',
+    ])
+    expect(curatedSectionIdsForKey('config.logging.level').sort()).toEqual([
+      'advanced',
+      'telemetry',
+    ])
+  })
+
+  it('excludes the prefix catch-all, so the browser can tell curated apart', () => {
+    expect(curatedSectionIdsForKey('config.nothing.claims.this')).toEqual([])
   })
 })

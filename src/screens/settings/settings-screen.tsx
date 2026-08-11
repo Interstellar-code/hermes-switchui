@@ -2,13 +2,20 @@
  * settings-screen.tsx — Matrix-themed Settings shell.
  *
  * Layout: sidebar tree (left) + content panel (right).
- * Active section persisted to localStorage key `hermes.settings.section`.
+ *
+ * The active section lives in the **URL** (`/settings?section=safety`). It used
+ * to be `useState` seeded from the localStorage key `hermes.settings.section`,
+ * which meant the page could not be linked to, the back button did nothing, and
+ * anything wanting to send a user to a section had to write that localStorage
+ * key first and hope (`inline-approval-card.tsx` really did that). See
+ * `lib/settings-search.ts` for the URL contract and why it is `?section=` and
+ * not a `/settings/$section` param route.
  *
  * Sections, their groups and the keys they own all come from
  * `lib/section-registry.ts`; this file only wires the store to the shell.
  */
 
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import '@/styles/matrix-skills.css'
 import '@/styles/matrix-settings.css'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -22,14 +29,16 @@ import {
   SECTION_SPEC_BY_ID,
   dirtySectionIds,
 } from './lib/section-registry'
+import { useConfigSchema, useRegisterSchemaDefaults } from './lib/schema-binding'
+import { buildSearchIndex, searchSections } from './lib/search-index'
+import { DEFAULT_SECTION } from './lib/settings-search'
 import type { SectionSpec } from './lib/section-registry'
 import type { SidebarGroup } from './components/sidebar-tree'
 import { useDirtyCount, useSettingsStore } from '@/stores/settings-store'
 import { getConfig } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
 
-const DEFAULT_SECTION = 'workspace'
-const LS_KEY = 'hermes.settings.section'
+export { DEFAULT_SECTION }
 
 // ── Sidebar groups ────────────────────────────────────────────────────────
 
@@ -69,7 +78,7 @@ function StubSection({ section }: { section: SectionSpec }) {
       </div>
       <div className="card">
         <h3>{section.label}</h3>
-        <div style={{ padding: '18px', font: '500 12px var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+        <div style={{ padding: '18px', font: '500 12px var(--m-font-mono)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
           Content for this section has not been implemented.
         </div>
       </div>
@@ -90,7 +99,21 @@ function IconCog() {
 
 // ── SettingsScreen ────────────────────────────────────────────────────────
 
-export function SettingsScreen() {
+export type SettingsScreenProps = {
+  /**
+   * The active section. Supplied by the route from `?section=`; when omitted
+   * the screen keeps its own state, which is what lets it be rendered without
+   * a router (tests, storybook-style harnesses).
+   */
+  section?: string
+  /** Called when the user picks a section. The route writes it to the URL. */
+  onSectionChange?: (id: string) => void
+}
+
+export function SettingsScreen({
+  section,
+  onSectionChange,
+}: SettingsScreenProps = {}) {
   const dirty = useSettingsStore((s) => s.dirty)
   const save = useSettingsStore((s) => s.save)
   const saveState = useSettingsStore((s) => s.saveState)
@@ -104,13 +127,14 @@ export function SettingsScreen() {
    */
   const seededRef = useRef<unknown>(undefined)
 
-  const [activeId, setActiveId] = useState<string>(() => {
-    try {
-      return localStorage.getItem(LS_KEY) ?? DEFAULT_SECTION
-    } catch {
-      return DEFAULT_SECTION
-    }
-  })
+  const [ownSection, setOwnSection] = useState<string>(DEFAULT_SECTION)
+  const activeId = section ?? ownSection
+  const selectSection = onSectionChange ?? setOwnSection
+
+  // Page-wide search. Deliberately *not* in the URL: it changes on every
+  // keystroke, and a query param that only sometimes reflects the box is worse
+  // than one that never claims to.
+  const [query, setQuery] = useState('')
 
   // Fetch server config and seed store on mount
   const queryClient = useQueryClient()
@@ -119,6 +143,18 @@ export function SettingsScreen() {
     queryFn: getConfig,
     staleTime: 60_000,
   })
+
+  // Schema-derived defaults replace the sections' inline `?? 90` guesses. Both
+  // this and the schema itself degrade to nothing on failure — neither may
+  // block the page.
+  useRegisterSchemaDefaults()
+  const { index: schemaIndex } = useConfigSchema()
+
+  const searchIndex = useMemo(() => buildSearchIndex(schemaIndex), [schemaIndex])
+  const searchResults = useMemo(
+    () => (query.trim() ? searchSections(searchIndex, query) : []),
+    [searchIndex, query],
+  )
 
   async function handleRefresh() {
     // Refresh promises a reload from disk, so it is the one hard reset. A
@@ -150,15 +186,6 @@ export function SettingsScreen() {
     seededRef.current = serverConfig
     useSettingsStore.getState().seed(flattenConfig(serverConfig))
   }, [serverConfig])
-
-  // Persist active section to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem(LS_KEY, activeId)
-    } catch {
-      // ignore
-    }
-  }, [activeId])
 
   // Unsaved-changes guard. Scoped to beforeunload only — the router's
   // useBlocker has no precedent in this app and interacts badly with the lazy
@@ -261,7 +288,11 @@ export function SettingsScreen() {
       <SidebarTree
         groups={sidebarGroups}
         activeId={activeId}
-        onSelect={setActiveId}
+        onSelect={selectSection}
+        query={query}
+        onQueryChange={setQuery}
+        searchResults={searchResults}
+        onSelectSetting={(sectionId) => selectSection(sectionId)}
       />
 
       {/* Main panel */}
@@ -295,8 +326,8 @@ export function SettingsScreen() {
               const SectionComponent = SECTION_COMPONENTS[activeId]
               if (SectionComponent) {
                 return (
-                  <Suspense fallback={<div style={{ padding: '24px', color: 'var(--m-text-faint)' }}>Loading…</div>}>
-                    <SectionComponent />
+                  <Suspense fallback={<div style={{ padding: '24px', color: 'var(--m-text-faint, var(--theme-muted))' }}>Loading…</div>}>
+                    <SectionComponent query={query} />
                   </Suspense>
                 )
               }

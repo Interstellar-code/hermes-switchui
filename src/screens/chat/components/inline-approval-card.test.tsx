@@ -286,7 +286,7 @@ describe('always is a security grant, not a fourth button', () => {
       screen.getByRole('link', { name: 'Open Settings → Safety' }).getAttribute(
         'href',
       ),
-    ).toBe('/settings')
+    ).toBe('/settings?section=safety')
   })
 
   it('sends always only after the confirmation is accepted', async () => {

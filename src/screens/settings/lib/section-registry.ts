@@ -269,6 +269,24 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     ownership: 'read-only',
   },
   {
+    /**
+     * Schema-generated browser over every field `GET /api/config/schema`
+     * publishes — 555 of them against the 48 the curated sections hand-maintain.
+     *
+     * `keyPrefixes: ['config.']` is a deliberate fail-open catch-all: an orphan
+     * key (one no curated section declares) still resolves to a section, so it
+     * still lights a sidebar dot instead of going dirty invisibly. Because
+     * `sectionIdsForKey` resolves exact-before-prefix, a curated section's own
+     * keys are never stolen by it — `section-registry.test.ts` pins that, so
+     * the catch-all cannot mask a genuine registry gap.
+     */
+    id: 'all-settings',
+    label: 'All settings',
+    group: 'Advanced',
+    ownership: 'store',
+    keyPrefixes: ['config.'],
+  },
+  {
     id: 'advanced',
     label: 'Advanced',
     group: 'Advanced',
@@ -293,11 +311,24 @@ export const SECTION_SPECS: Array<SectionSpec> = [
 export const SECTION_SPEC_BY_ID = new Map(SECTION_SPECS.map((s) => [s.id, s]))
 
 /**
+ * What the shell hands a section body. Every field is optional and every
+ * existing section ignores all of them — 26 of the 28 sections take no props at
+ * all and must stay that way.
+ */
+export type SectionProps = {
+  /** The page-wide search text, for a section that can filter itself. */
+  query?: string
+}
+
+/**
  * Section id → lazily-loaded body. Kept beside the specs so a new section
  * cannot be registered in one list and forgotten in the other;
  * `section-registry.test.ts` asserts the two stay in step.
  */
-export const SECTION_COMPONENTS: Record<string, ComponentType | undefined> = {
+export const SECTION_COMPONENTS: Record<
+  string,
+  ComponentType<SectionProps> | undefined
+> = {
   workspace: lazy(() => import('../sections/section-workspace')),
   account: lazy(() => import('../sections/section-account')),
   appearance: lazy(() => import('../sections/section-appearance')),
@@ -322,6 +353,7 @@ export const SECTION_COMPONENTS: Record<string, ComponentType | undefined> = {
   performance: lazy(() => import('../sections/section-performance')),
   updates: lazy(() => import('../sections/section-updates')),
   shortcuts: lazy(() => import('../sections/section-shortcuts')),
+  'all-settings': lazy(() => import('../sections/section-all-settings')),
   advanced: lazy(() => import('../sections/section-advanced')),
   'raw-config': lazy(() => import('../sections/section-raw-config')),
   danger: lazy(() => import('../sections/section-danger')),
@@ -354,6 +386,15 @@ export function sectionIdsForKey(key: string): Array<string> {
   if (exact) return exact
   const prefixed = PREFIX_INDEX.find((entry) => key.startsWith(entry.prefix))
   return prefixed ? [prefixed.id] : []
+}
+
+/**
+ * Only the sections that declare `key` **exactly** — prefix catch-alls
+ * excluded. The All-settings browser uses this to mark a row that a curated
+ * section already surfaces, so the two are not silently duplicated.
+ */
+export function curatedSectionIdsForKey(key: string): Array<string> {
+  return EXACT_INDEX.get(key) ?? []
 }
 
 /** The section that owns `key`: exact beats prefix, longest prefix wins. */

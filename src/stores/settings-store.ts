@@ -391,6 +391,28 @@ export function useSetting(key: string): [unknown, (v: unknown) => void] {
   return [value, (v) => setter(key, v)]
 }
 
+/**
+ * One key's draft value, and nothing else.
+ *
+ * `useSettingsStore()` with no selector subscribes to the whole store, so every
+ * keystroke anywhere re-renders every subscriber. The All-settings browser
+ * mounts hundreds of rows at once and *must* subscribe per key or typing in one
+ * row re-renders all of them.
+ */
+export function useSettingValue(key: string): unknown {
+  return useSettingsStore((s) => s.draft[key])
+}
+
+/** Whether one key has an unsaved edit. Per-key, like `useSettingValue`. */
+export function useSettingDirty(key: string): boolean {
+  return useSettingsStore((s) => s.dirty.has(key))
+}
+
+/** The store's `set` action. Stable for the store's lifetime. */
+export function useSetSetting(): (key: string, value: unknown) => void {
+  return useSettingsStore((s) => s.set)
+}
+
 /** Returns count of dirty keys */
 export function useDirtyCount(): number {
   return useSettingsStore((s) => s.dirty.size)

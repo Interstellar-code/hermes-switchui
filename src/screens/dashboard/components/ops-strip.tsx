@@ -174,7 +174,11 @@ export function OpsStrip({
         {drift > 0 ? (
           <button
             type="button"
-            onClick={() => navigate({ to: '/settings', search: {} })}
+            // Config drift is a whole-file question, so send them to the raw
+            // YAML editor rather than a curated section that shows 48 of 555 keys.
+            onClick={() =>
+              navigate({ to: '/settings', search: { section: 'raw-config' } })
+            }
             className="rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.15em] transition-colors hover:bg-[var(--theme-card)]/80"
             style={{
               background:

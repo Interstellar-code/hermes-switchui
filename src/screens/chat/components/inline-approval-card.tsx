@@ -25,8 +25,14 @@ type InlineApprovalCardProps = {
   sessionKey: string
 }
 
-/** Settings has no URL for its section — it reads this key on mount. */
-const SETTINGS_SECTION_KEY = 'hermes.settings.section'
+/**
+ * Settings sections are addressable now (`lib/settings-search.ts`). This used
+ * to write `localStorage['hermes.settings.section']` before following a bare
+ * `/settings` link, because the screen picked its section from that key rather
+ * than the URL — so the "link" was really a side effect that a private-mode
+ * browser silently dropped.
+ */
+const SETTINGS_SAFETY_HREF = '/settings?section=safety'
 
 /**
  * Wraps at this length rather than being cut off. The command is NEVER
@@ -304,17 +310,7 @@ export function InlineApprovalCard({
           <p className="mt-1 text-[11px] leading-relaxed text-[var(--theme-muted)]">
             {ALWAYS_REVOKE_HINT}{' '}
             <a
-              href="/settings"
-              onClick={() => {
-                // Settings picks its section from localStorage, not the URL,
-                // so seed it rather than shipping the user to whatever section
-                // they last had open.
-                try {
-                  localStorage.setItem(SETTINGS_SECTION_KEY, 'safety')
-                } catch {
-                  // Settings still opens; it just lands on its last section.
-                }
-              }}
+              href={SETTINGS_SAFETY_HREF}
               className="underline underline-offset-2 hover:text-[var(--theme-text)]"
             >
               Open Settings → Safety
