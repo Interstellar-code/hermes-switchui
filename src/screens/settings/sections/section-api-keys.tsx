@@ -30,6 +30,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { PasswordField } from '../components/controls'
+import { ConfirmDialog } from '../components/confirm-dialog'
 import type { EnvVarInfo, OAuthProvider } from '@/lib/hermes-client'
 import type {
   CredentialOrigin,
@@ -43,7 +44,6 @@ import {
   putEnv,
   revealEnv,
 } from '@/lib/hermes-client'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { humanizeEnvKey, useEnvVarRow } from '@/hooks/use-env-var-row'
 import { toast } from '@/components/ui/toast'
 

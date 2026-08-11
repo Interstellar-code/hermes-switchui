@@ -5,7 +5,7 @@
 import { useState } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
+import { ConfirmDialog } from '../components/confirm-dialog'
 import { toast } from '@/components/ui/toast'
 import { gatewayRestart } from '@/lib/hermes-client'
 
@@ -115,48 +115,31 @@ export default function SectionDanger() {
       />
 
       {/* Delete workspace dialog with typed confirmation */}
-      {deleteOpen && (
-        <div className="pf-confirm-backdrop" onClick={() => { setDeleteOpen(false); setDeleteConfirmText('') }}>
-          <div
-            className="pf-confirm"
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-          >
-            <h3>Delete workspace?</h3>
-            <p>
-              This action is <strong>irreversible</strong>. All workspace data will be permanently
-              destroyed. Type <code>DELETE</code> to confirm.
-            </p>
-            <input
-              type="text"
-              className="input-sm"
-              value={deleteConfirmText}
-              onChange={(e) => setDeleteConfirmText(e.target.value)}
-              placeholder="Type DELETE"
-              style={{ width: '100%', margin: '12px 0', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 13 }}
-              autoFocus
-            />
-            <div className="pf-confirm-actions">
-              <button
-                type="button"
-                className="btn"
-                onClick={() => { setDeleteOpen(false); setDeleteConfirmText('') }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-danger"
-                disabled={deleteConfirmText !== 'DELETE'}
-                onClick={handleDeleteWorkspace}
-              >
-                Delete workspace
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        open={deleteOpen}
+        title="Delete workspace?"
+        message={
+          <>
+            This action is <strong>irreversible</strong>. All workspace data will be
+            permanently destroyed. Type <code>DELETE</code> to confirm.
+          </>
+        }
+        confirmLabel="Delete workspace"
+        destructive
+        confirmDisabled={deleteConfirmText !== 'DELETE'}
+        onConfirm={handleDeleteWorkspace}
+        onCancel={() => { setDeleteOpen(false); setDeleteConfirmText('') }}
+      >
+        <input
+          type="text"
+          value={deleteConfirmText}
+          onChange={(e) => setDeleteConfirmText(e.target.value)}
+          placeholder="Type DELETE"
+          aria-label="Type DELETE to confirm"
+          className="w-full rounded-md border border-[var(--m-border,var(--theme-border))] bg-[var(--m-bg,var(--theme-bg))] px-3 py-2 font-mono text-sm text-[var(--m-text,var(--theme-text))] outline-none focus-visible:ring-2 focus-visible:ring-[var(--m-green-500,var(--theme-accent))]"
+          autoFocus
+        />
+      </ConfirmDialog>
     </div>
   )
 }
