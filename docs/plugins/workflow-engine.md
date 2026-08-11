@@ -81,11 +81,11 @@ workflow:
 
 ## How it relates to the Switch UI Workflows page
 
-Switch UI ships two workflow engine backends. By default it uses the native TypeScript engine embedded in the Switch UI server — no gateway required. When you switch to the **plugin** backend in **Settings → Workflows → Backend**, every workflow API call is proxied through to this plugin running inside the hermes-agent gateway.
+This plugin is the only workflow engine Switch UI uses. Every workflow API call is proxied through to it running inside the hermes-agent gateway, so the gateway must be reachable for the Workflows page to work.
 
-The plugin backend adds two capabilities the native backend does not have: cron-triggered runs and Kanban dispatcher integration (routing `hermes_task` nodes to named agents via the Kanban system). Everything else — SSE event streaming, approval gates, parallel node execution, phase grouping — works identically in both backends.
+Switch UI once shipped a second, native TypeScript engine embedded in its own server, selectable from a backend toggle in Settings. Both the native engine and the toggle have been removed — the engine factory now always returns the plugin client, and the Workflows settings section is read-only. See [Workflows backend toggle](../settings/workflows-backend-toggle.md) if you are migrating from a version that still had the native store.
 
-Definitions are not shared between backends. If you switch, you will need to re-register your workflows in the target store. See [Workflows backend toggle](../settings/workflows-backend-toggle.md) for migration steps and a full feature comparison table.
+Alongside the features shared with the old native engine — SSE event streaming, approval gates, parallel node execution, phase grouping — the plugin adds cron-triggered runs and Kanban dispatcher integration, routing `hermes_task` nodes to named agents via the Kanban system.
 
 ## Enabling the plugin
 
