@@ -51,6 +51,25 @@ type SidebarTreeProps = {
   onSelectSetting?: (sectionId: string, key: string) => void
 }
 
+const GROUPS_LS_KEY = 'hermes.settings.expandedGroups'
+
+/**
+ * Groups the user has expanded. Groups are collapsed by default: 28 sections
+ * across 11 groups do not fit a laptop rail, and an all-open list buries the
+ * group you want under scroll. An absent key means everything starts closed —
+ * except whichever group holds the open section, which is forced open below.
+ */
+function readExpandedGroups(): Set<string> {
+  try {
+    const raw = localStorage.getItem(GROUPS_LS_KEY)
+    if (!raw) return new Set()
+    const parsed: unknown = JSON.parse(raw)
+    return Array.isArray(parsed) ? new Set(parsed.map(String)) : new Set()
+  } catch {
+    return new Set()
+  }
+}
+
 export function SidebarTree({
   groups,
   activeId,
@@ -62,6 +81,22 @@ export function SidebarTree({
 }: SidebarTreeProps) {
   const [ownQuery, setOwnQuery] = useState('')
   const [collapsed, setCollapsed] = useState(false)
+  const [expandedGroups, setExpandedGroups] =
+    useState<Set<string>>(readExpandedGroups)
+
+  function toggleGroup(label: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      try {
+        localStorage.setItem(GROUPS_LS_KEY, JSON.stringify([...next]))
+      } catch {
+        // A browser refusing storage must not break navigation.
+      }
+      return next
+    })
+  }
 
   const text = query ?? ownQuery
   const setText = onQueryChange ?? setOwnQuery
@@ -199,10 +234,57 @@ export function SidebarTree({
             ))}
           </>
         ) : (
-          filtered.map((group) => (
+          filtered.map((group) => {
+            // A group is never collapsed while it holds the open section —
+            // otherwise selecting a section could hide the thing you just
+            // selected, or a reload would open with no visible active item.
+            const holdsActive = group.items.some((it) => it.id === activeId)
+            const isOpen = holdsActive || expandedGroups.has(group.label)
+            const dirtyCount = group.items.filter((it) => it.dirty).length
+            const listId = `settings-group-${group.label.replace(/\W+/g, '-').toLowerCase()}`
+
+            return (
             <div key={group.label} className="sk-filter-section">
-              <div className="sec-label">{group.label}</div>
-              <div className="sk-filter-list">
+              <button
+                type="button"
+                className={`sec-label sec-toggle${isOpen ? ' open' : ''}`}
+                onClick={() => toggleGroup(group.label)}
+                aria-expanded={isOpen}
+                aria-controls={listId}
+                disabled={holdsActive}
+                title={
+                  holdsActive
+                    ? `${group.label} — holds the open section`
+                    : isOpen
+                      ? `Collapse ${group.label}`
+                      : `Expand ${group.label}`
+                }
+              >
+                <svg
+                  className="sec-chevron"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  width="10"
+                  height="10"
+                  aria-hidden
+                >
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+                <span className="sec-label-text">{group.label}</span>
+                {/* Collapsed groups still have to report unsaved work, or the
+                    save bar's count would have no visible source. */}
+                {!isOpen && dirtyCount > 0 && (
+                  <span className="item-ct" aria-label={`${dirtyCount} unsaved`}>
+                    ●
+                  </span>
+                )}
+                {!isOpen && dirtyCount === 0 && (
+                  <span className="sec-count">{group.items.length}</span>
+                )}
+              </button>
+              <div className="sk-filter-list" id={listId} hidden={!isOpen}>
                 {group.items.map((item) => (
                   <button
                     key={item.id}
@@ -223,7 +305,8 @@ export function SidebarTree({
                 ))}
               </div>
             </div>
-          ))
+            )
+          })
         )}
       </div>
 
