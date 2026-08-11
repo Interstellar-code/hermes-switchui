@@ -155,6 +155,13 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
             pluginsTouched: false,
             profileTouched: false,
             memoryTouched: false,
+            // Live probe, same rule as every signal above: it only runs
+            // inside a mounted wizard (`use-profile-servability.ts`, wired
+            // through `onboarding-screen.tsx`). `null` renders identically
+            // to "nothing to warn about" — silence, never a false
+            // accusation — so a dashboard/sidebar reader outside the wizard
+            // simply doesn't see this warning rather than seeing a wrong one.
+            profileServability: null,
           })
         : EMPTY_ITEMS,
     [activeProvider, ready, snapshot],

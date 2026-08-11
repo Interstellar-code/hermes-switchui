@@ -8,6 +8,7 @@ import {
 import { ONBOARDING_DRAFT_VERSION } from './onboarding-storage'
 import type { BuildChecklistInput } from './checklist'
 import type { OnboardingDraft, OnboardingOutcome } from './onboarding-storage'
+import type { ProfileServabilityResult } from './profile-servability'
 
 function draft(overrides: Partial<OnboardingDraft> = {}): OnboardingDraft {
   return {
@@ -43,6 +44,7 @@ function input(
     pluginsTouched: false,
     profileTouched: false,
     memoryTouched: false,
+    profileServability: null,
     ...overrides,
   }
 }
@@ -197,6 +199,129 @@ describe('buildChecklist', () => {
       }),
     )
     expect(stateOf(items, 'plugins')).toBe('skipped')
+  })
+})
+
+describe('buildChecklist — profile servability', () => {
+  const UNREACHABLE_SINGLE: ProfileServabilityResult = {
+    kind: 'unreachable',
+    unreachable: ['hermes-switch'],
+    detail:
+      'Only "default" is reachable right now. This gateway is not ' +
+      'multiplexed, so "hermes-switch" would be refused the moment you ' +
+      'tried to send to them.',
+    remediation:
+      'Run `hermes config set gateway.multiplex_profiles true`, then ' +
+      'restart the gateway so one process can reach every profile.',
+  }
+  const UNREACHABLE_MULTIPLEX: ProfileServabilityResult = {
+    kind: 'unreachable',
+    unreachable: ['morpheus'],
+    detail: 'Multiplexing is on, but "morpheus" isn\'t in the served list.',
+    remediation: 'Check the gateway startup log for "morpheus".',
+  }
+  const INDETERMINATE: ProfileServabilityResult = {
+    kind: 'indeterminate',
+    detail:
+      '2 agent profiles exist on disk, but whether every one of them is ' +
+      'reachable could not be determined: the gateway topology probe failed.',
+  }
+
+  it('multi-profile + non-multiplex warns with the profile named and remediation inline', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        profileServability: UNREACHABLE_SINGLE,
+      }),
+    )
+    const profile = items.find((item) => item.id === 'profile')
+    expect(profile?.detail).toContain('Only "default" is reachable right now')
+    expect(profile?.detail).toContain('"hermes-switch"')
+    expect(profile?.detail).toContain(
+      'hermes config set gateway.multiplex_profiles true',
+    )
+    // A warning, not a hard blocker: still optional, still not `blocked` on
+    // its own account (only `optionalBlocked` — the pre-existing chat gate —
+    // may force that).
+    expect(profile?.required).toBe(false)
+    expect(profile?.state).toBe('todo')
+  })
+
+  it('downgrades an already-touched profile back to todo when it turns out unreachable', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        profileTouched: true,
+        profileServability: UNREACHABLE_SINGLE,
+      }),
+    )
+    expect(items.find((item) => item.id === 'profile')?.state).toBe('todo')
+  })
+
+  it('single profile + non-multiplex stays silent (profileServability: null)', () => {
+    const items = buildChecklist(
+      input({ activeProvider: 'anthropic', chatProven: true }),
+    )
+    const profile = items.find((item) => item.id === 'profile')
+    expect(profile?.detail).toBe('Optional — the default profile works.')
+    expect(profile?.state).toBe('todo')
+  })
+
+  it('multiplex with every disk profile served stays silent ({ kind: "ok" })', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        profileTouched: true,
+        profileServability: { kind: 'ok' },
+      }),
+    )
+    const profile = items.find((item) => item.id === 'profile')
+    expect(profile?.detail).toBe('Chosen.')
+    expect(profile?.state).toBe('done')
+  })
+
+  it('warns when multiplex is on but a disk profile is missing from served_profiles', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        profileServability: UNREACHABLE_MULTIPLEX,
+      }),
+    )
+    const profile = items.find((item) => item.id === 'profile')
+    expect(profile?.detail).toContain('Multiplexing is on')
+    expect(profile?.detail).toContain('"morpheus"')
+    expect(profile?.state).toBe('todo')
+  })
+
+  it('reports an indeterminate probe as a non-committal message, not a misconfiguration accusation', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        profileServability: INDETERMINATE,
+      }),
+    )
+    const profile = items.find((item) => item.id === 'profile')
+    expect(profile?.detail).toContain('could not be determined')
+    expect(profile?.detail).not.toMatch(/misconfigur/i)
+    // No remediation command is asserted here on purpose: `indeterminate`
+    // never claims a fix, only that the answer is unknown.
+    expect(profile?.detail).not.toContain('multiplex_profiles true')
+  })
+
+  it('still respects the chat gate: a servability warning cannot unblock the item early', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: false,
+        profileServability: UNREACHABLE_SINGLE,
+      }),
+    )
+    expect(items.find((item) => item.id === 'profile')?.state).toBe('blocked')
   })
 })
 

@@ -20,8 +20,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarHeaderV2 } from './sidebar-header-v2'
 import { SidebarProfileDropdownV2 } from './sidebar-profile-dropdown-v2'
 import { chatQueryKeys } from '@/screens/chat/chat-queries'
-import { useSessionsFeed } from '@/screens/chat/sessions-feed'
+import { ACTIVE_PROFILE, useSessionsFeed } from '@/screens/chat/sessions-feed'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import {
+  UNSCOPED_PROFILE,
+  getSessionProfile,
+  profileBody,
+  setSessionProfile,
+  syncSessionProfileToPath,
+} from '@/lib/session-scope'
 
 const CLEAN_SINGLE = [{ profile: 'default', count: 53, error: null }]
 const MULTI = [
@@ -33,12 +40,29 @@ const DEGRADED = [
   { profile: 'neo', count: 0, error: 'no such column: s.display_name' },
 ]
 
+beforeEach(() => {
+  // The dropdown reads the RESOLVED profile, and the device layer only applies
+  // on the chat surface — `__root` arms it on every navigation. Without this
+  // the sidebar renders unscoped no matter what the store holds, which is
+  // itself the correct behaviour off `/chat`.
+  syncSessionProfileToPath('/chat/session-a')
+})
+
 afterEach(() => {
   cleanup()
+  setSessionProfile(null)
   useSessionsFilterStore.setState({ profile: 'active' })
+  syncSessionProfileToPath('/dashboard')
 })
 
 describe('SidebarProfileDropdownV2', () => {
+  it('shares one sentinel with the sessions feed', () => {
+    // Two spellings of "unscoped" would be a second source of truth by another
+    // name: the feed would browse the active profile while the resolver
+    // believed a profile named `active` was selected.
+    expect(ACTIVE_PROFILE).toBe(UNSCOPED_PROFILE)
+  })
+
   it('renders the trigger inside the sessions-panel header slot', () => {
     render(<SidebarHeaderV2 count={12} totals={MULTI} />)
     const header = screen.getByTestId('sessions-panel-header')
@@ -81,6 +105,72 @@ describe('SidebarProfileDropdownV2', () => {
     expect(trigger.textContent).toContain('hermes-switch')
     expect(trigger.textContent).toContain('· 1547')
     expect(trigger.textContent).not.toContain('SESSIONS')
+  })
+
+  it('sends the composer where the header says, not just the list', () => {
+    // The bug: picking `hermes-switch` scoped the session list and nothing
+    // else, so the next message still went to the gateway's active profile.
+    // One pick must move the whole tab.
+    render(<SidebarProfileDropdownV2 totals={MULTI} count={53} />)
+    expect(profileBody()).toEqual({})
+
+    fireEvent.click(screen.getByTestId('sidebar-profile-trigger'))
+    fireEvent.click(screen.getByTestId('profile-option-hermes-switch'))
+
+    expect(getSessionProfile()).toBe('hermes-switch')
+    expect(profileBody()).toEqual({ profile: 'hermes-switch' })
+  })
+
+  it('picking "active" returns the tab to byte-identical unscoped behaviour', () => {
+    render(<SidebarProfileDropdownV2 totals={MULTI} count={53} />)
+    fireEvent.click(screen.getByTestId('sidebar-profile-trigger'))
+    fireEvent.click(screen.getByTestId('profile-option-hermes-switch'))
+    expect(profileBody()).toEqual({ profile: 'hermes-switch' })
+
+    fireEvent.click(screen.getByTestId('sidebar-profile-trigger'))
+    fireEvent.click(screen.getByTestId('profile-option-active'))
+
+    expect(getSessionProfile()).toBeNull()
+    expect(profileBody()).toEqual({})
+    expect(screen.getByTestId('sidebar-profile-trigger').textContent).toContain(
+      'SESSIONS',
+    )
+  })
+
+  it('treats "default" as a real profile, not as the unscoped sentinel', () => {
+    // Under a multiplex gateway `/p/default/health` answers 200, so `default`
+    // is selectable and must scope like any other name.
+    render(<SidebarProfileDropdownV2 totals={MULTI} count={53} />)
+    fireEvent.click(screen.getByTestId('sidebar-profile-trigger'))
+    fireEvent.click(screen.getByTestId('profile-option-default'))
+
+    expect(getSessionProfile()).toBe('default')
+    expect(profileBody()).toEqual({ profile: 'default' })
+    expect(screen.getByTestId('sidebar-profile-trigger').textContent).toContain(
+      'default',
+    )
+  })
+
+  it('shows the ?profile= pin and refuses to offer a write that would lose', () => {
+    // A session lives in exactly one profile's state.db, so the link that
+    // opened this tab outranks a device-level pick. Rather than accept a
+    // selection the resolver would discard — the two-picker bug in miniature —
+    // the control renders the pinned profile and goes dead.
+    useSessionsFilterStore.setState({ profile: 'hermes-switch' })
+    setSessionProfile('neo')
+    render(<SidebarProfileDropdownV2 totals={MULTI} count={53} />)
+
+    const trigger = screen.getByTestId('sidebar-profile-trigger')
+    expect(trigger.textContent).toContain('neo')
+    expect(trigger.textContent).not.toContain('hermes-switch')
+    expect((trigger as HTMLButtonElement).disabled).toBe(true)
+    expect(trigger.getAttribute('data-pinned')).toBe('url')
+    expect(trigger.getAttribute('title')).toContain('start a new chat')
+
+    fireEvent.click(trigger)
+    expect(screen.queryByTestId('sidebar-profile-menu')).toBeNull()
+    // The device selection underneath is untouched — no mirror, no clobber.
+    expect(useSessionsFilterStore.getState().profile).toBe('hermes-switch')
   })
 
   it('closes on Escape', () => {

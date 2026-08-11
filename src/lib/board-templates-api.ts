@@ -6,6 +6,8 @@ import type {
   KanbanTemplateSummary,
   SaveAsTemplateInput,
 } from './hermes-kanban-types'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import { scopeSegments } from '@/lib/session-scope'
 
 /**
  * TanStack Query hooks for Kanban Board Templates.
@@ -61,10 +63,26 @@ async function templatesJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/**
+ * Template query keys. `list`/`detail` are profile-keyed the same way as
+ * `boardsKeys.list` in `boards-api.ts`: `/api/hermes-kanban/templates*` has
+ * no `?profile=` support, so this is a client-cache-only mitigation — a
+ * profile switch re-keys the cache instead of serving another profile's
+ * templates from memory. `scopeSegments` is `[]` when unscoped, so
+ * single-profile / pre-selector behaviour is byte-identical to before.
+ *
+ * `all` stays unscoped on purpose — it is only an `invalidateQueries`
+ * prefix, and an unscoped, shorter prefix still matches every profile's
+ * `list`/`detail` keys (the profile segment is appended after `'list'` /
+ * `'detail', slug`, not right after `'templates'`). Invalidating every
+ * profile's cached templates on a mutation is the safe direction.
+ */
 export const templatesKeys = {
   all: ['hermes-kanban', 'templates'] as const,
-  list: () => ['hermes-kanban', 'templates', 'list'] as const,
-  detail: (slug: string) => ['hermes-kanban', 'templates', 'detail', slug] as const,
+  list: (profile: string | null) =>
+    ['hermes-kanban', 'templates', 'list', ...scopeSegments(profile)] as const,
+  detail: (slug: string, profile: string | null) =>
+    ['hermes-kanban', 'templates', 'detail', slug, ...scopeSegments(profile)] as const,
 }
 
 export async function fetchTemplates(): Promise<{ templates: Array<KanbanTemplateSummary> }> {
@@ -141,8 +159,9 @@ export async function fetchSaveBoardAsTemplate(
 }
 
 export function useTemplates(enabled = true) {
+  const profile = useResolvedProfile()
   return useQuery({
-    queryKey: templatesKeys.list(),
+    queryKey: templatesKeys.list(profile),
     queryFn: fetchTemplates,
     enabled,
     retry: false,
@@ -152,8 +171,9 @@ export function useTemplates(enabled = true) {
 }
 
 export function useTemplate(slug: string | null, enabled = true) {
+  const profile = useResolvedProfile()
   return useQuery({
-    queryKey: templatesKeys.detail(slug ?? ''),
+    queryKey: templatesKeys.detail(slug ?? '', profile),
     queryFn: () => fetchTemplate(slug as string),
     enabled: enabled && !!slug,
   })
@@ -165,9 +185,10 @@ export function useTemplate(slug: string | null, enabled = true) {
  * Pass only the visible/paginated slugs to bound the request fan-out.
  */
 export function useTemplateTaskCounts(slugs: Array<string>): Record<string, number | undefined> {
+  const profile = useResolvedProfile()
   const results = useQueries({
     queries: slugs.map((slug) => ({
-      queryKey: templatesKeys.detail(slug),
+      queryKey: templatesKeys.detail(slug, profile),
       queryFn: () => fetchTemplate(slug),
       staleTime: 60_000,
       retry: false,

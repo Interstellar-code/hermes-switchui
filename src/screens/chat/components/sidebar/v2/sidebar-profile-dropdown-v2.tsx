@@ -18,12 +18,33 @@
  * selected) the affordance is hidden entirely and the plain `SESSIONS · N`
  * label renders — that is what an unscoped, single-gateway install already
  * looks like (§2 DoD: byte-identical unscoped behaviour).
+ *
+ * ── Who owns "the current profile" ──────────────────────────────────────────
+ *
+ * This dropdown is the app's **global profile writer**: what it selects is not
+ * a list filter, it is the profile this device works in, and it reaches the
+ * session list, the query keys AND the send path through the single resolver in
+ * `lib/session-scope.ts`. It used to write a store field that only the sessions
+ * feed read, so picking `hermes-switch` here showed hermes-switch's sessions
+ * while the composer kept sending to the gateway's active profile. That split
+ * is gone: this writes the resolver's device layer and reads the resolver back,
+ * so what the header says and where a message lands cannot disagree.
+ *
+ * One input still outranks it: `?profile=` on the tab's URL, written by a
+ * sidebar link to a foreign profile's session or by the meta-bar picker on a
+ * new chat. That pin belongs to a *session*, which lives in exactly one
+ * profile's `state.db`, so it must win. While it is set this control renders
+ * the pinned profile and is DISABLED — offering a selection the resolver would
+ * discard is how the two-picker bug looked in the first place.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import type { ProfileTotalRow } from '@/screens/chat/sessions-feed'
-import { ACTIVE_PROFILE } from '@/screens/chat/sessions-feed'
-import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import { useProfileScope } from '@/hooks/use-resolved-profile'
+import {
+  UNSCOPED_PROFILE,
+  useSessionsFilterStore,
+} from '@/stores/sessions-filter-store'
 
 const ERROR_COLOR = 'var(--m-red, #ff4444)'
 const ACCENT = 'var(--m-green-400, var(--theme-accent))'
@@ -39,7 +60,11 @@ export function SidebarProfileDropdownV2({
   totals,
   count,
 }: SidebarProfileDropdownV2Props) {
-  const profile = useSessionsFilterStore((s) => s.profile)
+  // Read the RESOLVED profile, never the store field: on a tab pinned by
+  // `?profile=` the store's device selection is outranked, and rendering it
+  // would put a different name in the header than the one the composer sends
+  // to. Writes still go to the store — it is the device layer's only writer.
+  const scope = useProfileScope()
   const setProfile = useSessionsFilterStore((s) => s.setProfile)
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -62,7 +87,12 @@ export function SidebarProfileDropdownV2({
     }
   }, [open])
 
-  const isActive = profile === ACTIVE_PROFILE
+  /** `null` resolves to unscoped; the sentinel is only ever a display/label
+   *  value, and never equals a real profile name (`default` included). */
+  const profile = scope.profile ?? UNSCOPED_PROFILE
+  const isActive = scope.profile === null
+  /** The tab is pinned by its URL, which outranks anything selectable here. */
+  const pinned = scope.source === 'url'
 
   // Nothing worth choosing between. Kept conditional on `isActive` too: a
   // persisted foreign profile with an empty/short totals list would otherwise
@@ -76,28 +106,43 @@ export function SidebarProfileDropdownV2({
   }
 
   const selected = totals.find((t) => t.profile === profile)
+  // Said in one place so the tooltip, the aria-label and the reason the control
+  // is dead can never drift apart.
+  const pinnedReason = `This chat is scoped to ${profile} by its link — start a new chat to work in another profile.`
 
   return (
     <div ref={rootRef} className="flex items-center gap-1 min-w-0">
       <button
         type="button"
         data-testid="sidebar-profile-trigger"
-        aria-haspopup="menu"
-        aria-expanded={open}
+        aria-haspopup={pinned ? undefined : 'menu'}
+        aria-expanded={pinned ? undefined : open}
+        disabled={pinned}
+        data-pinned={pinned ? 'url' : undefined}
         aria-label={
-          isActive
-            ? 'Sessions profile: active profile'
-            : selected?.error
-              ? `${profile} profile unavailable: ${selected.error}`
-              : `Sessions profile: ${profile}`
+          pinned
+            ? `Sessions profile: ${profile}, pinned by this chat's link`
+            : isActive
+              ? 'Sessions profile: active profile'
+              : selected?.error
+                ? `${profile} profile unavailable: ${selected.error}`
+                : `Sessions profile: ${profile}`
         }
-        title={selected?.error ? `${profile}: ${selected.error}` : undefined}
-        onClick={() => setOpen((v) => !v)}
+        title={
+          pinned
+            ? pinnedReason
+            : selected?.error
+              ? `${profile}: ${selected.error}`
+              : undefined
+        }
+        // The enforcement point for "the URL wins": while pinned there is no
+        // code path from this component to `setProfile`.
+        onClick={pinned ? undefined : () => setOpen((v) => !v)}
         className="flex items-center gap-1 min-w-0 rounded px-1"
         style={{
           background: 'transparent',
           border: 'none',
-          cursor: 'pointer',
+          cursor: pinned ? 'default' : 'pointer',
           color: 'inherit',
         }}
       >
@@ -126,11 +171,11 @@ export function SidebarProfileDropdownV2({
           className="m-mono select-none"
           style={{ color: 'var(--theme-muted)', fontSize: 8 }}
         >
-          ▾
+          {pinned ? '⚲' : '▾'}
         </span>
       </button>
 
-      {open && (
+      {open && !pinned && (
         <div
           role="menu"
           aria-label="Select profile"
@@ -152,11 +197,11 @@ export function SidebarProfileDropdownV2({
           }}
         >
           <ProfileOption
-            label="active"
+            label={UNSCOPED_PROFILE}
             hint="gateway profile"
             selected={isActive}
             onSelect={() => {
-              setProfile(ACTIVE_PROFILE)
+              setProfile(UNSCOPED_PROFILE)
               setOpen(false)
             }}
           />

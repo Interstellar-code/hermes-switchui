@@ -26,6 +26,7 @@
  */
 import type { OnboardingStepId } from './onboarding-steps'
 import type { OnboardingDraft, OnboardingOutcome } from './onboarding-storage'
+import type { ProfileServabilityResult } from './profile-servability'
 
 export type ChecklistItemId =
   | 'connect'
@@ -71,6 +72,21 @@ export type BuildChecklistInput = {
   profileTouched: boolean
   /** Same contract as `profileTouched`, for `memory.provider`. */
   memoryTouched: boolean
+  /**
+   * Whether every profile on disk is actually reachable by the live
+   * gateway — the gap where a multi-profile install with multiplexing off
+   * (or an incompletely multiplexed one — see `profile-servability.ts`)
+   * only found out at SEND time, from `profile-scope.ts`'s fail-closed
+   * refusal, after a message had already been composed.
+   *
+   * `null` when the signal is not available: this is a live probe
+   * (`use-profile-servability.ts`, mirroring `chatProven`/`profileTouched`
+   * and the rest), so it only has an answer inside an active wizard
+   * session — see `use-onboarding-checklist.ts`'s header for why the other
+   * live signals are `false`/`null` outside one. `null` renders identically
+   * to `{ kind: 'ok' }`: silence, never a false accusation.
+   */
+  profileServability: ProfileServabilityResult | null
 }
 
 export function buildChecklist(
@@ -107,6 +123,25 @@ export function buildChecklist(
   // Nothing optional is offered until a chat has been settled — the rule the
   // whole rebuild exists to enforce, applied to this list too.
   const optionalBlocked = !chatProven && !skipped.has('chat')
+
+  // A real reachability gap (or genuine uncertainty about one — the
+  // 'indeterminate' case) outranks "has this been touched": an
+  // already-activated profile that turns out to be unreachable from a
+  // non-multiplexed gateway, or one this install's topology couldn't even
+  // confirm, is not "done". `{ kind: 'ok' }` and `null` both mean "nothing to
+  // add" and fall through to the ordinary touched/optional detail below —
+  // this is a WARNING surfaced inline, never a hard blocker: it only ever
+  // downgrades `done` to `todo`/`skipped`, the same states this item can
+  // already be in, and never flips `required` or forces `blocked` on its own.
+  const servability =
+    input.profileServability && input.profileServability.kind !== 'ok'
+      ? input.profileServability
+      : null
+  const servabilityDetail = servability
+    ? servability.kind === 'indeterminate'
+      ? servability.detail
+      : `${servability.detail} ${servability.remediation}`
+    : null
 
   return [
     {
@@ -158,10 +193,12 @@ export function buildChecklist(
     {
       id: 'profile',
       label: 'Choose an agent profile',
-      detail: profileTouched
-        ? 'Chosen.'
-        : 'Optional — the default profile works.',
-      state: stateFor('profile', profileTouched, optionalBlocked),
+      detail:
+        servabilityDetail ??
+        (profileTouched ? 'Chosen.' : 'Optional — the default profile works.'),
+      state: servability
+        ? stateFor('profile', false, optionalBlocked)
+        : stateFor('profile', profileTouched, optionalBlocked),
       goTo: 'profile',
       required: false,
     },

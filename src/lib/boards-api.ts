@@ -5,6 +5,8 @@ import type {
   KanbanBoardsListResponse,
   UpdateBoardInput,
 } from './hermes-kanban-types'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import { scopeSegments } from '@/lib/session-scope'
 
 async function boardsJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -15,10 +17,26 @@ async function boardsJson<T>(url: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/**
+ * Board query keys. `list` is profile-keyed: `/api/hermes-kanban/boards` has
+ * no `?profile=` support (like `agent-cwd.ts`/`workspace.ts`, it reads the
+ * server-side active profile rather than a request one — see task report),
+ * so this is a client-cache-only mitigation — a profile switch re-keys the
+ * cache and forces a refetch instead of serving another profile's board list
+ * from memory. `scopeSegments` is `[]` when unscoped, so single-profile /
+ * pre-selector behaviour is byte-identical to before.
+ *
+ * `all` stays unscoped on purpose: it is used only as an `invalidateQueries`
+ * prefix, and it must be a literal prefix of every `list(...)` key (which
+ * appends the profile segment AFTER `'list', {includeArchived}`, not right
+ * after `'boards'`). An unscoped, shorter prefix still matches — and
+ * invalidating every profile's cached boards on a mutation is the safe
+ * direction (extra refetch, never a stale read).
+ */
 export const boardsKeys = {
   all: ['hermes-kanban', 'boards'] as const,
-  list: (includeArchived: boolean) =>
-    ['hermes-kanban', 'boards', 'list', { includeArchived }] as const,
+  list: (includeArchived: boolean, profile: string | null) =>
+    ['hermes-kanban', 'boards', 'list', { includeArchived }, ...scopeSegments(profile)] as const,
 }
 
 export async function fetchBoards(includeArchived = false): Promise<KanbanBoardsListResponse> {
@@ -68,8 +86,9 @@ export async function fetchSwitchBoard(slug: string): Promise<{ current: string 
 }
 
 export function useBoards(includeArchived = false, enabled = true) {
+  const profile = useResolvedProfile()
   return useQuery({
-    queryKey: boardsKeys.list(includeArchived),
+    queryKey: boardsKeys.list(includeArchived, profile),
     queryFn: () => fetchBoards(includeArchived),
     enabled,
   })
