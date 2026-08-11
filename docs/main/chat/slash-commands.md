@@ -33,7 +33,7 @@ The menu dismisses if you press Escape or delete the `/` character. If the selec
 | `/stop` | Stop the running agent immediately. Equivalent to clicking the Stop button. Cancels the active stream and marks any in-flight message as sent. |
 | `/title <name>` | Rename the current session. The name is set immediately and persisted to the gateway. Example: `/title Project Alpha`. |
 | `/reasoning <level>` | Change the reasoning effort for the current session. Valid levels: `off`, `low`, `adaptive`. Example: `/reasoning off`. |
-| `/model` | Open the model selector to view or change the active model. |
+| `/model` | Open the model picker in the chat meta bar. `/model <id>` switches this chat's model directly, without opening the picker. |
 | `/save` | Save the current conversation. |
 | `/skills` | Browse and manage installed skills. |
 | `/plugins` | List installed plugins and their status. |
@@ -51,7 +51,7 @@ Commands that are not matched client-side are passed through as plain text to th
 
 **The menu does not appear when I type `/`** — Make sure the `/` is the very first character in the composer. Leading spaces prevent the menu from opening.
 
-**A command opens the wrong panel** — `/model` and `/skin` dispatch custom browser events that the settings panel listens for. If the panel does not respond, try reloading the page.
+**`/model` does not open the picker** — `/model` dispatches a custom browser event the meta bar's model selector listens for directly. If it does not respond, try reloading the page. (`/skin` still dispatches an older settings-panel event that has no listener; if it doesn't open anything, use the appearance settings from the sidebar instead.)
 
 **I want to send a literal `/` message** — Type your slash text as normal and wait for the menu to appear, then press Escape to dismiss it, then continue typing and send. Alternatively, start the message with any non-slash character and add the `/` later.
 

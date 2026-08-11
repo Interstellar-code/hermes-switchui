@@ -5,6 +5,7 @@ import {
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from '../chat-events'
+import { CHAT_OPEN_MODEL_PICKER_EVENT } from '../components/chat-composer-services'
 import { useSlashCommands } from './use-slash-commands'
 
 import type { UseSlashCommandsParams } from './use-slash-commands'
@@ -15,6 +16,7 @@ import type {
 import type { ChatMessage } from '../types'
 import type { UserCommandRecord } from '@/lib/commands-api'
 import { toast } from '@/components/ui/toast'
+import { useSessionModelStore } from '@/stores/session-model-store'
 
 vi.mock('@/components/ui/toast', () => ({ toast: vi.fn() }))
 
@@ -86,6 +88,7 @@ describe('useSlashCommands', () => {
       createObjectURL: vi.fn().mockReturnValue('blob:test'),
       revokeObjectURL: vi.fn(),
     })
+    useSessionModelStore.setState({ models: {} })
   })
 
   afterEach(() => {
@@ -157,7 +160,11 @@ describe('useSlashCommands', () => {
       expect(result.current.handleUiSlashCommand('/clear')).toBe(true)
     })
 
-    it('/model dispatches the open-settings event', () => {
+    // Bare `/model` used to dispatch CHAT_OPEN_SETTINGS_EVENT, which has no
+    // listener anywhere in the app — a complete no-op (#348 task 6). It now
+    // dispatches CHAT_OPEN_MODEL_PICKER_EVENT, which SessionSelectorsV2
+    // listens for directly.
+    it('bare /model dispatches the open-model-picker event', () => {
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
       const { result } = renderHook(() => useSlashCommands(defaultParams()))
 
@@ -166,8 +173,78 @@ describe('useSlashCommands', () => {
       })
 
       const event = dispatchSpy.mock.calls[0]?.[0] as CustomEvent
-      expect(event.type).toBe('claude:chat-open-settings')
-      expect(event.detail).toEqual({ section: 'claude' })
+      expect(event.type).toBe(CHAT_OPEN_MODEL_PICKER_EVENT)
+    })
+
+    it('bare /model does NOT dispatch the dead settings event', () => {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+      const { result } = renderHook(() => useSlashCommands(defaultParams()))
+
+      act(() => {
+        result.current.handleUiSlashCommand('/model')
+      })
+
+      const types = dispatchSpy.mock.calls.map(
+        (call) => (call[0] as CustomEvent).type,
+      )
+      expect(types).not.toContain('claude:chat-open-settings')
+    })
+
+    // `/model <id>` used to fail the exact-string check (only bare `/model`
+    // matched) and fall through to being sent verbatim as chat text over
+    // HTTP, which has no slash interpreter (#348 task 6). It is now
+    // tokenized and routed through the same per-session switch as the
+    // picker (switchModel, from chat-composer-services.ts).
+    it('/model <id> switches this session\'s model instead of sending chat text', () => {
+      const send = vi.fn().mockResolvedValue(undefined) as unknown as SendFn
+      const { result } = renderHook(() =>
+        useSlashCommands(
+          defaultParams({
+            resolvedSessionKey: SESSION,
+            sendRef: { current: send },
+          }),
+        ),
+      )
+
+      let handled = false
+      act(() => {
+        handled = result.current.handleUiSlashCommand('/model gpt-4o')
+      })
+
+      expect(handled).toBe(true)
+      expect(send).not.toHaveBeenCalled()
+      expect(useSessionModelStore.getState().getModel(SESSION)).toBe('gpt-4o')
+    })
+
+    it('/model <id> shows a confirmation toast', () => {
+      const { result } = renderHook(() =>
+        useSlashCommands(defaultParams({ resolvedSessionKey: SESSION })),
+      )
+
+      act(() => {
+        result.current.handleUiSlashCommand('/model gpt-4o')
+      })
+
+      expect(toast).toHaveBeenCalledWith(
+        expect.stringContaining('gpt-4o'),
+        expect.objectContaining({ type: 'success' }),
+      )
+    })
+
+    it('/model <id> does not dispatch the open-model-picker event', () => {
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
+      const { result } = renderHook(() =>
+        useSlashCommands(defaultParams({ resolvedSessionKey: SESSION })),
+      )
+
+      act(() => {
+        result.current.handleUiSlashCommand('/model gpt-4o')
+      })
+
+      const types = dispatchSpy.mock.calls.map(
+        (call) => (call[0] as CustomEvent).type,
+      )
+      expect(types).not.toContain(CHAT_OPEN_MODEL_PICKER_EVENT)
     })
 
     it('/skin dispatches the open-settings event with appearance section', () => {

@@ -2,15 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import type { ThinkingLevel } from '../components/chat-composer-types'
-import { _localModelOverride } from '@/screens/chat/local-model-override'
 import { useSessionModelStore } from '@/stores/session-model-store'
 
 export function useThinkingLevel(params: {
   activeFriendlyId: string
-  resolvedSessionKey: string | undefined
-  forcedSessionKey: string | undefined
+  /**
+   * Canonical per-session key for model persistence — MUST use the exact
+   * same precedence chat-screen.tsx uses to key `useSessionModelStore` on
+   * write (`forcedSessionKey || resolvedSessionKey || activeSessionKey ||
+   * activeFriendlyId`). A mismatched precedence here is what silently
+   * dropped the per-session model on new chats (#348 task 5) — the write
+   * landed under one key and this read looked under another.
+   */
+  modelSessionKey: string | undefined
 }) {
-  const { activeFriendlyId, resolvedSessionKey, forcedSessionKey } = params
+  const { activeFriendlyId, modelSessionKey } = params
 
   // Per-session thinking level — stored in sessionStorage keyed by session
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevel>(() => {
@@ -64,14 +70,16 @@ export function useThinkingLevel(params: {
   }, [modelsQuery.data])
 
   const gatewayModel = currentModelQuery.data || ''
-  // Per-session model override (set in the composer dropdown). Browser-local,
-  // keyed by sessionKey. Takes precedence over the gateway-reported model so
-  // the user's choice survives refresh and is sent on every chat completion.
+  // Per-session model override (set in the composer dropdown or `/model`).
+  // Browser-local, keyed by sessionKey — takes precedence over the
+  // gateway-reported model so the user's choice survives refresh and is
+  // sent on every chat completion. Local-provider picks (ollama,
+  // atomic-chat, ...) live here too now; there is no separate global
+  // override to consult (see chat-composer-services.ts `switchModel`).
   const sessionModelOverride = useSessionModelStore((s) =>
-    s.getModel(resolvedSessionKey || forcedSessionKey || null),
+    s.getModel(modelSessionKey),
   )
-  const currentModel =
-    _localModelOverride || sessionModelOverride || gatewayModel
+  const currentModel = sessionModelOverride || gatewayModel
 
   // Ref so sendMessage can always read latest thinkingLevel without being in deps
   const thinkingLevelRef = useRef<ThinkingLevel>(thinkingLevel)

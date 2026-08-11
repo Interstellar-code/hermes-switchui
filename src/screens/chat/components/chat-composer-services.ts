@@ -7,14 +7,21 @@ import type {
   WorkspaceDetectionResponse,
 } from './chat-composer-types'
 import type { ModelSwitchResponse } from '@/lib/model-types'
-import { setLocalModelOverride } from '@/screens/chat/local-model-override'
+import { useSessionModelStore } from '@/stores/session-model-store'
 
 type GatewayStatusApiResponse = {
   mode?: string
   scope?: ScopeStatusResponse
 }
 
-const LOCAL_PROVIDERS_SET = new Set(['ollama', 'atomic-chat'])
+/**
+ * Dispatched by `/model` (bare, no argument) to open the model picker in
+ * the meta bar. Listened for by `SessionSelectorsV2` — unlike
+ * `CHAT_OPEN_SETTINGS_EVENT`, which has no listener anywhere in the app
+ * (see chat-composer-services.ts `switchModel` doc comment and
+ * use-slash-commands.ts).
+ */
+export const CHAT_OPEN_MODEL_PICKER_EVENT = 'claude:chat-open-model-picker'
 
 function readText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -51,11 +58,42 @@ export function getResolvedModelKey(model: string, provider?: string): string {
   return `${normalizedProvider}/${normalizedModel}`
 }
 
-export async function switchModel(
+/**
+ * Switch the model for one chat session.
+ *
+ * This is purely client-local — there is no gateway endpoint for a genuine
+ * per-session model switch. Two candidates were checked against the running
+ * hermes-agent gateway (`gateway/platforms/api_server.py`, port 8642) before
+ * settling on this:
+ *
+ *  - `POST /api/model-switch` (formerly called from src/lib/gateway-api.ts):
+ *    404s. It's not in `_http_route_table()`; nothing on the gateway ever
+ *    implemented it.
+ *  - `PATCH /api/claude-proxy/api/config` (this function's old body): also
+ *    404s through the proxy. `/api/config` only exists on a *different*
+ *    process — `hermes_cli/web_server.py` (the `hermes dashboard` command) —
+ *    not on the agent gateway `CLAUDE_API` points at. Even if it had
+ *    resolved, it would have PATCHed `model.default` globally, retargeting
+ *    every session/channel the gateway serves, with no profile scoping
+ *    (PROFILE_HEADER is never sent) — the opposite of "this session only".
+ *
+ * So instead of wiring up a fake network call, the per-session model lives
+ * entirely in `useSessionModelStore` (browser-local, keyed by sessionKey)
+ * and rides along as the `model` field in the chat-completion request body
+ * on every send (see use-thinking-level.ts's `currentModel` and
+ * routes/api/send-stream.ts). Local providers (ollama, atomic-chat, ...)
+ * need no special-casing here: send-stream.ts already detects a local
+ * provider purely from the `model` string it receives per-request, so
+ * writing the pick into the same per-session store is sufficient — no
+ * separate global override needed (the old `local-model-override.ts` module
+ * was deleted; it was non-reactive and leaked across every session since it
+ * was never keyed by sessionKey at all).
+ */
+export function switchModel(
   model: string,
   provider?: string,
-  _sessionKey?: string,
-): Promise<ModelSwitchResponse> {
+  sessionKey?: string,
+): ModelSwitchResponse {
   const modelId = model.trim()
   const modelProvider =
     typeof provider === 'string' && provider.trim()
@@ -64,30 +102,10 @@ export async function switchModel(
         ? modelId.split('/')[0]
         : undefined
 
-  if (modelProvider && LOCAL_PROVIDERS_SET.has(modelProvider)) {
-    setLocalModelOverride(`${modelProvider}/${modelId}`)
-    return {
-      ok: true,
-      resolved: {
-        modelProvider,
-        model: modelId,
-      },
-    }
-  }
-
-  setLocalModelOverride('')
-
-  const patch: Record<string, string> = { model: modelId }
-  if (modelProvider) patch.provider = modelProvider
-
-  const response = await fetch('/api/claude-proxy/api/config', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  })
-
-  if (!response.ok) {
-    throw new Error(await readResponseError(response))
+  if (sessionKey) {
+    useSessionModelStore
+      .getState()
+      .setModel(sessionKey, getResolvedModelKey(modelId, modelProvider))
   }
 
   return {
@@ -97,6 +115,33 @@ export async function switchModel(
       model: modelId,
     },
   }
+}
+
+/**
+ * Move a session's persisted model override from a temporary key to its
+ * real one once a new chat resolves to an actual session id.
+ *
+ * A model picked before the first message is sent has nowhere to live but
+ * the temporary key the composer was rendering under at the time (typically
+ * the `'new'` sentinel — see chat-screen.tsx's `modelSessionKey`). Once the
+ * gateway assigns a real session id, the store entry has to move with it or
+ * the pick is silently dropped (#348 task 5) — and the stale `'new'` entry
+ * has to be cleared or it leaks into the *next* new chat.
+ *
+ * Never overwrites an override already explicitly set on `newKey`.
+ */
+export function rekeySessionModel(
+  staleKey: string | undefined,
+  newKey: string,
+): void {
+  if (!staleKey || !newKey || staleKey === newKey) return
+  const store = useSessionModelStore.getState()
+  const staleModel = store.getModel(staleKey)
+  if (!staleModel) return
+  if (!store.getModel(newKey)) {
+    store.setModel(newKey, staleModel)
+  }
+  store.clearModel(staleKey)
 }
 
 export async function fetchGatewayMode(): Promise<string | null> {

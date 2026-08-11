@@ -6,6 +6,7 @@ import {
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from '../chat-events'
+import { CHAT_OPEN_MODEL_PICKER_EVENT, switchModel } from '../components/chat-composer-services'
 import { textFromMessage } from '../utils'
 import type {
   ChatComposerAttachment,
@@ -189,12 +190,39 @@ export function useSlashCommands(
         return true
       }
 
-      if (trimmedCommand === '/model' || trimmedCommand === '/skin') {
+      if (slashToken === '/model') {
+        if (!slashArg) {
+          // Bare `/model` — open the model picker in the meta bar. This
+          // used to dispatch CHAT_OPEN_SETTINGS_EVENT, which has zero
+          // listeners anywhere in the app (its only would-be handler lives
+          // in a hook nothing imports) — a complete no-op. The picker
+          // listens for CHAT_OPEN_MODEL_PICKER_EVENT directly.
+          window.dispatchEvent(new CustomEvent(CHAT_OPEN_MODEL_PICKER_EVENT))
+          return true
+        }
+        // `/model <id>` — previously fell through every branch below (the
+        // exact-string check only matched bare `/model`) and was sent
+        // verbatim as chat text over HTTP, which has no slash interpreter.
+        // Routes through the same per-session switch as the picker
+        // (switchModel persists into useSessionModelStore; see
+        // chat-composer-services.ts for why there is no gateway call).
+        const sessionKey =
+          forcedSessionKey ||
+          resolvedSessionKey ||
+          activeSessionKey ||
+          activeFriendlyId ||
+          undefined
+        const result = switchModel(slashArg, undefined, sessionKey)
+        toast(`Model set: ${result.resolved?.model ?? slashArg}`, {
+          type: 'success',
+        })
+        return true
+      }
+
+      if (trimmedCommand === '/skin') {
         window.dispatchEvent(
           new CustomEvent(CHAT_OPEN_SETTINGS_EVENT, {
-            detail: {
-              section: trimmedCommand === '/skin' ? 'appearance' : 'claude',
-            },
+            detail: { section: 'appearance' },
           }),
         )
         return true

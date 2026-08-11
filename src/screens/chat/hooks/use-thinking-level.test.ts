@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { useThinkingLevel } from './use-thinking-level'
 import type { ReactNode } from 'react'
+import { useSessionModelStore } from '@/stores/session-model-store'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,13 +45,11 @@ function stubFetch({
 
 function defaultParams(overrides?: {
   activeFriendlyId?: string
-  resolvedSessionKey?: string
-  forcedSessionKey?: string
+  modelSessionKey?: string
 }) {
   return {
     activeFriendlyId: FRIENDLY_ID,
-    resolvedSessionKey: undefined as string | undefined,
-    forcedSessionKey: undefined as string | undefined,
+    modelSessionKey: undefined as string | undefined,
     ...overrides,
   }
 }
@@ -59,12 +58,99 @@ function defaultParams(overrides?: {
 
 beforeEach(() => {
   sessionStorage.clear()
+  useSessionModelStore.setState({ models: {} })
   stubFetch()
 })
 
 afterEach(() => {
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
+})
+
+// ─── session model override (#348 task 5) ──────────────────────────────────
+//
+// The per-session model was written under one key precedence and read under
+// a different, inverted one, so a model picked in the composer silently
+// never showed up as `currentModel`. `modelSessionKey` is now the single
+// key both sides must agree on (see chat-screen.tsx).
+
+describe('session model override', () => {
+  it('currentModel reflects the store entry for modelSessionKey, ahead of the gateway-reported model', async () => {
+    useSessionModelStore.getState().setModel('session-abc', 'anthropic/claude-opus-4')
+    stubFetch({ model: 'claude-haiku-3-5' })
+
+    const { result } = renderHook(
+      () =>
+        useThinkingLevel(
+          defaultParams({ modelSessionKey: 'session-abc' }),
+        ),
+      { wrapper: makeWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(result.current.currentModelQuery.isSuccess).toBe(true)
+    })
+    expect(result.current.currentModel).toBe('anthropic/claude-opus-4')
+  })
+
+  it('falls back to the gateway-reported model when modelSessionKey has no override', async () => {
+    stubFetch({ model: 'claude-haiku-3-5' })
+
+    const { result } = renderHook(
+      () =>
+        useThinkingLevel(
+          defaultParams({ modelSessionKey: 'session-abc' }),
+        ),
+      { wrapper: makeWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(result.current.currentModelQuery.isSuccess).toBe(true)
+    })
+    expect(result.current.currentModel).toBe('claude-haiku-3-5')
+  })
+
+  it('does not pick up a model stored under a different session key', async () => {
+    useSessionModelStore.getState().setModel('some-other-session', 'anthropic/claude-opus-4')
+    stubFetch({ model: 'claude-haiku-3-5' })
+
+    const { result } = renderHook(
+      () =>
+        useThinkingLevel(
+          defaultParams({ modelSessionKey: 'session-abc' }),
+        ),
+      { wrapper: makeWrapper() },
+    )
+
+    await waitFor(() => {
+      expect(result.current.currentModelQuery.isSuccess).toBe(true)
+    })
+    expect(result.current.currentModel).toBe('claude-haiku-3-5')
+  })
+
+  it('re-keying the store (simulating a new chat resolving) makes the override visible under the new key', () => {
+    // Model picked while the chat was still 'new'.
+    useSessionModelStore.getState().setModel('new', 'anthropic/claude-opus-4')
+    stubFetch({ model: '' })
+
+    const { result, rerender } = renderHook(
+      (props: { modelSessionKey: string }) =>
+        useThinkingLevel(defaultParams({ modelSessionKey: props.modelSessionKey })),
+      {
+        initialProps: { modelSessionKey: 'new' },
+        wrapper: makeWrapper(),
+      },
+    )
+    expect(result.current.currentModel).toBe('anthropic/claude-opus-4')
+
+    // The chat resolves — rekeySessionModel (chat-composer-services.ts)
+    // moves the store entry; the component re-renders with the real key.
+    useSessionModelStore.getState().setModel('session-real-1', 'anthropic/claude-opus-4')
+    useSessionModelStore.getState().clearModel('new')
+    rerender({ modelSessionKey: 'session-real-1' })
+
+    expect(result.current.currentModel).toBe('anthropic/claude-opus-4')
+  })
 })
 
 // ─── one-shot sessionStorage init ─────────────────────────────────────────────
@@ -185,8 +271,7 @@ describe('E30 auto-adaptive (claude-4.6)', () => {
       (props: { activeFriendlyId: string }) =>
         useThinkingLevel({
           activeFriendlyId: props.activeFriendlyId,
-          resolvedSessionKey: undefined,
-          forcedSessionKey: undefined,
+          modelSessionKey: undefined,
         }),
       {
         initialProps: { activeFriendlyId: FRIENDLY_ID },
