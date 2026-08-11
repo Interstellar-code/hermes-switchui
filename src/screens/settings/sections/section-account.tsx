@@ -1,67 +1,38 @@
 /**
- * section-account.tsx — Account settings section (P2).
- * Local profile only — no hermes-agent backend for account/2FA.
+ * section-account.tsx — Account settings section.
+ *
+ * Previously exposed two localStorage-backed controls (display name,
+ * organisation) — the section's entire contents. No code outside
+ * src/screens/settings/ ever read either hermes.* key, so they persisted
+ * and did nothing. Deleted outright (plan immutable-noodling-koala,
+ * Stream 1B).
+ *
+ * Hermes Switch UI has no multi-user account system — sessions are local to
+ * this browser profile. This card says that plainly instead of rendering an
+ * empty shell or a "coming soon" placeholder.
  */
 
-import { useEffect, useRef } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { useSettingsStore } from '@/stores/settings-store'
-
-const LS_KEYS: Record<string, string> = {
-  'hermes.displayName': '',
-  'hermes.org': '',
-}
 
 export default function SectionAccount() {
-  const { draft, set } = useSettingsStore()
-  const seeded = useRef(false)
-
-  useEffect(() => {
-    if (seeded.current) return
-    seeded.current = true
-    for (const [key, defaultVal] of Object.entries(LS_KEYS)) {
-      if (draft[key] === undefined) {
-        const stored = localStorage.getItem(key)
-        useSettingsStore.getState().load({
-          ...useSettingsStore.getState().committed,
-          [key]: stored ?? defaultVal,
-        })
-      }
-    }
-  }, [draft])
-
-  const displayName = (draft['hermes.displayName'] as string | undefined) ?? ''
-  const org = (draft['hermes.org'] as string | undefined) ?? ''
-
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Account</h2>
-          <div className="desc">Personal identity stored locally in this browser.</div>
+          <div className="desc">There is no multi-user account system in this build.</div>
         </div>
         <div className="meta">Section · <b>account</b></div>
       </div>
 
-      <SettingCard title="Local profile" sub="local-only">
-        <SettingRow label="Display name" desc="Name shown in chat and activity logs">
-          <input
-            type="text"
-            className="text-input"
-            value={displayName}
-            placeholder="Your name"
-            onChange={(e) => set('hermes.displayName', e.target.value)}
-          />
-        </SettingRow>
-        <SettingRow label="Organisation">
-          <input
-            type="text"
-            className="text-input"
-            value={org}
-            placeholder="Org name"
-            onChange={(e) => set('hermes.org', e.target.value)}
-          />
+      <SettingCard title="Local session" sub="read-only">
+        <SettingRow
+          label="Accounts"
+          desc="Sessions are local to this browser profile and are not synced across devices or shared with other users."
+          pill={{ t: 'read-only' }}
+        >
+          <span className="desc">Not applicable</span>
         </SettingRow>
       </SettingCard>
     </div>

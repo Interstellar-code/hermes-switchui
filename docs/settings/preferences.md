@@ -60,19 +60,19 @@ The active section is persisted to `localStorage` under the key `hermes.settings
 
 ### Workspace
 
-General workspace settings such as name and default behaviours.
+Read-only: timezone and locale as detected from the browser. There is no per-workspace identity to configure in this build.
 
 ### Account
 
-Account-level configuration.
+Read-only. Hermes Switch UI has no multi-user account system — sessions are local to the browser profile.
 
 ### Appearance
 
-Visual theme, layout density, and font preferences. See [Themes](./themes.md) for details on the theme picker. Also exposes density (Compact / Comfortable / Spacious), monospace font selection, and Matrix Rain toggles.
+Visual theme picker only. See [Themes](./themes.md) for details. The theme applies immediately and saves itself (it does not use the section's Save button).
 
 ### Notifications
 
-Notification preferences and alert controls.
+Read-only. There are no separate desktop/sound/email notification channels — alerts surface as inline toasts and in the approvals queue.
 
 ### Provider
 
@@ -120,11 +120,11 @@ Network and proxy settings.
 
 ### Performance
 
-Performance tuning options such as stream timeouts.
+Read-only live snapshot of the hermes-agent gateway process (running/stopped, PID, and CPU/RSS when the gateway reports them).
 
 ### Shortcuts
 
-Keyboard shortcut customisation.
+Read-only reference of the global shortcuts wired up in the app (open search, quick open file, toggle sidebar, toggle chat panel, activity log, toggle terminal, this help modal). Not currently rebindable.
 
 ### Advanced / Raw config
 
@@ -136,7 +136,7 @@ Destructive operations such as resetting configuration or clearing data.
 
 ## Where data lives
 
-Settings are stored either in `localStorage` (display/theme/density preferences, which are local to the browser) or in the agent config file at `~/.hermes/config.yaml` (provider, model, and agent settings that apply across all clients). The save bar at the bottom of the screen appears when there are unsaved changes.
+Settings are stored either in `localStorage` (the theme preference, which is local to the browser) or in the agent config file at `~/.hermes/config.yaml` (provider, model, and agent settings that apply across all clients). The save bar at the bottom of the screen appears when there are unsaved changes.
 
 ## Common issues
 

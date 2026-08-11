@@ -1,35 +1,27 @@
 /**
- * section-appearance.tsx — Appearance settings section (P2).
+ * section-appearance.tsx — Appearance settings section.
+ *
+ * Previously also held density, mono-font, and two Matrix-rain toggles as
+ * localStorage-backed hermes.* draft keys. None of the four ever reached
+ * anything that reads them — the Matrix-rain canvas mounts unconditionally
+ * regardless of the toggle, there is no density implementation, and the
+ * mono font selection was never applied anywhere. Deleted outright (plan
+ * immutable-noodling-koala, Stream 1B).
+ *
+ * The theme control is the one real setting in this section: setTheme()
+ * genuinely writes the app-wide `claude-theme` localStorage key (see
+ * src/lib/theme.ts) and applies immediately. It is intentionally NOT wired
+ * to the settings draft store — it saves itself the instant you click it,
+ * same as before this rewrite, so it never shows dirty and never needs the
+ * page-level Save button.
  */
 
-import { useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Segmented, Toggle } from '../components/controls'
+import { Segmented } from '../components/controls'
 import type { ThemeId } from '@/lib/theme'
 import { THEMES, getTheme, setTheme } from '@/lib/theme'
-import { useSettingsStore } from '@/stores/settings-store'
-
-const LS_KEYS: Record<string, string> = {
-  'hermes.density': 'comfortable',
-  'hermes.monoFont': 'JetBrains Mono',
-  'hermes.rainBg': 'false',
-  'hermes.dimRain': 'false',
-}
-
-const DENSITY_OPTIONS = [
-  { value: 'compact', label: 'Compact' },
-  { value: 'comfortable', label: 'Comfortable' },
-  { value: 'spacious', label: 'Spacious' },
-]
-
-const MONO_FONTS = [
-  { value: 'JetBrains Mono', label: 'JetBrains Mono' },
-  { value: 'Fira Code', label: 'Fira Code' },
-  { value: 'IBM Plex Mono', label: 'IBM Plex Mono' },
-  { value: 'Menlo', label: 'Menlo' },
-  { value: 'system-ui', label: 'System' },
-]
 
 // Show only base (non-light) themes for the picker
 const THEME_OPTIONS = THEMES.filter((t) => !t.id.endsWith('-light')).map((t) => ({
@@ -37,38 +29,16 @@ const THEME_OPTIONS = THEMES.filter((t) => !t.id.endsWith('-light')).map((t) => 
   label: t.label,
 }))
 
+function baseThemeId(id: string): ThemeId {
+  return (id.endsWith('-light') ? id.replace('-light', '') : id) as ThemeId
+}
+
 export default function SectionAppearance() {
-  const { draft, set } = useSettingsStore()
-  const seeded = useRef(false)
-
-  useEffect(() => {
-    if (seeded.current) return
-    seeded.current = true
-
-    const currentTheme = getTheme()
-    const baseTheme = currentTheme.endsWith('-light')
-      ? currentTheme.replace('-light', '') as ThemeId
-      : currentTheme
-
-    const patch: Record<string, unknown> = { 'hermes.theme': baseTheme }
-    for (const [key, defaultVal] of Object.entries(LS_KEYS)) {
-      patch[key] = localStorage.getItem(key) ?? defaultVal
-    }
-    useSettingsStore.getState().load({
-      ...useSettingsStore.getState().committed,
-      ...patch,
-    })
-  }, [])
-
-  const theme = (draft['hermes.theme'] as string | undefined) ?? 'claude-nous'
-  const density = (draft['hermes.density'] as string | undefined) ?? 'comfortable'
-  const monoFont = (draft['hermes.monoFont'] as string | undefined) ?? 'JetBrains Mono'
-  const rainBg = draft['hermes.rainBg'] === 'true' || draft['hermes.rainBg'] === true
-  const dimRain = draft['hermes.dimRain'] === 'true' || draft['hermes.dimRain'] === true
+  const [theme, setThemeState] = useState<string>(() => baseThemeId(getTheme()))
 
   function handleThemeChange(v: string) {
-    set('hermes.theme', v)
-    // Apply immediately; setTheme also writes to localStorage (no-op on save)
+    setThemeState(v)
+    // Applies immediately and persists to the real `claude-theme` key.
     setTheme(v as ThemeId)
   }
 
@@ -77,58 +47,22 @@ export default function SectionAppearance() {
       <div className="section-head">
         <div>
           <h2>Appearance</h2>
-          <div className="desc">Visual theme, layout density, and font preferences.</div>
+          <div className="desc">Visual theme for this browser.</div>
         </div>
         <div className="meta">Section · <b>appearance</b></div>
       </div>
 
-      <SettingCard title="Theme">
+      {/*
+        This control writes immediately via setTheme() and never touches the
+        settings draft store, so it is marked self-saving: the save bar must
+        not claim to speak for it.
+      */}
+      <SettingCard title="Theme" saves="self">
         <SettingRow label="Theme" pill={{ t: 'local-only' }}>
           <Segmented
             options={THEME_OPTIONS}
             value={theme}
             onChange={handleThemeChange}
-          />
-        </SettingRow>
-        <SettingRow label="Density">
-          <Segmented
-            options={DENSITY_OPTIONS}
-            value={density}
-            onChange={(v) => set('hermes.density', v)}
-          />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Fonts">
-        <SettingRow label="Mono font">
-          <select
-            className="select-input"
-            value={monoFont}
-            onChange={(e) => set('hermes.monoFont', e.target.value)}
-          >
-            {MONO_FONTS.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Matrix Rain">
-        <SettingRow label="Matrix rain background" rowEnd>
-          <Toggle
-            on={rainBg}
-            set={(v) => set('hermes.rainBg', v ? 'true' : 'false')}
-          />
-        </SettingRow>
-        <SettingRow
-          label="Dim rain"
-          pill={!rainBg ? { t: 'disabled' } : undefined}
-          rowEnd
-        >
-          <Toggle
-            on={dimRain}
-            disabled={!rainBg}
-            set={(v) => set('hermes.dimRain', v ? 'true' : 'false')}
           />
         </SettingRow>
       </SettingCard>

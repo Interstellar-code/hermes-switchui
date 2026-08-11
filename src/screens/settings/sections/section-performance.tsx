@@ -1,62 +1,31 @@
 /**
  * section-performance.tsx — Performance settings section.
  *
- * localStorage-backed UI prefs (no gateway config keys):
- *   hermes.perf.hw_accel   — hardware acceleration
- *   hermes.perf.prefetch   — model prefetch
- *   hermes.perf.bg         — background tab behaviour
+ * Previously also held three localStorage-backed toggles (hardware
+ * acceleration, prefetch on hover, background-tab behaviour) writing
+ * hermes.perf.* keys nothing else read. "Hardware acceleration" has no
+ * meaning in a browser page, and prefetch/background behaviour were never
+ * wired to any handler. Deleted outright (plan immutable-noodling-koala,
+ * Stream 1B).
  *
- * Gateway snapshot uses real GatewayStatus fields: gateway_running, pid.
- * cpu/rss are in GatewayStatus but not currently exposed by the gateway —
- * rendered only when present.
+ * What's left is real: a live snapshot of the hermes-agent gateway process,
+ * backed by the ['gateway-status'] query. Real GatewayStatus fields:
+ * gateway_running, pid. cpu/rss are in GatewayStatus but not currently
+ * exposed by the gateway — rendered only when present.
  */
 
-import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Segmented, Toggle } from '../components/controls'
-import { useSettingsStore } from '@/stores/settings-store'
 import { gatewayStatus } from '@/lib/hermes-client'
 
-const BG_OPTIONS = [
-  { value: 'pause', label: 'Pause' },
-  { value: 'low-power', label: 'Low power' },
-  { value: 'normal', label: 'Normal' },
-]
-
-const LS_HW_ACCEL = 'hermes.perf.hw_accel'
-const LS_PREFETCH = 'hermes.perf.prefetch'
-const LS_BG = 'hermes.perf.bg'
-
 export default function SectionPerformance() {
-  const { draft, set, load, committed } = useSettingsStore()
-  const seeded = useRef(false)
-
-  useEffect(() => {
-    if (seeded.current) return
-    seeded.current = true
-    const hwAccel = localStorage.getItem(LS_HW_ACCEL)
-    const prefetch = localStorage.getItem(LS_PREFETCH)
-    const bg = localStorage.getItem(LS_BG)
-    load({
-      ...committed,
-      [LS_HW_ACCEL]: hwAccel !== null ? hwAccel === 'true' : true,
-      [LS_PREFETCH]: prefetch !== null ? prefetch === 'true' : true,
-      [LS_BG]: bg ?? 'normal',
-    })
-  }, [committed, load])
-
   const { data: status } = useQuery({
     queryKey: ['gateway-status'],
     queryFn: gatewayStatus,
     staleTime: 15_000,
     refetchInterval: 15_000,
   })
-
-  const hwAccel = (draft[LS_HW_ACCEL] as boolean | undefined) ?? true
-  const prefetch = (draft[LS_PREFETCH] as boolean | undefined) ?? true
-  const bg = (draft[LS_BG] as string | undefined) ?? 'normal'
 
   const daemonRunning = status?.gateway_running
   const daemonPid = status?.pid
@@ -68,29 +37,10 @@ export default function SectionPerformance() {
       <div className="section-head">
         <div>
           <h2>Performance</h2>
-          <div className="desc">Hardware acceleration, prefetching, and background behaviour.</div>
+          <div className="desc">Live status of the hermes-agent gateway process.</div>
         </div>
         <div className="meta">Section · <b>performance</b></div>
       </div>
-
-      <SettingCard title="Rendering">
-        <SettingRow
-          label="Hardware acceleration"
-          pill={{ t: 'restart req' }}
-          desc="Use GPU rendering where available"
-        >
-          <Toggle on={hwAccel} set={(v) => set(LS_HW_ACCEL, v)} />
-        </SettingRow>
-        <SettingRow label="Prefetch on hover" desc="Start loading pages when hovering navigation links">
-          <Toggle on={prefetch} set={(v) => set(LS_PREFETCH, v)} />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Background behaviour">
-        <SettingRow label="Background behaviour" desc="How Hermes behaves when the window is not focused">
-          <Segmented options={BG_OPTIONS} value={bg} onChange={(v) => set(LS_BG, v)} />
-        </SettingRow>
-      </SettingCard>
 
       <SettingCard title="Process snapshot">
         <SettingRow label="Gateway process" pill={{ t: 'live' }}>

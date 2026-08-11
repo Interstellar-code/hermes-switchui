@@ -1,80 +1,39 @@
 /**
- * section-notifications.tsx — Notifications settings section (P2).
- * In-app only — no email/Slack backend in hermes-agent.
+ * section-notifications.tsx — Notifications settings section.
+ *
+ * Previously held four localStorage-backed toggles (desktop, sound, task
+ * done, error) — the section's entire contents. No code outside
+ * src/screens/settings/ ever read any of the four hermes.notif.* keys, so
+ * they persisted and did nothing. Deleted outright (plan
+ * immutable-noodling-koala, Stream 1B) rather than left as dead switches.
+ *
+ * That leaves nothing to configure. Rather than render an empty shell, this
+ * states plainly where alerts actually come from: inline toasts
+ * (src/components/ui/toast.tsx) and the approvals queue — there is no
+ * separate desktop/sound/email channel to turn on or off.
  */
 
-import { useEffect, useRef } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
-import { Toggle } from '../components/controls'
-import { useSettingsStore } from '@/stores/settings-store'
-
-const LS_KEYS: Record<string, string> = {
-  'hermes.notif.desktop': 'false',
-  'hermes.notif.sound': 'false',
-  'hermes.notif.taskDone': 'false',
-  'hermes.notif.error': 'false',
-}
-
-function boolDraft(v: unknown): boolean {
-  return v === 'true' || v === true
-}
 
 export default function SectionNotifications() {
-  const { draft, set } = useSettingsStore()
-  const seeded = useRef(false)
-
-  useEffect(() => {
-    if (seeded.current) return
-    seeded.current = true
-    const patch: Record<string, unknown> = {}
-    for (const [key, defaultVal] of Object.entries(LS_KEYS)) {
-      if (draft[key] === undefined) {
-        patch[key] = localStorage.getItem(key) ?? defaultVal
-      }
-    }
-    if (Object.keys(patch).length > 0) {
-      useSettingsStore.getState().load({
-        ...useSettingsStore.getState().committed,
-        ...patch,
-      })
-    }
-  }, [draft])
-
-  const desktop = boolDraft(draft['hermes.notif.desktop'])
-  const sound = boolDraft(draft['hermes.notif.sound'])
-  const taskDone = boolDraft(draft['hermes.notif.taskDone'])
-  const error = boolDraft(draft['hermes.notif.error'])
-
-  function toggle(key: string, v: boolean) {
-    set(key, v ? 'true' : 'false')
-  }
-
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Notifications</h2>
-          <div className="desc">Control how and where you receive alerts.</div>
+          <div className="desc">There are no separate notification channels to configure.</div>
         </div>
         <div className="meta">Section · <b>notifications</b></div>
       </div>
 
-      <SettingCard title="Channels" sub="in-app only">
-        <SettingRow label="Desktop notifications" rowEnd>
-          <Toggle on={desktop} set={(v) => toggle('hermes.notif.desktop', v)} />
-        </SettingRow>
-        <SettingRow label="Sound" rowEnd>
-          <Toggle on={sound} set={(v) => toggle('hermes.notif.sound', v)} />
-        </SettingRow>
-      </SettingCard>
-
-      <SettingCard title="Events">
-        <SettingRow label="Notify on task done" rowEnd>
-          <Toggle on={taskDone} set={(v) => toggle('hermes.notif.taskDone', v)} />
-        </SettingRow>
-        <SettingRow label="Notify on error" rowEnd>
-          <Toggle on={error} set={(v) => toggle('hermes.notif.error', v)} />
+      <SettingCard title="How alerts work" sub="read-only">
+        <SettingRow
+          label="Alerts"
+          desc="Errors, saves, and pending approvals surface as inline toasts and in the approvals queue — not as desktop, sound, or email notifications."
+          pill={{ t: 'read-only' }}
+        >
+          <span className="desc">In-app only</span>
         </SettingRow>
       </SettingCard>
     </div>
