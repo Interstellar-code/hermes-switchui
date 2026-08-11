@@ -3,6 +3,42 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.36] — 2026-08-11
+
+### Fixed
+
+- **Settings Never Saved, And Said They Did**: The page sent `PATCH /api/config`. The gateway implements `GET` and `PUT` for that route and nothing else, so every write returned 405. The saver only surfaced errors whose message contained `400`, so a 405 was swallowed silently, and the store then committed the patch and cleared its dirty set unconditionally — the bar read "Saved" on a save that had reached nothing. Roughly forty settings across eleven sections were affected, including approval mode, allow-private-URLs, the Tirith scanner, auto-accept shell hooks and the command allowlist: a user tightening their security posture got a green confirmation and an unchanged gateway. The verb is now `PUT`, failures are surfaced, and the store commits only the keys the gateway confirms.
+- **The Settings Dialog Wrote Behind The Running Gateway**: Its Agent, Smart Routing, Voice and Display tabs wrote `~/.hermes/config.yaml` directly to disk through this app's own route, then told you to restart the gateway. That is a second, divergent write path to the file the Settings screen owns — and for `agent.max_turns`, `gateway_timeout`, `tool_use_enforcement` and the memory switches, a literal duplicate of keys the route screen already declares, so the two surfaces could race. They now write through the same live transport, which takes effect without a restart.
+- **Edits Vanished When You Changed Section**: Seven sections called the store's `load()` in a mount effect. `load()` is a reset — it rebuilds the draft from the last server snapshot and clears every dirty key — so editing Safety and then opening Appearance discarded the Safety edit, and the save bar reported nothing pending. Those same calls also latched a `loaded` flag that permanently blocked the real server seed, so if a seeding section mounted before the config query resolved, every control rendered a hardcoded fallback and a save would have pushed those invented defaults.
+- **The Sidebar's Unsaved Marker Could Never Appear**: It tested section ids against a set of setting *keys* — two namespaces that never intersect, so the branch was unreachable. Sections now declare the keys they own, and the marker resolves through that.
+- **Import Was A No-Op**: It called `load()` with the imported values first, which made them equal to the committed snapshot, so the loop that followed removed every key from the dirty set instead of adding it. Nothing was ever saved; the success toast still counted the keys.
+- **Free Text Where The Gateway Expects An Enum**: `agent.service_tier` is published by the gateway as a four-value select. It rendered as a text input, so a typo saved without complaint, the agent fell back to its default, and nothing indicated the setting had not applied. The log-level picker was separately missing `ERROR`, which the gateway has always accepted.
+- **Destructive Buttons Were Unstyled On A Cold Load**: `btn-danger`, `btn-primary` and the confirmation modal's classes are defined only in the Jobs, Profiles and Tasks stylesheets. Landing on `/settings` directly — rather than after visiting one of those pages — left "Delete workspace", "Restart gateway" and "Revoke" looking like ordinary buttons, and the delete confirmation as an unpositioned div. The confirmation is now a real dialog with an Escape handler, a focus trap and an accessible name, and the missing classes ship with the settings sheet.
+- **Status Colours Were Invisible In Every Theme**: Eight `--m-*` tokens were referenced that no theme declares — `--m-accent` alone in sixteen places — so they resolved to nothing, including in Matrix. A further 193 token references carried no fallback, and `--m-*` exists only under `[data-theme='matrix']`, so section content was unthemed on the other nine themes while its frame themed correctly.
+- **No Control Had A Name**: `SettingRow` rendered its label as a `div`, so roughly 150 inputs, selects, toggles and sliders announced as bare "edit text" or "switch". The stylesheet also had no `:focus-visible` rule at all, and suppressed the default outline in three places, leaving keyboard users unable to see focus.
+
+### Added
+
+- **Every Setting The Gateway Supports Is Reachable**: The page hand-maintained 48 of the 555 configuration fields the gateway publishes at `GET /api/config/schema` — an endpoint three client functions already existed for and none had ever called. Curated sections now bind to it, so option lists come from the gateway instead of drifting from it, and a new **All settings** browser lists the full 555, searchable and grouped by the schema's own categories, with each dotted key path shown. Raw YAML remains as a third tier, because 58 keys in a real `config.yaml` have no schema field at all.
+- **Sections Are Linkable**: The active section lived in `localStorage`, so `/settings` could not address one and the back button did not move between them. It is now `?section=<id>`. Deliberately a search param rather than a path segment: `/settings/providers` is a different screen, and a `$section` route would have shadowed it.
+- **Search That Finds Settings**: The sidebar filter matched section titles — twenty-eight strings — so "docker", "tirith", "retention" and "port", all real editable settings, matched nothing. It now indexes setting names, descriptions and key paths.
+- **Collapsible Sidebar Groups**: Twenty-eight sections across eleven groups did not fit a laptop rail. Groups collapse, and start collapsed. The group you navigate into opens automatically, a collapsed group still reports unsaved changes, and one holding the open section names it, so collapsing where you are does not lose your place.
+
+### Removed
+
+- **Twenty-Five Controls That Persisted To Nothing**: Six sections wrote `hermes.*` keys to `localStorage` that no code outside the settings folder ever read. The Matrix-rain toggle never reached the rain canvas, which mounts unconditionally; the six "rebindable" shortcuts had no handler; hardware acceleration has no meaning in a browser page; density had no implementation. Workspace, Account, Notifications and Shortcuts were entirely dead and are now short read-only cards stating something true — Shortcuts documents the bindings that genuinely exist. The theme picker survives, because it alone worked.
+- **A Dead Settings Sidebar**: 128 lines with no importers.
+
+### Changed
+
+- **One Store Name, One Meaning**: `src/hooks/use-settings.ts` exported a store also called `useSettingsStore`, unrelated to the gateway settings store of the same name, which made every search for it a coin flip. It is now `useStudioSettingsStore`; its `claude-settings` storage key is unchanged.
+- **The Save Bar Tells The Truth**: It spoke for nineteen sections it does not control. Sections declare whether the bar saves them, saves them partly, or not at all, and cards that write immediately are labelled "Saves immediately".
+- **The Plugin Settings Mirror Moved To The Store That Owns It**: It fired only on a gateway-config save, so a preference changed from the chat dialog was never reported, and five of its six mapped keys were among the dead controls above. It now follows the browser-preference store and reports from either surface.
+
+### Note
+
+Documentation was rewritten against the shipped page. `docs/settings/preferences.md` described twenty-two sections in placeholder prose and missed six that ship; `workflows-backend-toggle.md` documented a native workflow engine, a backend toggle, a storage key and a URL param, none of which exist — the engine factory has only ever returned the plugin client.
+
 ## [2.5.35] — 2026-08-11
 
 ### Added
