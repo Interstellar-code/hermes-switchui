@@ -17,6 +17,40 @@ import { commandsKeys, fetchUserCommands } from '@/lib/commands-api'
 import { fetchStats } from '@/lib/tasks-api'
 import { fetchTemplates } from '@/lib/board-templates-api'
 import { getPluginsHub } from '@/lib/hermes-client'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import { scopeSegments } from '@/lib/session-scope'
+
+/**
+ * Nav-count query keys — the single construction point so every badge count
+ * carries the resolved profile. `scopeSegments` is `[]` when unscoped, so an
+ * app with no profile selected produces byte-identical keys to before.
+ *
+ * `commands` and `plugins-hub` are deliberately absent: those queries share a
+ * cache key with `commands-api.ts`'s `commandsKeys` and
+ * `plugins-screen.tsx`/`section-mcp-registered.tsx`'s `['plugins-hub']`
+ * respectively — files outside this task's scope. Forking the key here would
+ * split that shared cache. Both backing endpoints (`/api/commands`,
+ * `/api/dashboard/plugins/hub`) are also verified profile-agnostic today (no
+ * `profile` handling server-side), so leaving them unscoped is not a known
+ * staleness bug — see task report.
+ */
+export const navCountKeys = {
+  tasks: (profile: string | null) => ['nav-count', 'tasks', ...scopeSegments(profile)],
+  templates: (profile: string | null) => ['nav-count', 'templates', ...scopeSegments(profile)],
+  jobs: (profile: string | null) => ['nav-count', 'jobs', ...scopeSegments(profile)],
+  sessions: (profile: string | null) => ['nav-count', 'sessions', ...scopeSegments(profile)],
+  workflows: (profile: string | null) => ['nav-count', 'workflows', ...scopeSegments(profile)],
+  skills: (profile: string | null) => ['nav-count', 'skills', ...scopeSegments(profile)],
+  mcp: (profile: string | null) => ['nav-count', 'mcp', ...scopeSegments(profile)],
+  profiles: (profile: string | null) => ['nav-count', 'profiles', ...scopeSegments(profile)],
+}
+
+/** Append `?profile=` (or `&profile=`) when a profile is resolved. No-op when unscoped. */
+function withProfileParam(url: string, profile: string | null): string {
+  if (!profile) return url
+  const separator = url.includes('?') ? '&' : '?'
+  return `${url}${separator}profile=${encodeURIComponent(profile)}`
+}
 
 /** Fetch `url` and return its authoritative total, falling back to array length. */
 export async function countFromArray(
@@ -46,6 +80,7 @@ export interface NavCounts {
 }
 
 export function useNavCounts(enabled: boolean): NavCounts {
+  const profile = useResolvedProfile()
   const common = {
     enabled,
     staleTime: 60_000,
@@ -54,7 +89,7 @@ export function useNavCounts(enabled: boolean): NavCounts {
 
   // Tasks = number of tasks in the current board (sum of by_status counts).
   const tasks = useQuery({
-    queryKey: ['nav-count', 'tasks'],
+    queryKey: navCountKeys.tasks(profile),
     queryFn: async () => {
       const stats = await fetchStats()
       return Object.values(stats.by_status ?? {}).reduce(
@@ -65,22 +100,24 @@ export function useNavCounts(enabled: boolean): NavCounts {
     ...common,
   })
   const templates = useQuery({
-    queryKey: ['nav-count', 'templates'],
+    queryKey: navCountKeys.templates(profile),
     queryFn: async () => (await fetchTemplates()).templates.length,
     ...common,
   })
   const jobs = useQuery({
-    queryKey: ['nav-count', 'jobs'],
+    queryKey: navCountKeys.jobs(profile),
     queryFn: async () => (await fetchJobs()).length,
     ...common,
   })
+  // /api/sessions supports ?profile= — thread it through so a profile switch
+  // both re-keys the cache AND fetches that profile's own session count.
   const chat = useQuery({
-    queryKey: ['nav-count', 'sessions'],
-    queryFn: () => countFromArray('/api/sessions', 'sessions'),
+    queryKey: navCountKeys.sessions(profile),
+    queryFn: () => countFromArray(withProfileParam('/api/sessions', profile), 'sessions'),
     ...common,
   })
   const workflows = useQuery({
-    queryKey: ['nav-count', 'workflows'],
+    queryKey: navCountKeys.workflows(profile),
     queryFn: () => countFromArray('/api/workflow-definitions', 'definitions'),
     ...common,
   })
@@ -88,6 +125,9 @@ export function useNavCounts(enabled: boolean): NavCounts {
   // TanStack Query dedupes by queryKey, so this is a free subscription — the
   // badge updates the instant a command is created/edited/deleted, with no
   // staleTime gap. `select` keeps the hook as a pure projection (length).
+  // NOT profile-scoped: /api/commands has no profile awareness server-side
+  // (global command store), and commands-api.ts is owned by another task —
+  // see the note on `navCountKeys` above.
   const commands = useQuery({
     queryKey: commandsKeys.list(),
     queryFn: fetchUserCommands,
@@ -96,22 +136,31 @@ export function useNavCounts(enabled: boolean): NavCounts {
     refetchOnWindowFocus: false,
     select: (data) => data.length,
   })
+  // /api/skills supports ?profile= — thread it through the same way.
   const skills = useQuery({
-    queryKey: ['nav-count', 'skills'],
+    queryKey: navCountKeys.skills(profile),
     queryFn: () =>
-      countFromArray('/api/skills?tab=installed&limit=200', 'skills', 'total'),
+      countFromArray(
+        withProfileParam('/api/skills?tab=installed&limit=200', profile),
+        'skills',
+        'total',
+      ),
     ...common,
   })
   const mcp = useQuery({
-    queryKey: ['nav-count', 'mcp'],
+    queryKey: navCountKeys.mcp(profile),
     queryFn: () => countFromArray('/api/mcp', 'servers'),
     ...common,
   })
   const profiles = useQuery({
-    queryKey: ['nav-count', 'profiles'],
+    queryKey: navCountKeys.profiles(profile),
     queryFn: () => countFromArray('/api/profiles/list', 'profiles'),
     ...common,
   })
+  // NOT profile-scoped: shares ['plugins-hub'] with plugins-screen.tsx /
+  // section-mcp-registered.tsx (both out of scope), and the backing
+  // /api/dashboard/plugins/hub route has no profile awareness — see the note
+  // on `navCountKeys` above.
   const plugins = useQuery({
     queryKey: ['plugins-hub'],
     queryFn: getPluginsHub,

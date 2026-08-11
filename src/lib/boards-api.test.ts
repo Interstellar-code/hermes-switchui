@@ -57,3 +57,31 @@ describe('boards-api', () => {
     expect(mockFetch.mock.calls[0][1]).toMatchObject({ method: 'POST' })
   })
 })
+
+describe('boardsKeys', () => {
+  it('list is byte-identical to today\'s bare key when unscoped', async () => {
+    const { boardsKeys } = await import('./boards-api')
+    expect(boardsKeys.list(false, null)).toEqual([
+      'hermes-kanban',
+      'boards',
+      'list',
+      { includeArchived: false },
+    ])
+  })
+
+  it('list differs across two profiles, and from unscoped', async () => {
+    const { boardsKeys } = await import('./boards-api')
+    const neo = boardsKeys.list(false, 'neo')
+    const trinity = boardsKeys.list(false, 'trinity')
+    const unscoped = boardsKeys.list(false, null)
+    expect(JSON.stringify(neo)).not.toBe(JSON.stringify(trinity))
+    expect(JSON.stringify(neo)).not.toBe(JSON.stringify(unscoped))
+    expect(JSON.stringify(trinity)).not.toBe(JSON.stringify(unscoped))
+  })
+
+  it('all stays an unscoped prefix of every list(...) key, so invalidateQueries({queryKey: boardsKeys.all}) still matches a profile-scoped list', async () => {
+    const { boardsKeys } = await import('./boards-api')
+    const scopedList = boardsKeys.list(true, 'neo')
+    expect(boardsKeys.all.every((segment, i) => segment === scopedList[i])).toBe(true)
+  })
+})

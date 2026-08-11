@@ -16,9 +16,17 @@ describe('sessions-filter-store', () => {
     vi.resetModules()
   })
 
+  /**
+   * `vi.resetModules()` above gives every test a fresh module registry, so
+   * `session-scope` must be pulled from the SAME batch as the store — a
+   * top-level import would hand back a different module instance than the one
+   * the store publishes into, and the device-layer assertions would silently
+   * read stale module state.
+   */
   async function getStore() {
     const { useSessionsFilterStore, buildDefaultDateRange } = await import('./sessions-filter-store')
-    return { useSessionsFilterStore, buildDefaultDateRange }
+    const scope = await import('@/lib/session-scope')
+    return { useSessionsFilterStore, buildDefaultDateRange, scope }
   }
 
   it('starts with default 7d date filter state', async () => {
@@ -33,7 +41,7 @@ describe('sessions-filter-store', () => {
     expect(s.collapsed).toBe(false)
     expect(s.leftPanel).toBe('sessions')
     expect(s.profile).toBe('active')
-    expect(s.version).toBe(7)
+    expect(s.version).toBe(8)
   })
 
   it('toggleSource adds and removes sources', async () => {
@@ -80,7 +88,7 @@ describe('sessions-filter-store', () => {
     )
     const { useSessionsFilterStore: useStore, buildDefaultDateRange } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
-    expect(useStore.getState().version).toBe(7)
+    expect(useStore.getState().version).toBe(8)
     expect(useStore.getState().sources).toContain('cron')
     expect(useStore.getState().leftPanel).toBe('files')
     expect(useStore.getState().dateRange).toEqual(buildDefaultDateRange())
@@ -111,7 +119,7 @@ describe('sessions-filter-store', () => {
     const { useSessionsFilterStore: useStore } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
     const s = useStore.getState()
-    expect(s.version).toBe(7)
+    expect(s.version).toBe(8)
     expect(s.profile).toBe('active')
     expect(s.sources).toContain('cli')
     expect(s.query).toBe('foo')
@@ -119,16 +127,120 @@ describe('sessions-filter-store', () => {
     expect(s.dateRange).toEqual({ from: '2025-03-01', to: '2025-03-31' })
   })
 
-  it('v7 persisted state with an explicit profile passes through unchanged', async () => {
+  it('drops a v7 profile selection instead of promoting it to a send target', async () => {
+    // Through v7 `profile` only filtered a list. From v8 the same field is the
+    // device layer of the profile resolver, so it also decides where messages
+    // go. Carrying an old browse selection across that boundary would silently
+    // re-route somebody's next message; the migration resets it once and keeps
+    // every other filter.
     localStorageMock.setItem(
       'hermes.sessions.filter',
       JSON.stringify({
-        state: { version: 7, sources: [], state: 'all', query: '', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false, leftPanel: 'sessions', profile: 'work' },
+        state: { version: 7, sources: ['cli'], state: 'all', query: 'foo', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false, leftPanel: 'sessions', profile: 'work' },
         version: 7,
       }),
     )
     const { useSessionsFilterStore: useStore } = await getStore()
     await new Promise((r) => setTimeout(r, 10))
+    const s = useStore.getState()
+    expect(s.version).toBe(8)
+    expect(s.profile).toBe('active')
+    expect(s.sources).toContain('cli')
+    expect(s.query).toBe('foo')
+  })
+
+  it('v8 persisted state with an explicit profile passes through unchanged', async () => {
+    localStorageMock.setItem(
+      'hermes.sessions.filter',
+      JSON.stringify({
+        state: { version: 8, sources: [], state: 'all', query: '', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false, leftPanel: 'sessions', profile: 'work' },
+        version: 8,
+      }),
+    )
+    const { useSessionsFilterStore: useStore } = await getStore()
+    await new Promise((r) => setTimeout(r, 10))
     expect(useStore.getState().profile).toBe('work')
+  })
+})
+
+// ── Device layer of the profile resolver ────────────────────────────────────
+//
+// The store is the ONLY writer of the resolver's device layer. These tests pin
+// that wiring: without it, picking a profile in the sidebar would once again
+// change the session list while the composer kept sending somewhere else.
+
+describe('sessions-filter-store → session-scope device layer', () => {
+  beforeEach(() => {
+    localStorageMock.clear()
+    vi.resetModules()
+  })
+
+  async function getStore() {
+    const { useSessionsFilterStore } = await import('./sessions-filter-store')
+    const scope = await import('@/lib/session-scope')
+    // The device layer only applies on a profile-scoped route; `__root` calls
+    // this on every navigation.
+    scope.syncSessionProfileToPath('/chat/session-a')
+    return { useSessionsFilterStore, scope }
+  }
+
+  it('publishes a picked profile so every scoped key and write body follows it', async () => {
+    const { useSessionsFilterStore: useStore, scope } = await getStore()
+    expect(scope.getSessionProfile()).toBeNull()
+
+    useStore.getState().setProfile('hermes-switch')
+
+    expect(scope.getSessionProfile()).toBe('hermes-switch')
+    expect(scope.getSessionProfileScope()).toEqual({
+      profile: 'hermes-switch',
+      source: 'device',
+    })
+    expect(scope.profileBody()).toEqual({ profile: 'hermes-switch' })
+    expect(scope.activeScopeSegments()).toEqual(['hermes-switch'])
+    expect(scope.activeScopeKey('abc123')).toBe('hermes-switch::abc123')
+  })
+
+  it('treats the sentinel as unscoped and "default" as a real profile', async () => {
+    const { useSessionsFilterStore: useStore, scope } = await getStore()
+
+    useStore.getState().setProfile('default')
+    expect(scope.getSessionProfile()).toBe('default')
+    expect(scope.profileBody()).toEqual({ profile: 'default' })
+
+    useStore.getState().setProfile('active')
+    expect(scope.getSessionProfile()).toBeNull()
+    // Byte-identical to the pre-profile behaviour, which is the §2 DoD.
+    expect(scope.profileBody()).toEqual({})
+    expect(scope.activeScopeSegments()).toEqual([])
+    expect(scope.activeScopeKey('abc123')).toBe('abc123')
+  })
+
+  it('is outranked by a ?profile= pin on the tab', async () => {
+    const { useSessionsFilterStore: useStore, scope } = await getStore()
+    useStore.getState().setProfile('hermes-switch')
+    scope.setSessionProfile('neo')
+
+    expect(scope.getSessionProfileScope()).toEqual({
+      profile: 'neo',
+      source: 'url',
+    })
+    // …and the device selection is still there underneath, unmodified: nothing
+    // mirrors one layer into the other.
+    expect(useStore.getState().profile).toBe('hermes-switch')
+    scope.setSessionProfile(null)
+    expect(scope.getSessionProfile()).toBe('hermes-switch')
+  })
+
+  it('reaches the resolver from persisted state on load, before any pick', async () => {
+    localStorageMock.setItem(
+      'hermes.sessions.filter',
+      JSON.stringify({
+        state: { version: 8, sources: [], state: 'all', query: '', dateRange: { from: null, to: null }, sort: 'recent', collapsed: false, leftPanel: 'sessions', profile: 'trinity' },
+        version: 8,
+      }),
+    )
+    const { scope } = await getStore()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(scope.getSessionProfile()).toBe('trinity')
   })
 })

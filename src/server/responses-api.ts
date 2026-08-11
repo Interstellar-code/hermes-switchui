@@ -18,7 +18,10 @@
  * `send-stream.ts` can translate to its existing `tool.*` events without
  * caring about Responses-spec quirks.
  */
-import { HERMES_SESSION_KEY_HEADER } from '../lib/send-stream-session-headers'
+import {
+  HERMES_SESSION_KEY_HEADER,
+  resolveSessionKeyValue,
+} from '../lib/send-stream-session-headers'
 import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
 import { assertProfileResponseOk, scopedPath } from './profile-scope'
 
@@ -117,9 +120,15 @@ export async function* streamResponses(
   if (req.sessionId && BEARER_TOKEN) {
     headers['X-Hermes-Session-Id'] = req.sessionId
   }
-  if (req.stableSessionKey || req.sessionId) {
-    headers[HERMES_SESSION_KEY_HEADER] =
-      req.stableSessionKey || req.sessionId || ''
+  const sessionKeyValue = resolveSessionKeyValue({
+    stableSessionKey: req.stableSessionKey,
+    sessionId: req.sessionId,
+  })
+  // Omitted only when there's genuinely no session (e.g. a future
+  // non-chat caller with neither id) — never conditionally skipped for a
+  // session that sends the header on another transport.
+  if (sessionKeyValue) {
+    headers[HERMES_SESSION_KEY_HEADER] = sessionKeyValue
   }
 
   const body: Record<string, unknown> = {

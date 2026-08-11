@@ -3,6 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ChatMetaBarV2 } from './chat-meta-bar-v2'
+import {
+  setDeviceSessionProfile,
+  setSessionProfile,
+  syncSessionProfileToPath,
+} from '@/lib/session-scope'
 
 type MockQueryResult = {
   data?: unknown
@@ -409,6 +414,149 @@ describe('ChatMetaBarV2', () => {
         isLoading: false,
         isError: false,
       }
+    })
+
+    // Task #14: the chip used to hardcode the literal 'default' whenever
+    // `scopeMode === 'multiplex'` and the URL carried no `?profile=` — so it
+    // printed "DEFAULT" no matter what the sidebar had selected, and could
+    // not be told apart from someone actually choosing the profile named
+    // `default`. These four cover the resolver-driven replacement: device
+    // layer read through the resolver, URL still wins, genuine unscoped gets
+    // its own affordance, and an explicit `default` pick stays visually
+    // distinct from that affordance.
+    describe('resolver-driven chip (task #14)', () => {
+      beforeEach(() => {
+        // The device layer only applies on the allowlisted chat surface —
+        // see `syncSessionProfileToPath`'s doc. Arms it the same way
+        // `sidebar-profile-dropdown-v2.test.tsx` does.
+        syncSessionProfileToPath('/chat/session-a')
+      })
+
+      afterEach(() => {
+        // Module-level singleton in `lib/session-scope.ts` — reset it so
+        // these tests can't leak a profile into any test that runs after
+        // them in this file.
+        setSessionProfile(null)
+        setDeviceSessionProfile(null)
+        syncSessionProfileToPath('/dashboard')
+      })
+
+      it('shows the device-layer (sidebar) selection when there is no ?profile=', () => {
+        mockQueries['profiles|scope-status'] = {
+          data: {
+            mode: 'multiplex',
+            servedProfiles: ['default', 'hermes-switch'],
+            sessionCounts: {},
+          },
+          isLoading: false,
+          isError: false,
+        }
+        setDeviceSessionProfile('hermes-switch')
+
+        const container = renderInto(
+          <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+        )
+        const selector = container.querySelector(
+          '[data-testid="profile-selector"]',
+        )
+        expect(selector?.textContent).toContain('hermes-switch')
+        expect(selector?.textContent).not.toContain('Unscoped')
+        expect(selector?.getAttribute('data-profile-unscoped')).toBeNull()
+      })
+
+      it('shows the URL profile when pinned, even with a different device pick', () => {
+        mockQueries['profiles|scope-status'] = {
+          data: {
+            mode: 'multiplex',
+            servedProfiles: ['default', 'hermes-switch', 'neo'],
+            sessionCounts: {},
+          },
+          isLoading: false,
+          isError: false,
+        }
+        // The URL always outranks the device layer — a stale/different
+        // sidebar pick must not leak into a link-pinned tab.
+        setDeviceSessionProfile('hermes-switch')
+        mockSearch.profile = 'neo'
+
+        const container = renderInto(
+          <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+        )
+        const selector = container.querySelector(
+          '[data-testid="profile-selector"]',
+        )
+        expect(selector?.textContent).toContain('neo')
+        expect(selector?.textContent).not.toContain('hermes-switch')
+      })
+
+      it('renders the unscoped affordance, not a bare profile name, when nothing resolves', () => {
+        mockQueries['profiles|scope-status'] = {
+          data: {
+            mode: 'multiplex',
+            servedProfiles: ['default'],
+            sessionCounts: {},
+          },
+          isLoading: false,
+          isError: false,
+        }
+        // No ?profile=, no device pick.
+
+        const container = renderInto(
+          <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+        )
+        const selector = container.querySelector(
+          '[data-testid="profile-selector"]',
+        )
+        expect(selector?.textContent).not.toContain('DEFAULT')
+        expect(selector?.textContent).not.toContain('default')
+        expect(selector?.textContent).toContain('Unscoped')
+        expect(selector?.getAttribute('data-profile-unscoped')).toBe('true')
+        expect(selector?.getAttribute('title')).toMatch(
+          /unscoped.*resolves to the default profile/i,
+        )
+      })
+
+      it('explicitly selecting the profile named "default" reads differently from unscoped', () => {
+        mockQueries['profiles|scope-status'] = {
+          data: {
+            mode: 'multiplex',
+            servedProfiles: ['default'],
+            sessionCounts: {},
+          },
+          isLoading: false,
+          isError: false,
+        }
+        mockSearch.profile = 'default'
+
+        const container = renderInto(
+          <ChatMetaBarV2 sessionKey="abc" profileMutable />,
+        )
+        const selector = container.querySelector(
+          '[data-testid="profile-selector"]',
+        )
+        expect(selector?.textContent).toContain('default')
+        expect(selector?.textContent).not.toContain('Unscoped')
+        expect(selector?.getAttribute('data-profile-unscoped')).toBeNull()
+        expect(selector?.getAttribute('title')).toMatch(/^Scoped to default/)
+      })
+
+      it('never calls the gateway-wide activate endpoint while resolving via the device layer', () => {
+        mockQueries['profiles|scope-status'] = {
+          data: { mode: 'multiplex', servedProfiles: ['default'], sessionCounts: {} },
+          isLoading: false,
+          isError: false,
+        }
+        setDeviceSessionProfile('hermes-switch')
+
+        renderInto(<ChatMetaBarV2 sessionKey="abc" profileMutable />)
+
+        expect(
+          (fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+            (call: Array<unknown>) =>
+              String(call[0]).includes('/api/profiles/activate'),
+          ),
+        ).toBe(false)
+      })
     })
 
     it('single mode: row click writes ?profile= via navigate and hides served badges', () => {

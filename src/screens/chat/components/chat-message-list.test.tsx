@@ -2,8 +2,8 @@
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { render } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { cleanup, render } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   ChatMessageList,
   buildDisplayEntries,
@@ -12,6 +12,28 @@ import {
   isThinkingIndicatorSurfaceVisible,
 } from './chat-message-list'
 import type { ChatMessage } from '../types'
+
+// Shared across every describe block below — `configurable: true` lets this
+// run more than once safely regardless of test declaration order (jsdom's
+// `window` is shared across all tests in this file).
+function ensureMatchMedia() {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: () => ({
+      matches: false,
+      media: '',
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  })
+}
+
+afterEach(cleanup)
 
 function textMessage(
   id: string,
@@ -219,19 +241,7 @@ describe('computeCollapsedHeadCount', () => {
 
 describe('ChatMessageList', () => {
   it('does not crash while waiting with no visible entries yet', () => {
-    Object.defineProperty(window, 'matchMedia', {
-      writable: true,
-      value: () => ({
-        matches: false,
-        media: '',
-        onchange: null,
-        addListener: () => {},
-        removeListener: () => {},
-        addEventListener: () => {},
-        removeEventListener: () => {},
-        dispatchEvent: () => false,
-      }),
-    })
+    ensureMatchMedia()
 
     expect(() =>
       render(
@@ -246,5 +256,97 @@ describe('ChatMessageList', () => {
         />,
       ),
     ).not.toThrow()
+  })
+})
+
+// Task #9 regression guard. The fix moved approval-kind clarifies to a new
+// surface owned entirely by ChatScreen (see chat-screen.approval-surface
+// .contract.test.ts) — it deliberately does NOT touch how ChatMessageList
+// handles the `clarifyCard` prop, so NON-approval clarifies must keep
+// rendering exactly as they did before: attached to the last assistant
+// message, hidden when toolDisplayMode is 'hidden', absent when there is no
+// assistant message to anchor to. These tests pin that unchanged behavior
+// down with real renders so a future edit here can't silently change it.
+describe('ChatMessageList clarifyCard placement (non-approval, unchanged by task #9)', () => {
+  function assistantThread(): Array<ChatMessage> {
+    return [
+      {
+        id: 'u1',
+        role: 'user',
+        content: [{ type: 'text', text: 'hi' }],
+        timestamp: 1,
+      },
+      {
+        id: 'a1',
+        role: 'assistant',
+        content: [{ type: 'text', text: 'hello there' }],
+        timestamp: 2,
+      },
+    ]
+  }
+
+  it('attaches the clarifyCard to the last assistant message by default', () => {
+    ensureMatchMedia()
+
+    const { getByText } = render(
+      <ChatMessageList
+        messages={assistantThread()}
+        loading={false}
+        empty={false}
+        waitingForResponse={false}
+        pinToTop={false}
+        pinGroupMinHeight={0}
+        headerHeight={0}
+        clarifyCard={<div>CLARIFY_MARKER</div>}
+      />,
+    )
+
+    expect(getByText('CLARIFY_MARKER')).toBeTruthy()
+  })
+
+  it('suppresses the clarifyCard when toolDisplayMode is hidden (pre-existing, unchanged gating)', () => {
+    ensureMatchMedia()
+
+    const { queryByText } = render(
+      <ChatMessageList
+        messages={assistantThread()}
+        loading={false}
+        empty={false}
+        waitingForResponse={false}
+        pinToTop={false}
+        pinGroupMinHeight={0}
+        headerHeight={0}
+        clarifyCard={<div>CLARIFY_MARKER</div>}
+        toolDisplayMode="hidden"
+      />,
+    )
+
+    expect(queryByText('CLARIFY_MARKER')).toBeNull()
+  })
+
+  it('renders nothing when there is no assistant message to anchor to (pre-existing, unchanged gap)', () => {
+    ensureMatchMedia()
+
+    const { queryByText } = render(
+      <ChatMessageList
+        messages={[
+          {
+            id: 'u1',
+            role: 'user',
+            content: [{ type: 'text', text: 'hi' }],
+            timestamp: 1,
+          },
+        ]}
+        loading={false}
+        empty={false}
+        waitingForResponse={false}
+        pinToTop={false}
+        pinGroupMinHeight={0}
+        headerHeight={0}
+        clarifyCard={<div>CLARIFY_MARKER</div>}
+      />,
+    )
+
+    expect(queryByText('CLARIFY_MARKER')).toBeNull()
   })
 })

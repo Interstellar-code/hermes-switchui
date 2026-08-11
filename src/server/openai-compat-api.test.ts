@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { parseOpenAIStream } from './openai-compat-api'
+import { buildRequestBody, parseOpenAIStream } from './openai-compat-api'
 
 function createStreamResponse(chunks: Array<string>): Response {
   const encoder = new TextEncoder()
@@ -88,5 +88,68 @@ describe('parseOpenAIStream', () => {
       },
       { type: 'content', text: 'done' },
     ])
+  })
+})
+
+// ─── buildRequestBody / getDefaultModel (task #26 item 4) ──────────────────
+//
+// `GET /v1/models` on the gateway is the server's own advertised identity
+// plus configured `model_routes` aliases, NOT a model catalog. Sending that
+// identity back as an explicit `model` is a deliberate no-op per the gateway
+// contract, so picking one from `/v1/models` to use as "the default model"
+// risked sending a `model_routes` alias as if it were a real selection.
+// Omitting `model` achieves the identical effective result with no fetch.
+
+describe('buildRequestBody', () => {
+  const originalEnv = process.env.CLAUDE_DEFAULT_MODEL
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.CLAUDE_DEFAULT_MODEL
+    else process.env.CLAUDE_DEFAULT_MODEL = originalEnv
+    vi.restoreAllMocks()
+  })
+
+  it('omits `model` entirely when none is selected and no env override is set', async () => {
+    delete process.env.CLAUDE_DEFAULT_MODEL
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+
+    const body = await buildRequestBody([{ role: 'user', content: 'hi' }], {
+      stream: false,
+    })
+
+    expect(body).not.toHaveProperty('model')
+    // No /v1/models lookup — the gateway's identity endpoint must never be
+    // queried just to fill in a default model.
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('passes an explicit model straight through untouched', async () => {
+    const body = await buildRequestBody([{ role: 'user', content: 'hi' }], {
+      stream: false,
+      model: 'openai/gpt-4o',
+    })
+
+    expect(body.model).toBe('openai/gpt-4o')
+  })
+
+  it('treats the "default" sentinel the same as an unset model', async () => {
+    delete process.env.CLAUDE_DEFAULT_MODEL
+
+    const body = await buildRequestBody([{ role: 'user', content: 'hi' }], {
+      stream: false,
+      model: 'default',
+    })
+
+    expect(body).not.toHaveProperty('model')
+  })
+
+  it('uses CLAUDE_DEFAULT_MODEL as the one legitimate override', async () => {
+    process.env.CLAUDE_DEFAULT_MODEL = 'operator/preferred-model'
+
+    const body = await buildRequestBody([{ role: 'user', content: 'hi' }], {
+      stream: false,
+    })
+
+    expect(body.model).toBe('operator/preferred-model')
   })
 })

@@ -36,11 +36,24 @@ import type {
 } from './sessions-feed-types'
 import { fetchJobs, findJobById } from '@/lib/jobs-api'
 import { useChatStore } from '@/stores/chat-store'
-import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
-import { activeScopeKey, activeScopeSegments } from '@/lib/session-scope'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import {
+  UNSCOPED_PROFILE,
+  activeScopeKey,
+  activeScopeSegments,
+} from '@/lib/session-scope'
 
-/** Sentinel profile: the gateway's current profile, read unscoped. */
-export const ACTIVE_PROFILE = 'active'
+/**
+ * Sentinel profile: the gateway's current profile, read unscoped.
+ *
+ * An alias, not a second literal. This module and `lib/session-scope.ts` used
+ * to spell `'active'` twice and keep them in lockstep by test; two spellings of
+ * one value is a second source of truth by another name, and the failure mode
+ * is silent — the feed browses the gateway's active profile while the resolver
+ * believes a profile literally named `active` was selected. Re-exported so the
+ * existing import sites keep working.
+ */
+export const ACTIVE_PROFILE = UNSCOPED_PROFILE
 
 // ── Capability accessor ────────────────────────────────────────────────────────
 // We read capabilities from the /api/connection-status endpoint (already used
@@ -634,13 +647,19 @@ export function useSessionsFeed(
     sort = 'recent',
   } = options
   const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
-  const profile = useSessionsFilterStore((s) => s.profile)
-  const unscoped = !profile || profile === ACTIVE_PROFILE
+  // The RESOLVED profile (`url ?? device ?? null`), never the raw device layer.
+  // Reading the store field directly is how the list and the composer came to
+  // disagree: a tab pinned by `?profile=neo` sends to neo — every write body
+  // spreads `profileBody()`, which reads the same resolver — while the sidebar
+  // went on listing whatever this device last picked. Same resolver on both
+  // sides means the header, the list and the send target cannot drift.
+  const profile = useResolvedProfile()
+  const unscoped = profile === null
 
   // Both hooks always run (hooks cannot be conditional); the inactive one is
   // gated off by `enabled` so only one of them polls.
   const chat = useChatSessionsFeed(unscoped)
-  const scopedChat = useScopedChatSessionsFeed(unscoped ? ACTIVE_PROFILE : profile)
+  const scopedChat = useScopedChatSessionsFeed(profile ?? UNSCOPED_PROFILE)
   const tool = useToolSessionsFeed()
   const tg = useTelegramSessionsFeed()
   const remoteSearchQuery = useQuery({

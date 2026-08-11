@@ -20,8 +20,10 @@
  */
 
 import { useCallback, useMemo, useState } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
+import { NavProfileSelectorV2 } from './nav-profile-selector-v2'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
 import { useSearchModal } from '@/hooks/use-search-modal'
 import { getTheme, getThemeVariant, isDarkTheme, setTheme } from '@/lib/theme'
 import { SettingsDialog } from '@/components/settings-dialog'
@@ -395,8 +397,49 @@ function useAgentVersion(): string | null {
   return data?.version ?? null
 }
 
+/**
+ * The `search` a `/chat/$sessionKey` navigation should carry for `profile`.
+ *
+ * Scoped ⇒ spell the resolved profile explicitly, so the new session is pinned
+ * to the profile it was created in and a later device-level switch cannot
+ * retarget it mid-thread.
+ *
+ * Unscoped ⇒ `undefined`, i.e. "unspecified", which is NOT the same as
+ * `{ profile: undefined }` (an explicit clear). Unspecified lets the route's
+ * `retainSearchParams(['profile'])` middleware decide, which on an unscoped
+ * install produces the byte-identical empty search string it produces today.
+ *
+ * Exported because it is the whole of the rule; the JSX below is one line.
+ */
+export function newSessionSearch(
+  profile: string | null,
+): { profile: string } | undefined {
+  return profile ? { profile } : undefined
+}
+
 export function PrimaryNavV2() {
   const pathname = useRouterState({ select: selectPathname })
+  const navigate = useNavigate()
+  // The resolved profile (`url ?? device ?? null`) — the same answer the
+  // composer sends to, so a session started from this nav lands where the
+  // selector above it says it will.
+  const resolvedProfile = useResolvedProfile()
+  /** A URL-pinned tab cannot be re-scoped, so the selector offers this instead
+   *  of a write the resolver would discard: a NEW session in the picked
+   *  profile, leaving the open one in the profile it belongs to. */
+  const openNewSessionInProfile = useCallback(
+    (profile: string | null) => {
+      navigate({
+        to: '/chat/$sessionKey',
+        params: { sessionKey: 'new' },
+        // Explicit `undefined` here, not an omitted key: `retainSearchParams`
+        // reads an omitted key as "unspecified" and fills the pin back in, so
+        // omitting it would make "start a new unscoped session" impossible.
+        search: { profile: profile ?? undefined },
+      })
+    },
+    [navigate],
+  )
   const selfImproveAvailable = useSelfImproveAvailable()
   const openSearchModal = useSearchModal((s) => s.openModal)
   const openSetupWizard = useSetupWizardStore((s) => s.openSetupWizard)
@@ -633,6 +676,15 @@ export function PrimaryNavV2() {
           </button>
         )}
 
+        {/* Working profile — ABOVE New Session, not instead of it: setting a
+            scope and starting a session are different verbs, and the second is
+            the nav's highest-frequency action. Rendered in the collapsed rail
+            too; "which profile" is the last state to hide. */}
+        <NavProfileSelectorV2
+          collapsed={collapsed}
+          onNewSessionInProfile={openNewSessionInProfile}
+        />
+
         {/* New Session — hidden when collapsed; chevron expand takes its slot */}
         {collapsed ? (
           <button
@@ -675,6 +727,11 @@ export function PrimaryNavV2() {
           <Link
             to="/chat/$sessionKey"
             params={{ sessionKey: 'new' }}
+            // Carries the profile the selector above says you are working in.
+            // Without it the new chat inherits whatever `?profile=` happened to
+            // be sticky on the current URL — which is right on the chat surface
+            // and wrong everywhere else.
+            search={newSessionSearch(resolvedProfile)}
             className="m-mono"
             style={{
               display: 'flex',

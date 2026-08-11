@@ -16,6 +16,31 @@ function normalizeHeaderValue(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
+/**
+ * Derive the value every outbound chat transport must send under
+ * X-Hermes-Session-Key.
+ *
+ * The gateway stores per-session overrides (e.g. sticky model switches)
+ * keyed as `gateway_session_key or session_id` — the value under
+ * X-Hermes-Session-Key if that header is sent, otherwise the {session_id}
+ * from the URL. If some requests for a session carry the header and others
+ * don't (or compute it differently), the switch lands under one key and a
+ * later turn reads a different one, and the model appears to reset for no
+ * reason. Every chat transport (hermes-api, responses-api,
+ * openai-compat-api, and the chat-backends dispatcher in front of them)
+ * must derive this the same way: stableSessionKey when non-empty, else
+ * sessionId — never an ad-hoc `||` reimplemented at each call site.
+ */
+export function resolveSessionKeyValue(payload: {
+  stableSessionKey?: string | null
+  sessionId?: string | null
+}): string {
+  return (
+    normalizeHeaderValue(payload.stableSessionKey) ||
+    normalizeHeaderValue(payload.sessionId)
+  )
+}
+
 export function buildResolvedSessionHeaders(payload: {
   sessionKey: string
   friendlyId: string

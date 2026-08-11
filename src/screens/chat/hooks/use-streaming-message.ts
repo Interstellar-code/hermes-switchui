@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ChatAttachment, ChatMessage } from '../types'
 import type { ChatStreamEvent } from '@/stores/chat-store'
 import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
-import { useChatStore } from '@/stores/chat-store'
+import { detectModelRejection, useChatStore } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
 import { parseApprovalDetail } from '@/lib/approvals'
@@ -34,6 +34,68 @@ export function shouldResolveStreamSession({
   if (requestedSessionKey === 'new' || requestedSessionKey === 'main') return true
   // Concrete session → never promote a different backend ID
   return false
+}
+
+/**
+ * `POST /api/sessions/{id}/chat/stream` answers a bad `model` with a plain
+ * JSON 400 BEFORE the SSE stream opens, so a stream client that assumes a 200
+ * `text/event-stream` body silently drops the reason. Both this response shape
+ * and the SSE `error` event our own route re-emits it as (see
+ * routes/api/send-stream.ts) carry the same OpenAI-style envelope:
+ *
+ *   {"error":{"message":"…","type":"invalid_request_error",
+ *             "param":"model","code":"model_not_available"}}
+ *
+ * `invalid_model` = non-string/empty value; `model_not_available` = the
+ * provider chain refused the name at resolution time.
+ */
+const MODEL_ERROR_CODES = new Set(['invalid_model', 'model_not_available'])
+
+export type ModelErrorEnvelope = {
+  message: string
+  code: string | null
+  param: string | null
+}
+
+export function parseModelErrorEnvelope(
+  raw: string,
+): ModelErrorEnvelope | null {
+  const start = raw.indexOf('{')
+  if (start < 0) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.slice(start)) as unknown
+  } catch {
+    return null
+  }
+  const error = (parsed as { error?: unknown } | null)?.error
+  if (!error || typeof error !== 'object') return null
+  const record = error as Record<string, unknown>
+  const message =
+    typeof record.message === 'string' ? record.message.trim() : ''
+  if (!message) return null
+  const code = typeof record.code === 'string' ? record.code.trim() : ''
+  const param = typeof record.param === 'string' ? record.param.trim() : ''
+  if (param !== 'model' && !MODEL_ERROR_CODES.has(code)) return null
+  return { message, code: code || null, param: param || null }
+}
+
+/**
+ * Whether this response body can be fed to the SSE parser.
+ *
+ * A `Content-Type` that positively names another type (the JSON error
+ * envelope) proves it cannot. An ABSENT header is inconclusive rather than a
+ * refusal — proxies drop it, and refusing to parse a stream we could have read
+ * would be a worse failure than the one we are guarding against.
+ */
+export function isEventStreamResponse(response: {
+  headers: { get: (name: string) => string | null }
+}): boolean {
+  const contentType = (response.headers.get('content-type') ?? '')
+    .trim()
+    .toLowerCase()
+  if (!contentType) return true
+  return contentType.includes('text/event-stream')
 }
 
 type StreamingState = {
@@ -143,6 +205,10 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   // should be promoted to the route identity. Prevents concrete sessions
   // from being overridden by api-* derivations (#297).
   const requestedSessionKeyRef = useRef<string>('')
+  // Whether THIS turn ran any tool. A provider's canned model refusal is
+  // emitted before the agent does any work, so a turn that called a tool is
+  // never one (see detectModelRejection).
+  const toolCallSeenRef = useRef(false)
 
   const registerSendStreamRun = useChatStore((s) => s.registerSendStreamRun)
   const unregisterSendStreamRun = useChatStore((s) => s.unregisterSendStreamRun)
@@ -159,6 +225,57 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
     if (useChatStore.getState().getPendingClarify(sessionKey)) return
     dismissUnresolvedClarify(sessionKey)
   }, [dismissUnresolvedClarify])
+  // An approval clarify blocks the run server-side (the gateway is still
+  // waiting on `POST /v1/runs/{runId}/approval`), and it has its own ~180s
+  // gateway-side timeout. A dead client stream — a `started` on resume, a
+  // `done` with state:'error', or a bare `error` event (e.g. the server's
+  // SEND_STREAM_RUN_TIMEOUT_MS firing after 600s, see send-stream.ts) — does
+  // NOT mean the approval decision is no longer needed. Dropping the card
+  // here would just orphan it client-side while the gateway keeps waiting,
+  // so approval-kind entries are exempt from these run-boundary clears.
+  // Every other clarify kind keeps today's behavior.
+  const clearClarifyUnlessApproval = useCallback(
+    (sessionKey: string, clear: (sessionKey: string) => void) => {
+      const pending = useChatStore.getState().getPendingClarify(sessionKey)
+      if (pending?.kind === 'approval') return
+      clear(sessionKey)
+    },
+    [],
+  )
+  /**
+   * End-of-turn check for FAILURE SHAPE 2: an HTTP 200 whose assistant message
+   * IS the provider's rejection. The configured provider is a permissive
+   * aggregator — it accepts nearly any model id at resolution time and only
+   * refuses at inference — so "the request succeeded" says nothing about
+   * whether the switch worked. And because the switch is sticky, a missed
+   * rejection wedges every later turn on the session, not just this one.
+   *
+   * Gated on `changed`: only the single turn that installs a NEW model is
+   * inspected. Repeat sends of an already-installed model are server no-ops
+   * and are skipped, which is what keeps ordinary conversation (including
+   * conversation *about* model availability) out of the detector's reach.
+   */
+  const checkForModelRejection = useCallback((finalText: string) => {
+    const store = useChatStore.getState()
+    const sessionKey = activeSessionKeyRef.current
+    const switchState = store.getModelSwitch(sessionKey)
+    if (!switchState.changed) return
+    if (
+      !detectModelRejection({
+        text: finalText,
+        requestedModel: switchState.requested,
+        hadToolCalls: toolCallSeenRef.current,
+      })
+    ) {
+      return
+    }
+    store.failModelSwitch(sessionKey, {
+      message: finalText.trim(),
+      code: 'provider_rejected_model',
+      shape: 'provider-rejection',
+    })
+  }, [])
+
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
   const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
 
@@ -197,6 +314,8 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
         delayedUnregisterTimerRef.current = null
       }
       clearStreamingSession(activeSessionKeyRef.current)
+      // An aborted/superseded turn leaves no verdict on its model switch.
+      useChatStore.getState().settleModelSwitch(activeSessionKeyRef.current)
       if (nextSessionKey) {
         activeSessionKeyRef.current = nextSessionKey
       }
@@ -204,6 +323,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       renderedTextRef.current = ''
       targetTextRef.current = ''
       thinkingRef.current = ''
+      toolCallSeenRef.current = false
       stepUsageRef.current = {}
       lifecyclePhaseRef.current = 'idle'
       acceptedAtRef.current = null
@@ -245,6 +365,9 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       lifecyclePhaseRef.current = 'error'
       clearHandoffTimer()
       clearSendStreamRun()
+      // Drop the "switching model…" spinner; any recorded failure survives so
+      // the picker can still surface it.
+      useChatStore.getState().settleModelSwitch(activeSessionKeyRef.current)
       clearStreamingSession(activeSessionKeyRef.current)
       setState((prev) => ({
         ...prev,
@@ -409,6 +532,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       renderedTextRef.current = finalText
       targetTextRef.current = finalText
 
+      // Must run BEFORE settling: the detector reads the `changed` flag that
+      // settling clears.
+      checkForModelRejection(finalText)
+      useChatStore.getState().settleModelSwitch(activeSessionKeyRef.current)
+
       setState((prev) => ({
         ...prev,
         isStreaming: false,
@@ -429,7 +557,13 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
 
       onComplete?.(message)
     },
-    [clearHandoffTimer, onComplete, stopFrame, unregisterSendStreamRun],
+    [
+      checkForModelRejection,
+      clearHandoffTimer,
+      onComplete,
+      stopFrame,
+      unregisterSendStreamRun,
+    ],
   )
 
   const processEvent = useCallback(
@@ -464,7 +598,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           // A resumed run may emit `started` after the user answers a clarify.
           // Keep answered cards visible as a transcript record; only drop stale
           // unanswered questions before processing the next run lifecycle.
-          dismissUnresolvedClarify(activeSessionKeyRef.current)
+          // Approvals are exempt — see clearClarifyUnlessApproval.
+          clearClarifyUnlessApproval(
+            activeSessionKeyRef.current,
+            dismissUnresolvedClarify,
+          )
           const resolvedSessionKey =
             typeof payload.sessionKey === 'string' && payload.sessionKey.trim()
               ? payload.sessionKey.trim()
@@ -576,8 +714,22 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           break
         }
+        case 'model_effective': {
+          // Confirmation comes from the SERVER (`run.started`.model), never
+          // from what we sent — that is what makes a silent server-side
+          // fallback visible in the composer chip.
+          const effectiveModel =
+            typeof payload.model === 'string' ? payload.model.trim() : ''
+          if (effectiveModel) {
+            useChatStore
+              .getState()
+              .setEffectiveModel(activeSessionKeyRef.current, effectiveModel)
+          }
+          break
+        }
         case 'tool': {
           markActivity()
+          toolCallSeenRef.current = true
           {
             const toolName =
               typeof payload.name === 'string' ? payload.name : 'tool'
@@ -760,7 +912,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             transport: 'send-stream',
           })
           if (doneState === 'error' && errorMessage) {
-            dismissUnresolvedClarify(activeSessionKeyRef.current)
+            // Approvals are exempt — see clearClarifyUnlessApproval.
+            clearClarifyUnlessApproval(
+              activeSessionKeyRef.current,
+              dismissUnresolvedClarify,
+            )
             markFailed(errorMessage)
             break
           }
@@ -785,7 +941,31 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           const errorMessage =
             (payload as { message?: string }).message ?? 'Stream error'
-          clearPendingClarify(activeSessionKeyRef.current)
+          // FAILURE SHAPE 1 relayed through our own route: the gateway's
+          // pre-stream JSON 400 on `model`. The session's model is unchanged,
+          // so record the failure (which rolls the selection back) as well as
+          // surfacing the gateway's own message.
+          const modelError = payload.modelError as
+            | { message?: unknown; code?: unknown }
+            | undefined
+          if (modelError && typeof modelError.message === 'string') {
+            useChatStore
+              .getState()
+              .failModelSwitch(activeSessionKeyRef.current, {
+                message: modelError.message,
+                code:
+                  typeof modelError.code === 'string' ? modelError.code : null,
+                shape: 'http-400',
+              })
+          }
+          // Approvals are exempt — see clearClarifyUnlessApproval. This is
+          // the path the server's SEND_STREAM_RUN_TIMEOUT_MS (600s) hits: the
+          // gateway is still waiting on the approval decision when this
+          // fires, so the card must survive it.
+          clearClarifyUnlessApproval(
+            activeSessionKeyRef.current,
+            clearPendingClarify,
+          )
           markFailed(errorMessage)
           break
         }
@@ -893,6 +1073,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       }
     },
     [
+      clearClarifyUnlessApproval,
       clearPendingClarify,
       dismissUnresolvedClarify,
       finishClarifyRun,
@@ -960,6 +1141,15 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       lifecyclePhaseRef.current = 'requesting'
       requestedSessionKeyRef.current = params.sessionKey
 
+      // Record the model this send carries BEFORE the request goes out. The
+      // store marks it pending only when it differs from the last
+      // server-confirmed model — a first switch to a model the session has
+      // not used does credential resolution plus possibly a catalog fetch and
+      // a live endpoint probe (seconds, worst case ~15s before the first
+      // token), while a repeat send of the same model is a server-side no-op
+      // and must not show a spinner.
+      useChatStore.getState().beginModelSwitch(params.sessionKey, params.model)
+
       // Bump the generation token so any chunks the previous stream had
       // already buffered but not yet dispatched (after abort) get rejected
       // when they reach processEvent. The local capture is what this run
@@ -1002,8 +1192,39 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           signal: abortController.signal,
         })
 
+        // Never assume a 200 SSE body. A model the gateway refuses comes back
+        // as a plain JSON 400 *before* the SSE stream opens, and our own route
+        // can answer with JSON too (auth, profile scope, empty message). Read
+        // the envelope instead of feeding JSON to the SSE parser.
+        //
+        // The session's model is UNCHANGED on a 400, so a refusal must roll
+        // the picker back to the selection that is actually installed and
+        // surface the gateway's own `error.message` verbatim.
+        const failModelSwitchFrom = (raw: string): boolean => {
+          const modelError = parseModelErrorEnvelope(raw)
+          if (!modelError) return false
+          useChatStore.getState().failModelSwitch(params.sessionKey, {
+            message: modelError.message,
+            code: modelError.code,
+            shape: 'http-400',
+          })
+          markFailed(modelError.message)
+          return true
+        }
+
         if (!response.ok) {
-          throw new Error(await readSendFailure(response))
+          // `readSendFailure` passes a non-string `error` body through as raw
+          // text, which is exactly the envelope shape we need.
+          const failure = await readSendFailure(response)
+          if (failModelSwitchFrom(failure)) return
+          throw new Error(failure)
+        }
+        if (!isEventStreamResponse(response)) {
+          const raw = await response.text().catch(() => '')
+          if (failModelSwitchFrom(raw)) return
+          throw new Error(
+            raw.trim() || 'Send endpoint returned a non-streaming response',
+          )
         }
 
         const resolvedHeaders = readResolvedSessionHeaders(response.headers, {

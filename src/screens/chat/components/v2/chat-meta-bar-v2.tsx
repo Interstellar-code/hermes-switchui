@@ -27,8 +27,6 @@ type ChatMetaBarV2Props = {
   toolCount?: number
   /** Profile/model override label */
   profile?: string
-  /** Fallback model name when session-status hasn't returned model yet */
-  modelFallback?: string
   /** Current thinking level (controlled by chat-screen) for the selectors */
   thinkingLevel?: ThinkingLevel
   /** Setter for the thinking-level selector */

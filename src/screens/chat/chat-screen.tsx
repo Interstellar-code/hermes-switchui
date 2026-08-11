@@ -70,6 +70,7 @@ import { useMessageRetry } from './hooks/use-message-retry'
 import { useRetryRecovery } from './hooks/use-retry-recovery'
 import { useSlashCommands } from './hooks/use-slash-commands'
 import { useThinkingLevel } from './hooks/use-thinking-level'
+import { rekeySessionModel } from './components/chat-composer-services'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
@@ -83,6 +84,7 @@ import type {
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { AgentActivity } from '@/stores/chat-activity-store'
 import type { StreamingDelegation } from '@/stores/chat-store'
+import { usePendingApprovalQueue } from '@/hooks/use-approval-queue'
 import {
   activeScopeKey,
   profileBody,
@@ -156,6 +158,16 @@ export function ChatScreen({
   const queryClient = useQueryClient()
   const userCommandsQuery = useEnabledUserCommands()
   const enabledUserCommands = userCommandsQuery.data
+  // Approval recovery must run wherever a chat can be blocked on one — the
+  // full-page route AND the compact side panel (ChatPanel renders this same
+  // component with `compact`) — so it lives on the unconditional root here
+  // rather than inside the `!compact`-gated ChatHeaderV2/ApprovalsBell tree.
+  // ApprovalsBell still calls this hook too, for its display data; both
+  // subscribers share one query-cache entry (same query key) and the
+  // seeding effect's `alreadyHeld` guard in use-approval-queue.ts is what
+  // makes calling it from two mounted components safe — see that file's
+  // header before touching either.
+  usePendingApprovalQueue()
   const [creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [agentsOpen, setAgentsOpen] = useState(false)
@@ -288,6 +300,22 @@ export function ChatScreen({
     portableMode: isPortableMode,
   })
 
+  // Canonical per-session key for model persistence (useSessionModelStore).
+  // MUST be the single source of truth both the read side (useThinkingLevel)
+  // and the write side (SessionSelectorsV2, via ChatMetaBarV2's
+  // selectorSessionKey prop) key off of — a mismatched precedence between
+  // read and write is what silently dropped the per-session model on new
+  // chats (#348 task 5). Falls all the way back to activeFriendlyId (the
+  // 'new' sentinel pre-resolution) so a model picked before the first
+  // message has somewhere to live; rekeySessionModel below moves it once a
+  // real session id arrives.
+  const modelSessionKey =
+    forcedSessionKey ||
+    resolvedSessionKey ||
+    activeSessionKey ||
+    activeFriendlyId ||
+    undefined
+
   // Store maps are keyed by the composite profile::session key.
   const waitingStoreKey = activeScopeKey(resolvedSessionKey)
   const selectWaitingForSession = useCallback(
@@ -355,6 +383,24 @@ export function ChatScreen({
   const requestStopRef = useRef(requestStop)
   requestStopRef.current = requestStop
 
+  // Re-key the per-session model store the moment a new chat resolves to a
+  // real session id — a model picked before that point was persisted under
+  // `modelSessionKey`'s pre-resolution value (activeFriendlyId, i.e. the
+  // 'new' sentinel), which nothing else moves. See rekeySessionModel's doc
+  // comment (#348 task 5) for why this can't be a generic effect diffing
+  // `modelSessionKey` across renders: that would also fire on ordinary
+  // navigation between two already-resolved sessions and cross-contaminate
+  // their model picks. This wrapper only fires on the actual resolution
+  // event for THIS chat, closing over the modelSessionKey that was current
+  // at send time.
+  const handleSessionResolvedForModel = useCallback(
+    (resolved: { sessionKey: string; friendlyId: string }) => {
+      rekeySessionModel(modelSessionKey, resolved.sessionKey)
+      onSessionResolvedProp?.(resolved)
+    },
+    [modelSessionKey, onSessionResolvedProp],
+  )
+
   const {
     sending,
     setSending,
@@ -393,7 +439,7 @@ export function ChatScreen({
     queryClient,
     finalDisplayMessagesRef,
     currentModelRef,
-    onSessionResolved: onSessionResolvedProp,
+    onSessionResolved: handleSessionResolvedForModel,
     navigate,
     embedded,
     cancelStreamingRef,
@@ -635,7 +681,7 @@ export function ChatScreen({
     currentModel,
     modelsQuery,
     currentModelQuery,
-  } = useThinkingLevel({ activeFriendlyId, resolvedSessionKey, forcedSessionKey })
+  } = useThinkingLevel({ activeFriendlyId, modelSessionKey })
 
   // Sync bridge refs for sendMessage (seam #4 PR 2)
   thinkingLevelBridgeRef.current = thinkingLevel
@@ -1228,15 +1274,41 @@ export function ChatScreen({
     ),
     [compact, handleEmptyStateSuggestion],
   )
+  // Task #9: an approval-kind clarify is a security prompt, not tool chrome.
+  // It gets its own unconditional surface (mounted as a sibling of the
+  // composer below, via `approvalCard`) instead of the message-list surfaces
+  // (thinking bubble / last-assistant-message attachment) that `clarifyCard`
+  // feeds — those are gated on toolDisplayMode, thinkingIndicatorVisible, and
+  // the existence of a last assistant message / active message search, any
+  // of which can silently hide an approval. Excluding approval-kind entries
+  // here (rather than filtering in chat-message-list) keeps the two surfaces
+  // mutually exclusive so the card never double-renders. Non-approval
+  // clarifies are unaffected — they keep flowing through `clarifyCard`
+  // exactly as before.
+  const isApprovalClarify = activeClarify?.kind === 'approval'
   const clarifyCard = useMemo(
     () =>
-      activeClarify && resolvedSessionKey ? (
+      activeClarify && resolvedSessionKey && !isApprovalClarify ? (
         <InlineClarifyCard
           clarify={activeClarify}
           sessionKey={resolvedSessionKey}
         />
       ) : null,
-    [activeClarify, resolvedSessionKey],
+    [activeClarify, resolvedSessionKey, isApprovalClarify],
+  )
+  // The always-present approval surface (task #9). Renders whenever the
+  // active clarify is approval-kind, independent of tool display mode, the
+  // thinking indicator, message search, or whether a last assistant message
+  // exists to anchor to.
+  const approvalCard = useMemo(
+    () =>
+      activeClarify && resolvedSessionKey && isApprovalClarify ? (
+        <InlineClarifyCard
+          clarify={activeClarify}
+          sessionKey={resolvedSessionKey}
+        />
+      ) : null,
+    [activeClarify, resolvedSessionKey, isApprovalClarify],
   )
   const handleClearReply = useCallback(() => setReplyTo(null), [])
   const handleToggleSystemMessages = useCallback(
@@ -1251,12 +1323,6 @@ export function ChatScreen({
       /* router not ready */
     }
   }, [embedded, navigate])
-
-  const sessionModelFallback =
-    (typeof (activeSession as { model?: unknown } | null | undefined)?.model ===
-    'string'
-      ? ((activeSession as { model?: string }).model as string)
-      : undefined) ?? undefined
 
   // Pull-to-refresh offset removed
 
@@ -1374,14 +1440,9 @@ export function ChatScreen({
               />
               <ChatMetaBarV2
                 sessionKey={activeSessionKey || activeFriendlyId}
-                selectorSessionKey={
-                  isNewChat
-                    ? undefined
-                    : forcedSessionKey || resolvedSessionKey || activeSessionKey
-                }
+                selectorSessionKey={modelSessionKey}
                 profileMutable={isNewChat && !creatingSession}
                 toolCount={totalToolCount}
-                modelFallback={sessionModelFallback}
                 thinkingLevel={thinkingLevel}
                 onThinkingLevelChange={handleThinkingLevelChange}
               />
@@ -1481,6 +1542,11 @@ export function ChatScreen({
           )}
           {showComposer ? (
             <>
+              {/* Task #9: approval-kind clarifies render here — a stable
+                  surface next to the composer that isn't gated by tool
+                  display mode, the thinking indicator, message search, or
+                  message-list anchoring. See `approvalCard` above. */}
+              {approvalCard}
               <ChatComposerShadcn
                 onSubmit={send}
                 onAbort={handleAbortStreaming}

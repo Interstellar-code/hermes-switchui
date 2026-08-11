@@ -5,7 +5,10 @@
  * Replaces legacy WebSocket connection for the Hermes Switch UI fork.
  */
 
-import { HERMES_SESSION_KEY_HEADER } from '../lib/send-stream-session-headers'
+import {
+  HERMES_SESSION_KEY_HEADER,
+  resolveSessionKeyValue,
+} from '../lib/send-stream-session-headers'
 import {
   BEARER_TOKEN,
   CLAUDE_API,
@@ -658,7 +661,10 @@ export async function streamChat(
   const headers: Record<string, string> = {
     ..._authHeaders(),
     'Content-Type': 'application/json',
-    [HERMES_SESSION_KEY_HEADER]: opts.stableSessionKey || sessionId,
+    [HERMES_SESSION_KEY_HEADER]: resolveSessionKeyValue({
+      stableSessionKey: opts.stableSessionKey,
+      sessionId,
+    }),
   }
   // Bypasses the claudeGet/claudePost chokepoints (streaming), so it scopes
   // its own path — same fail-closed contract, applied before the fetch.
@@ -774,7 +780,12 @@ export async function sendChat(
   return claudePost(
     `/api/sessions/${sessionId}/chat`,
     { message: msg, model: mdl },
-    { [HERMES_SESSION_KEY_HEADER]: options.stableSessionKey || sessionId },
+    {
+      [HERMES_SESSION_KEY_HEADER]: resolveSessionKeyValue({
+        stableSessionKey: options.stableSessionKey,
+        sessionId,
+      }),
+    },
     options.profile,
   )
 }
@@ -961,15 +972,6 @@ export async function setModelAssignment(body: {
   task?: string
 }): Promise<Record<string, unknown>> {
   return dashboardSend<Record<string, unknown>>('POST', '/api/model/set', body)
-}
-
-// ── Models ───────────────────────────────────────────────────────
-
-export async function listModels(profile?: string | null): Promise<{
-  object: string
-  data: Array<{ id: string; object: string }>
-}> {
-  return claudeGet('/v1/models', profile)
 }
 
 // ── Toolsets ─────────────────────────────────────────────────────

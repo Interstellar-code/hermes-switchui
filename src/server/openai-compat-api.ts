@@ -1,6 +1,7 @@
 import {
   HERMES_SESSION_ID_HEADER,
   HERMES_SESSION_KEY_HEADER,
+  resolveSessionKeyValue,
 } from '../lib/send-stream-session-headers'
 import { BEARER_TOKEN, CLAUDE_API } from './gateway-capabilities'
 import { assertProfileResponseOk, scopedPath } from './profile-scope'
@@ -30,47 +31,26 @@ function getBearerToken(): string {
   return BEARER_TOKEN
 }
 
-/** Cached first available model from /v1/models — used as fallback when no
- *  model is specified. Keyed by profile: each profile home has its own config
- *  and therefore its own model list, so one global slot would let a
- *  cross-profile send pick a model the target profile doesn't have. */
-const _cachedDefaultModel = new Map<string, string>()
-
-async function getDefaultModel(profile?: string | null): Promise<string> {
-  const cacheKey = profile ?? ''
-  const hit = _cachedDefaultModel.get(cacheKey)
-  if (hit) return hit
-  if (process.env.CLAUDE_DEFAULT_MODEL) {
-    _cachedDefaultModel.set(cacheKey, process.env.CLAUDE_DEFAULT_MODEL)
-    return process.env.CLAUDE_DEFAULT_MODEL
-  }
-  // Outside the try: a profile-scope failure must propagate, not degrade into
-  // the 'default' fallback below.
-  const modelsPath = await scopedPath('/v1/models', profile)
-  try {
-    const headers: Record<string, string> = {}
-    const bearer = getBearerToken()
-    if (bearer) headers['Authorization'] = `Bearer ${bearer}`
-    const res = await fetch(`${CLAUDE_API}${modelsPath}`, {
-      headers,
-      signal: AbortSignal.timeout(3_000),
-    })
-    if (res.ok) {
-      const data = (await res.json()) as { data?: Array<{ id: string }> }
-      if (data.data && data.data.length > 0) {
-        // Prefer a known-good chat model over the first alphabetical one
-        const preferred = data.data.find((m) =>
-          /qwen|llama|mistral|gemma/i.test(m.id),
-        )
-        const picked = preferred?.id ?? data.data[0].id
-        _cachedDefaultModel.set(cacheKey, picked)
-        return picked
-      }
-    }
-  } catch {
-    /* ignore */
-  }
-  return 'default'
+/**
+ * Default model to send when the caller didn't pick one.
+ *
+ * This used to fall back to `GET /v1/models` and pick an entry from it. That
+ * endpoint is NOT a model catalog — it returns the gateway's own advertised
+ * identity (e.g. "hermes-agent", or the active profile name) plus any
+ * configured `model_routes` aliases. Sending that back as an explicit
+ * `model` value is a deliberate no-op per the gateway contract (the server
+ * already resolves to the same thing when `model` is absent), so the fetch
+ * bought nothing but latency and the risk of picking a `model_routes` alias
+ * that isn't actually "the default". Omitting `model` entirely achieves the
+ * identical effective result with no round trip.
+ *
+ * `CLAUDE_DEFAULT_MODEL` is kept as the one legitimate override: it's an
+ * explicit operator setting, never inferred from the gateway's identity
+ * endpoint.
+ */
+function getDefaultModel(): string | undefined {
+  const envDefault = process.env.CLAUDE_DEFAULT_MODEL
+  return envDefault && envDefault.trim() ? envDefault.trim() : undefined
 }
 
 export type OpenAICompatContentPart =
@@ -97,7 +77,9 @@ export type OpenAIChatOptions = {
 }
 
 type OpenAIChatRequest = {
-  model: string
+  // Omitted (not sent as an empty/placeholder string) when nothing was
+  // explicitly selected — see getDefaultModel's doc comment.
+  model?: string
   messages: Array<{
     role: string
     content: string | Array<OpenAICompatContentPart>
@@ -121,9 +103,9 @@ export async function buildRequestBody(
   const model =
     options.model && options.model !== 'default'
       ? options.model
-      : await getDefaultModel(options.baseUrl ? null : options.profile)
+      : getDefaultModel()
   return {
-    model,
+    ...(model ? { model } : {}),
     messages,
     stream: options.stream === true,
     temperature: options.temperature,
@@ -300,9 +282,20 @@ export async function openaiChat(
     // back via getMessages(), so portable transcripts survive reload.
     headers[HERMES_SESSION_ID_HEADER] = options.sessionId
   }
-  if (!options.baseUrl && (options.stableSessionKey || options.sessionId)) {
-    headers[HERMES_SESSION_KEY_HEADER] =
-      options.stableSessionKey || options.sessionId || ''
+  // baseUrl targets a non-Hermes local provider (e.g. Ollama) — deliberately
+  // excluded, per the "does not send Hermes session key headers to
+  // local-provider base URLs" contract below.
+  if (!options.baseUrl) {
+    const sessionKeyValue = resolveSessionKeyValue({
+      stableSessionKey: options.stableSessionKey,
+      sessionId: options.sessionId,
+    })
+    // Omitted only when there's genuinely no session (e.g. /api/memory/chat,
+    // a stateless completion with no session concept at all) — never
+    // conditionally skipped for a session that sends the header elsewhere.
+    if (sessionKeyValue) {
+      headers[HERMES_SESSION_KEY_HEADER] = sessionKeyValue
+    }
   }
 
   const endpoint = options.baseUrl

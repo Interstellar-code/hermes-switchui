@@ -1,13 +1,14 @@
 'use client'
 
 import '@/styles/matrix-skills.css'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AnimatePresence } from 'motion/react'
 import { SkillDetailDrawer } from './skill-detail-drawer'
 import type { SkillSummary } from './skill-detail-drawer'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
 
 /* ── types ── */
 type SkillsApiResponse = {
@@ -161,6 +162,8 @@ function relativeTime(dateStr?: string): string {
 /* ── main component ── */
 export function SkillsScreen() {
   const queryClient = useQueryClient()
+  const resolvedProfile = useResolvedProfile()
+  const profileFilterOverrideRef = useRef(false)
 
   /* state */
   const [searchQuery, setSearchQuery] = useState('')
@@ -216,12 +219,27 @@ export function SkillsScreen() {
     refetchInterval: 30_000,
   })
 
+  // Drive the local profile filter from the resolved (sidebar) profile so
+  // this screen never contradicts the global selector — `resolvedProfile` is
+  // the same `url ?? device ?? null` answer the sidebar picker writes.
+  // `profileFilterOverrideRef` is the escape hatch for the deliberate "browse
+  // another profile" case: a click on a profile-filter button below sets it,
+  // which wins over the resolver until the resolver itself changes (a real
+  // sidebar-driven switch always reclaims control — see the reset effect).
+  // When nothing is resolved (no sidebar selection made yet), fall back to
+  // the gateway's reported active runtime profile, same as before profile
+  // scoping existed.
+  useEffect(() => {
+    profileFilterOverrideRef.current = false
+  }, [resolvedProfile])
+
   useEffect(() => {
     if (activeStatus === 'marketplace') return
-    if (activeProfileFilter) return
-    if (!skillsQuery.data?.activeProfile) return
-    setActiveProfileFilter(skillsQuery.data.activeProfile)
-  }, [activeProfileFilter, activeStatus, skillsQuery.data?.activeProfile])
+    if (profileFilterOverrideRef.current) return
+    const seed = resolvedProfile ?? skillsQuery.data?.activeProfile
+    if (!seed || seed === activeProfileFilter) return
+    setActiveProfileFilter(seed)
+  }, [activeProfileFilter, activeStatus, resolvedProfile, skillsQuery.data?.activeProfile])
 
   /* hub query — marketplace / Hub tab */
   const hubQuery = useQuery({
@@ -375,6 +393,13 @@ export function SkillsScreen() {
     [toggleMutation],
   )
 
+  /** A deliberate profile-filter pick in this screen — marks the override so
+   *  the resolver-driven effect above does not immediately clobber it. */
+  const pickProfileFilter = useCallback((name: string) => {
+    profileFilterOverrideRef.current = true
+    setActiveProfileFilter(name)
+  }, [])
+
   /* relative-time ticker */
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -471,7 +496,7 @@ export function SkillsScreen() {
                 <button
                   type="button"
                   className={cn('sk-filter-item', activeProfileFilter === 'all' && 'active')}
-                  onClick={() => setActiveProfileFilter('all')}
+                  onClick={() => pickProfileFilter('all')}
                 >
                   <span>All profiles</span>
                   <span className="item-ct">{allProfilesTotal}</span>
@@ -481,7 +506,7 @@ export function SkillsScreen() {
                     key={profile.name}
                     type="button"
                     className={cn('sk-filter-item', activeProfileFilter === profile.name && 'active')}
-                    onClick={() => setActiveProfileFilter(profile.name)}
+                    onClick={() => pickProfileFilter(profile.name)}
                   >
                     <span>
                       {profile.label}

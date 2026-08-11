@@ -7,6 +7,8 @@ import { useQuery } from '@tanstack/react-query'
 // Activity events disabled in search — SSE connection caused freezing
 // import { useActivityEvents } from '@/screens/activity/use-activity-events'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import { scopeSegments } from '@/lib/session-scope'
 
 const REQUEST_TIMEOUT_MS = 3_000
 const SESSIONS_STALE_TIME_MS = 60_000
@@ -152,9 +154,13 @@ function flattenFileTree(
 
 async function fetchSessions(
   querySignal?: AbortSignal,
+  profile: string | null = null,
 ): Promise<Array<SearchSession>> {
+  const url = profile
+    ? `/api/sessions?profile=${encodeURIComponent(profile)}`
+    : '/api/sessions'
   const data = await fetchJsonWithTimeout<SessionsApiResponse>(
-    '/api/sessions',
+    url,
     querySignal,
   )
   if (!data) return []
@@ -203,9 +209,12 @@ async function fetchFiles(
 
 async function fetchSkills(
   querySignal?: AbortSignal,
+  profile: string | null = null,
 ): Promise<Array<SearchSkill>> {
+  const params = new URLSearchParams({ summary: 'search', limit: '120' })
+  if (profile) params.set('profile', profile)
   const data = await fetchJsonWithTimeout<SkillsApiResponse>(
-    '/api/skills?summary=search&limit=120',
+    `/api/skills?${params.toString()}`,
     querySignal,
   )
   if (!data) return []
@@ -223,14 +232,31 @@ async function fetchSkills(
   })
 }
 
+/**
+ * ⌘K search query keys. `sessions`/`skills` are profile-keyed — both back
+ * onto per-profile Hermes data (`/api/sessions`, `/api/skills`), so an
+ * unscoped key would let the palette surface another profile's sessions or
+ * skills after a profile switch. `files` is intentionally NOT scoped:
+ * `/api/files` walks the workspace filesystem, which has no per-Hermes-profile
+ * notion (verified — no `profile` handling in `routes/api/files.ts`).
+ * `scopeSegments` is `[]` when unscoped, so single-profile / pre-selector
+ * behaviour is byte-identical to before.
+ */
+export const searchKeys = {
+  sessions: (profile: string | null) => ['search', 'sessions', ...scopeSegments(profile)],
+  files: ['search', 'files'] as const,
+  skills: (profile: string | null) => ['search', 'skills', ...scopeSegments(profile)],
+}
+
 export function useSearchData(scope: SearchQueryScope) {
   const sessionsAvailable = useFeatureAvailable('sessions')
   const skillsAvailable = useFeatureAvailable('skills')
+  const profile = useResolvedProfile()
 
   // Sessions
   const sessionsQuery = useQuery({
-    queryKey: ['search', 'sessions'],
-    queryFn: ({ signal }) => fetchSessions(signal),
+    queryKey: searchKeys.sessions(profile),
+    queryFn: ({ signal }) => fetchSessions(signal, profile),
     enabled: sessionsAvailable && (scope === 'all' || scope === 'chats'),
     staleTime: SESSIONS_STALE_TIME_MS,
     gcTime: SEARCH_QUERY_GC_TIME_MS,
@@ -239,9 +265,9 @@ export function useSearchData(scope: SearchQueryScope) {
     refetchOnReconnect: false,
   })
 
-  // Files
+  // Files — not profile-scoped, see `searchKeys` note above.
   const filesQuery = useQuery({
-    queryKey: ['search', 'files'],
+    queryKey: searchKeys.files,
     queryFn: ({ signal }) => fetchFiles(signal),
     enabled: scope === 'all' || scope === 'files',
     staleTime: FILES_STALE_TIME_MS,
@@ -253,8 +279,8 @@ export function useSearchData(scope: SearchQueryScope) {
 
   // Skills
   const skillsQuery = useQuery({
-    queryKey: ['search', 'skills'],
-    queryFn: ({ signal }) => fetchSkills(signal),
+    queryKey: searchKeys.skills(profile),
+    queryFn: ({ signal }) => fetchSkills(signal, profile),
     enabled: skillsAvailable && (scope === 'all' || scope === 'skills'),
     staleTime: SKILLS_STALE_TIME_MS,
     gcTime: SEARCH_QUERY_GC_TIME_MS,

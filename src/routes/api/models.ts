@@ -5,7 +5,7 @@ import YAML from 'yaml'
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { ensureGatewayProbed } from '../../server/hermes-api'
-import { getProfileClaudeHome } from '../../server/claude-paths'
+import { readProfile } from '../../server/profiles-browser'
 import {
   ensureDiscovery,
   ensureProviderInConfig,
@@ -120,6 +120,119 @@ function readProvidersFromConfig(
     return entries
   } catch {
     return []
+  }
+}
+
+// -------------------------------------------------------------------
+// Remote model discovery (model.base_url / discover_models)
+// -------------------------------------------------------------------
+//
+// A config can point directly at an OpenAI-compatible endpoint via
+// `model.base_url` (+ `model.api_key`, `model.discover_models: true`)
+// instead of declaring a `custom_providers` array. `readProvidersFromConfig`
+// only understands the latter, so on a config that only has `model.base_url`
+// (the common case here — see the four named profiles, which declare an
+// empty `providers.manifest.base_url` alongside a populated `model.base_url`)
+// the catalog falls back to a single `auto` entry. This enumerates the real
+// model list from that endpoint's `/models` route and merges it in.
+//
+// Cached per base_url (this route is hit on every composer render) and
+// deliberately fail-soft: an unreachable endpoint must never empty the
+// dropdown or turn into a 503 — it just falls back to the last-known-good
+// list (or none), leaving the rest of the catalog untouched.
+const REMOTE_MODELS_TTL_MS = 30_000
+const REMOTE_MODELS_TIMEOUT_MS = 5_000
+
+type RemoteModelsCacheEntry = {
+  ts: number
+  models: Array<ModelEntry>
+}
+
+const remoteModelsCache = new Map<string, RemoteModelsCacheEntry>()
+
+type RemoteModelConfig = {
+  baseUrl: string
+  apiKey: string
+  provider: string
+  contextLength?: number
+}
+
+/**
+ * Extract a directly-configured remote endpoint from `model:`. Only
+ * `model.base_url` is required — `api_key` and `discover_models` are read
+ * when present but are not gates, since every config observed here that has
+ * a base_url also wants it enumerated.
+ */
+function readRemoteModelConfig(
+  config: Record<string, unknown> | null,
+): RemoteModelConfig | null {
+  if (!config) return null
+  const modelField = config.model
+  if (!modelField || typeof modelField !== 'object' || Array.isArray(modelField))
+    return null
+  const rec = asRecord(modelField)
+  const baseUrl = readString(rec.base_url)
+  if (!baseUrl) return null
+  return {
+    baseUrl,
+    apiKey: readString(rec.api_key),
+    provider: readString(rec.provider) || 'custom',
+    contextLength:
+      typeof rec.context_length === 'number' ? rec.context_length : undefined,
+  }
+}
+
+/**
+ * Fetch + cache the model list from a directly-configured remote endpoint.
+ * Never throws: network failure, timeout, or a non-2xx response all fall
+ * back to the last cached result (or an empty list on a cold cache) so a
+ * flaky endpoint degrades the catalog instead of breaking the route.
+ */
+async function fetchRemoteModels(
+  remote: RemoteModelConfig,
+): Promise<Array<ModelEntry>> {
+  const cached = remoteModelsCache.get(remote.baseUrl)
+  if (cached && Date.now() - cached.ts < REMOTE_MODELS_TTL_MS) {
+    return cached.models
+  }
+
+  try {
+    const url = `${remote.baseUrl.replace(/\/+$/, '')}/models`
+    const response = await fetch(url, {
+      signal: AbortSignal.timeout(REMOTE_MODELS_TIMEOUT_MS),
+      headers: {
+        Accept: 'application/json',
+        ...(remote.apiKey
+          ? { Authorization: `Bearer ${remote.apiKey}` }
+          : {}),
+      },
+    })
+    if (!response.ok) {
+      return cached?.models ?? []
+    }
+    const payload = (await response.json()) as Record<string, unknown>
+    const rawModels: Array<unknown> = Array.isArray(payload.data)
+      ? payload.data
+      : []
+    const models: Array<ModelEntry> = rawModels.flatMap((entry) => {
+      const rec = asRecord(entry)
+      const id = readString(rec.id)
+      if (!id) return []
+      return [
+        {
+          id,
+          name: id,
+          provider: remote.provider,
+          ...(remote.contextLength !== undefined
+            ? { contextLength: remote.contextLength }
+            : {}),
+        },
+      ]
+    })
+    remoteModelsCache.set(remote.baseUrl, { ts: Date.now(), models })
+    return models
+  } catch {
+    return cached?.models ?? []
   }
 }
 
@@ -244,9 +357,15 @@ export const Route = createFileRoute('/api/models')({
         if (!isAuthenticated(request)) {
           return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
         }
-        await ensureGatewayProbed()
 
         try {
+          // Probing lives inside the try now: it used to run before the try
+          // block, so a rejection escaped as an unhandled 500 with no JSON
+          // body instead of the structured error response below — and with
+          // the client's `retry: false`, that meant one gateway hiccup wiped
+          // the dropdown until next reload.
+          await ensureGatewayProbed()
+
           // Primary: read configured providers + models from ~/.hermes/config.yaml.
           // Hermes runtime reads only this file; mirror it for the picker so
           // dropdown stays in sync with what the agent actually uses.
@@ -257,9 +376,55 @@ export const Route = createFileRoute('/api/models')({
           // that lives in local-provider-discovery.ts, outside this lane.
           const url = new URL(request.url)
           const profile = url.searchParams.get('profile')?.trim() || null
-          const configPath = profile
-            ? path.join(getProfileClaudeHome(profile), 'config.yaml')
-            : CONFIG_PATH
+
+          let configPath = CONFIG_PATH
+          if (profile) {
+            // Reuse profiles-browser.ts's own profile→path resolution (the
+            // same one `GET /api/profiles/:name` uses) instead of
+            // hand-rolling a `profile === 'default'` check here. It already
+            // special-cases 'default' to the Hermes root (~/.hermes) rather
+            // than profiles/default, which does not exist on disk — see
+            // profiles-browser.ts readProfile(). It also throws when the
+            // resolved profile directory itself is missing, which we treat
+            // as a real error below rather than silently reporting an empty
+            // catalog.
+            let profileDir: string
+            try {
+              profileDir = readProfile(profile).path
+            } catch (err) {
+              return Response.json(
+                {
+                  ok: false,
+                  error:
+                    err instanceof Error
+                      ? err.message
+                      : `Profile "${profile}" not found`,
+                  data: [],
+                  models: [],
+                },
+                { status: 404 },
+              )
+            }
+            configPath = path.join(profileDir, 'config.yaml')
+
+            // The profile directory exists but has no config.yaml — a
+            // specifically-requested profile that isn't configured is a real
+            // problem (stale reference, half-created profile, deleted file),
+            // unlike the no-`profile` case below where "nothing configured
+            // yet" is the expected first-run state.
+            if (!fs.existsSync(configPath)) {
+              return Response.json(
+                {
+                  ok: false,
+                  error: `Profile "${profile}" has no config.yaml`,
+                  data: [],
+                  models: [],
+                },
+                { status: 404 },
+              )
+            }
+          }
+
           const parsedConfig = readConfigOnce(configPath)
           let gatewayModels = readProvidersFromConfig(parsedConfig)
           const source = 'config.yaml'
@@ -275,13 +440,27 @@ export const Route = createFileRoute('/api/models')({
           }
 
           // Merge auto-discovered local models (Ollama, Atomic Chat, etc.)
-          await ensureDiscovery()
+          // and any directly-configured remote endpoint (model.base_url) in
+          // parallel — both are network probes and neither depends on the
+          // other.
+          const remoteConfig = readRemoteModelConfig(parsedConfig)
+          const [, remoteModels] = await Promise.all([
+            ensureDiscovery(),
+            remoteConfig
+              ? fetchRemoteModels(remoteConfig)
+              : Promise.resolve<Array<ModelEntry>>([]),
+          ])
           const localModels = getDiscoveredModels()
           for (const m of localModels) {
             ensureProviderInConfig(m.provider)
           }
           const aliasModels = readModelAliasesFromConfig(parsedConfig)
-          const models = mergeModelEntries(gatewayModels, aliasModels, localModels)
+          const models = mergeModelEntries(
+            gatewayModels,
+            aliasModels,
+            localModels,
+            remoteModels,
+          )
 
           const configuredProviders = Array.from(
             new Set(

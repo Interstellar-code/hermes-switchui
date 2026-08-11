@@ -369,9 +369,38 @@ describe('expiry', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('renders no timer when the payload carries no deadline', () => {
+  it('falls back to a 3-minute countdown when the payload carries no deadline (#17)', () => {
+    // Previously this bailed out with no countdown at all when `expiresAt`
+    // was absent — combined with approvals being exempt from the
+    // stream-error clears (use-streaming-message.ts), such a card had no
+    // removal path whatsoever. It now anchors a fallback deadline
+    // (`approvals.timeout`, 180s in the shipped profile configs) at the
+    // moment the card renders.
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-08-10T09:30:00Z'))
     render(<InlineClarifyCard clarify={card()} sessionKey={SESSION} />)
-    expect(screen.queryByRole('timer')).toBeNull()
+    expect(screen.getByRole('timer').textContent).toContain('3:00')
+
+    act(() => {
+      vi.advanceTimersByTime(5_000)
+    })
+    expect(screen.getByRole('timer').textContent).toContain('2:55')
+  })
+
+  it('self-closes via the fallback deadline when no expires_at ever arrives', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(Date.parse('2026-08-10T09:30:00Z'))
+    useChatStore.setState({ pendingClarify: { [SESSION]: card() } })
+    render(<InlineClarifyCard clarify={card()} sessionKey={SESSION} />)
+
+    act(() => {
+      vi.advanceTimersByTime(180_000)
+    })
+
+    const stored = useChatStore.getState().getPendingClarify(SESSION)
+    expect(stored?.resolved).toBe(true)
+    expect(stored?.closedNote).toContain('auto-denied')
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
 

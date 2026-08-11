@@ -41,6 +41,7 @@ import { useFirstChat } from './hooks/use-first-chat'
 import { useOnboardingMemory } from './hooks/use-onboarding-memory'
 import { useOnboardingProfiles } from './hooks/use-onboarding-profiles'
 import { useOnboardingSave } from './hooks/use-onboarding-save'
+import { useProfileServability } from './hooks/use-profile-servability'
 import { isGateProven, isGateSettled } from './lib/chat-gate'
 import { buildChecklist } from './lib/checklist'
 import { buildCurrentSetup, factsForStep } from './lib/current-setup'
@@ -350,6 +351,13 @@ function OnboardingFlow({
   const plugins = useCorePlugins({ enabled: extrasOpen, canWrite })
   const profiles = useOnboardingProfiles({ enabled: extrasOpen, canWrite })
   const memory = useOnboardingMemory({ enabled: extrasOpen, canWrite })
+  // Piggybacks `profiles.choices` (already fetched above) rather than reading
+  // `/api/profiles/list` a second time — see the hook's own header for why it
+  // takes the disk roster as an input instead of fetching it itself.
+  const profileServability = useProfileServability({
+    enabled: extrasOpen,
+    diskProfiles: profiles.choices.map((profileChoice) => profileChoice.name),
+  })
 
   // Refreshed during render so callbacks below read the live draft without
   // taking it as a dependency.
@@ -582,6 +590,7 @@ function OnboardingFlow({
         pluginsTouched: plugins.touched,
         profileTouched: profiles.touched,
         memoryTouched: memory.touched,
+        profileServability,
       }),
     [
       activeProvider,
@@ -594,6 +603,7 @@ function OnboardingFlow({
       outcome,
       plugins.touched,
       profiles.touched,
+      profileServability,
     ],
   )
 

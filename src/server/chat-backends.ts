@@ -1,3 +1,4 @@
+import { resolveSessionKeyValue } from '../lib/send-stream-session-headers'
 import { streamChat } from './hermes-api'
 import { resolveChatBackend } from './chat-mode'
 import { openaiChat } from './openai-compat-api'
@@ -46,7 +47,10 @@ async function* streamClaudeChat(
     },
     {
       signal: options.signal,
-      stableSessionKey: options.stableSessionKey || options.sessionId,
+      stableSessionKey: resolveSessionKeyValue({
+        stableSessionKey: options.stableSessionKey,
+        sessionId: options.sessionId,
+      }),
       onEvent({ event, data }) {
         if (
           event === 'assistant.delta' &&
@@ -110,7 +114,10 @@ export async function sendChatUnified(
       signal: options.signal,
       stream: false,
       sessionId: options.sessionId,
-      stableSessionKey: options.stableSessionKey,
+      stableSessionKey: resolveSessionKeyValue({
+        stableSessionKey: options.stableSessionKey,
+        sessionId: options.sessionId,
+      }),
     })
   }
 
@@ -138,7 +145,10 @@ export async function streamChatUnified(
       signal: options.signal,
       stream: true,
       sessionId: options.sessionId,
-      stableSessionKey: options.stableSessionKey,
+      stableSessionKey: resolveSessionKeyValue({
+        stableSessionKey: options.stableSessionKey,
+        sessionId: options.sessionId,
+      }),
     })
     // Adapt StreamChunkType to plain string for legacy callers
     async function* toStringStream() {

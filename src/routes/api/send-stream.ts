@@ -214,6 +214,55 @@ function normalizePortableHistory(
   return normalized
 }
 
+/**
+ * Model-switch codes the gateway returns on `POST .../chat[/stream]`:
+ * `invalid_model` for a non-string/empty value, `model_not_available` when the
+ * provider chain refuses the name at resolution time.
+ */
+const MODEL_ERROR_CODES = new Set(['invalid_model', 'model_not_available'])
+
+export type ModelErrorEnvelope = {
+  message: string
+  code: string | null
+  param: string | null
+}
+
+/**
+ * Pull the OpenAI-style error envelope out of a failed `/chat/stream` call.
+ *
+ *   {"error":{"message":"…","type":"invalid_request_error",
+ *             "param":"model","code":"model_not_available"}}
+ *
+ * That 400 is a plain JSON HTTP response returned BEFORE the SSE stream opens,
+ * so it never reaches us as an SSE event — `streamChat` (src/server/hermes-api.ts)
+ * raises it as `Hermes chat stream: 400 <body>`. We parse the JSON tail back
+ * out so the browser gets the gateway's own `error.message` rather than that
+ * wrapper, and can tell a model refusal apart from any other transport failure.
+ *
+ * Returns null for anything that is not specifically a `model` refusal, so a
+ * generic upstream error keeps the existing error path untouched.
+ */
+export function parseModelErrorEnvelope(
+  raw: string,
+): ModelErrorEnvelope | null {
+  const start = raw.indexOf('{')
+  if (start < 0) return null
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw.slice(start))
+  } catch {
+    return null
+  }
+  const error = readRecord((parsed as Record<string, unknown> | null)?.error)
+  if (!error) return null
+  const message = readString(error.message)
+  if (!message) return null
+  const code = readString(error.code) || null
+  const param = readString(error.param) || null
+  if (param !== 'model' && !(code && MODEL_ERROR_CODES.has(code))) return null
+  return { message, code, param }
+}
+
 function normalizeClaudeErrorMessage(error: unknown): string {
   const raw = error instanceof Error ? error.message : String(error)
   const message = raw.trim()
@@ -409,6 +458,7 @@ export const Route = createFileRoute('/api/send-stream')({
         let persistedRunReady: Promise<unknown> | null = null
         let unregisterTimer: ReturnType<typeof setTimeout> | null = null
         let streamTimeoutTimer: ReturnType<typeof setTimeout> | null = null
+        let hbSignalTimer: ReturnType<typeof setInterval> | null = null
         let heartbeatTimer: ReturnType<typeof setInterval> | null = null
         const abortController = new AbortController()
         let closeStream = () => {
@@ -435,7 +485,7 @@ export const Route = createFileRoute('/api/send-stream')({
             // lightweight recognized event periodically so public Workspace chats
             // do not sit at "Thinking…" until the frontend reports failure.
             enqueueRaw(`: ${' '.repeat(2048)}\n\n`)
-            heartbeatTimer = setInterval(() => {
+            hbSignalTimer = setInterval(() => {
               if (streamClosed) return
               if (Date.now() - lastClientEventAt < 10_000) return
               // Heartbeat to keep Cloudflare/Access from culling the SSE stream.
@@ -449,6 +499,10 @@ export const Route = createFileRoute('/api/send-stream')({
             closeStream = () => {
               if (streamClosed) return
               streamClosed = true
+              if (hbSignalTimer) {
+                clearInterval(hbSignalTimer)
+                hbSignalTimer = null
+              }
               if (heartbeatTimer) {
                 clearInterval(heartbeatTimer)
                 heartbeatTimer = null
@@ -1115,6 +1169,23 @@ export const Route = createFileRoute('/api/send-stream')({
                       }
 
                       if (event === 'run.started') {
+                        // The EFFECTIVE model for this run, straight from the
+                        // gateway. This is the only trustworthy confirmation
+                        // of a per-session model switch: `/v1/chat/completions`
+                        // merely echoes back whatever `model` it was sent, and
+                        // `GET /v1/models` is the server's own identity plus
+                        // route aliases, not a catalog. Forwarding it lets the
+                        // composer show what actually answered rather than
+                        // what we asked for, so a silent server-side fallback
+                        // is visible instead of masked by local picker state.
+                        const effectiveModel = readString(data.model)
+                        if (effectiveModel) {
+                          sendEvent('model_effective', {
+                            model: effectiveModel,
+                            sessionKey: sessionKeyFromEvent,
+                            runId,
+                          })
+                        }
                         const userMessage =
                           data.user_message &&
                           typeof data.user_message === 'object'
@@ -1670,6 +1741,31 @@ export const Route = createFileRoute('/api/send-stream')({
             } catch (err) {
               // Only send error if stream hasn't already completed successfully
               if (!streamClosed) {
+                // A `model` the gateway refuses at resolution time comes back
+                // as a plain JSON 400 before any SSE frame exists upstream, so
+                // it lands here rather than on the `event === 'error'` branch.
+                // Forward the gateway's own `error.message` plus the machine
+                // code, flagged as a model failure: the session's model is
+                // UNCHANGED by a 400, so the browser must surface the message
+                // and roll its picker back instead of leaving a selection the
+                // gateway never accepted.
+                const modelError = parseModelErrorEnvelope(
+                  err instanceof Error ? err.message : String(err),
+                )
+                if (modelError) {
+                  sendEvent('error', {
+                    message: modelError.message,
+                    sessionKey,
+                    modelError: {
+                      message: modelError.message,
+                      code: modelError.code,
+                      param: modelError.param,
+                      model: requestModel || undefined,
+                    },
+                  })
+                  closeStream()
+                  return
+                }
                 const errorMsg = normalizeClaudeErrorMessage(err)
                 sendEvent('error', {
                   message: errorMsg,
@@ -1687,6 +1783,14 @@ export const Route = createFileRoute('/api/send-stream')({
             // stop enqueueing SSE chunks, but deliberately leave the upstream
             // abortController alone.
             streamClosed = true
+            if (hbSignalTimer) {
+              clearInterval(hbSignalTimer)
+              hbSignalTimer = null
+            }
+            if (heartbeatTimer) {
+              clearInterval(heartbeatTimer)
+              heartbeatTimer = null
+            }
             if (unregisterTimer) {
               clearTimeout(unregisterTimer)
               unregisterTimer = null

@@ -36,6 +36,7 @@ import {
   shouldBlockZeroForkModelSwitch,
 } from '../chat-composer-model-switch'
 import {
+  CHAT_OPEN_MODEL_PICKER_EVENT,
   agentCwdSourceDetail,
   agentCwdSourceLabel,
   fetchAgentCwd,
@@ -44,9 +45,10 @@ import {
   fetchProfiles,
   fetchScopeStatus,
   fetchWorkspaceContext,
-  getResolvedModelKey,
+  modelSwitchFailureNotice,
   nextThinkingLevel,
   profileMeta,
+  revertSessionModel,
   setAgentCwd,
   shortPathLabel,
   switchModel,
@@ -86,7 +88,13 @@ import {
   useUnbindSessionProject,
 } from '@/lib/projects-api'
 import { useSessionModelStore } from '@/stores/session-model-store'
-import { activeScopeSegments, getSessionProfile } from '@/lib/session-scope'
+import { useChatStore } from '@/stores/chat-store'
+import {
+  activeScopeKey,
+  activeScopeSegments,
+  getSessionProfile,
+} from '@/lib/session-scope'
+import { useProfileScopeForUrl } from '@/hooks/use-resolved-profile'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
 type NormalizedModel = {
@@ -111,6 +119,16 @@ type SelectableWorkspace = {
 function readModelText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
+
+/**
+ * Chip text for "no profile resolved" — neither the `?profile=` URL layer nor
+ * the sidebar's device-layer pick supplied one. Deliberately not a profile
+ * name: `default` is a real, selectable Hermes profile
+ * (`lib/session-scope.ts`'s `UNSCOPED_PROFILE` doc, P0A §1.1), so printing it
+ * here would read as a choice nobody made. This is the fix for the chip that
+ * always said "DEFAULT" under multiplex regardless of the sidebar selection.
+ */
+const UNSCOPED_PROFILE_LABEL = 'Unscoped'
 
 /**
  * `/api/plugins/projects/session/{id}` (see `_resolve_session()` in the
@@ -278,13 +296,41 @@ function SessionSelectorsV2Component({
     refetchInterval: 60_000,
     retry: false,
   })
-  const { persistedSessionModel, setPersistedSessionModel } =
-    useSessionModelStore(
-      useShallow((s) => ({
-        persistedSessionModel: sessionKey ? s.models[sessionKey] : undefined,
-        setPersistedSessionModel: s.setModel,
-      })),
-    )
+  // Write side lives in `switchModel` (chat-composer-services.ts) now — it
+  // persists into this same store, so selectModel below only needs to call
+  // it and this component only needs the read side to react.
+  const { persistedSessionModel } = useSessionModelStore(
+    useShallow((s) => ({
+      persistedSessionModel: sessionKey ? s.models[sessionKey] : undefined,
+    })),
+  )
+
+  // ─── server-confirmed model switch (chat-store) ──────────────────────────
+  // The gateway's per-session model switch is sticky, so this chip must show
+  // what the SERVER said answered — not what we asked for. `run.started` now
+  // carries the effective model; a refusal (JSON 400 before the stream opens,
+  // or a 200 whose assistant message IS the provider's rejection) lands here
+  // as an `error` and rolls the selection back.
+  const modelSwitchKey = sessionKey ? activeScopeKey(sessionKey) : ''
+  const modelSwitch = useChatStore((s) =>
+    modelSwitchKey ? (s.modelSwitch[modelSwitchKey] ?? null) : null,
+  )
+  const clearModelSwitchError = useChatStore((s) => s.clearModelSwitchError)
+  const effectiveModelId = modelSwitch?.effective ?? null
+  const modelSwitchPending = modelSwitch?.pending === true
+  const modelSwitchError = modelSwitch?.error ?? null
+
+  React.useEffect(() => {
+    if (!modelSwitchError || !sessionKey) return
+    // Un-wedge the session: a refused pick left in the picker would be
+    // re-sent on every later turn.
+    revertSessionModel(sessionKey, modelSwitchError.revertTo)
+    setModelNotice({
+      tone: 'error',
+      message: modelSwitchFailureNotice(modelSwitchError),
+    })
+    clearModelSwitchError(sessionKey)
+  }, [clearModelSwitchError, modelSwitchError, sessionKey])
 
   // ─── profile / workspace / model-info data sources (live parity) ──────────
   const profilesQuery = useQuery({
@@ -346,10 +392,27 @@ function SessionSelectorsV2Component({
   const navigate = useNavigate()
   const routeSearch = useSearch({ strict: false })
   const scopedProfileName = routeSearch.profile?.trim() || null
-  /** Reachability of the profile this tab is scoped to — drives the trigger's
-   *  tooltip. Same pure helper the per-row annotations use, so the button and
-   *  the menu can never disagree about who is reachable. */
-  const scopedReach = profileReachability(scopeData, scopedProfileName)
+  // Resolved through `lib/session-scope.ts`'s `resolveProfile` (`url ??
+  // device ?? null`), so a sidebar selection is reflected here too — the chip
+  // used to be URL-only and never looked at the device layer at all.
+  //
+  // The URL half is the `useSearch()` value read above rather than the
+  // resolver's own `url` slot, because that slot is written by
+  // `/chat/$sessionKey`'s `beforeLoad` and can lag one render behind this
+  // component in isolation (under test, or if this ever renders outside that
+  // route). `useProfileScopeForUrl` substitutes just that input and keeps the
+  // precedence rule itself in the resolver — restating `url ?? device` here
+  // would be a second copy of the rule to keep correct.
+  const profileScope = useProfileScopeForUrl(scopedProfileName)
+  const deviceProfileName =
+    profileScope.source === 'device' ? profileScope.profile : null
+  // `null` means genuinely unscoped — see `displayedProfileName` below for
+  // why that must never silently become the literal 'default'.
+  const resolvedProfileName = profileScope.profile
+  /** Reachability of the resolved profile — drives the trigger's tooltip.
+   *  Same pure helper the per-row annotations use, so the button and the
+   *  menu can never disagree about who is reachable. */
+  const scopedReach = profileReachability(scopeData, resolvedProfileName)
 
   /** The `?profile=` write/clear trigger — the only place this composer sets
    * scope. Routes through the existing `validateSearch` contract on
@@ -465,34 +528,83 @@ function SessionSelectorsV2Component({
     [models],
   )
   const activeModel = React.useMemo<NormalizedModel | null>(() => {
-    if (persistedSessionModel) {
-      const match = models.find((m) => m.id === persistedSessionModel)
+    // Server-confirmed EFFECTIVE model wins over the local pick. They differ
+    // whenever the gateway silently falls back, and showing the local pick
+    // there would hide the fallback behind a selection that never took.
+    const displayId = effectiveModelId || persistedSessionModel
+    if (displayId) {
+      const match = models.find((m) => m.id === displayId)
       if (match) return match
       return {
-        id: persistedSessionModel,
-        name: formatModelName(persistedSessionModel),
-        provider: persistedSessionModel.includes('/')
-          ? persistedSessionModel.split('/')[0]
+        id: displayId,
+        name: formatModelName(displayId),
+        provider: displayId.includes('/')
+          ? displayId.split('/')[0]
           : 'hermes-agent',
       }
     }
     return models[0] ?? null
-  }, [models, persistedSessionModel])
+  }, [effectiveModelId, models, persistedSessionModel])
 
   // ─── derived labels (live parity) ────────────────────────────────────────
   const profiles = React.useMemo(
     () => normalizeProfiles(profilesQuery.data?.profiles),
     [profilesQuery.data?.profiles],
   )
+  // The gateway's OWN active profile, as reported by live query data — never
+  // a guessed literal. `null` (not 'default') when it genuinely can't be
+  // read, so nothing downstream mistakes "we don't know" for "it's default".
   const activeProfileName =
     readModelText(profilesQuery.data?.activeProfile) ||
     profiles.find((profile) => profile.active)?.name ||
-    'default'
-  const displayedProfileName =
-    scopedProfileName ?? (scopeMode === 'multiplex' ? 'default' : activeProfileName)
+    null
+  // `resolvedProfileName === null` is genuinely unscoped: no URL pin, no
+  // device pick. `'default'` is a real, selectable profile name — see
+  // `UNSCOPED_PROFILE_LABEL`'s doc — so unscoped must never collapse into it.
+  // That collapse was the bug: this chip always printed "DEFAULT" under
+  // multiplex no matter what the sidebar had selected. Genuinely unscoped
+  // gets its own affordance instead:
+  //   - multiplex: an unscoped send really does resolve to `default` at the
+  //     gateway, so that fact is fair to convey — but only via
+  //     `UNSCOPED_PROFILE_LABEL` / the tooltip below, never the bare word
+  //     "DEFAULT", which reads as a deliberate pick.
+  //   - single/unknown: there is exactly one profile connected, so naming it
+  //     is not a guess — unchanged from before this fix.
+  const isUnscoped = resolvedProfileName === null
+  const displayedProfileName = isUnscoped
+    ? scopeMode === 'multiplex'
+      ? UNSCOPED_PROFILE_LABEL
+      : (activeProfileName ?? UNSCOPED_PROFILE_LABEL)
+    : resolvedProfileName
   const activeProfile = profiles.find(
     (profile) => profile.name === activeProfileName,
   )
+  /** Tooltip for the profile chip. Named layers explicitly (URL pin > device
+   *  pick > gateway's own active profile > unknown) so a reader can tell at a
+   *  glance which one supplied `displayedProfileName`, and so the genuinely
+   *  unscoped case always spells out "unscoped" rather than just naming a
+   *  profile as if it had been chosen. */
+  const profileTriggerTitle = !profileMutable
+    ? isUnscoped
+      ? 'Unscoped session — no profile was pinned when it was created.'
+      : `Bound to ${displayedProfileName}. Start a new chat to use another profile.`
+    : scopedProfileName
+      ? `Scoped to ${scopedProfileName}${
+          scopedReach.reachability === 'served'
+            ? ' — sending enabled'
+            : ` — view only. ${scopedReach.reason ?? 'This gateway cannot be confirmed to serve it.'}`
+        }`
+      : deviceProfileName
+        ? `Working in ${deviceProfileName} (sidebar selection)${
+            scopedReach.reachability === 'served'
+              ? ' — sending enabled'
+              : ` — view only. ${scopedReach.reason ?? 'This gateway cannot be confirmed to serve it.'}`
+          }`
+        : scopeMode === 'multiplex'
+          ? 'Unscoped — resolves to the default profile at the gateway.'
+          : activeProfile
+            ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
+            : (activeProfileName ?? 'Unscoped — no active profile detected.')
   const workspaceEntries = React.useMemo(
     () => normalizeWorkspaces(workspaceContextQuery.data?.workspaces),
     [workspaceContextQuery.data?.workspaces],
@@ -615,38 +727,18 @@ function SessionSelectorsV2Component({
         return
       }
       setModelNotice(null)
-      const resolved = getResolvedModelKey(model, provider)
-      // Per-session, browser-local persistence (applied on next send).
-      if (sessionKey) {
-        setPersistedSessionModel(sessionKey, resolved)
-      }
       setModelMenuOpen(false)
       setProjectMenuOpen(false)
-      // Also switch the gateway's live model (config write / local override) so
-      // the running agent reflects the pick, surfacing success/error inline.
-      void switchModel(model, provider, sessionKey)
-        .then((result) => {
-          setModelNotice({
-            tone: 'success',
-            message: `Switched to ${formatModelName(result.resolved?.model ?? model)}`,
-          })
-        })
-        .catch((error: unknown) => {
-          setModelNotice({
-            tone: 'error',
-            message:
-              error instanceof Error ? error.message : 'Failed to switch model',
-            retryModel: model,
-            retryProvider: provider,
-          })
-        })
+      // Persist the pick locally; it rides the next send's `model` body field
+      // and only then becomes the session's sticky selection. Nothing here can
+      // confirm the switch — the gateway does, on `run.started`.
+      const result = switchModel(model, provider, sessionKey)
+      setModelNotice({
+        tone: 'success',
+        message: `${formatModelName(result.resolved?.model ?? model)} — applies on your next message`,
+      })
     },
-    [
-      gatewayModeQuery.data,
-      sessionKey,
-      setPersistedSessionModel,
-      zeroForkModelInfoFlags,
-    ],
+    [gatewayModeQuery.data, sessionKey, zeroForkModelInfoFlags],
   )
 
   // ─── thinking level (controlled by chat-screen via onThinkingLevelChange) ─
@@ -659,6 +751,21 @@ function SessionSelectorsV2Component({
   )
 
   const showModelSelector = !hideModelSelector
+
+  // Bare `/model` (use-slash-commands.ts) opens the picker here instead of
+  // the old CHAT_OPEN_SETTINGS_EVENT, which nothing ever listened for.
+  React.useEffect(() => {
+    if (!showModelSelector) return
+    function handleOpenModelPicker() {
+      setModelMenuOpen(true)
+    }
+    window.addEventListener(CHAT_OPEN_MODEL_PICKER_EVENT, handleOpenModelPicker)
+    return () =>
+      window.removeEventListener(
+        CHAT_OPEN_MODEL_PICKER_EVENT,
+        handleOpenModelPicker,
+      )
+  }, [showModelSelector])
 
   return (
     <div className="flex items-center gap-1.5">
@@ -692,11 +799,24 @@ function SessionSelectorsV2Component({
             <button
               type="button"
               onClick={() => setModelMenuOpen((o) => !o)}
+              data-testid="model-selector"
+              data-model-switch-pending={modelSwitchPending || undefined}
+              title={
+                modelSwitchPending
+                  ? 'Switching model — the first turn on a new model resolves credentials and may probe the endpoint, which can take several seconds.'
+                  : effectiveModelId
+                    ? `Answering with ${effectiveModelId} (reported by the gateway).`
+                    : 'Model for this chat'
+              }
               className="inline-flex items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             >
-              <Bot className="size-3" />
+              <Bot
+                className={cn('size-3', modelSwitchPending && 'animate-pulse')}
+              />
               <span className="max-w-32 truncate font-medium">
-                {activeModel?.name ?? 'Model'}
+                {modelSwitchPending
+                  ? 'Switching model…'
+                  : (activeModel?.name ?? 'Model')}
               </span>
               <ChevronDown className="size-2.5 opacity-60" />
             </button>
@@ -798,24 +918,20 @@ function SessionSelectorsV2Component({
                   ? 'Select agent profile for new session'
                   : `Agent profile ${displayedProfileName}, bound to this session`
               }
-              title={
-                !profileMutable
-                  ? `Bound to ${displayedProfileName}. Start a new chat to use another profile.`
-                  : scopedProfileName
-                  ? `Scoped to ${scopedProfileName}${
-                      scopedReach.reachability === 'served'
-                        ? ' — sending enabled'
-                        : ` — view only. ${scopedReach.reason ?? 'This gateway cannot be confirmed to serve it.'}`
-                    }`
-                  : activeProfile
-                    ? `${activeProfile.name}${profileMeta(activeProfile) ? ` · ${profileMeta(activeProfile)}` : ''}`
-                    : activeProfileName
-              }
+              title={profileTriggerTitle}
               className={cn(
                 'inline-flex max-w-28 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50',
-                scopedProfileName && 'ring-1 ring-[var(--theme-accent)]',
+                scopedProfileName
+                  ? 'ring-1 ring-[var(--theme-accent)]'
+                  : deviceProfileName &&
+                      'ring-1 ring-[var(--theme-accent)]/50',
+                // Genuinely unscoped renders visibly differently from an
+                // explicit pick (URL, device, or literally 'default') so it
+                // can never be mistaken for a deliberate selection.
+                isUnscoped && 'italic opacity-80',
               )}
               data-testid="profile-selector"
+              data-profile-unscoped={isUnscoped || undefined}
             >
               <UserRound className="size-3" />
               <span className="truncate">{displayedProfileName}</span>

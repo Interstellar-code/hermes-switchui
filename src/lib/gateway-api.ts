@@ -82,17 +82,6 @@ export type GatewayModelsResponse = {
   error?: string
 }
 
-export type GatewayModelSwitchResponse = {
-  ok?: boolean
-  error?: string
-  resolved?: {
-    modelProvider?: string
-    model?: string
-    [key: string]: unknown
-  }
-  [key: string]: unknown
-}
-
 export type GatewayModelDefaultResponse = {
   ok?: boolean
   error?: string
@@ -265,43 +254,14 @@ export async function fetchModels(): Promise<GatewayModelsResponse> {
   }
 }
 
-export async function switchModel(
-  model: string,
-  sessionKey?: string,
-): Promise<GatewayModelSwitchResponse> {
-  const controller = new AbortController()
-  const timeout = globalThis.setTimeout(() => controller.abort(), 12000)
-
-  try {
-    const response = await fetch(makeEndpoint('/api/model-switch'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ model, sessionKey }),
-      signal: controller.signal,
-    })
-
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as GatewayModelSwitchResponse
-
-    if (!response.ok || payload.ok === false) {
-      const message =
-        typeof payload.error === 'string' && payload.error.trim().length > 0
-          ? payload.error
-          : response.statusText || 'Failed to switch model'
-      throw new Error(message)
-    }
-
-    return payload
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw new Error('Request timed out')
-    }
-    throw error
-  } finally {
-    globalThis.clearTimeout(timeout)
-  }
-}
+// NOTE: `switchModel` (POST /api/model-switch) used to live here. It was
+// dead code — nothing imported it — and the endpoint it targeted 404s
+// against the real hermes-agent gateway (`_http_route_table()` in
+// gateway/platforms/api_server.py has no such route; verified live against
+// a running gateway on 8642, both with and without the API key). Deleted as
+// part of #348 task 4 rather than wired up. The per-session model switch
+// that replaced its call sites lives entirely client-side now — see
+// `switchModel` in src/screens/chat/components/chat-composer-services.ts.
 
 export async function setDefaultModel(
   model: string,

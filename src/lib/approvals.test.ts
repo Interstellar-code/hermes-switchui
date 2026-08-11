@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import {
+  APPROVAL_FALLBACK_TIMEOUT_MS,
   approvalChoiceLabel,
   approvalChoiceWeight,
   approvalMsRemaining,
+  approvalMsRemainingWithFallback,
   approvalQuestion,
   fallbackApprovalChoices,
   formatApprovalCountdown,
@@ -151,5 +153,43 @@ describe('countdown', () => {
     expect(formatApprovalCountdown(45_000)).toBe('0:45')
     expect(formatApprovalCountdown(61_000)).toBe('1:01')
     expect(formatApprovalCountdown(-5_000)).toBe('0:00')
+  })
+})
+
+describe('approvalMsRemainingWithFallback (#17)', () => {
+  it('prefers the real gateway deadline when expiresAt is present', () => {
+    const now = Date.parse('2026-08-10T09:30:00Z')
+    // Anchor is 10 minutes in the past — if the fallback were used instead
+    // this would already be negative. The real 45s-out deadline must win.
+    const anchor = now - 10 * 60_000
+    expect(
+      approvalMsRemainingWithFallback('2026-08-10T09:30:45Z', anchor, now),
+    ).toBe(45_000)
+  })
+
+  it('falls back to APPROVAL_FALLBACK_TIMEOUT_MS anchored at anchorMs when expiresAt is missing', () => {
+    const now = 1_000_000
+    const anchor = now
+    expect(approvalMsRemainingWithFallback(undefined, anchor, now)).toBe(
+      APPROVAL_FALLBACK_TIMEOUT_MS,
+    )
+    expect(
+      approvalMsRemainingWithFallback(undefined, anchor, now + 60_000),
+    ).toBe(APPROVAL_FALLBACK_TIMEOUT_MS - 60_000)
+  })
+
+  it('also falls back on an unparseable expiresAt, never returning null', () => {
+    const now = 1_000_000
+    expect(
+      approvalMsRemainingWithFallback('not-a-date', now, now),
+    ).toBe(APPROVAL_FALLBACK_TIMEOUT_MS)
+  })
+
+  it('can go negative once the fallback window elapses, same as a real deadline', () => {
+    const anchor = 0
+    const now = APPROVAL_FALLBACK_TIMEOUT_MS + 5_000
+    expect(approvalMsRemainingWithFallback(undefined, anchor, now)).toBe(
+      -5_000,
+    )
   })
 })
