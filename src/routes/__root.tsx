@@ -22,6 +22,7 @@ import { UserbackWidget } from '@/components/userback-widget'
 import { KeyboardShortcutsModal } from '@/components/keyboard-shortcuts-modal'
 import { UpdateCenterNotifier } from '@/components/update-center-notifier'
 import { initializeSettingsAppearance } from '@/hooks/use-settings'
+import { startPluginSettingsMirror } from '@/lib/plugin-settings-mirror'
 import { useApplyChatWidth } from '@/hooks/use-chat-settings'
 import { ONBOARDING_KEYS, OnboardingScreen } from '@/screens/onboarding'
 import { useOnboardingGate } from '@/screens/onboarding/lib/use-onboarding-gate'
@@ -325,6 +326,12 @@ function RootLayout() {
       return undefined
     }
 
+    // Reports UI preferences to the Hermes dashboard plugin. Lives here rather
+    // than in the Settings screen because preferences change from the chat
+    // sidebar dialog too, and the old placement only fired on a gateway-config
+    // save from /settings.
+    const stopPluginMirror = startPluginSettingsMirror()
+
     window.addEventListener('beforeunload', saveMissionStoreBeforeUnload)
 
     void unregisterServiceWorkers({
@@ -335,6 +342,7 @@ function RootLayout() {
 
     return () => {
       window.removeEventListener('beforeunload', saveMissionStoreBeforeUnload)
+      stopPluginMirror()
     }
   }, [])
 
