@@ -123,7 +123,8 @@
   border-color: var(--m-green-500, var(--theme-accent));
 }
 
-[data-screen='settings'] .btn.primary {
+[data-screen='settings'] .btn.primary,
+[data-screen='settings'] .btn.btn-primary {
   background: color-mix(
     in srgb,
     var(--m-green-500, var(--theme-accent)) 8%,
@@ -133,12 +134,14 @@
   border-color: var(--m-green-500, var(--theme-accent));
 }
 
-[data-screen='settings'] .btn.danger {
+[data-screen='settings'] .btn.danger,
+[data-screen='settings'] .btn.btn-danger {
   color: #ff5fa2;
   border-color: rgba(255, 95, 162, 0.4);
 }
 
-[data-screen='settings'] .btn.danger:hover {
+[data-screen='settings'] .btn.danger:hover,
+[data-screen='settings'] .btn.btn-danger:hover {
   background: rgba(255, 95, 162, 0.06);
   border-color: #ff5fa2;
 }
@@ -152,6 +155,14 @@
 [data-screen='settings'] .btn svg {
   width: 12px;
   height: 12px;
+}
+
+/* `.btn-sm` — 12 call sites (api-keys, all-settings, memory-wiki) that shrink
+   a `.btn` inside dense rows (OAuth table actions, inline edit/save/cancel). */
+[data-screen='settings'] .btn.btn-sm {
+  padding: 3px 9px;
+  font-size: 10px;
+  gap: 4px;
 }
 
 /* ── Tab bar ─────────────────────────────────────────────────────────────── */
@@ -470,6 +481,9 @@
   overflow: auto;
   padding: 22px 26px 80px;
   min-height: 0;
+  /* Was unbounded — descriptions ran ~200 characters per line on a wide
+     display. Caps measure without forcing a centred, letterboxed layout. */
+  max-width: 980px;
 }
 
 [data-screen='settings'] .section-head {
@@ -568,6 +582,24 @@
   line-height: 1.5;
 }
 
+/* Base `.pill` used to be scoped to `.row .lbl .pill` only, so the OAuth
+   table in section-api-keys.tsx (`<span className="pill pill-ok">` inside a
+   plain `<td>`, nowhere near `.row .lbl`) had no matching rule at all. This
+   generic rule covers every `.pill`, and the `.row .lbl .pill` rule below it
+   is kept so nothing already relying on it shifts. */
+[data-screen='settings'] .pill {
+  display: inline-block;
+  margin-left: 6px;
+  font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+  padding: 1px 5px;
+  border: 1px solid var(--m-border, var(--theme-border));
+  border-radius: 9999px;
+  color: var(--m-text, var(--theme-text));
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  vertical-align: 2px;
+}
+
 [data-screen='settings'] .row .lbl .pill {
   display: inline-block;
   margin-left: 6px;
@@ -591,6 +623,27 @@
   border-color: rgba(255, 95, 162, 0.5);
 }
 
+[data-screen='settings'] .pill.pill-ok {
+  color: var(--m-green-500, var(--theme-accent));
+  border-color: var(--m-green-500, var(--theme-accent));
+}
+
+[data-screen='settings'] .pill.pill-warn {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.5);
+}
+
+/* section-memory-wiki.tsx's "not configured" chip
+   (`` `pill${isConfigured ? '' : ' k-dirty'}` ``) is a fourth undefined-
+   nowhere modifier the css-source sweep test caught — same warn colour as
+   `.pill.dirty`/`.pill-warn` above. Fixed here rather than in that file:
+   this stream owns only matrix-settings.css, and the class itself is fine,
+   just unstyled. */
+[data-screen='settings'] .pill.k-dirty {
+  color: #ffb347;
+  border-color: rgba(255, 179, 71, 0.5);
+}
+
 [data-screen='settings'] .row .ctl {
   display: flex;
   flex-direction: column;
@@ -608,7 +661,9 @@
 [data-screen='settings'] input[type='number'],
 [data-screen='settings'] input[type='password'],
 [data-screen='settings'] textarea,
-[data-screen='settings'] select {
+[data-screen='settings'] select,
+[data-screen='settings'] .text-input,
+[data-screen='settings'] .select-input {
   width: 100%;
   padding: 8px 10px;
   background: var(--m-bg, var(--theme-bg));
@@ -622,7 +677,9 @@
 
 [data-screen='settings'] input:focus,
 [data-screen='settings'] textarea:focus,
-[data-screen='settings'] select:focus {
+[data-screen='settings'] select:focus,
+[data-screen='settings'] .text-input:focus,
+[data-screen='settings'] .select-input:focus {
   border-color: var(--m-green-500, var(--theme-accent));
   box-shadow: 0 0 0 3px
     color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 8%, transparent);
@@ -632,6 +689,20 @@
   resize: vertical;
   min-height: 90px;
   line-height: 1.55;
+}
+
+/* `.input-sm` — a size modifier layered on top of the rules above, not a
+   standalone input style: every call site either combines it with
+   `.text-input` or lands on a bare `input`/`select` element that the block
+   above already fully styles (section-advanced's log-level `<select
+   className="input-sm">`, section-danger's delete-confirmation `<input
+   className="input-sm">`). Selectors are element+class so it wins regardless
+   of declaration order relative to the block above. */
+[data-screen='settings'] input.input-sm,
+[data-screen='settings'] select.input-sm,
+[data-screen='settings'] .text-input.input-sm {
+  padding: 5px 8px;
+  font-size: 11.5px;
 }
 
 [data-screen='settings'] .hint {
@@ -798,6 +869,13 @@
 
 /* ── Mini table ──────────────────────────────────────────────────────────── */
 
+/* Wraps `.mini-table` (model-registry's top-3 usage table) in a horizontal
+   scroller so a narrow `.content` column doesn't force the whole row to
+   overflow or crush its columns. */
+[data-screen='settings'] .mini-table-wrap {
+  overflow-x: auto;
+}
+
 [data-screen='settings'] .mini-table {
   width: 100%;
   border-collapse: collapse;
@@ -958,4 +1036,119 @@
   width: 72px;
   flex-shrink: 0;
   text-align: right;
+}
+
+/* ── Focus visibility ────────────────────────────────────────────────────── */
+/* The sheet had zero `:focus-visible` rules and three bare `outline: none`
+   (the search input, the shared input/select/textarea block, and the range
+   slider), so keyboard users had no visible focus indicator anywhere on this
+   screen. These rules come after every `outline: none` above, so they win on
+   equal specificity via source order without needing `!important`. */
+
+[data-screen='settings'] .btn:focus-visible,
+[data-screen='settings'] .toggle:focus-visible,
+[data-screen='settings'] .segmented .seg-opt:focus-visible,
+[data-screen='settings'] .chip:focus-visible,
+[data-screen='settings'] .side.sk-filter .sk-filter-item:focus-visible,
+[data-screen='settings'] .side.sk-filter .collapse-btn:focus-visible,
+[data-screen='settings'] .pw-wrap .eye-btn:focus-visible,
+[data-screen='settings'] .tabbar .tab:focus-visible,
+[data-screen='settings'] input:focus-visible,
+[data-screen='settings'] select:focus-visible,
+[data-screen='settings'] textarea:focus-visible,
+[data-screen='settings'] .text-input:focus-visible,
+[data-screen='settings'] .select-input:focus-visible {
+  outline: 2px solid var(--m-green-500, var(--theme-accent));
+  outline-offset: 2px;
+}
+
+/* `input[type='range']` can't be outlined directly in Chromium/WebKit — the
+   visible ring has to go on the thumb pseudo-element instead. */
+[data-screen='settings'] input[type='range']:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 3px
+      color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 35%, transparent),
+    0 0 6px var(--m-green-500, var(--theme-accent));
+}
+
+[data-screen='settings'] input[type='range']:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 3px
+      color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 35%, transparent),
+    0 0 6px var(--m-green-500, var(--theme-accent));
+}
+
+/* ── Reduced motion ──────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  [data-screen='settings'] *,
+  [data-screen='settings'] *::before,
+  [data-screen='settings'] *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+/* The sheet had zero media queries: `.row` was a hard `1fr 320px` and the
+   sidebar a fixed 280px, so below ~768px the label column collapsed to
+   ~94px and long labels wrapped across six lines. */
+
+@media (max-width: 1024px) {
+  [data-screen='settings'].settings-shell .side.sk-filter {
+    width: 220px;
+    min-width: 220px;
+  }
+
+  [data-screen='settings'] .row {
+    grid-template-columns: 1fr 260px;
+  }
+}
+
+@media (max-width: 768px) {
+  [data-screen='settings'] .row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+
+  [data-screen='settings'] .row .ctl,
+  [data-screen='settings'] .row .ctl.row-end {
+    align-items: stretch;
+  }
+
+  [data-screen='settings'].settings-shell .content {
+    padding: 16px 16px 80px;
+  }
+
+  [data-screen='settings'] .num-slider input[type='number'] {
+    width: 64px;
+  }
+}
+
+/* Below ~560px there isn't room for a persistent 220px rail next to any
+   usable content column, so the sidebar becomes an overlay drawer — using
+   the collapse toggle's existing `.collapsed` state — instead of permanently
+   stealing width from `.content`. */
+@media (max-width: 560px) {
+  [data-screen='settings'].settings-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-screen='settings'].settings-shell .side.sk-filter {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: 240px;
+    min-width: 240px;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+  }
+
+  [data-screen='settings'].settings-shell .side.sk-filter.collapsed {
+    width: 44px;
+    min-width: 44px;
+    box-shadow: none;
+  }
 }
