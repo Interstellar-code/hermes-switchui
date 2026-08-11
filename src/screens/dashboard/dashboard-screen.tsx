@@ -41,7 +41,7 @@ import { getUnavailableReason } from '@/lib/feature-gates'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
 import { cn } from '@/lib/utils'
 import { openHamburgerMenu } from '@/components/mobile-hamburger-menu'
-import { applyTheme, useSettingsStore } from '@/hooks/use-settings'
+import { applyTheme, useStudioSettingsStore } from '@/hooks/use-settings'
 
 // `IconSvgObject` isn't exported from @hugeicons/react; reuse the
 // inferred type from a real icon import for prop typing.
@@ -403,7 +403,7 @@ export function DashboardScreen() {
 
   const palette = useDashboardPalette()
 
-  const updateSettings = useSettingsStore((state) => state.updateSettings)
+  const updateSettings = useStudioSettingsStore((state) => state.updateSettings)
   const [isDark, setIsDark] = useState(() => {
     if (typeof document === 'undefined') return true
     const dt = document.documentElement.getAttribute('data-theme') || ''

@@ -24,7 +24,7 @@ export type StudioSettings = {
   mobileChatNavMode: 'dock' | 'integrated' | 'scroll-hide'
 }
 
-type SettingsState = {
+type StudioSettingsState = {
   settings: StudioSettings
   updateSettings: (updates: Partial<StudioSettings>) => void
 }
@@ -46,7 +46,18 @@ export const defaultStudioSettings: StudioSettings = {
   mobileChatNavMode: 'dock',
 }
 
-export const useSettingsStore = create<SettingsState>()(
+/**
+ * Studio (browser-local) preferences — theme mode, editor prefs, chat nav
+ * mode, etc. Persisted to localStorage under `claude-settings`.
+ *
+ * Named `useStudioSettingsStore`, not `useSettingsStore`, on purpose: the
+ * *gateway* settings store at `@/stores/settings-store.ts` used to export a
+ * hook with the exact same identifier — two unrelated zustand stores sharing
+ * one name, which made every `grep useSettingsStore` a coin flip about which
+ * store a call site actually touched. See
+ * `use-settings-store-naming.contract.test.ts`.
+ */
+export const useStudioSettingsStore = create<StudioSettingsState>()(
   persist(
     function createSettingsStore(set) {
       return {
@@ -72,15 +83,17 @@ export const useSettingsStore = create<SettingsState>()(
 
 export function useSettings() {
   useEffect(() => {
-    void useSettingsStore.persist.rehydrate()
+    void useStudioSettingsStore.persist.rehydrate()
   }, [])
 
-  const settings = useSettingsStore(function selectSettings(state) {
+  const settings = useStudioSettingsStore(function selectSettings(state) {
     return state.settings
   })
-  const updateSettings = useSettingsStore(function selectUpdateSettings(state) {
-    return state.updateSettings
-  })
+  const updateSettings = useStudioSettingsStore(
+    function selectUpdateSettings(state) {
+      return state.updateSettings
+    },
+  )
 
   return {
     settings,
