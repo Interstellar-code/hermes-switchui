@@ -1,11 +1,33 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render as rtlRender,
+  screen,
+} from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SectionSafety from './section-safety'
+import type { ReactElement } from 'react'
 import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
 
 function loadDraft(patch: Record<string, unknown>) {
   useSettingsStore.getState().seed(patch)
+}
+
+/**
+ * The approval-mode picker binds its options to `GET /api/config/schema` via
+ * `useSchemaOptions`, so the section needs a QueryClientProvider. The schema
+ * request fails in jsdom, which is deliberately exercised here: the picker must
+ * fall back to its hardcoded modes rather than render empty.
+ */
+function render(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  })
+  return rtlRender(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  )
 }
 
 afterEach(() => {

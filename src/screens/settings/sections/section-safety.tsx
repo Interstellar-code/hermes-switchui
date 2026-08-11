@@ -21,6 +21,7 @@
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Segmented, Toggle } from '../components/controls'
+import { useSchemaOptions } from '../lib/schema-binding'
 import {
   
   computeSafetyPosture,
@@ -42,9 +43,23 @@ const TONE_LABEL: Record<PostureTone, string> = {
   ok: 'OK',
 }
 
+/**
+ * Fallback if the gateway's schema is unreachable. Matches the schema exactly
+ * today; binding to the schema means it stays matched when the gateway adds a
+ * mode, rather than the picker quietly omitting one.
+ */
+const APPROVAL_MODE_FALLBACK = [
+  { value: 'manual', label: 'Manual' },
+  { value: 'smart', label: 'Smart' },
+  { value: 'off', label: 'Off' },
+]
+
 export default function SectionSafety() {
   const draft = useSettingsStore((s) => s.draft)
   const set = useSettingsStore((s) => s.set)
+  const approvalModes =
+    useSchemaOptions('config.approvals.mode', APPROVAL_MODE_FALLBACK) ??
+    APPROVAL_MODE_FALLBACK
 
   const approvalsMode = (draft['config.approvals.mode'] as string | undefined) ?? 'smart'
   const cronMode = (draft['config.approvals.cron_mode'] as string | undefined) ?? 'deny'
@@ -133,11 +148,7 @@ export default function SectionSafety() {
           desc="manual prompts for every dangerous command; smart lets an auxiliary model screen low-risk ones; off skips every prompt (YOLO)."
         >
           <Segmented
-            options={[
-              { value: 'manual', label: 'Manual' },
-              { value: 'smart', label: 'Smart' },
-              { value: 'off', label: 'Off' },
-            ]}
+            options={approvalModes}
             value={approvalsMode}
             onChange={(v) => set('config.approvals.mode', v)}
           />

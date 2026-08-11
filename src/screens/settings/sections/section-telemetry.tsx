@@ -15,17 +15,26 @@
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider, Segmented } from '../components/controls'
+import { useSchemaOptions } from '../lib/schema-binding'
 import { useSettingsStore } from '@/stores/settings-store'
 
+/**
+ * Fallback if the gateway's schema is unreachable. This list omitted ERROR,
+ * which the gateway has always accepted — a hand-maintained copy of a list
+ * the gateway publishes is exactly what schema binding exists to stop.
+ */
 const LOG_LEVELS = [
   { value: 'DEBUG', label: 'Debug' },
   { value: 'INFO', label: 'Info' },
   { value: 'WARNING', label: 'Warning' },
+  { value: 'ERROR', label: 'Error' },
 ]
 
 export default function SectionTelemetry() {
   const draft = useSettingsStore((s) => s.draft)
   const set = useSettingsStore((s) => s.set)
+  const logLevels =
+    useSchemaOptions('config.logging.level', LOG_LEVELS) ?? LOG_LEVELS
 
   // logging.* — real DEFAULT_CONFIG keys
   const logLevel = (draft['config.logging.level'] as string | undefined) ?? 'INFO'
@@ -48,7 +57,7 @@ export default function SectionTelemetry() {
           desc="Controls verbosity of ~/.hermes/logs/agent.log"
         >
           <Segmented
-            options={LOG_LEVELS}
+            options={logLevels}
             value={logLevel}
             onChange={(v) => set('config.logging.level', v)}
           />

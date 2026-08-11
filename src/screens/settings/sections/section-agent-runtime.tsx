@@ -11,11 +11,28 @@
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider } from '../components/controls'
+import { useSchemaOptions } from '../lib/schema-binding'
 import { useSettingsStore } from '@/stores/settings-store'
+
+/**
+ * Fallback for `service_tier` if the gateway's schema is unreachable. The
+ * gateway publishes this as a select — it was a free text input here, so a
+ * typo ("flexx") saved silently and the agent fell back to its default with
+ * no indication anything was wrong.
+ */
+const SERVICE_TIER_FALLBACK = [
+  { value: '', label: 'Default' },
+  { value: 'auto', label: 'Auto' },
+  { value: 'default', label: 'Default (explicit)' },
+  { value: 'flex', label: 'Flex' },
+]
 
 export default function SectionAgentRuntime() {
   const draft = useSettingsStore((s) => s.draft)
   const set = useSettingsStore((s) => s.set)
+  const serviceTierOptions =
+    useSchemaOptions('config.agent.service_tier', SERVICE_TIER_FALLBACK) ??
+    SERVICE_TIER_FALLBACK
 
   const maxTurns = (draft['config.agent.max_turns'] as number | undefined) ?? 90
   const gatewayTimeout = (draft['config.agent.gateway_timeout'] as number | undefined) ?? 1800
@@ -65,13 +82,17 @@ export default function SectionAgentRuntime() {
 
       <SettingCard title="Service">
         <SettingRow label="Service tier" desc="Provider service tier (leave blank for default)">
-          <input
-            type="text"
-            className="text-input"
+          <select
+            className="select-input"
             value={serviceTier}
-            placeholder="default"
             onChange={(e) => set('config.agent.service_tier', e.target.value)}
-          />
+          >
+            {serviceTierOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </SettingRow>
         <SettingRow label="Tool use enforcement" desc="How tool use is enforced: auto, required, or none">
           <select
