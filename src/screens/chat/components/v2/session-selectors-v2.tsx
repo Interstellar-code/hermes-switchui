@@ -45,8 +45,10 @@ import {
   fetchProfiles,
   fetchScopeStatus,
   fetchWorkspaceContext,
+  modelSwitchFailureNotice,
   nextThinkingLevel,
   profileMeta,
+  revertSessionModel,
   setAgentCwd,
   shortPathLabel,
   switchModel,
@@ -86,7 +88,12 @@ import {
   useUnbindSessionProject,
 } from '@/lib/projects-api'
 import { useSessionModelStore } from '@/stores/session-model-store'
-import { activeScopeSegments, getSessionProfile } from '@/lib/session-scope'
+import { useChatStore } from '@/stores/chat-store'
+import {
+  activeScopeKey,
+  activeScopeSegments,
+  getSessionProfile,
+} from '@/lib/session-scope'
 import { useProfileScopeForUrl } from '@/hooks/use-resolved-profile'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
@@ -298,6 +305,33 @@ function SessionSelectorsV2Component({
     })),
   )
 
+  // ─── server-confirmed model switch (chat-store) ──────────────────────────
+  // The gateway's per-session model switch is sticky, so this chip must show
+  // what the SERVER said answered — not what we asked for. `run.started` now
+  // carries the effective model; a refusal (JSON 400 before the stream opens,
+  // or a 200 whose assistant message IS the provider's rejection) lands here
+  // as an `error` and rolls the selection back.
+  const modelSwitchKey = sessionKey ? activeScopeKey(sessionKey) : ''
+  const modelSwitch = useChatStore((s) =>
+    modelSwitchKey ? (s.modelSwitch[modelSwitchKey] ?? null) : null,
+  )
+  const clearModelSwitchError = useChatStore((s) => s.clearModelSwitchError)
+  const effectiveModelId = modelSwitch?.effective ?? null
+  const modelSwitchPending = modelSwitch?.pending === true
+  const modelSwitchError = modelSwitch?.error ?? null
+
+  React.useEffect(() => {
+    if (!modelSwitchError || !sessionKey) return
+    // Un-wedge the session: a refused pick left in the picker would be
+    // re-sent on every later turn.
+    revertSessionModel(sessionKey, modelSwitchError.revertTo)
+    setModelNotice({
+      tone: 'error',
+      message: modelSwitchFailureNotice(modelSwitchError),
+    })
+    clearModelSwitchError(sessionKey)
+  }, [clearModelSwitchError, modelSwitchError, sessionKey])
+
   // ─── profile / workspace / model-info data sources (live parity) ──────────
   const profilesQuery = useQuery({
     queryKey: ['profiles', 'composer'],
@@ -494,19 +528,23 @@ function SessionSelectorsV2Component({
     [models],
   )
   const activeModel = React.useMemo<NormalizedModel | null>(() => {
-    if (persistedSessionModel) {
-      const match = models.find((m) => m.id === persistedSessionModel)
+    // Server-confirmed EFFECTIVE model wins over the local pick. They differ
+    // whenever the gateway silently falls back, and showing the local pick
+    // there would hide the fallback behind a selection that never took.
+    const displayId = effectiveModelId || persistedSessionModel
+    if (displayId) {
+      const match = models.find((m) => m.id === displayId)
       if (match) return match
       return {
-        id: persistedSessionModel,
-        name: formatModelName(persistedSessionModel),
-        provider: persistedSessionModel.includes('/')
-          ? persistedSessionModel.split('/')[0]
+        id: displayId,
+        name: formatModelName(displayId),
+        provider: displayId.includes('/')
+          ? displayId.split('/')[0]
           : 'hermes-agent',
       }
     }
     return models[0] ?? null
-  }, [models, persistedSessionModel])
+  }, [effectiveModelId, models, persistedSessionModel])
 
   // ─── derived labels (live parity) ────────────────────────────────────────
   const profiles = React.useMemo(
@@ -691,14 +729,13 @@ function SessionSelectorsV2Component({
       setModelNotice(null)
       setModelMenuOpen(false)
       setProjectMenuOpen(false)
-      // Per-session, browser-local persistence only — there is no gateway
-      // endpoint for a genuine per-session model switch (both candidates
-      // 404 against the real agent gateway; see switchModel's doc comment
-      // in chat-composer-services.ts). Applied on the next send.
+      // Persist the pick locally; it rides the next send's `model` body field
+      // and only then becomes the session's sticky selection. Nothing here can
+      // confirm the switch — the gateway does, on `run.started`.
       const result = switchModel(model, provider, sessionKey)
       setModelNotice({
         tone: 'success',
-        message: `Switched to ${formatModelName(result.resolved?.model ?? model)}`,
+        message: `${formatModelName(result.resolved?.model ?? model)} — applies on your next message`,
       })
     },
     [gatewayModeQuery.data, sessionKey, zeroForkModelInfoFlags],
@@ -762,11 +799,24 @@ function SessionSelectorsV2Component({
             <button
               type="button"
               onClick={() => setModelMenuOpen((o) => !o)}
+              data-testid="model-selector"
+              data-model-switch-pending={modelSwitchPending || undefined}
+              title={
+                modelSwitchPending
+                  ? 'Switching model — the first turn on a new model resolves credentials and may probe the endpoint, which can take several seconds.'
+                  : effectiveModelId
+                    ? `Answering with ${effectiveModelId} (reported by the gateway).`
+                    : 'Model for this chat'
+              }
               className="inline-flex items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
             >
-              <Bot className="size-3" />
+              <Bot
+                className={cn('size-3', modelSwitchPending && 'animate-pulse')}
+              />
               <span className="max-w-32 truncate font-medium">
-                {activeModel?.name ?? 'Model'}
+                {modelSwitchPending
+                  ? 'Switching model…'
+                  : (activeModel?.name ?? 'Model')}
               </span>
               <ChevronDown className="size-2.5 opacity-60" />
             </button>

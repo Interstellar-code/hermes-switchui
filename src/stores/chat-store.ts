@@ -282,6 +282,151 @@ export type MessageQueueActivity = {
   occurredAt: number
 }
 
+// ─── Per-session model switch (gateway contract, task #24) ─────────────────
+//
+// `POST /api/sessions/{id}/chat[/stream]` reads a `model` field from the body
+// and the switch is STICKY: it applies to that turn and every later turn on
+// the session until changed. A bad selection therefore wedges the session, not
+// just one message, which is why this slice exists at all — it tracks what we
+// asked for, what the SERVER said actually answered, and how to roll back.
+//
+// The gateway can refuse a model in two shapes:
+//   'http-400'            — plain JSON `{"error":{…,"param":"model"}}` returned
+//                           BEFORE the SSE stream opens. The session's model is
+//                           unchanged, so the revert is purely cosmetic (it
+//                           stops the client re-sending a value the gateway
+//                           already refused).
+//   'provider-rejection'  — HTTP 200 whose assistant turn IS the provider's
+//                           refusal. The configured provider is a permissive
+//                           aggregator: it accepts nearly any model id at
+//                           resolution time and only rejects at inference. The
+//                           switch DID install, so without a rollback every
+//                           later turn silently uses the broken model.
+
+export type ModelSwitchFailureShape = 'http-400' | 'provider-rejection'
+
+export type ModelSwitchFailure = {
+  message: string
+  code: string | null
+  shape: ModelSwitchFailureShape
+  /** Selection to restore. `null` = drop the override entirely. */
+  revertTo: string | null
+  at: number
+}
+
+export type SessionModelSwitch = {
+  /** `model` carried by the in-flight / last send, or null when none was sent. */
+  requested: string | null
+  /** Last server-confirmed model before `requested` — the rollback target. */
+  previous: string | null
+  /**
+   * True while a send carrying a CHANGED model is awaiting its first
+   * server-side confirmation. A first switch does credential resolution and
+   * possibly a catalog fetch + live endpoint probe: several seconds, worst
+   * case ~15s before the first token. Repeat sends of the same model are free
+   * (the server no-ops), so this is deliberately false for those.
+   */
+  pending: boolean
+  /**
+   * True for the whole turn that installs a changed model — unlike `pending`
+   * it survives `run.started`, because provider-rejection detection only runs
+   * on the turn that actually attempted a switch.
+   */
+  changed: boolean
+  /**
+   * The EFFECTIVE model, as reported by the server (`run.started`'s `model`,
+   * or the non-streaming response's top-level `model`). Never inferred from
+   * what we sent — that is what makes a silent server-side fallback visible.
+   */
+  effective: string | null
+  error: ModelSwitchFailure | null
+}
+
+const EMPTY_MODEL_SWITCH: SessionModelSwitch = {
+  requested: null,
+  previous: null,
+  pending: false,
+  changed: false,
+  effective: null,
+  error: null,
+}
+
+/**
+ * A provider rejection that arrived as a perfectly ordinary HTTP 200 turn.
+ *
+ * HEURISTIC — all of the following must hold, and the caller additionally
+ * gates on "this turn attempted a CHANGED model" (`SessionModelSwitch.changed`):
+ *
+ *  1. a model was requested on this turn (nothing to roll back otherwise);
+ *  2. the turn ran no tools — a canned provider refusal is emitted before the
+ *     agent does any work;
+ *  3. the whole assistant turn is short (<= 600 chars) — refusals are terse,
+ *     a genuine answer about model availability is not;
+ *  4. the requested model id appears verbatim in the text (or its bare
+ *     `provider/`-stripped tail, when that tail is >= 6 chars so short ids
+ *     cannot match ordinary prose);
+ *  5. a negative-availability phrase appears in a ~360-char window around that
+ *     mention, so the refusal is ABOUT the model rather than merely near it.
+ *
+ * Deliberately NOT keyed on the observed vendor's emoji tag, its `M302` code,
+ * or the "GET /v1/models" sentence: those identify one aggregator's wording
+ * and would silently stop working the moment the provider chain changes.
+ *
+ * TRADEOFF. False positive: the user switches to model X and, in that same
+ * first message, asks whether X is available; a short "No, X is not available"
+ * answer trips this. Cost is bounded and visible — the picker rolls back one
+ * step and says why, and the user re-picks. False negative: a refusal phrased
+ * without any of the negative-availability wording, or padded past 600 chars,
+ * is missed and the session stays wedged on the broken model for every later
+ * turn. Because the sticky failure is the far more expensive one, and because
+ * condition (1)+(4)+`changed` already confine firing to the single turn that
+ * installs a new model, this is tuned to catch rather than to abstain.
+ */
+const MODEL_REJECTION_MAX_CHARS = 600
+const MODEL_REJECTION_WINDOW_BEFORE = 120
+const MODEL_REJECTION_WINDOW_AFTER = 240
+const MODEL_REJECTION_PHRASES =
+  /not available|unavailable|not supported|unsupported|not accessible|does not exist|does ?n[o'’]?t exist|unknown model|invalid model|no such model|not a valid model|not found|not permitted|not enabled|no access to|access denied/i
+
+export function detectModelRejection(input: {
+  text: string
+  requestedModel: string | null | undefined
+  hadToolCalls?: boolean
+}): boolean {
+  const requested = (input.requestedModel ?? '').trim()
+  if (!requested) return false
+  if (input.hadToolCalls === true) return false
+
+  const text = input.text.trim()
+  if (!text || text.length > MODEL_REJECTION_MAX_CHARS) return false
+
+  const haystack = text.toLowerCase()
+  const candidates = [requested.toLowerCase()]
+  const slash = requested.lastIndexOf('/')
+  if (slash >= 0) {
+    const tail = requested.slice(slash + 1).toLowerCase()
+    if (tail.length >= 6) candidates.push(tail)
+  }
+
+  let index = -1
+  let matchedLength = 0
+  for (const candidate of candidates) {
+    const found = haystack.indexOf(candidate)
+    if (found >= 0) {
+      index = found
+      matchedLength = candidate.length
+      break
+    }
+  }
+  if (index < 0) return false
+
+  const window = text.slice(
+    Math.max(0, index - MODEL_REJECTION_WINDOW_BEFORE),
+    index + matchedLength + MODEL_REJECTION_WINDOW_AFTER,
+  )
+  return MODEL_REJECTION_PHRASES.test(window)
+}
+
 type ChatState = {
   /** Messages received via real-time stream, keyed by sessionKey */
   realtimeMessages: Map<string, Array<ChatMessage>>
@@ -306,6 +451,12 @@ type ChatState = {
    * the inline clarify card is rendered. Keyed by sessionKey.
    */
   pendingClarify: Record<string, PendingClarify | undefined>
+
+  /**
+   * Per-session model-switch bookkeeping (see `SessionModelSwitch`). Keyed by
+   * the same composite `profile::sessionKey` as every other map here.
+   */
+  modelSwitch: Record<string, SessionModelSwitch | undefined>
 
   // Actions
   processEvent: (event: ChatStreamEvent) => void
@@ -392,6 +543,33 @@ type ChatState = {
   clearSessionInterrupted: (sessionKey: string) => void
   /** Check if a session is in the interrupted state */
   isSessionInterrupted: (sessionKey: string) => boolean
+
+  /**
+   * Record the `model` a send is about to carry. Marks the switch pending
+   * ONLY when it differs from the last server-confirmed model, so resending
+   * the current selection (which the server no-ops) shows no spinner.
+   */
+  beginModelSwitch: (
+    sessionKey: string,
+    requested: string | null | undefined,
+  ) => void
+  /** Server-confirmed effective model (`run.started`.model / response.model). */
+  setEffectiveModel: (sessionKey: string, model: string) => void
+  /** Roll the session back to `previous` and record why. */
+  failModelSwitch: (
+    sessionKey: string,
+    failure: {
+      message: string
+      code?: string | null
+      shape: ModelSwitchFailureShape
+    },
+  ) => void
+  /** End-of-turn: drop the pending/changed flags, keep any error for the UI. */
+  settleModelSwitch: (sessionKey: string) => void
+  /** Acknowledge a failure after it has been surfaced to the user. */
+  clearModelSwitchError: (sessionKey: string) => void
+  /** Read the model-switch record for a session (never undefined). */
+  getModelSwitch: (sessionKey: string) => SessionModelSwitch
 
   /**
    * Layer 3 run-phase state machine (Track 2 / Phase 2.1). One phase per
@@ -958,6 +1136,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   waitingSessionMeta: _restoredWaiting.meta,
   interruptedSessionKeys: new Set(),
   runPhase: new Map(),
+  modelSwitch: {},
 
   registerSendStreamRun: (runId) => {
     const next = new Set(get().sendStreamRunIds)
@@ -1177,6 +1356,108 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isSessionInterrupted: (sessionKeyRaw) => {
     const sessionKey = activeScopeKey(sessionKeyRaw)
     return get().interruptedSessionKeys.has(sessionKey)
+  },
+
+  beginModelSwitch: (sessionKeyRaw, requestedRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    const current = get().modelSwitch[sessionKey] ?? EMPTY_MODEL_SWITCH
+    const requested =
+      typeof requestedRaw === 'string' && requestedRaw.trim()
+        ? requestedRaw.trim()
+        : null
+    // "Changed" is measured against what the SERVER last confirmed, not
+    // against the previous local pick: a silent server-side fallback means
+    // the session is on something other than what we last selected, and the
+    // next send genuinely is a switch again.
+    const changed = requested !== null && requested !== current.effective
+    set({
+      modelSwitch: {
+        ...get().modelSwitch,
+        [sessionKey]: {
+          requested,
+          // Only a real switch moves the rollback target; a resend of the
+          // current model must not overwrite it with itself.
+          previous: changed ? current.effective : current.previous,
+          pending: changed,
+          changed,
+          effective: current.effective,
+          // A new send supersedes the previous notice.
+          error: null,
+        },
+      },
+    })
+  },
+
+  setEffectiveModel: (sessionKeyRaw, modelRaw) => {
+    const model = modelRaw.trim()
+    if (!model) return
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    const current = get().modelSwitch[sessionKey] ?? EMPTY_MODEL_SWITCH
+    if (current.effective === model && !current.pending) return
+    set({
+      modelSwitch: {
+        ...get().modelSwitch,
+        // `changed` deliberately survives: the provider-rejection check runs
+        // at end of turn and must still know a switch was attempted.
+        [sessionKey]: { ...current, effective: model, pending: false },
+      },
+    })
+  },
+
+  failModelSwitch: (sessionKeyRaw, failure) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    const current = get().modelSwitch[sessionKey] ?? EMPTY_MODEL_SWITCH
+    const revertTo = current.previous
+    set({
+      modelSwitch: {
+        ...get().modelSwitch,
+        [sessionKey]: {
+          ...current,
+          pending: false,
+          changed: false,
+          // Roll the displayed model back. On an http-400 the session never
+          // moved; on a provider rejection it did, and the user is being told
+          // to re-pick — either way `previous` is the honest value to show.
+          effective: revertTo,
+          error: {
+            message: failure.message,
+            code: failure.code ?? null,
+            shape: failure.shape,
+            revertTo,
+            at: Date.now(),
+          },
+        },
+      },
+    })
+  },
+
+  settleModelSwitch: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    const current = get().modelSwitch[sessionKey]
+    if (!current || (!current.pending && !current.changed)) return
+    set({
+      modelSwitch: {
+        ...get().modelSwitch,
+        [sessionKey]: { ...current, pending: false, changed: false },
+      },
+    })
+  },
+
+  clearModelSwitchError: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    const current = get().modelSwitch[sessionKey]
+    if (!current?.error) return
+    set({
+      modelSwitch: {
+        ...get().modelSwitch,
+        [sessionKey]: { ...current, error: null },
+      },
+    })
+  },
+
+  getModelSwitch: (sessionKeyRaw) => {
+    const sessionKey = activeScopeKey(sessionKeyRaw)
+    return get().modelSwitch[sessionKey] ?? EMPTY_MODEL_SWITCH
   },
 
   setRunPhase: (sessionKeyRaw, next, trigger) => {

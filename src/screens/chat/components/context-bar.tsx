@@ -12,6 +12,8 @@ import {
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { chatQueryKeys, fetchSessions } from '@/screens/chat/chat-queries'
+import { useChatStore } from '@/stores/chat-store'
+import { activeScopeKey } from '@/lib/session-scope'
 
 type ModelCatalogEntry = {
   id?: string
@@ -140,7 +142,19 @@ function ContextBarComponent({
         : 0
   const liveModel = modelInfoQuery.data?.activeModel || ''
   const liveProvider = modelInfoQuery.data?.activeProvider || ''
-  const activeModel = liveModel || status.model || meta?.model || ''
+  // The gateway's per-session model switch is sticky and server-confirmed —
+  // the meta-bar chip (session-selectors-v2.tsx) already prefers it over
+  // every local/polled source for exactly this reason: `/api/model/info` and
+  // `/api/session-status` can be stale relative to a switch the server just
+  // confirmed on `run.started`, and two chips disagreeing about the current
+  // model is worse than either being slightly stale. Match that precedence
+  // here so this chip never shows something different from the meta-bar one.
+  const modelSwitchKey = sessionId ? activeScopeKey(sessionId) : ''
+  const effectiveModelId = useChatStore((s) =>
+    modelSwitchKey ? (s.modelSwitch[modelSwitchKey]?.effective ?? null) : null,
+  )
+  const activeModel =
+    effectiveModelId || liveModel || status.model || meta?.model || ''
   // Prefer an exact provider+model catalog match for the live gateway model,
   // then fall back to name-only matching against the resolved active model.
   const matchingModel =

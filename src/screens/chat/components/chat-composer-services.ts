@@ -8,6 +8,7 @@ import type {
 } from './chat-composer-types'
 import type { ModelSwitchResponse } from '@/lib/model-types'
 import { useSessionModelStore } from '@/stores/session-model-store'
+import { formatModelName } from '@/lib/format-model-name'
 
 type GatewayStatusApiResponse = {
   mode?: string
@@ -61,10 +62,20 @@ export function getResolvedModelKey(model: string, provider?: string): string {
 /**
  * Switch the model for one chat session.
  *
- * This is purely client-local — there is no gateway endpoint for a genuine
- * per-session model switch. Two candidates were checked against the running
- * hermes-agent gateway (`gateway/platforms/api_server.py`, port 8642) before
- * settling on this:
+ * This write is client-local, but the switch itself is NOT cosmetic any more:
+ * `POST /api/sessions/{id}/chat[/stream]` now reads a `model` field from the
+ * request body and installs it as the session's STICKY selection — it applies
+ * to that turn and every later turn until changed. Resending the same value is
+ * free (the server no-ops), so "always send the current selection" is the
+ * strategy here. What this function must never do is CONFIRM the switch:
+ * confirmation comes back from the server on `run.started`.`model` (streaming)
+ * or the response's top-level `model` (non-streaming), and is recorded in
+ * `useChatStore`'s `modelSwitch` slice. See `revertSessionModel` for the
+ * rollback path when the gateway refuses the pick.
+ *
+ * There is still no dedicated per-session model-switch ENDPOINT. Two
+ * candidates were checked against the running hermes-agent gateway
+ * (`gateway/platforms/api_server.py`, port 8642) before settling on this:
  *
  *  - `POST /api/model-switch` (formerly called from src/lib/gateway-api.ts):
  *    404s. It's not in `_http_route_table()`; nothing on the gateway ever
@@ -77,9 +88,8 @@ export function getResolvedModelKey(model: string, provider?: string): string {
  *    every session/channel the gateway serves, with no profile scoping
  *    (PROFILE_HEADER is never sent) — the opposite of "this session only".
  *
- * So instead of wiring up a fake network call, the per-session model lives
- * entirely in `useSessionModelStore` (browser-local, keyed by sessionKey)
- * and rides along as the `model` field in the chat-completion request body
+ * So the selection lives in `useSessionModelStore` (browser-local, keyed by
+ * sessionKey) and rides along as the `model` field in the chat request body
  * on every send (see use-thinking-level.ts's `currentModel` and
  * routes/api/send-stream.ts). Local providers (ollama, atomic-chat, ...)
  * need no special-casing here: send-stream.ts already detects a local
@@ -115,6 +125,49 @@ export function switchModel(
       model: modelId,
     },
   }
+}
+
+/**
+ * Undo a model selection the gateway did not accept.
+ *
+ * The switch is STICKY — it applies to every later turn on the session until
+ * changed — so a refused pick that stays in the picker means every subsequent
+ * send re-carries a model the gateway already refused (shape 1, HTTP 400) or
+ * that the provider refuses at inference (shape 2, HTTP 200 whose assistant
+ * message is the refusal). Restoring `previous` un-wedges the session;
+ * `previous === null` means no model was ever confirmed for it, so the
+ * override is dropped entirely and the session falls back to the gateway
+ * default rather than to a guess.
+ */
+export function revertSessionModel(
+  sessionKey: string | null | undefined,
+  previous: string | null | undefined,
+): void {
+  if (!sessionKey) return
+  const store = useSessionModelStore.getState()
+  const target = typeof previous === 'string' ? previous.trim() : ''
+  if (target) {
+    store.setModel(sessionKey, target)
+    return
+  }
+  store.clearModel(sessionKey)
+}
+
+/** User-facing sentence for a refused model switch. */
+export function modelSwitchFailureNotice(failure: {
+  message: string
+  shape: 'http-400' | 'provider-rejection'
+  revertTo: string | null
+}): string {
+  const head =
+    failure.shape === 'provider-rejection'
+      ? 'The provider refused that model'
+      : 'Model switch rejected'
+  const tail = failure.revertTo
+    ? `Reverted to ${formatModelName(failure.revertTo)}.`
+    : 'Pick another model.'
+  const detail = failure.message.trim()
+  return detail ? `${head}: ${detail} ${tail}` : `${head}. ${tail}`
 }
 
 /**

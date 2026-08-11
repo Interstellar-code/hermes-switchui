@@ -1324,12 +1324,6 @@ export function ChatScreen({
     }
   }, [embedded, navigate])
 
-  const sessionModelFallback =
-    (typeof (activeSession as { model?: unknown } | null | undefined)?.model ===
-    'string'
-      ? ((activeSession as { model?: string }).model as string)
-      : undefined) ?? undefined
-
   // Pull-to-refresh offset removed
 
   const handleRenameActiveSessionTitle = useCallback(
@@ -1449,7 +1443,6 @@ export function ChatScreen({
                 selectorSessionKey={modelSessionKey}
                 profileMutable={isNewChat && !creatingSession}
                 toolCount={totalToolCount}
-                modelFallback={sessionModelFallback}
                 thinkingLevel={thinkingLevel}
                 onThinkingLevelChange={handleThinkingLevelChange}
               />

@@ -1,7 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { rekeySessionModel, switchModel } from './chat-composer-services'
+import {
+  modelSwitchFailureNotice,
+  rekeySessionModel,
+  revertSessionModel,
+  switchModel,
+} from './chat-composer-services'
 import { useSessionModelStore } from '@/stores/session-model-store'
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -189,5 +194,80 @@ describe('rekeySessionModel', () => {
     expect(useSessionModelStore.getState().getModel('session-b')).toBe(
       'openai/gpt-4o',
     )
+  })
+})
+
+// ─── revertSessionModel / modelSwitchFailureNotice ─────────────────────────
+//
+// Task #24: the gateway's per-session model switch is STICKY. A pick the
+// gateway refuses — either a JSON 400 before the stream opens, or an HTTP 200
+// whose assistant message IS the provider's refusal — must not stay in the
+// picker, or every later turn re-carries a model that cannot answer.
+
+describe('revertSessionModel', () => {
+  it('restores the previously confirmed model', () => {
+    useSessionModelStore.getState().setModel('session-1', 'bogus/model-xyz')
+
+    revertSessionModel('session-1', 'openai/gpt-4o')
+
+    expect(useSessionModelStore.getState().getModel('session-1')).toBe(
+      'openai/gpt-4o',
+    )
+  })
+
+  it('drops the override entirely when nothing was ever confirmed', () => {
+    useSessionModelStore.getState().setModel('session-1', 'bogus/model-xyz')
+
+    revertSessionModel('session-1', null)
+
+    expect(useSessionModelStore.getState().getModel('session-1')).toBeUndefined()
+  })
+
+  it('leaves other sessions alone', () => {
+    useSessionModelStore.getState().setModel('session-1', 'bogus/model-xyz')
+    useSessionModelStore.getState().setModel('session-2', 'openai/gpt-4o')
+
+    revertSessionModel('session-1', null)
+
+    expect(useSessionModelStore.getState().getModel('session-2')).toBe(
+      'openai/gpt-4o',
+    )
+  })
+
+  it('is a no-op without a session key', () => {
+    revertSessionModel(undefined, 'openai/gpt-4o')
+    expect(useSessionModelStore.getState().models).toEqual({})
+  })
+})
+
+describe('modelSwitchFailureNotice', () => {
+  it('names the provider for a rejection that arrived as a successful turn', () => {
+    expect(
+      modelSwitchFailureNotice({
+        message: 'Model "x" is not available for this agent.',
+        shape: 'provider-rejection',
+        revertTo: 'openai/gpt-4o',
+      }),
+    ).toContain('The provider refused that model')
+  })
+
+  it('tells the user what it reverted to', () => {
+    expect(
+      modelSwitchFailureNotice({
+        message: 'nope',
+        shape: 'http-400',
+        revertTo: 'openai/gpt-4o',
+      }),
+    ).toContain('Reverted to')
+  })
+
+  it('asks for a re-pick when there is nothing to revert to', () => {
+    expect(
+      modelSwitchFailureNotice({
+        message: 'nope',
+        shape: 'http-400',
+        revertTo: null,
+      }),
+    ).toContain('Pick another model.')
   })
 })
