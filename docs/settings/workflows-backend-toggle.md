@@ -1,71 +1,23 @@
 ---
-title: Workflows backend toggle
-description: Choose between the built-in Switch UI workflow engine and the Hermes plugin-backed workflow engine.
+title: Workflows backend
+description: The workflow engine is plugin-only — the native TypeScript engine and its backend toggle have been removed.
 ---
 
-# Workflows backend toggle
+# Workflows backend
 
-Switch UI ships two workflow engine backends. You can switch between them in **Settings → Workflows → Backend**.
+Earlier builds shipped two workflow engine backends (a native TypeScript DAG engine and the Hermes plugin engine) with a toggle in Settings. **The native engine has been removed, and with it the toggle.** All workflow execution is now handled by the Python workflow-engine plugin running inside the hermes-agent gateway (port 8642).
 
-## Backends
+**Settings → Workflows → Workflows** (`/settings?section=workflows`) is now a read-only status section confirming the active engine and where definitions are stored. There is nothing to toggle.
 
-### native (default)
+## Where workflow definitions live
 
-The TypeScript DAG engine embedded directly in the Switch UI server (`src/server/workflow-engine/`). Requires no external services beyond the Switch UI process itself.
+The plugin's SQLite database is the single source of truth. The bundled YAML files in `src/features/workflows/defaults/` are **factory seeds only** — they are written to the database once on first install and ignored on every subsequent run. Editing those YAML files does not change existing workflows; changes only take effect on a fresh plugin install.
 
-- Workflow definitions stored in `~/.hermes/switchui/workflow-engine.db`
-- Runs in-process alongside the Switch UI server
-- Available even when hermes-agent is not running
+See `docs/plans/workflow-db-single-source-of-truth.md` for the full design.
 
-### plugin
+## Requirements
 
-Proxies all workflow API calls to the Python workflow-engine plugin running inside the hermes-agent gateway (port 8642).
-
-- Workflow definitions stored in a separate plugin SQLite DB
-- Requires hermes-agent running with the `workflow-engine` plugin enabled
-- Enables cron-triggered runs and Kanban dispatcher integration
-
-## How to toggle
-
-1. Open **Settings** (gear icon, top-right)
-2. Select the **Workflows** tab
-3. Under **Backend**, choose `native` or `plugin`
-4. The setting takes effect immediately — no restart required
-
-The choice is saved in `localStorage` and sent as a `?backend=` query parameter on all workflow API calls.
-
-## Differences between backends
-
-| Feature | native | plugin |
-|---------|--------|--------|
-| Requires hermes-agent | No | Yes |
-| Cron-triggered runs | No | Yes |
-| Kanban dispatcher | No | Yes |
-| SSE event stream | Yes | Yes |
-| Approval gates | Yes | Yes |
-| YAML definition store | SQLite (switchui) | SQLite (plugin) |
-
-Definitions are **not shared** between backends. If you switch backends, you will need to re-register your workflows in the target backend's store. The parity suite (`scripts/parity-suite.sh`) can verify that both backends produce identical results for the same workflows.
-
-## Troubleshooting
-
-**"Workflow not found" after switching backends**
-
-The two backends maintain separate definition stores. Use the Workflows page to re-upload your YAML, or copy definitions via the API:
-
-```bash
-# Export from native
-curl http://localhost:3000/api/workflows/definitions?backend=native > defs.json
-
-# Re-register in plugin (for each definition)
-curl -X POST http://localhost:3000/api/workflows/definitions?backend=plugin \
-  -H 'Content-Type: application/json' \
-  -d @defs.json
-```
-
-**Plugin backend returns 502**
-
-The hermes-agent gateway is not reachable. Check that `hermes-agent` is running on port 8642 and the `workflow-engine` plugin is enabled:
+Workflows require the hermes-agent gateway to be running with the `workflow-engine` plugin enabled:
 
 ```bash
 hermes plugins list
@@ -73,6 +25,20 @@ hermes plugins enable workflow-engine
 hermes dashboard restart
 ```
 
-**Cron runs not firing on native backend**
+## Migrating from the native backend
 
-The native backend does not include a cron poller. Switch to the plugin backend to use cron-triggered workflows.
+If you previously used the native backend, its definitions lived in a separate store (`~/.hermes/switchui/workflow-engine.db`) that the plugin does not read. Re-register those workflows in the plugin: re-upload the YAML on the Workflows page, or POST each definition to the workflows API.
+
+## Troubleshooting
+
+**Workflow API returns 502**
+
+The hermes-agent gateway is not reachable. Check that `hermes-agent` is running on port 8642 and the `workflow-engine` plugin is enabled (commands above).
+
+**A workflow I had before an update is missing**
+
+It was probably registered in the removed native backend's store. Re-register it with the plugin — see the migration note above.
+
+## Related
+
+- [Preferences](./preferences.md) — the Settings screen, including the Workflows section

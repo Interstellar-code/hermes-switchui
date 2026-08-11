@@ -11,12 +11,11 @@ Hermes Switch UI ships with ten themes organised as five base palettes, each ava
 
 ## What you see
 
-Open **Settings** from the sidebar, then choose **Appearance** in the settings navigation (under the **General** group). The section is divided into three cards:
+Open **Settings** from the sidebar, then choose **Appearance** in the settings navigation (under the **General** group, or jump straight to `/settings?section=appearance`). The section contains a single card:
 
-- **Theme** — a segmented picker listing the five base palettes. Selecting a palette applies it immediately; no save button is needed. Changes are local to the browser.
-- **Density** — choose between **Compact**, **Comfortable**, and **Spacious** layout density.
-- **Fonts** — pick the monospace font used in code blocks (JetBrains Mono, Fira Code, IBM Plex Mono, Menlo, or System).
-- **Matrix Rain** — toggle the animated matrix rain background on or off, with an optional **Dim rain** sub-toggle.
+- **Theme** — a segmented picker listing the five base palettes. Selecting a palette applies it immediately; the card is labelled **Saves immediately** because it never uses the page's save bar. Changes are local to the browser.
+
+Earlier builds also showed Density, Fonts, and Matrix Rain controls here. None of them was wired to anything — they persisted values no code read — so they were removed rather than left as switches that silently did nothing.
 
 > **Note:** The picker shows only the five base (dark) palettes. Light variants of each palette exist in code but are not exposed in this picker.
 
