@@ -31,7 +31,7 @@ export default function SectionWorkflows() {
           desc="The native TypeScript engine has been removed. All workflow execution is handled by the hermes-agent workflow-engine plugin."
           pill={{ t: 'read-only' }}
         >
-          <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: '12px', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+          <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px', color: 'var(--m-text-muted, var(--theme-muted))' }}>
             Plugin (workflow-engine)
           </span>
         </SettingRow>
@@ -42,7 +42,7 @@ export default function SectionWorkflows() {
           label="Source of truth"
           desc="Workflow definitions are persisted in the plugin's SQLite database. Bundled YAML files are factory seeds — written once on first install, ignored on subsequent runs."
         >
-          <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: '12px', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+          <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px', color: 'var(--m-text-muted, var(--theme-muted))' }}>
             Plugin DB
           </span>
         </SettingRow>
@@ -50,7 +50,7 @@ export default function SectionWorkflows() {
           label="Seed YAMLs"
           desc="Located at src/features/workflows/defaults/. Changes to these files only take effect on a fresh plugin install; they do not override existing DB entries."
         >
-          <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: '12px', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+          <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px', color: 'var(--m-text-muted, var(--theme-muted))' }}>
             Factory seeds only
           </span>
         </SettingRow>

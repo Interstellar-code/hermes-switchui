@@ -57,21 +57,21 @@ export default function SectionNetwork() {
 
       <SettingCard title="Daemon">
         <SettingRow label="Local gateway" pill={{ t: 'live' }} desc="Hermes agent process status">
-          <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontFamily: 'var(--m-font-mono)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, fontFamily: 'var(--m-font-mono, ui-monospace, monospace)' }}>
             {daemonRunning === undefined ? (
-              <span style={{ color: 'var(--m-text-faint)' }}>—</span>
+              <span style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>—</span>
             ) : daemonRunning ? (
               <>
-                <span style={{ color: 'var(--m-accent)' }}>running</span>
+                <span style={{ color: 'var(--m-green-500, var(--theme-accent))' }}>running</span>
                 {daemonPid !== undefined && (
                   <>
-                    <span style={{ color: 'var(--m-text-faint)' }}>·</span>
-                    <span style={{ color: 'var(--m-text-faint)' }}>PID {daemonPid}</span>
+                    <span style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>·</span>
+                    <span style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>PID {daemonPid}</span>
                   </>
                 )}
               </>
             ) : (
-              <span style={{ color: '#e05' }}>stopped</span>
+              <span style={{ color: 'var(--m-danger, var(--theme-danger))' }}>stopped</span>
             )}
           </span>
         </SettingRow>

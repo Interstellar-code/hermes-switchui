@@ -68,11 +68,11 @@ export default function SectionModelRegistry() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {isLoading ? (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
                   Loading…
                 </span>
               ) : (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-green-500, var(--theme-accent))' }}>
                   ✓ {totalModels} models · {providerCount} {providerCount === 1 ? 'provider' : 'providers'}
                 </span>
               )}
@@ -86,10 +86,10 @@ export default function SectionModelRegistry() {
             </button>
           </div>
 
-          <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+          <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
             {mainModel && (
               <div>
-                <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>active model</span>
+                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>active model</span>
                 {' · '}
                 {mainModel}
               </div>
@@ -109,8 +109,8 @@ export default function SectionModelRegistry() {
                 <tbody>
                   {top3.map((row, i) => (
                     <tr key={row.model}>
-                      <td style={{ color: 'var(--m-text-faint)' }}>{i + 1}</td>
-                      <td style={{ fontFamily: 'var(--m-font-mono)' }}>{row.model}</td>
+                      <td style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>{i + 1}</td>
+                      <td style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)' }}>{row.model}</td>
                       <td>{fmtTokens((row.input_tokens ?? 0) + (row.output_tokens ?? 0))}</td>
                     </tr>
                   ))}

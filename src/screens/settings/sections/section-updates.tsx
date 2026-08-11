@@ -108,7 +108,7 @@ export default function SectionUpdates() {
 
       {error ? (
         <SettingCard title="Update status">
-          <div style={{ padding: 18, color: 'var(--m-danger)' }}>
+          <div style={{ padding: 18, color: 'var(--m-danger, var(--theme-danger))' }}>
             Unable to check for updates.
           </div>
         </SettingCard>
@@ -126,12 +126,12 @@ export default function SectionUpdates() {
                 padding: 18,
                 display: 'grid',
                 gap: 10,
-                font: '500 12px var(--m-font-mono)',
+                font: '500 12px var(--m-font-mono, ui-monospace, monospace)',
               }}
             >
-              <div style={{ color: 'var(--m-text-faint)' }}>
+              <div style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>
                 Version{' '}
-                <b style={{ color: 'var(--m-text)' }}>{product.version}</b>
+                <b style={{ color: 'var(--m-text, var(--theme-text))' }}>{product.version}</b>
                 {product.currentHead ? (
                   <>
                     {' '}
@@ -141,7 +141,7 @@ export default function SectionUpdates() {
                 ) : null}
               </div>
               <div
-                style={{ color: blocked ? 'var(--m-warn)' : 'var(--m-text)' }}
+                style={{ color: blocked ? 'var(--m-warning, var(--theme-warning))' : 'var(--m-text, var(--theme-text))' }}
               >
                 {blocked
                   ? product.reason
@@ -154,7 +154,7 @@ export default function SectionUpdates() {
                   style={{
                     margin: 0,
                     paddingLeft: 18,
-                    color: 'var(--m-text-faint)',
+                    color: 'var(--m-text-faint, var(--theme-muted))',
                   }}
                 >
                   {product.blockingFiles.slice(0, 8).map((file) => (

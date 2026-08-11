@@ -46,15 +46,15 @@ export default function SectionMcpServers() {
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text)' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text, var(--theme-text))' }}>
                 MCP Toolsets
               </span>
               {isLoading ? (
-                <span style={{ fontSize: '11px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>loading…</span>
+                <span style={{ fontSize: '11px', color: 'var(--m-text-faint, var(--theme-muted))', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)' }}>loading…</span>
               ) : notDetected ? (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-danger, #e05)' }}>⚠ Not detected</span>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-danger, var(--theme-danger))' }}>⚠ Not detected</span>
               ) : (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-green-500, var(--theme-accent))' }}>
                   ✓ {totalCount} {totalCount === 1 ? 'toolset' : 'toolsets'} · {enabledCount} enabled
                 </span>
               )}
@@ -75,12 +75,12 @@ export default function SectionMcpServers() {
                   key={ts.name}
                   style={{
                     fontSize: '11px',
-                    fontFamily: 'var(--m-font-mono)',
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    background: 'var(--m-bg-alt, var(--m-surface))',
-                    border: '1px solid var(--m-border)',
-                    color: ts.enabled ? 'var(--m-accent)' : 'var(--m-text-faint)',
+                    background: 'var(--m-card, var(--theme-card))',
+                    border: '1px solid var(--m-border, var(--theme-border))',
+                    color: ts.enabled ? 'var(--m-green-500, var(--theme-accent))' : 'var(--m-text-faint, var(--theme-muted))',
                   }}
                 >
                   {ts.label ?? ts.name}

@@ -87,33 +87,33 @@ const PILL_STYLES: Record<string, React.CSSProperties> = {
     padding: '1px 8px',
     borderRadius: '999px',
     fontSize: '11px',
-    fontFamily: 'var(--m-font-mono)',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
     fontWeight: 600,
-    background: 'rgba(0,200,80,0.15)',
-    color: 'var(--m-accent)',
-    border: '1px solid var(--m-accent)',
+    background: 'var(--m-fill-subtle, var(--theme-accent-subtle))',
+    color: 'var(--m-green-500, var(--theme-accent))',
+    border: '1px solid var(--m-green-500, var(--theme-accent))',
   },
   stale: {
     display: 'inline-block',
     padding: '1px 8px',
     borderRadius: '999px',
     fontSize: '11px',
-    fontFamily: 'var(--m-font-mono)',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
     fontWeight: 600,
-    background: 'rgba(240,160,0,0.12)',
-    color: '#f0a000',
-    border: '1px solid #f0a000',
+    background: 'var(--m-fill-subtle, var(--theme-warning))',
+    color: 'var(--m-warning, var(--theme-warning))',
+    border: '1px solid var(--m-warning, var(--theme-warning))',
   },
   inactive: {
     display: 'inline-block',
     padding: '1px 8px',
     borderRadius: '999px',
     fontSize: '11px',
-    fontFamily: 'var(--m-font-mono)',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
     fontWeight: 600,
-    background: 'rgba(120,120,120,0.12)',
-    color: 'var(--m-text-faint)',
-    border: '1px solid var(--m-text-faint)',
+    background: 'var(--m-fill-subtle, var(--theme-accent-subtle))',
+    color: 'var(--m-text-faint, var(--theme-muted))',
+    border: '1px solid var(--m-text-faint, var(--theme-muted))',
   },
 }
 
@@ -121,29 +121,29 @@ const BANNER_STYLES = {
   neutral: {
     padding: '8px 12px',
     borderRadius: '6px',
-    background: 'rgba(120,120,200,0.08)',
-    border: '1px solid rgba(120,120,200,0.2)',
+    background: 'var(--m-fill-subtle, var(--theme-accent-subtle))',
+    border: '1px solid var(--m-fill-subtle, var(--theme-accent-subtle))',
     fontSize: '12px',
-    color: 'var(--m-text-faint)',
-    fontFamily: 'var(--m-font-mono)',
+    color: 'var(--m-text-faint, var(--theme-muted))',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
   } as React.CSSProperties,
   amber: {
     padding: '8px 12px',
     borderRadius: '6px',
-    background: 'rgba(240,160,0,0.08)',
-    border: '1px solid rgba(240,160,0,0.3)',
+    background: 'var(--m-fill-subtle, var(--theme-warning))',
+    border: '1px solid var(--m-fill-subtle, var(--theme-warning))',
     fontSize: '12px',
-    color: '#f0a000',
-    fontFamily: 'var(--m-font-mono)',
+    color: 'var(--m-warning, var(--theme-warning))',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
   } as React.CSSProperties,
   red: {
     padding: '8px 12px',
     borderRadius: '6px',
-    background: 'rgba(220,30,30,0.08)',
-    border: '1px solid rgba(220,30,30,0.3)',
+    background: 'var(--m-fill-subtle, var(--theme-danger))',
+    border: '1px solid var(--m-fill-subtle, var(--theme-danger))',
     fontSize: '12px',
-    color: '#e05',
-    fontFamily: 'var(--m-font-mono)',
+    color: 'var(--m-danger, var(--theme-danger))',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
   } as React.CSSProperties,
 }
 
@@ -198,7 +198,7 @@ function ConnectionCard({ connection }: { connection: HermesPluginSnapshot['conn
             gridTemplateColumns: '1fr 1fr',
             gap: '6px 16px',
             fontSize: '12px',
-            fontFamily: 'var(--m-font-mono)',
+            fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
           }}
         >
           {[
@@ -209,8 +209,8 @@ function ConnectionCard({ connection }: { connection: HermesPluginSnapshot['conn
             ['Auth mode', auth_mode ?? '—'],
           ].map(([label, value]) => (
             <div key={label as string} style={{ display: 'contents' }}>
-              <span style={{ color: 'var(--m-text-faint)' }}>{label}</span>
-              <span style={{ color: 'var(--m-text)' }}>{String(value)}</span>
+              <span style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>{label}</span>
+              <span style={{ color: 'var(--m-text, var(--theme-text))' }}>{String(value)}</span>
             </div>
           ))}
         </div>
@@ -223,10 +223,10 @@ function ConnectionCard({ connection }: { connection: HermesPluginSnapshot['conn
                   padding: '2px 8px',
                   borderRadius: '999px',
                   fontSize: '11px',
-                  fontFamily: 'var(--m-font-mono)',
-                  background: 'rgba(var(--m-accent-rgb, 0,200,80), 0.1)',
-                  color: 'var(--m-accent)',
-                  border: '1px solid var(--m-accent)',
+                  fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                  background: 'var(--m-fill-subtle, var(--theme-accent-subtle))',
+                  color: 'var(--m-green-500, var(--theme-accent))',
+                  border: '1px solid var(--m-green-500, var(--theme-accent))',
                 }}
               >
                 {p}
@@ -243,15 +243,15 @@ function ReportedSettings({ reported }: { reported: Record<string, unknown> | nu
   const entries = reported ? Object.entries(reported) : []
   return (
     <SettingCard title="Reported settings">
-      <div style={{ padding: '12px 16px', fontFamily: 'var(--m-font-mono)', fontSize: '12px' }}>
+      <div style={{ padding: '12px 16px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px' }}>
         {entries.length === 0 ? (
-          <span style={{ color: 'var(--m-text-faint)' }}>Nothing reported yet.</span>
+          <span style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>Nothing reported yet.</span>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {entries.map(([k, v]) => (
               <div key={k} style={{ display: 'flex', gap: '12px' }}>
-                <span style={{ color: 'var(--m-text-faint)', minWidth: '160px' }}>{k}</span>
-                <span style={{ color: 'var(--m-text)' }}>
+                <span style={{ color: 'var(--m-text-faint, var(--theme-muted))', minWidth: '160px' }}>{k}</span>
+                <span style={{ color: 'var(--m-text, var(--theme-text))' }}>
                   {typeof v === 'string' ? v : JSON.stringify(v)}
                 </span>
               </div>
@@ -300,9 +300,9 @@ export default function SectionHermesPlugin() {
           <div
             style={{
               padding: '18px 16px',
-              fontFamily: 'var(--m-font-mono)',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
               fontSize: '12px',
-              color: 'var(--m-text-faint)',
+              color: 'var(--m-text-faint, var(--theme-muted))',
             }}
           >
             loading…
@@ -328,9 +328,9 @@ export default function SectionHermesPlugin() {
           <div
             style={{
               padding: '18px 16px',
-              fontFamily: 'var(--m-font-mono)',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
               fontSize: '12px',
-              color: '#e05',
+              color: 'var(--m-danger, var(--theme-danger))',
             }}
           >
             Unable to reach /api/hermes-plugin — workspace route error. Check dashboard auth/session state first, then refresh. If the dashboard was just upgraded, restart it so protected routes remount.
@@ -373,11 +373,11 @@ export default function SectionHermesPlugin() {
 
           {/* Confirmed-absent card */}
           {snap.backendReachable && !snap.pluginAvailable ? (
-            <div style={{ fontSize: '13px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>
+            <div style={{ fontSize: '13px', color: 'var(--m-text-faint, var(--theme-muted))', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)' }}>
               Hermes plugin not detected — enable{' '}
               <code
                 style={{
-                  background: 'rgba(120,120,120,0.15)',
+                  background: 'var(--m-fill-subtle, var(--theme-accent-subtle))',
                   borderRadius: '3px',
                   padding: '1px 4px',
                 }}
@@ -397,8 +397,8 @@ export default function SectionHermesPlugin() {
                   <span
                     style={{
                       fontSize: '11px',
-                      fontFamily: 'var(--m-font-mono)',
-                      color: 'var(--m-text-faint)',
+                      fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                      color: 'var(--m-text-faint, var(--theme-muted))',
                     }}
                   >
                     {formatAge(age)}
@@ -416,8 +416,8 @@ export default function SectionHermesPlugin() {
             <div
               style={{
                 fontSize: '11px',
-                fontFamily: 'var(--m-font-mono)',
-                color: 'var(--m-text-faint)',
+                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                color: 'var(--m-text-faint, var(--theme-muted))',
               }}
             >
               Registered {snap.registeredAt}

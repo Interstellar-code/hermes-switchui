@@ -88,15 +88,15 @@ export default function SectionProvider() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {infoLoading ? (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
                   Loading…
                 </span>
               ) : info ? (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-green-500, var(--theme-accent))' }}>
                   ✓ {info.provider} / {info.model}
                 </span>
               ) : (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-danger, #e05)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-danger, var(--theme-danger))' }}>
                   ⚠ Not detected
                 </span>
               )}
@@ -111,27 +111,27 @@ export default function SectionProvider() {
           </div>
 
           {info && (
-            <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+            <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
               {contextWindow != null && (
                 <div>
-                  <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>context window</span>
+                  <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>context window</span>
                   {' · '}
                   {contextWindow.toLocaleString()} tokens
                 </div>
               )}
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
                 {supportsTools && (
-                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-surface-2)', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-card-2, var(--theme-card2))', color: 'var(--m-text-muted, var(--theme-muted))' }}>
                     tools
                   </span>
                 )}
                 {supportsVision && (
-                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-surface-2)', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-card-2, var(--theme-card2))', color: 'var(--m-text-muted, var(--theme-muted))' }}>
                     vision
                   </span>
                 )}
                 {supportsReasoning && (
-                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-surface-2)', color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+                  <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '4px', background: 'var(--m-card-2, var(--theme-card2))', color: 'var(--m-text-muted, var(--theme-muted))' }}>
                     reasoning
                   </span>
                 )}

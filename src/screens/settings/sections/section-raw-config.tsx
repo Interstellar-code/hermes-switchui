@@ -89,7 +89,7 @@ export default function SectionRawConfig() {
       </div>
 
       <SettingCard title="Config file path">
-        <div style={{ padding: '12px', font: '500 12px var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+        <div style={{ padding: '12px', font: '500 12px var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
           ~/.hermes/config.yaml
         </div>
       </SettingCard>
@@ -107,11 +107,11 @@ export default function SectionRawConfig() {
             disabled={isLoading}
             style={{
               minHeight: '60vh',
-              fontFamily: 'var(--m-font-mono)',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
               fontSize: 12,
               lineHeight: 1.5,
               padding: '12px',
-              border: '1px solid var(--m-border)',
+              border: '1px solid var(--m-border, var(--theme-border))',
               borderRadius: '4px',
             }}
             placeholder="Loading config..."

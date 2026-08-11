@@ -96,14 +96,14 @@ const ORIGIN_TITLE: Record<CredentialOrigin, string> = {
 function chipStyle(status: CredentialStatus): React.CSSProperties {
   const tone =
     status.origin === 'unknown'
-      ? 'var(--m-text-faint)'
+      ? 'var(--m-text-faint, var(--theme-muted))'
       : status.origin === 'none'
-        ? 'var(--m-text-faint)'
+        ? 'var(--m-text-faint, var(--theme-muted))'
         : status.shadowedBy
-          ? 'var(--m-warn, #d08c00)'
-          : 'var(--m-ok, var(--m-accent))'
+          ? 'var(--m-warning, var(--theme-warning))'
+          : 'var(--m-success, var(--theme-success))'
   return {
-    fontFamily: 'var(--m-font-mono)',
+    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
     fontSize: 10,
     textTransform: 'lowercase',
     border: `1px solid ${tone}`,
@@ -296,8 +296,8 @@ function EnvRow({
               alignItems: 'center',
               gap: 6,
               fontSize: 11,
-              fontFamily: 'var(--m-font-mono)',
-              color: 'var(--m-text-faint)',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+              color: 'var(--m-text-faint, var(--theme-muted))',
             }}
           >
             <span>source</span>
@@ -313,7 +313,7 @@ function EnvRow({
             <div
               style={{
                 fontSize: 11,
-                color: 'var(--m-warn, #d08c00)',
+                color: 'var(--m-warning, var(--theme-warning))',
                 lineHeight: 1.5,
               }}
             >
@@ -326,7 +326,7 @@ function EnvRow({
             <div
               style={{
                 fontSize: 11,
-                color: 'var(--m-text-faint)',
+                color: 'var(--m-text-faint, var(--theme-muted))',
                 lineHeight: 1.5,
               }}
             >
@@ -341,7 +341,7 @@ function EnvRow({
             <div
               style={{
                 fontSize: 11,
-                color: 'var(--m-text-faint)',
+                color: 'var(--m-text-faint, var(--theme-muted))',
                 lineHeight: 1.5,
               }}
             >
@@ -395,7 +395,7 @@ function OAuthRow({ provider }: { provider: OAuthProvider }) {
             {provider.logged_in ? 'logged in' : 'not connected'}
           </span>
         </td>
-        <td style={{ fontFamily: 'var(--m-font-mono)', fontSize: 11 }}>
+        <td style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 11 }}>
           {provider.token_preview ?? '—'}
         </td>
         <td style={{ fontSize: 11 }}>
@@ -504,30 +504,30 @@ export default function SectionApiKeys() {
               flexDirection: 'column',
               gap: '4px',
               fontSize: '12px',
-              fontFamily: 'var(--m-font-mono)',
-              color: 'var(--m-text-faint)',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+              color: 'var(--m-text-faint, var(--theme-muted))',
             }}
           >
             <div>
-              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+              <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>
                 Env keys
               </span>
               {' · '}
-              <b style={{ color: 'var(--m-text)' }}>
+              <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
                 {setCount}/{totalCount} set
               </b>
             </div>
             <div>
-              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>
+              <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>
                 OAuth
               </span>
               {' · '}
-              <b style={{ color: 'var(--m-text)' }}>
+              <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
                 {oauthConnected} connected
               </b>
             </div>
             {shadowedCount > 0 ? (
-              <div style={{ color: 'var(--m-warn, #d08c00)' }}>
+              <div style={{ color: 'var(--m-warning, var(--theme-warning))' }}>
                 {shadowedCount} key{shadowedCount === 1 ? ' has' : 's have'} a
                 higher-precedence copy elsewhere
               </div>
@@ -557,8 +557,8 @@ export default function SectionApiKeys() {
               padding: '10px 18px',
               fontSize: 11,
               lineHeight: 1.6,
-              color: 'var(--m-warn, #d08c00)',
-              fontFamily: 'var(--m-font-mono)',
+              color: 'var(--m-warning, var(--theme-warning))',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
             }}
           >
             Could not read every credential store (
@@ -571,7 +571,7 @@ export default function SectionApiKeys() {
           <div
             style={{
               padding: '12px 18px',
-              color: 'var(--m-text-faint)',
+              color: 'var(--m-text-faint, var(--theme-muted))',
               fontSize: 12,
             }}
           >
@@ -582,7 +582,7 @@ export default function SectionApiKeys() {
           <div
             style={{
               padding: '12px 18px',
-              color: 'var(--m-text-faint)',
+              color: 'var(--m-text-faint, var(--theme-muted))',
               fontSize: 12,
             }}
           >
@@ -604,7 +604,7 @@ export default function SectionApiKeys() {
           <div
             style={{
               padding: '12px 18px',
-              color: 'var(--m-text-faint)',
+              color: 'var(--m-text-faint, var(--theme-muted))',
               fontSize: 12,
             }}
           >
@@ -621,7 +621,7 @@ export default function SectionApiKeys() {
               }}
             >
               <thead>
-                <tr style={{ color: 'var(--m-text-faint)', textAlign: 'left' }}>
+                <tr style={{ color: 'var(--m-text-faint, var(--theme-muted))', textAlign: 'left' }}>
                   <th style={{ padding: '6px 12px' }}>Provider</th>
                   <th style={{ padding: '6px 12px' }}>Status</th>
                   <th style={{ padding: '6px 12px' }}>Token</th>
@@ -634,7 +634,7 @@ export default function SectionApiKeys() {
                   <tr>
                     <td
                       colSpan={5}
-                      style={{ padding: '12px', color: 'var(--m-text-faint)' }}
+                      style={{ padding: '12px', color: 'var(--m-text-faint, var(--theme-muted))' }}
                     >
                       No OAuth providers configured.
                     </td>

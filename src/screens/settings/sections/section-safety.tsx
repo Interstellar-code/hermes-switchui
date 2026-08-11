@@ -31,9 +31,9 @@ import type {PostureTone} from '../lib/safety-posture';
 import { useSettingsStore } from '@/stores/settings-store'
 
 const TONE_COLOR: Record<PostureTone, string> = {
-  critical: 'var(--m-danger, var(--theme-danger, #e05))',
-  warning: 'var(--m-warning, var(--theme-warning, #e0a500))',
-  ok: 'var(--m-accent)',
+  critical: 'var(--m-danger, var(--theme-danger))',
+  warning: 'var(--m-warning, var(--theme-warning))',
+  ok: 'var(--m-green-500, var(--theme-accent))',
 }
 
 const TONE_LABEL: Record<PostureTone, string> = {
@@ -110,17 +110,17 @@ export default function SectionSafety() {
             borderRadius: '999px',
             color: TONE_COLOR[posture.tone],
             border: `1px solid ${TONE_COLOR[posture.tone]}`,
-            fontFamily: 'var(--m-font-mono)',
+            fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
           }}
         >
           {TONE_LABEL[posture.tone]}
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--m-text)' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--m-text, var(--theme-text))' }}>
             {posture.headline}
           </span>
           {posture.notes.map((note) => (
-            <span key={note} style={{ fontSize: '12px', color: 'var(--m-text-faint)' }}>
+            <span key={note} style={{ fontSize: '12px', color: 'var(--m-text-faint, var(--theme-muted))' }}>
               {note}
             </span>
           ))}
@@ -208,7 +208,7 @@ export default function SectionSafety() {
         sub={`${commandAllowlist.length} ${commandAllowlist.length === 1 ? 'entry' : 'entries'}`}
       >
         {commandAllowlist.length === 0 ? (
-          <div style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--m-text-faint)' }}>
+          <div style={{ padding: '14px 16px', fontSize: '12px', color: 'var(--m-text-faint, var(--theme-muted))' }}>
             No commands are permanently pre-approved. Every dangerous command goes through the
             approval mode above.
           </div>
@@ -223,7 +223,7 @@ export default function SectionSafety() {
                   style={{ alignItems: 'flex-start', gap: '12px' }}
                 >
                   <div className="lbl" style={{ flex: 1 }}>
-                    <code style={{ fontFamily: 'var(--m-font-mono)', fontSize: '12px' }}>{entry}</code>
+                    <code style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px' }}>{entry}</code>
                     {info.known && (
                       <span className="pill" style={{ color: TONE_COLOR.critical, borderColor: TONE_COLOR.critical }}>
                         bypasses approval

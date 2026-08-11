@@ -48,44 +48,44 @@ export default function SectionStorage() {
       <SettingCard title="Usage (last 30 days)">
         <div
           className="kv"
-          style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}
+          style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}
         >
           {isLoading ? (
             <span>Loading…</span>
           ) : (
             <>
               <div>
-                <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Sessions</span>
+                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Sessions</span>
                 {' · '}
-                <b style={{ color: 'var(--m-text)' }}>
+                <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
                   {totalSessions !== undefined ? totalSessions.toLocaleString() : (usage?.sessions !== undefined ? (usage.sessions).toLocaleString() : '—')}
                 </b>
               </div>
               <div>
-                <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Tokens</span>
+                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Tokens</span>
                 {' · '}
-                <b style={{ color: 'var(--m-text)' }}>
+                <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
                   {totalTokens !== undefined ? totalTokens.toLocaleString() : '—'}
                 </b>
               </div>
               <div>
-                <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>API calls</span>
+                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>API calls</span>
                 {' · '}
-                <b style={{ color: 'var(--m-text)' }}>
+                <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
                   {totalCalls !== undefined ? totalCalls.toLocaleString() : '—'}
                 </b>
               </div>
               {estimatedCost !== undefined && (
                 <div>
-                  <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Est. cost</span>
+                  <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Est. cost</span>
                   {' · '}
-                  <b style={{ color: 'var(--m-text)' }}>${estimatedCost.toFixed(4)}</b>
+                  <b style={{ color: 'var(--m-text, var(--theme-text))' }}>${estimatedCost.toFixed(4)}</b>
                 </div>
               )}
               <div style={{ marginTop: 4 }}>
-                <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Data path</span>
+                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Data path</span>
                 {' · '}
-                <span style={{ color: 'var(--m-text)' }}>~/.hermes/</span>
+                <span style={{ color: 'var(--m-text, var(--theme-text))' }}>~/.hermes/</span>
               </div>
             </>
           )}

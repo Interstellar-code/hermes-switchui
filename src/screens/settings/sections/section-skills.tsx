@@ -89,15 +89,15 @@ export default function SectionSkills() {
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text)' }}>
+              <span style={{ fontSize: '14px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--m-text, var(--theme-text))' }}>
                 ⭐ Skills
               </span>
               {isLoading ? (
-                <span style={{ fontSize: '11px', color: 'var(--m-text-faint)', fontFamily: 'var(--m-font-mono)' }}>loading…</span>
+                <span style={{ fontSize: '11px', color: 'var(--m-text-faint, var(--theme-muted))', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)' }}>loading…</span>
               ) : notDetected ? (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-danger, #e05)' }}>⚠ Not detected</span>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-danger, var(--theme-danger))' }}>⚠ Not detected</span>
               ) : (
-                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-accent)' }}>
+                <span style={{ fontSize: '11px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-green-500, var(--theme-accent))' }}>
                   ✓ {enabledCount}/{totalCount} enabled
                 </span>
               )}
@@ -111,13 +111,13 @@ export default function SectionSkills() {
             </button>
           </div>
 
-          <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+          <div className="kv" style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
             <div>
-              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>Built-in · </span>
+              <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Built-in · </span>
               <span>~/.hermes/skills</span>
             </div>
             <div>
-              <span style={{ color: 'var(--m-text-dim, var(--m-text-faint))' }}>External · </span>
+              <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>External · </span>
               <span>{extSummary}</span>
             </div>
           </div>
@@ -129,12 +129,12 @@ export default function SectionSkills() {
                   key={cat}
                   style={{
                     fontSize: '11px',
-                    fontFamily: 'var(--m-font-mono)',
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
                     padding: '2px 8px',
                     borderRadius: '4px',
-                    background: 'var(--m-bg-alt, var(--m-surface))',
-                    border: '1px solid var(--m-border)',
-                    color: 'var(--m-text-faint)',
+                    background: 'var(--m-card, var(--theme-card))',
+                    border: '1px solid var(--m-border, var(--theme-border))',
+                    color: 'var(--m-text-faint, var(--theme-muted))',
                   }}
                 >
                   {cat} · {count}
@@ -149,7 +149,7 @@ export default function SectionSkills() {
         <SettingRow label="External skill dirs" desc="One path per line (e.g. ~/.agents/skills, /shared/team-skills)">
           <textarea
             className="text-input"
-            style={{ fontFamily: 'var(--m-font-mono)', minHeight: '120px', resize: 'vertical' }}
+            style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', minHeight: '120px', resize: 'vertical' }}
             value={externalDirsText}
             placeholder="~/.agents/skills&#10;/shared/team-skills"
             onChange={(e) => setExternalDirs(e.target.value)}

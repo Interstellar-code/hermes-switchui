@@ -47,10 +47,10 @@ function WarningNote({ children }: { children: ReactNode }) {
         padding: '10px 12px',
         margin: '0 0 12px',
         borderRadius: '6px',
-        border: '1px solid var(--m-warning, var(--theme-warning, #e0a500))',
-        background: 'color-mix(in srgb, var(--m-warning, var(--theme-warning, #e0a500)) 8%, transparent)',
+        border: '1px solid var(--m-warning, var(--theme-warning))',
+        background: 'color-mix(in srgb, var(--m-warning, var(--theme-warning)) 8%, transparent)',
         fontSize: '12px',
-        color: 'var(--m-text)',
+        color: 'var(--m-text, var(--theme-text))',
         lineHeight: 1.4,
       }}
     >
@@ -70,10 +70,10 @@ function InfoNote({ children }: { children: ReactNode }) {
         padding: '10px 12px',
         margin: '0 0 12px',
         borderRadius: '6px',
-        border: '1px solid var(--m-border, rgba(128,128,128,0.3))',
-        background: 'color-mix(in srgb, var(--m-accent) 6%, transparent)',
+        border: '1px solid var(--m-border, var(--theme-border))',
+        background: 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 6%, transparent)',
         fontSize: '12px',
-        color: 'var(--m-text-faint)',
+        color: 'var(--m-text-faint, var(--theme-muted))',
         lineHeight: 1.4,
       }}
     >
@@ -193,7 +193,7 @@ export default function SectionGateway() {
           label="Live topology"
           desc="What the running gateway is actually doing right now, independent of this setting."
         >
-          <span style={{ fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
+          <span style={{ fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}>
             {liveMode === null || liveMode === 'unknown'
               ? 'unknown'
               : liveMode === 'multiplex'

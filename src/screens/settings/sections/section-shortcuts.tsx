@@ -46,10 +46,10 @@ export default function SectionShortcuts() {
           <SettingRow key={s.label} label={s.label} rowEnd>
             <span
               style={{
-                fontFamily: 'var(--m-font-mono)',
+                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
                 fontSize: 12,
                 padding: '2px 8px',
-                border: '1px solid var(--m-text-faint)',
+                border: '1px solid var(--m-text-faint, var(--theme-muted))',
                 borderRadius: 4,
               }}
             >

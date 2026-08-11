@@ -70,10 +70,10 @@ function WarningNote({ children }: { children: ReactNode }) {
         padding: '10px 12px',
         margin: '0 0 12px',
         borderRadius: '6px',
-        border: '1px solid var(--m-warning, var(--theme-warning, #e0a500))',
-        background: 'color-mix(in srgb, var(--m-warning, var(--theme-warning, #e0a500)) 8%, transparent)',
+        border: '1px solid var(--m-warning, var(--theme-warning))',
+        background: 'color-mix(in srgb, var(--m-warning, var(--theme-warning)) 8%, transparent)',
         fontSize: '12px',
-        color: 'var(--m-text)',
+        color: 'var(--m-text, var(--theme-text))',
         lineHeight: 1.4,
       }}
     >
@@ -134,7 +134,7 @@ export default function SectionExecution() {
           label="Agent working directory"
           desc="Read-only here — set it from the working-directory chip in the chat composer, which previews the change before writing terminal.cwd."
         >
-          <span style={{ fontSize: '12px', fontFamily: 'var(--m-font-mono)', color: 'var(--m-text)' }}>
+          <span style={{ fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text, var(--theme-text))' }}>
             {cwdLoading
               ? '…'
               : (cwdStatus?.resolved.path ?? 'undetermined')}
@@ -145,7 +145,7 @@ export default function SectionExecution() {
             label="Source"
             desc={agentCwdSourceDetail(cwdStatus.resolved)}
           >
-            <span style={{ fontSize: '12px', color: 'var(--m-text-faint)' }}>
+            <span style={{ fontSize: '12px', color: 'var(--m-text-faint, var(--theme-muted))' }}>
               {agentCwdSourceLabel(cwdStatus.resolved.source)} · backend {cwdStatus.resolved.backend} ·
               profile {cwdStatus.resolved.profile}
             </span>
@@ -231,7 +231,7 @@ export default function SectionExecution() {
               padding: '14px 18px',
               fontSize: '13px',
               fontWeight: 600,
-              color: 'var(--m-text)',
+              color: 'var(--m-text, var(--theme-text))',
             }}
           >
             Advanced Docker settings
@@ -262,7 +262,7 @@ export default function SectionExecution() {
               <textarea
                 className="text-input"
                 rows={3}
-                style={{ width: '100%', fontFamily: 'var(--m-font-mono)', fontSize: '12px' }}
+                style={{ width: '100%', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px' }}
                 value={dockerVolumes.join('\n')}
                 onChange={(e) => set('config.terminal.docker_volumes', parseVolumes(e.target.value))}
               />

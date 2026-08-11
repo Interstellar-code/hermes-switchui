@@ -134,7 +134,7 @@ export default function SectionDanger() {
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               placeholder="Type DELETE"
-              style={{ width: '100%', margin: '12px 0', fontFamily: 'var(--m-font-mono)', fontSize: 13 }}
+              style={{ width: '100%', margin: '12px 0', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 13 }}
               autoFocus
             />
             <div className="pf-confirm-actions">

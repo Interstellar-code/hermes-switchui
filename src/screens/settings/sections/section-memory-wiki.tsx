@@ -183,7 +183,7 @@ function HindsightEnvRow({
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: 12 }}>
+            <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12 }}>
               {isSet ? redacted : '—'}
             </span>
             <button
@@ -231,7 +231,7 @@ function HindsightEnvRow({
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: 12, color: 'var(--m-text-faint)' }}>
+            <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
               {isSet ? redacted : '—'}
             </span>
             <button
@@ -388,7 +388,7 @@ function WikiCard() {
       </SettingRow>
 
       {isLoading && (
-        <div style={{ padding: '12px 18px', color: 'var(--m-text-faint)', fontSize: 12 }}>
+        <div style={{ padding: '12px 18px', color: 'var(--m-text-faint, var(--theme-muted))', fontSize: 12 }}>
           Loading…
         </div>
       )}
@@ -405,9 +405,9 @@ function WikiCard() {
           <SettingRow label="Source type" desc="Where Hermes reads and writes wiki pages">
             <span
               style={{
-                fontFamily: 'var(--m-font-mono)',
+                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
                 fontSize: 12,
-                background: 'var(--m-surface-2)',
+                background: 'var(--m-card-2, var(--theme-card2))',
                 borderRadius: 4,
                 padding: '2px 8px',
               }}
@@ -418,7 +418,7 @@ function WikiCard() {
 
           {data.config.source.type === 'local' && (
             <SettingRow label="Path" desc="Local filesystem directory for wiki pages">
-              <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: 12, color: 'var(--m-text-faint)' }}>
+              <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
                 {data.config.source.path || '(default $HERMES_HOME/wiki)'}
               </span>
             </SettingRow>
@@ -427,17 +427,17 @@ function WikiCard() {
           {data.config.source.type === 'github' && (
             <>
               <SettingRow label="Repository" desc="GitHub owner/repo">
-                <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: 12, color: 'var(--m-text-faint)' }}>
+                <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
                   {data.config.source.repo}
                 </span>
               </SettingRow>
               <SettingRow label="Branch" desc="Git branch">
-                <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: 12, color: 'var(--m-text-faint)' }}>
+                <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
                   {data.config.source.branch}
                 </span>
               </SettingRow>
               <SettingRow label="Subdirectory" desc="Path within the repository">
-                <span style={{ fontFamily: 'var(--m-font-mono)', fontSize: 12, color: 'var(--m-text-faint)' }}>
+                <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
                   {data.config.source.path || '(root)'}
                 </span>
               </SettingRow>
@@ -601,7 +601,7 @@ export default function SectionMemoryWiki() {
 
         {providerInfo && (
           <SettingRow label="Provider details" desc={providerInfo.desc}>
-            <span style={{ fontSize: 12, color: 'var(--m-text-faint)' }}>{providerInfo.label}</span>
+            <span style={{ fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>{providerInfo.label}</span>
           </SettingRow>
         )}
 
@@ -648,7 +648,7 @@ export default function SectionMemoryWiki() {
           sub="env vars"
         >
           {envLoading && (
-            <div style={{ padding: '12px 18px', color: 'var(--m-text-faint)', fontSize: 12 }}>
+            <div style={{ padding: '12px 18px', color: 'var(--m-text-faint, var(--theme-muted))', fontSize: 12 }}>
               Loading…
             </div>
           )}

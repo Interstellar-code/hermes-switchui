@@ -82,7 +82,7 @@ export default function SectionMcpRegistered() {
                   fontWeight: 600,
                   letterSpacing: '0.05em',
                   textTransform: 'uppercase',
-                  color: 'var(--m-text)',
+                  color: 'var(--m-text, var(--theme-text))',
                 }}
               >
                 Plugins
@@ -91,8 +91,8 @@ export default function SectionMcpRegistered() {
                 <span
                   style={{
                     fontSize: '11px',
-                    color: 'var(--m-text-faint)',
-                    fontFamily: 'var(--m-font-mono)',
+                    color: 'var(--m-text-faint, var(--theme-muted))',
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
                   }}
                 >
                   loading…
@@ -101,8 +101,8 @@ export default function SectionMcpRegistered() {
                 <span
                   style={{
                     fontSize: '11px',
-                    fontFamily: 'var(--m-font-mono)',
-                    color: '#f0a000',
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                    color: 'var(--m-warning, var(--theme-warning))',
                   }}
                 >
                   Unavailable — auth or dashboard restart may be required
@@ -111,8 +111,8 @@ export default function SectionMcpRegistered() {
                 <span
                   style={{
                     fontSize: '11px',
-                    fontFamily: 'var(--m-font-mono)',
-                    color: 'var(--m-text-faint)',
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                    color: 'var(--m-text-faint, var(--theme-muted))',
                   }}
                 >
                   None installed
@@ -121,8 +121,8 @@ export default function SectionMcpRegistered() {
                 <span
                   style={{
                     fontSize: '11px',
-                    fontFamily: 'var(--m-font-mono)',
-                    color: 'var(--m-accent)',
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                    color: 'var(--m-green-500, var(--theme-accent))',
                   }}
                 >
                   ✓ {totalCount} {totalCount === 1 ? 'plugin' : 'plugins'} ·{' '}
@@ -146,8 +146,8 @@ export default function SectionMcpRegistered() {
                 flexDirection: 'column',
                 gap: '4px',
                 fontSize: '12px',
-                fontFamily: 'var(--m-font-mono)',
-                color: 'var(--m-text-faint)',
+                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                color: 'var(--m-text-faint, var(--theme-muted))',
               }}
             >
               {preview.map((p) => (
@@ -163,12 +163,12 @@ export default function SectionMcpRegistered() {
                       borderRadius: '50%',
                       background:
                         p.runtimeStatus === 'enabled'
-                          ? 'var(--m-accent)'
-                          : 'var(--m-text-faint)',
+                          ? 'var(--m-green-500, var(--theme-accent))'
+                          : 'var(--m-text-faint, var(--theme-muted))',
                       flexShrink: 0,
                     }}
                   />
-                  <span style={{ color: 'var(--m-text)' }}>{p.name}</span>
+                  <span style={{ color: 'var(--m-text, var(--theme-text))' }}>{p.name}</span>
                   {p.version && <span>{p.version}</span>}
                   {p.description && (
                     <span
@@ -186,7 +186,7 @@ export default function SectionMcpRegistered() {
               ))}
               {totalCount > 3 && (
                 <div
-                  style={{ color: 'var(--m-text-faint)', paddingLeft: '14px' }}
+                  style={{ color: 'var(--m-text-faint, var(--theme-muted))', paddingLeft: '14px' }}
                 >
                   +{totalCount - 3} more
                 </div>

@@ -57,7 +57,7 @@ export default function SectionAdvanced() {
             className="input-sm"
             value={logLevel}
             onChange={(e) => set(K.log_level, e.target.value)}
-            style={{ width: 110, fontFamily: 'var(--m-font-mono)', fontSize: 12 }}
+            style={{ width: 110, fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12 }}
           >
             {LOG_LEVEL_OPTIONS.map((opt) => (
               <option key={opt} value={opt}>{opt}</option>
