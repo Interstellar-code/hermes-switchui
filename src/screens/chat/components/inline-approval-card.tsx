@@ -11,10 +11,14 @@ import {
   approvalChoiceHint,
   approvalChoiceLabel,
   approvalChoiceWeight,
-  approvalMsRemaining,
+  approvalMsRemainingWithFallback,
   formatApprovalCountdown,
   isPermanentChoice,
 } from '@/lib/approvals'
+import {
+  clearApprovalSubmitting,
+  markApprovalSubmitting,
+} from '@/hooks/use-approval-queue'
 
 type InlineApprovalCardProps = {
   clarify: PendingClarify
@@ -67,8 +71,19 @@ export function InlineApprovalCard({
 
   const approval = clarify.approval
   const expiresAt = approval?.expiresAt
-  const [msRemaining, setMsRemaining] = useState<number | null>(() =>
-    approvalMsRemaining(expiresAt),
+
+  // Anchor for the fallback deadline below: this card's own mount instant.
+  // The gateway's canonical approval-record builder sets `expires_at`
+  // unconditionally on every surface (sessions chat stream, `/v1/runs` SSE,
+  // and `GET /v1/approvals/pending` all share it), so in practice `expiresAt`
+  // is always present — this only matters for a malformed or older-gateway
+  // payload that omits it (issue #17). "When this card first rendered" is
+  // the closest client-side proxy for "when we learned about the approval,"
+  // which is what the gateway's own `approvals.timeout` (180s in the shipped
+  // profile configs) is measured from.
+  const fallbackAnchorRef = useRef(Date.now())
+  const [msRemaining, setMsRemaining] = useState<number>(() =>
+    approvalMsRemainingWithFallback(expiresAt, fallbackAnchorRef.current),
   )
 
   const resolved = !!clarify.resolved
@@ -78,12 +93,21 @@ export function InlineApprovalCard({
   // auto-denies and moves on (contract §4). A card left sitting there looks
   // live, and the eventual click gets a 409. This countdown is the only way
   // the user ever learns, so it self-closes rather than just greying out.
+  // Previously this bailed out entirely when `expiresAt` was absent, which
+  // combined with approvals being exempt from the stream-error clears
+  // (use-streaming-message.ts) left such a card with NO removal path at all
+  // (#17) — the poll-based reconciliation in `use-approval-queue.ts` is the
+  // real fix for that; this fallback (`approvalMsRemainingWithFallback`) is
+  // defense in depth so the countdown itself never goes silent either.
   useEffect(() => {
-    if (resolved || !expiresAt) return
+    if (resolved) return
     const tick = () => {
-      const remaining = approvalMsRemaining(expiresAt)
+      const remaining = approvalMsRemainingWithFallback(
+        expiresAt,
+        fallbackAnchorRef.current,
+      )
       setMsRemaining(remaining)
-      if (remaining !== null && remaining <= 0) {
+      if (remaining <= 0) {
         closeApprovalCard(sessionKey, clarifyId, APPROVAL_EXPIRED_NOTE)
       }
     }
@@ -98,6 +122,12 @@ export function InlineApprovalCard({
       submittingRef.current = true
       setSubmitting(choice)
       setError(null)
+      // Held for the span of the fetch so the pending-approvals poll's
+      // reconciliation (use-approval-queue.ts, #17) cannot land between this
+      // POST resolving server-side and its response reaching us, close the
+      // card first, and paint a generic "already handled" note over the
+      // choice this request is about to record.
+      markApprovalSubmitting(approval.runId)
 
       try {
         // Keyed by run id only — the gateway ignores approval_id and pops the
@@ -140,6 +170,7 @@ export function InlineApprovalCard({
       } catch (err) {
         setError(formatError(err))
       } finally {
+        if (approval.runId) clearApprovalSubmitting(approval.runId)
         submittingRef.current = false
         setSubmitting(null)
       }
@@ -189,9 +220,10 @@ export function InlineApprovalCard({
   const choices = clarify.choices ?? []
   const command = approval.command ?? ''
   const long = isLongCommand(command)
-  const countdown =
-    msRemaining !== null ? formatApprovalCountdown(msRemaining) : null
-  const expiringSoon = msRemaining !== null && msRemaining <= 10_000
+  // Always non-null now — approvalMsRemainingWithFallback resolves to the
+  // real deadline or the #17 fallback, never to "no deadline at all".
+  const countdown = formatApprovalCountdown(msRemaining)
+  const expiringSoon = msRemaining <= 10_000
 
   return (
     <div

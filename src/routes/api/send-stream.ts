@@ -409,6 +409,7 @@ export const Route = createFileRoute('/api/send-stream')({
         let persistedRunReady: Promise<unknown> | null = null
         let unregisterTimer: ReturnType<typeof setTimeout> | null = null
         let streamTimeoutTimer: ReturnType<typeof setTimeout> | null = null
+        let hbSignalTimer: ReturnType<typeof setInterval> | null = null
         let heartbeatTimer: ReturnType<typeof setInterval> | null = null
         const abortController = new AbortController()
         let closeStream = () => {
@@ -435,7 +436,7 @@ export const Route = createFileRoute('/api/send-stream')({
             // lightweight recognized event periodically so public Workspace chats
             // do not sit at "Thinking…" until the frontend reports failure.
             enqueueRaw(`: ${' '.repeat(2048)}\n\n`)
-            heartbeatTimer = setInterval(() => {
+            hbSignalTimer = setInterval(() => {
               if (streamClosed) return
               if (Date.now() - lastClientEventAt < 10_000) return
               // Heartbeat to keep Cloudflare/Access from culling the SSE stream.
@@ -449,6 +450,10 @@ export const Route = createFileRoute('/api/send-stream')({
             closeStream = () => {
               if (streamClosed) return
               streamClosed = true
+              if (hbSignalTimer) {
+                clearInterval(hbSignalTimer)
+                hbSignalTimer = null
+              }
               if (heartbeatTimer) {
                 clearInterval(heartbeatTimer)
                 heartbeatTimer = null
@@ -1687,6 +1692,14 @@ export const Route = createFileRoute('/api/send-stream')({
             // stop enqueueing SSE chunks, but deliberately leave the upstream
             // abortController alone.
             streamClosed = true
+            if (hbSignalTimer) {
+              clearInterval(hbSignalTimer)
+              hbSignalTimer = null
+            }
+            if (heartbeatTimer) {
+              clearInterval(heartbeatTimer)
+              heartbeatTimer = null
+            }
             if (unregisterTimer) {
               clearTimeout(unregisterTimer)
               unregisterTimer = null

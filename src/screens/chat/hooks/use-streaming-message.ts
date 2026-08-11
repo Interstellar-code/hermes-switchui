@@ -159,6 +159,23 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
     if (useChatStore.getState().getPendingClarify(sessionKey)) return
     dismissUnresolvedClarify(sessionKey)
   }, [dismissUnresolvedClarify])
+  // An approval clarify blocks the run server-side (the gateway is still
+  // waiting on `POST /v1/runs/{runId}/approval`), and it has its own ~180s
+  // gateway-side timeout. A dead client stream — a `started` on resume, a
+  // `done` with state:'error', or a bare `error` event (e.g. the server's
+  // SEND_STREAM_RUN_TIMEOUT_MS firing after 600s, see send-stream.ts) — does
+  // NOT mean the approval decision is no longer needed. Dropping the card
+  // here would just orphan it client-side while the gateway keeps waiting,
+  // so approval-kind entries are exempt from these run-boundary clears.
+  // Every other clarify kind keeps today's behavior.
+  const clearClarifyUnlessApproval = useCallback(
+    (sessionKey: string, clear: (sessionKey: string) => void) => {
+      const pending = useChatStore.getState().getPendingClarify(sessionKey)
+      if (pending?.kind === 'approval') return
+      clear(sessionKey)
+    },
+    [],
+  )
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
   const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
 
@@ -464,7 +481,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           // A resumed run may emit `started` after the user answers a clarify.
           // Keep answered cards visible as a transcript record; only drop stale
           // unanswered questions before processing the next run lifecycle.
-          dismissUnresolvedClarify(activeSessionKeyRef.current)
+          // Approvals are exempt — see clearClarifyUnlessApproval.
+          clearClarifyUnlessApproval(
+            activeSessionKeyRef.current,
+            dismissUnresolvedClarify,
+          )
           const resolvedSessionKey =
             typeof payload.sessionKey === 'string' && payload.sessionKey.trim()
               ? payload.sessionKey.trim()
@@ -760,7 +781,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             transport: 'send-stream',
           })
           if (doneState === 'error' && errorMessage) {
-            dismissUnresolvedClarify(activeSessionKeyRef.current)
+            // Approvals are exempt — see clearClarifyUnlessApproval.
+            clearClarifyUnlessApproval(
+              activeSessionKeyRef.current,
+              dismissUnresolvedClarify,
+            )
             markFailed(errorMessage)
             break
           }
@@ -785,7 +810,14 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           const errorMessage =
             (payload as { message?: string }).message ?? 'Stream error'
-          clearPendingClarify(activeSessionKeyRef.current)
+          // Approvals are exempt — see clearClarifyUnlessApproval. This is
+          // the path the server's SEND_STREAM_RUN_TIMEOUT_MS (600s) hits: the
+          // gateway is still waiting on the approval decision when this
+          // fires, so the card must survive it.
+          clearClarifyUnlessApproval(
+            activeSessionKeyRef.current,
+            clearPendingClarify,
+          )
           markFailed(errorMessage)
           break
         }
@@ -893,6 +925,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       }
     },
     [
+      clearClarifyUnlessApproval,
       clearPendingClarify,
       dismissUnresolvedClarify,
       finishClarifyRun,

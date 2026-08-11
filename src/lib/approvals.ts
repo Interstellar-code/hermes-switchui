@@ -204,6 +204,39 @@ export function approvalMsRemaining(
   return deadline - now
 }
 
+/**
+ * Client-side fallback deadline for a payload that omits `expiresAt`
+ * entirely (issue #17). The gateway's canonical approval-record builder
+ * (`_build_approval_record`, shared by the sessions chat stream, the
+ * `/v1/runs` SSE event, and `GET /v1/approvals/pending`) sets `expires_at`
+ * unconditionally, so in practice this should never be reached — the real
+ * fix for a stuck card is the pending-approvals reconciliation poll in
+ * `use-approval-queue.ts`, which works with or without a deadline. This is
+ * defense in depth only: without it, a malformed/older-gateway payload with
+ * no `expiresAt` would render no countdown at all and rely solely on the
+ * poll cadence (up to ~15s) to notice. Matches `approvals.timeout` as
+ * shipped in the profile configs (180s).
+ */
+export const APPROVAL_FALLBACK_TIMEOUT_MS = 180_000
+
+/**
+ * Effective milliseconds remaining for the approval countdown: the real
+ * gateway `expiresAt` when present, else `APPROVAL_FALLBACK_TIMEOUT_MS`
+ * measured from `anchorMs` (typically when the card first rendered). Unlike
+ * `approvalMsRemaining`, this never returns `null` — a card must always have
+ * a way to eventually self-close. A real gateway deadline always wins; the
+ * fallback is only ever consulted when `expiresAt` is absent or unparseable.
+ */
+export function approvalMsRemainingWithFallback(
+  expiresAt: string | undefined,
+  anchorMs: number,
+  now: number = Date.now(),
+): number {
+  const real = approvalMsRemaining(expiresAt, now)
+  if (real !== null) return real
+  return anchorMs + APPROVAL_FALLBACK_TIMEOUT_MS - now
+}
+
 /** `0:07` style countdown. Clamped at zero — never renders a negative clock. */
 export function formatApprovalCountdown(msRemaining: number): string {
   const total = Math.max(0, Math.ceil(msRemaining / 1000))
