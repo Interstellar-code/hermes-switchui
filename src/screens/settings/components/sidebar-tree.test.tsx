@@ -77,15 +77,30 @@ describe('SidebarTree — collapsible groups', () => {
     ).toBe(true)
   })
 
-  it('will not collapse the group holding the open section', () => {
+  /**
+   * The group you are in is the one you most want out of the way once you have
+   * arrived, so it must be collapsible like any other. Pinning it open was the
+   * first implementation and it made the group taking the most space the only
+   * one that could not be closed.
+   */
+  it('lets you collapse the group holding the open section', () => {
     render(<SidebarTree groups={GROUPS} activeId="safety" onSelect={() => {}} />)
 
     const systemHeader = header('System')
-    expect(systemHeader.hasAttribute('disabled')).toBe(true)
+    expect(systemHeader.hasAttribute('disabled')).toBe(false)
+    expect(systemHeader.getAttribute('aria-expanded')).toBe('true')
 
     fireEvent.click(systemHeader)
-    expect(header('System').getAttribute('aria-expanded')).toBe('true')
-    expect(screen.getByText('Safety')).toBeTruthy()
+    expect(header('System').getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('names the open section on the collapsed group that holds it', () => {
+    render(<SidebarTree groups={GROUPS} activeId="safety" onSelect={() => {}} />)
+
+    fireEvent.click(header('System'))
+
+    // Collapsing where you are must not lose your place.
+    expect(header('System').textContent).toContain('Safety')
   })
 
   it('opens a collapsed group when the active section moves into it', () => {
@@ -99,6 +114,19 @@ describe('SidebarTree — collapsible groups', () => {
     rerender(<SidebarTree groups={GROUPS} activeId="storage" onSelect={() => {}} />)
     expect(header('System').getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText('Storage')).toBeTruthy()
+  })
+
+  it('keeps a group closed after you close it, without the active section reopening it', () => {
+    const { rerender } = render(
+      <SidebarTree groups={GROUPS} activeId="safety" onSelect={() => {}} />,
+    )
+    fireEvent.click(header('System')) // close the group we are in
+    expect(header('System').getAttribute('aria-expanded')).toBe('false')
+
+    // A re-render that does not change the active section must not undo that —
+    // otherwise the auto-open would fight the user on every keystroke.
+    rerender(<SidebarTree groups={GROUPS} activeId="safety" onSelect={() => {}} />)
+    expect(header('System').getAttribute('aria-expanded')).toBe('false')
   })
 
   it('still reports unsaved changes from a collapsed group', () => {

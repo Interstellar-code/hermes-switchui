@@ -9,7 +9,7 @@
  * caller that has no index to give it.
  */
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SectionOwnership } from '../lib/section-registry'
 import type { SectionHits } from '../lib/search-index'
 
@@ -84,19 +84,48 @@ export function SidebarTree({
   const [expandedGroups, setExpandedGroups] =
     useState<Set<string>>(readExpandedGroups)
 
+  function persist(next: Set<string>) {
+    try {
+      localStorage.setItem(GROUPS_LS_KEY, JSON.stringify([...next]))
+    } catch {
+      // A browser refusing storage must not break navigation.
+    }
+  }
+
   function toggleGroup(label: string) {
     setExpandedGroups((prev) => {
       const next = new Set(prev)
       if (next.has(label)) next.delete(label)
       else next.add(label)
-      try {
-        localStorage.setItem(GROUPS_LS_KEY, JSON.stringify([...next]))
-      } catch {
-        // A browser refusing storage must not break navigation.
-      }
+      persist(next)
       return next
     })
   }
+
+  /**
+   * Open the group you navigate into, but only on the navigation itself.
+   *
+   * Forcing the active group permanently open was worse: it is the group you
+   * are already looking at, so it is exactly the one you want out of the way
+   * once you have arrived — and it could never be collapsed. Auto-opening on
+   * arrival keeps you oriented; letting you close it afterwards keeps the rail
+   * short. The breadcrumb still names the open section either way.
+   */
+  const lastActiveRef = useRef<string | null>(null)
+  const activeGroup =
+    groups.find((g) => g.items.some((it) => it.id === activeId))?.label ?? null
+
+  useEffect(() => {
+    if (activeId === lastActiveRef.current) return
+    lastActiveRef.current = activeId
+    if (!activeGroup) return
+    setExpandedGroups((prev) => {
+      if (prev.has(activeGroup)) return prev
+      const next = new Set(prev).add(activeGroup)
+      persist(next)
+      return next
+    })
+  }, [activeId, activeGroup])
 
   const text = query ?? ownQuery
   const setText = onQueryChange ?? setOwnQuery
@@ -235,11 +264,8 @@ export function SidebarTree({
           </>
         ) : (
           filtered.map((group) => {
-            // A group is never collapsed while it holds the open section —
-            // otherwise selecting a section could hide the thing you just
-            // selected, or a reload would open with no visible active item.
             const holdsActive = group.items.some((it) => it.id === activeId)
-            const isOpen = holdsActive || expandedGroups.has(group.label)
+            const isOpen = expandedGroups.has(group.label)
             const dirtyCount = group.items.filter((it) => it.dirty).length
             const listId = `settings-group-${group.label.replace(/\W+/g, '-').toLowerCase()}`
 
@@ -247,18 +273,11 @@ export function SidebarTree({
             <div key={group.label} className="sk-filter-section">
               <button
                 type="button"
-                className={`sec-label sec-toggle${isOpen ? ' open' : ''}`}
+                className={`sec-label sec-toggle${isOpen ? ' open' : ''}${holdsActive ? ' holds-active' : ''}`}
                 onClick={() => toggleGroup(group.label)}
                 aria-expanded={isOpen}
                 aria-controls={listId}
-                disabled={holdsActive}
-                title={
-                  holdsActive
-                    ? `${group.label} — holds the open section`
-                    : isOpen
-                      ? `Collapse ${group.label}`
-                      : `Expand ${group.label}`
-                }
+                title={isOpen ? `Collapse ${group.label}` : `Expand ${group.label}`}
               >
                 <svg
                   className="sec-chevron"
@@ -272,7 +291,17 @@ export function SidebarTree({
                 >
                   <path d="M9 18l6-6-6-6" />
                 </svg>
-                <span className="sec-label-text">{group.label}</span>
+                <span className="sec-label-text">
+                  {group.label}
+                  {/* Collapsing the group you are in must not lose your place,
+                      so a closed group names the section that is open. */}
+                  {!isOpen && holdsActive && (
+                    <span className="sec-active">
+                      {' · '}
+                      {group.items.find((it) => it.id === activeId)?.label}
+                    </span>
+                  )}
+                </span>
                 {/* Collapsed groups still have to report unsaved work, or the
                     save bar's count would have no visible source. */}
                 {!isOpen && dirtyCount > 0 && (

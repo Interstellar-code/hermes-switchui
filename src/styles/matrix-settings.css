@@ -382,15 +382,17 @@
   color: var(--m-green-500, var(--theme-accent));
 }
 
-/* The group holding the open section can't be collapsed, so it is disabled —
-   but it is still a heading and must not look unavailable. */
-[data-screen='settings'] .side.sk-filter .sec-toggle:disabled {
-  cursor: default;
-  opacity: 1;
+/* The group holding the open section reads in the accent colour, so the rail
+   still says where you are when every group is closed. */
+[data-screen='settings'] .side.sk-filter .sec-toggle.holds-active {
+  color: var(--m-green-500, var(--theme-accent));
 }
 
-[data-screen='settings'] .side.sk-filter .sec-toggle:disabled .sec-chevron {
-  opacity: 0.35;
+/* Name of the open section, shown on a collapsed group that contains it. */
+[data-screen='settings'] .side.sk-filter .sec-active {
+  text-transform: none;
+  letter-spacing: 0.04em;
+  color: var(--m-text-faint, var(--theme-muted));
 }
 
 [data-screen='settings'] .side.sk-filter .sec-toggle:focus-visible {
