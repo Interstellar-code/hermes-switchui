@@ -239,7 +239,24 @@ export function SettingsScreen() {
   const sidebarGroups = buildSidebarGroups(dirty)
 
   function handleSave() {
-    void save(settingsSaver)
+    save(settingsSaver)
+      .then((outcome) => {
+        if (outcome.failed.length === 0) {
+          if (outcome.persisted.length > 0) {
+            toast(`Saved ${outcome.persisted.length} setting${outcome.persisted.length === 1 ? '' : 's'}`, { type: 'success' })
+          }
+          return
+        }
+        const reason = outcome.failed[0].reason
+        if (outcome.persisted.length > 0) {
+          toast(`Saved ${outcome.persisted.length}, failed ${outcome.failed.length}: ${reason}`, { type: 'warning' })
+        } else {
+          toast(`Save failed: ${reason}`, { type: 'error' })
+        }
+      })
+      .catch((err: unknown) => {
+        toast(err instanceof Error ? err.message : 'Save failed', { type: 'error' })
+      })
   }
 
   function handleExport() {

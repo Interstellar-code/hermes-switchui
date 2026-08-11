@@ -441,10 +441,19 @@ export async function getConfig(): Promise<ClaudeConfig> {
   return proxyGet<ClaudeConfig>('/api/config')
 }
 
-export async function patchConfig(
-  patch: Record<string, unknown>,
+/**
+ * Write a partial config. The body must be `{ config: { … } }`; the gateway
+ * deep-merges it server-side, so only the changed subtree needs to be sent.
+ *
+ * DO NOT reintroduce PATCH here. The Hermes dashboard registers only GET and
+ * PUT for `/api/config`; a PATCH returns 405, which the old saver swallowed
+ * and reported to the user as a successful save. `settings-transport.contract.test.ts`
+ * greps this file to keep PATCH from coming back.
+ */
+export async function putConfig(
+  body: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  return proxySend<Record<string, unknown>>('PATCH', '/api/config', patch)
+  return proxySend<Record<string, unknown>>('PUT', '/api/config', body)
 }
 
 export async function getConfigSchema(): Promise<ConfigSchema> {

@@ -4,8 +4,15 @@
  */
 
 import { create } from 'zustand'
+import type { SaveOutcome } from '@/screens/settings/lib/saver'
 
-type SaverFn = (patch: Record<string, unknown>) => Promise<void>
+/**
+ * A saver reports which keys actually landed. `void` is tolerated for older
+ * callers/tests; it is treated as "nothing was persisted".
+ */
+type SaverFn = (
+  patch: Record<string, unknown>,
+) => Promise<SaveOutcome | void>
 
 type SettingsState = {
   loaded: boolean
@@ -20,7 +27,7 @@ type SettingsActions = {
   /** Update a single key in draft */
   set: (key: string, value: unknown) => void
   /** Persist dirty keys via the provided saver fn */
-  save: (saver: SaverFn) => Promise<void>
+  save: (saver: SaverFn) => Promise<SaveOutcome>
   /** Revert draft to committed snapshot */
   reset: () => void
   /** Revert a single key to its committed value */
@@ -58,18 +65,28 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
   },
 
   async save(saver) {
-    const { draft, dirty, committed } = get()
-    if (dirty.size === 0) return
+    const { draft, dirty } = get()
+    if (dirty.size === 0) return { persisted: [], failed: [] }
     const patch: Record<string, unknown> = {}
     dirty.forEach((k) => {
       patch[k] = draft[k]
     })
-    await saver(patch)
-    // On success: committed = draft, dirty cleared
-    set({
-      committed: { ...committed, ...patch },
-      dirty: new Set<string>(),
-    })
+    // If the saver throws, nothing below runs: `committed` and `dirty` are
+    // untouched and the rejection reaches the caller. Committing before this
+    // resolved is what made a 405 read as "Saved".
+    const outcome = (await saver(patch)) ?? { persisted: [], failed: [] }
+    const { committed: latestCommitted, dirty: latestDirty } = get()
+    const nextCommitted = { ...latestCommitted }
+    const nextDirty = new Set(latestDirty)
+    for (const key of outcome.persisted) {
+      nextCommitted[key] = patch[key]
+      // A key edited again while the save was in flight stays dirty.
+      if (latestDirty.has(key) && draft[key] === get().draft[key]) {
+        nextDirty.delete(key)
+      }
+    }
+    set({ committed: nextCommitted, dirty: nextDirty })
+    return outcome
   },
 
   reset() {

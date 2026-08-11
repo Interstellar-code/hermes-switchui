@@ -2,6 +2,17 @@ import { createFileRoute } from '@tanstack/react-router'
 import { dashboardFetch } from '../../../server/gateway-capabilities'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
+import { invalidateConfigCache } from '../../../server/hermes-api'
+
+/**
+ * `getConfigCached()` in server/hermes-api.ts serves the config to every
+ * session-status poll from a 30s TTL cache. A settings save goes through this
+ * proxy, not through that module, so without this the UI can keep reading a
+ * stale config for up to 30 seconds after a successful write.
+ */
+function touchesConfig(targetPath: string): boolean {
+  return targetPath === '/api/config' || targetPath.startsWith('/api/config/')
+}
 
 async function proxyRequest(request: Request, splat: string): Promise<Response> {
   const incomingUrl = new URL(request.url)
@@ -20,12 +31,18 @@ async function proxyRequest(request: Request, splat: string): Promise<Response> 
     init.headers = { 'content-type': contentType }
   }
 
-  if (!['GET', 'HEAD'].includes(request.method.toUpperCase())) {
+  const method = request.method.toUpperCase()
+  const isWrite = !['GET', 'HEAD'].includes(method)
+  if (isWrite) {
     init.body = await request.text()
   }
 
   // dashboardFetch injects the dashboard bearer token server-side
   const upstream = await dashboardFetch(pathWithSearch, init)
+
+  if (isWrite && upstream.ok && touchesConfig(targetPath)) {
+    invalidateConfigCache()
+  }
 
   const body = await upstream.arrayBuffer()
   const responseHeaders = new Headers()
