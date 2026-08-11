@@ -60,4 +60,51 @@ describe('SettingRow', () => {
     const control = screen.getByLabelText<HTMLInputElement>(/Docker image/)
     expect(control.id).toBe('explicit-id')
   })
+
+  /**
+   * The auto-naming clone can only reach a *single* child element. Rows that
+   * wrap their control in layout markup — an input beside Save/Cancel buttons,
+   * as every API-keys row does — were left announcing as an unnamed textbox.
+   * The render-prop form is how those rows name themselves.
+   */
+  it('hands its ids to a render-prop child so a wrapped control can be named', () => {
+    render(
+      <SettingRow label="Anthropic API key" desc="ANTHROPIC_API_KEY">
+        {({ labelId, controlId }) => (
+          <div style={{ display: 'flex' }}>
+            <input
+              type="password"
+              id={controlId}
+              aria-labelledby={labelId}
+              defaultValue="secret"
+              readOnly
+            />
+            <button type="button">Save</button>
+          </div>
+        )}
+      </SettingRow>,
+    )
+
+    const control = screen.getByLabelText<HTMLInputElement>(/Anthropic API key/)
+    expect(control.tagName).toBe('INPUT')
+    expect(control.type).toBe('password')
+  })
+
+  it('leaves a render-prop row alone rather than cloning its wrapper', () => {
+    render(
+      <SettingRow label="Wrapped">
+        {() => (
+          <div data-testid="wrapper">
+            <input type="text" defaultValue="a" readOnly />
+          </div>
+        )}
+      </SettingRow>,
+    )
+
+    // The wrapper must not be handed an id/aria-labelledby — naming a <div>
+    // would be meaningless and would shadow the real control.
+    const wrapper = screen.getByTestId('wrapper')
+    expect(wrapper.getAttribute('aria-labelledby')).toBe(null)
+    expect(wrapper.id).toBe('')
+  })
 })

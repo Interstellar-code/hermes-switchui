@@ -207,6 +207,7 @@ function EnvRow({
           status ? undefined : info.is_set ? { t: 'set' } : { t: 'missing' }
         }
       >
+        {({ labelId, controlId }) => (
         <div
           style={{
             display: 'flex',
@@ -222,6 +223,8 @@ function EnvRow({
             {row.editing ? (
               <>
                 <PasswordField
+                  id={controlId}
+                  aria-labelledby={labelId}
                   value={row.editValue}
                   masked={false}
                   onChange={row.setEditValue}
@@ -349,6 +352,7 @@ function EnvRow({
             </div>
           ) : null}
         </div>
+        )}
       </SettingRow>
 
       <ConfirmDialog

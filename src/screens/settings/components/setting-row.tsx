@@ -8,11 +8,27 @@ type PillProps = {
   k?: 'dirty' | 'req'
 }
 
+/** Ids a row exposes so a wrapped control can name itself. */
+export type SettingRowIds = {
+  /** Id of the row's `<label>`; target of `aria-labelledby`. */
+  labelId: string
+  /** Id the row's `<label htmlFor>` points at. */
+  controlId: string
+}
+
 type SettingRowProps = {
   label: string
   desc?: string
   pill?: PillProps
-  children?: ReactNode
+  /**
+   * The row's control. Pass a single element and it is named automatically.
+   *
+   * Pass a function when the control is wrapped in layout markup — a row with
+   * an input plus buttons, say. Auto-naming cannot see into a wrapper, so such
+   * rows would otherwise announce as unnamed; the function receives the ids to
+   * wire up by hand.
+   */
+  children?: ReactNode | ((ids: SettingRowIds) => ReactNode)
   /** Align control to flex-end */
   rowEnd?: boolean
 }
@@ -29,20 +45,31 @@ type SettingRowProps = {
  * already set its own — nothing here can clobber an explicit id a caller
  * assigned.
  *
- * Rows with zero or more-than-one children (read-only display rows, rows
- * that wrap a control plus extra markup) fall back to exactly the old
- * behaviour: a plain `<label>` with no `htmlFor`, which renders identically
- * to the old `<div className="lbl">` and associates nothing. That's a no-op,
- * not a regression.
+ * Rows with zero or more-than-one children (read-only display rows) fall back
+ * to exactly the old behaviour: a plain `<label>` with no `htmlFor`, which
+ * renders identically to the old `<div className="lbl">` and associates
+ * nothing. That's a no-op, not a regression.
+ *
+ * Rows whose control is wrapped in layout markup — an input plus Save/Cancel
+ * buttons, say — cannot be reached by that clone, and so stayed unnamed. They
+ * pass a function as `children` instead and wire the ids up themselves.
  */
 export function SettingRow({ label, desc, pill, children, rowEnd }: SettingRowProps) {
   const autoId = useId()
   const labelId = `${autoId}-label`
   const controlId = `${autoId}-control`
 
+  // A render-prop child names itself, so auto-association is skipped entirely.
+  const rendered =
+    typeof children === 'function'
+      ? (children as (ids: SettingRowIds) => ReactNode)({ labelId, controlId })
+      : children
+
   const singleChild =
-    isValidElement(children) && (children as ReactElement).type !== Fragment
-      ? (children as ReactElement<Record<string, unknown>>)
+    typeof children !== 'function' &&
+    isValidElement(rendered) &&
+    (rendered as ReactElement).type !== Fragment
+      ? (rendered as ReactElement<Record<string, unknown>>)
       : null
 
   const control = singleChild
@@ -50,7 +77,7 @@ export function SettingRow({ label, desc, pill, children, rowEnd }: SettingRowPr
         id: singleChild.props.id ?? controlId,
         'aria-labelledby': singleChild.props['aria-labelledby'] ?? labelId,
       })
-    : children
+    : rendered
 
   return (
     <div className="row">
