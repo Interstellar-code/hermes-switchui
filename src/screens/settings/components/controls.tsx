@@ -1,9 +1,15 @@
 /**
  * controls.tsx — Primitive setting controls for the Settings screen.
  * Toggle, Segmented, NumberSlider, PasswordField
+ *
+ * `id` and `aria-labelledby` on each component below are filled in by
+ * `SettingRow`, which clones its sole child with those two props so the row's
+ * `<label>` names whatever control it wraps. Both are optional so every
+ * existing call site — none of which passes them today — is unaffected.
  */
 
 import { useState } from 'react'
+import type { KeyboardEvent } from 'react'
 
 // ── Toggle ────────────────────────────────────────────────────────────────
 
@@ -11,14 +17,24 @@ type ToggleProps = {
   on: boolean
   set: (v: boolean) => void
   disabled?: boolean
+  id?: string
+  'aria-labelledby'?: string
 }
 
-export function Toggle({ on, set, disabled }: ToggleProps) {
+export function Toggle({
+  on,
+  set,
+  disabled,
+  id,
+  'aria-labelledby': ariaLabelledBy,
+}: ToggleProps) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={on}
+      id={id}
+      aria-labelledby={ariaLabelledBy}
       disabled={disabled}
       className={`toggle${on ? ' on' : ''}`}
       onClick={() => set(!on)}
@@ -33,22 +49,88 @@ type SegmentedProps = {
   value: string
   onChange: (v: string) => void
   disabled?: boolean
+  id?: string
+  'aria-labelledby'?: string
 }
 
-export function Segmented({ options, value, onChange, disabled }: SegmentedProps) {
+/**
+ * A plain button row with no `role` used to announce each option as a bare
+ * "button" and nothing tied them together as a single choice. This follows
+ * the ARIA APG radiogroup pattern: the wrapper is `role="radiogroup"`, each
+ * option is `role="radio"` + `aria-checked`, and only the selected option is
+ * in the Tab order — arrow keys (and Home/End) move both focus and the
+ * selection between options, matching native radio-button behaviour.
+ */
+export function Segmented({
+  options,
+  value,
+  onChange,
+  disabled,
+  id,
+  'aria-labelledby': ariaLabelledBy,
+}: SegmentedProps) {
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (disabled || options.length === 0) return
+    const currentIndex = options.findIndex((opt) => opt.value === value)
+    let nextIndex = currentIndex
+
+    switch (event.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        nextIndex = (currentIndex + 1 + options.length) % options.length
+        break
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        nextIndex = (currentIndex - 1 + options.length) % options.length
+        break
+      case 'Home':
+        nextIndex = 0
+        break
+      case 'End':
+        nextIndex = options.length - 1
+        break
+      default:
+        return
+    }
+
+    event.preventDefault()
+    const next = options[nextIndex]
+    onChange(next.value)
+    const nextButton = event.currentTarget.children[nextIndex] as HTMLElement | undefined
+    nextButton?.focus()
+  }
+
+  // If `value` doesn't match any option (unset, or a value this control
+  // doesn't render), fall back the roving tab stop to the first option so
+  // the group is never entirely un-tabbable.
+  const hasSelection = options.some((opt) => opt.value === value)
+
   return (
-    <div className="segmented">
-      {options.map((opt) => (
-        <button
-          key={opt.value}
-          type="button"
-          className={`seg-opt${value === opt.value ? ' on' : ''}`}
-          onClick={() => onChange(opt.value)}
-          disabled={disabled}
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div
+      className="segmented"
+      role="radiogroup"
+      id={id}
+      aria-labelledby={ariaLabelledBy}
+      onKeyDown={handleKeyDown}
+    >
+      {options.map((opt, index) => {
+        const selected = value === opt.value
+        const isTabStop = selected || (!hasSelection && index === 0)
+        return (
+          <button
+            key={opt.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            tabIndex={isTabStop ? 0 : -1}
+            className={`seg-opt${selected ? ' on' : ''}`}
+            onClick={() => onChange(opt.value)}
+            disabled={disabled}
+          >
+            {opt.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -62,8 +144,18 @@ type NumberSliderProps = {
   value: number
   onChange: (v: number) => void
   disabled?: boolean
+  id?: string
+  'aria-labelledby'?: string
 }
 
+/**
+ * Two inputs, one value, previously zero accessible names on either — a
+ * screen reader announced "slider" and "spin button" with nothing to tell
+ * them apart from any other pair on the page. `id` (from `SettingRow`) names
+ * the range input, the row's actual `<label htmlFor>` target; the number
+ * input can't also own that id, so it gets the same `aria-labelledby`
+ * instead — both end up with the row's label as their accessible name.
+ */
 export function NumberSlider({
   min,
   max,
@@ -71,11 +163,15 @@ export function NumberSlider({
   value,
   onChange,
   disabled,
+  id,
+  'aria-labelledby': ariaLabelledBy,
 }: NumberSliderProps) {
   return (
     <div className="num-slider">
       <input
         type="range"
+        id={id}
+        aria-labelledby={ariaLabelledBy}
         min={min}
         max={max}
         step={step}
@@ -85,6 +181,7 @@ export function NumberSlider({
       />
       <input
         type="number"
+        aria-labelledby={ariaLabelledBy}
         min={min}
         max={max}
         step={step}
@@ -105,6 +202,8 @@ type PasswordFieldProps = {
   onChange: (v: string) => void
   placeholder?: string
   disabled?: boolean
+  id?: string
+  'aria-labelledby'?: string
 }
 
 function IconEye({ open }: { open: boolean }) {
@@ -131,6 +230,8 @@ export function PasswordField({
   onChange,
   placeholder,
   disabled,
+  id,
+  'aria-labelledby': ariaLabelledBy,
 }: PasswordFieldProps) {
   const [revealed, setRevealed] = useState(!masked)
 
@@ -143,6 +244,8 @@ export function PasswordField({
     <div className="pw-wrap">
       <input
         type={revealed ? 'text' : 'password'}
+        id={id}
+        aria-labelledby={ariaLabelledBy}
         value={value}
         placeholder={placeholder}
         disabled={disabled}

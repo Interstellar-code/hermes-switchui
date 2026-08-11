@@ -96,7 +96,10 @@ describe('SectionGateway', () => {
 
     expect(screen.getByText(/one gateway process serves multiple profiles/i)).toBeTruthy()
 
-    const toggle = screen.getByRole('switch', { name: '' })
+    // Previously an unnamed switch (`name: ''`) — `SettingRow` now gives
+    // every single-control row a real `<label htmlFor>`, so the toggle's
+    // accessible name is the row's label text.
+    const toggle = screen.getByRole('switch', { name: /Multiplex profiles/ })
     fireEvent.click(toggle)
     expect(useSettingsStore.getState().draft['config.gateway.multiplex_profiles']).toBe(true)
   })

@@ -157,7 +157,7 @@ describe('SectionExecution', () => {
     renderSection()
     await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
 
-    fireEvent.click(screen.getByRole('button', { name: 'Strict' }))
+    fireEvent.click(screen.getByRole('radio', { name: 'Strict' }))
     expect(useSettingsStore.getState().draft['config.code_execution.mode']).toBe('strict')
   })
 })
