@@ -19,7 +19,8 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { gatewayStatus } from '@/lib/hermes-client'
 
 export default function SectionNetwork() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   const { data: status } = useQuery({
     queryKey: ['gateway-status'],

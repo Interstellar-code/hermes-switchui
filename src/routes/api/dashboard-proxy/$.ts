@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router'
 import { dashboardFetch } from '../../../server/gateway-capabilities'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
-import { invalidateConfigCache } from '../../../server/hermes-api'
 
 /**
  * `getConfigCached()` in server/hermes-api.ts serves the config to every
@@ -12,6 +11,16 @@ import { invalidateConfigCache } from '../../../server/hermes-api'
  */
 function touchesConfig(targetPath: string): boolean {
   return targetPath === '/api/config' || targetPath.startsWith('/api/config/')
+}
+
+/**
+ * Imported lazily: this proxy sits in front of every dashboard request, and
+ * `hermes-api` is a large module that logs at import time. Pulling it in
+ * statically would make every consumer of this route load it too.
+ */
+async function invalidateServerConfigCache(): Promise<void> {
+  const { invalidateConfigCache } = await import('../../../server/hermes-api')
+  invalidateConfigCache()
 }
 
 async function proxyRequest(request: Request, splat: string): Promise<Response> {
@@ -41,7 +50,7 @@ async function proxyRequest(request: Request, splat: string): Promise<Response> 
   const upstream = await dashboardFetch(pathWithSearch, init)
 
   if (isWrite && upstream.ok && touchesConfig(targetPath)) {
-    invalidateConfigCache()
+    await invalidateServerConfigCache()
   }
 
   const body = await upstream.arrayBuffer()

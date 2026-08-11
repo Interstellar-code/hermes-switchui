@@ -14,7 +14,8 @@ import { NumberSlider } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 
 export default function SectionAgentRuntime() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   const maxTurns = (draft['config.agent.max_turns'] as number | undefined) ?? 90
   const gatewayTimeout = (draft['config.agent.gateway_timeout'] as number | undefined) ?? 1800

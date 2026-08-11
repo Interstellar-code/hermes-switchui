@@ -14,6 +14,14 @@ vi.mock('../../../server/gateway-capabilities', () => ({
   BEARER_TOKEN: 'test-token',
 }))
 
+const { mockInvalidateConfigCache } = vi.hoisted(() => ({
+  mockInvalidateConfigCache: vi.fn(),
+}))
+
+vi.mock('../../../server/hermes-api', () => ({
+  invalidateConfigCache: mockInvalidateConfigCache,
+}))
+
 const handlers = (Route as any).options.server.handlers
 
 const base = 'http://localhost/api/dashboard-proxy'
@@ -140,6 +148,77 @@ describe('dashboard-proxy CSRF guard', () => {
 
     const getRes = await invoke('GET', new Request(`${base}/status`), '/status')
     expect(getRes.status).toBe(401)
+  })
+
+  /**
+   * `getConfigCached()` in server/hermes-api.ts backs every session-status
+   * poll with a 30s TTL. Settings writes go through this proxy and never
+   * through that module, so a successful save used to leave the rest of the
+   * app reading the pre-save config for up to half a minute.
+   */
+  describe('config cache invalidation', () => {
+    function okJson() {
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }
+
+    it('invalidates the server config cache after a successful config write', async () => {
+      mockInvalidateConfigCache.mockClear()
+      vi.mocked(isAuthenticated).mockReturnValue(true)
+      vi.mocked(dashboardFetch).mockResolvedValue(okJson())
+
+      await invoke('PUT', makeJsonRequest('PUT', '/api/config'), '/api/config')
+
+      expect(mockInvalidateConfigCache).toHaveBeenCalledTimes(1)
+    })
+
+    it('invalidates for a nested config path too', async () => {
+      mockInvalidateConfigCache.mockClear()
+      vi.mocked(isAuthenticated).mockReturnValue(true)
+      vi.mocked(dashboardFetch).mockResolvedValue(okJson())
+
+      await invoke(
+        'PUT',
+        makeJsonRequest('PUT', '/api/config/raw'),
+        '/api/config/raw',
+      )
+
+      expect(mockInvalidateConfigCache).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not invalidate on a read', async () => {
+      mockInvalidateConfigCache.mockClear()
+      vi.mocked(isAuthenticated).mockReturnValue(true)
+      vi.mocked(dashboardFetch).mockResolvedValue(okJson())
+
+      await invoke('GET', new Request(`${base}/api/config`), '/api/config')
+
+      expect(mockInvalidateConfigCache).not.toHaveBeenCalled()
+    })
+
+    it('does not invalidate when the gateway rejects the write', async () => {
+      mockInvalidateConfigCache.mockClear()
+      vi.mocked(isAuthenticated).mockReturnValue(true)
+      vi.mocked(dashboardFetch).mockResolvedValue(
+        new Response('Method Not Allowed', { status: 405 }),
+      )
+
+      await invoke('PUT', makeJsonRequest('PUT', '/api/config'), '/api/config')
+
+      expect(mockInvalidateConfigCache).not.toHaveBeenCalled()
+    })
+
+    it('does not invalidate for an unrelated write', async () => {
+      mockInvalidateConfigCache.mockClear()
+      vi.mocked(isAuthenticated).mockReturnValue(true)
+      vi.mocked(dashboardFetch).mockResolvedValue(okJson())
+
+      await invoke('POST', makeJsonRequest('POST', '/restart'), '/restart')
+
+      expect(mockInvalidateConfigCache).not.toHaveBeenCalled()
+    })
   })
 
   it('still requires auth after CSRF passes', async () => {

@@ -17,7 +17,8 @@ import { Toggle } from '../components/controls'
 import { useSettingsStore } from '@/stores/settings-store'
 
 export default function SectionPrivacy() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   // privacy.*
   const redactPii = (draft['config.privacy.redact_pii'] as boolean | undefined) ?? false

@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SectionGateway, { validateApiServerHost, validateApiServerPort } from './section-gateway'
-import { useSettingsStore } from '@/stores/settings-store'
+import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
 
 const { mockFetchScopeStatus } = vi.hoisted(() => ({
   mockFetchScopeStatus: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('@/components/hermes-docs-link', () => ({
 }))
 
 function loadDraft(patch: Record<string, unknown>) {
-  useSettingsStore.getState().load(patch)
+  useSettingsStore.getState().seed(patch)
 }
 
 function renderSection() {
@@ -33,12 +33,7 @@ function renderSection() {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  useSettingsStore.setState({
-    loaded: false,
-    committed: {},
-    draft: {},
-    dirty: new Set<string>(),
-  })
+  resetSettingsStore()
 })
 
 describe('validateApiServerHost', () => {

@@ -23,7 +23,8 @@ type SkillEntry = {
 }
 
 export default function SectionSkills() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
   const navigate = useNavigate()
 
   // Skill sources

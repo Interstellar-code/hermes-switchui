@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react'
+import type { SectionOwnership } from '../lib/section-registry'
 
 export type SidebarItem = {
   id: string
@@ -10,6 +11,12 @@ export type SidebarItem = {
   badge?: string
   dirty?: boolean
   icon?: string
+  /**
+   * Optional. Surfaced as `data-ownership` + a title hint so a section whose
+   * controls write the gateway directly is distinguishable from one the save
+   * bar applies to. Omitting it renders exactly as before.
+   */
+  ownership?: SectionOwnership
 }
 
 export type SidebarGroup = {
@@ -82,6 +89,12 @@ export function SidebarTree({ groups, activeId, onSelect }: SidebarTreeProps) {
                   className={`sk-filter-item${activeId === item.id ? ' active' : ''}${item.dirty ? ' dirty' : ''}`}
                   onClick={() => onSelect(item.id)}
                   aria-current={activeId === item.id ? 'page' : undefined}
+                  data-ownership={item.ownership}
+                  title={
+                    item.ownership === 'self-saving'
+                      ? `${item.label} — saves its own changes`
+                      : undefined
+                  }
                 >
                   <span>{item.label}</span>
                   {item.dirty && <span className="item-ct">●</span>}

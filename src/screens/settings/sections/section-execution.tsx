@@ -91,7 +91,8 @@ function parseVolumes(raw: string): Array<string> {
 }
 
 export default function SectionExecution() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   const backend = (draft['config.terminal.backend'] as string | undefined) ?? 'local'
   const isKnownBackend = EDITABLE_BACKENDS.some((b) => b.value === backend)

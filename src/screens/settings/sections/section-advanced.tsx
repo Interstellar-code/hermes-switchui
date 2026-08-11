@@ -2,7 +2,7 @@
  * section-advanced.tsx — Advanced settings section (P6).
  */
 
-import { useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -17,17 +17,17 @@ const K = {
 } as const
 
 export default function SectionAdvanced() {
-  const { draft, set, load, committed } = useSettingsStore()
-  const seeded = useRef(false)
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
+  const registerDefaults = useSettingsStore((s) => s.registerDefaults)
 
+  // This used to call `load({ ...committed, [K.log_level]: … })` on mount,
+  // which reset the whole store — flipping `loaded` before the server fetch
+  // resolved and discarding every other section's edits. `registerDefaults`
+  // is additive and idempotent: it touches neither `committed` nor `dirty`.
   useEffect(() => {
-    if (seeded.current) return
-    seeded.current = true
-    load({
-      ...committed,
-      [K.log_level]: (committed[K.log_level]) ?? 'INFO',
-    })
-  }, [committed, load])
+    registerDefaults({ [K.log_level]: 'INFO' })
+  }, [registerDefaults])
 
   const logLevel = (draft[K.log_level] as string | undefined) ?? 'INFO'
 

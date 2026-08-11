@@ -1,12 +1,14 @@
 /**
- * settings-screen.tsx — Matrix-themed Settings shell (P1 scaffold).
+ * settings-screen.tsx — Matrix-themed Settings shell.
  *
  * Layout: sidebar tree (left) + content panel (right).
  * Active section persisted to localStorage key `hermes.settings.section`.
- * All section bodies are stubs for P1; content filled in P2–P7.
+ *
+ * Sections, their groups and the keys they own all come from
+ * `lib/section-registry.ts`; this file only wires the store to the shell.
  */
 
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import '@/styles/matrix-skills.css'
 import '@/styles/matrix-settings.css'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -14,135 +16,40 @@ import { SidebarTree } from './components/sidebar-tree'
 import { SaveBar } from './components/save-bar'
 import { settingsSaver } from './lib/saver'
 import { flattenConfig } from './lib/flatten-config'
+import {
+  SECTION_COMPONENTS,
+  SECTION_SPECS,
+  SECTION_SPEC_BY_ID,
+  dirtySectionIds,
+} from './lib/section-registry'
+import type { SectionSpec } from './lib/section-registry'
 import type { SidebarGroup } from './components/sidebar-tree'
 import { useDirtyCount, useSettingsStore } from '@/stores/settings-store'
 import { getConfig } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
-
-// ── Lazy section components ───────────────────────────────────────────────
-const SectionWorkspace = lazy(() => import('./sections/section-workspace'))
-const SectionAccount = lazy(() => import('./sections/section-account'))
-const SectionAppearance = lazy(() => import('./sections/section-appearance'))
-const SectionNotifications = lazy(() => import('./sections/section-notifications'))
-const SectionProvider = lazy(() => import('./sections/section-provider'))
-const SectionModelRegistry = lazy(() => import('./sections/section-model-registry'))
-const SectionAgentRuntime = lazy(() => import('./sections/section-agent-runtime'))
-const SectionExecution = lazy(() => import('./sections/section-execution'))
-const SectionGateway = lazy(() => import('./sections/section-gateway'))
-const SectionMemoryWiki = lazy(() => import('./sections/section-memory-wiki'))
-const SectionSkills = lazy(() => import('./sections/section-skills'))
-const SectionMcpServers = lazy(() => import('./sections/section-mcp-servers'))
-const SectionMcpRegistered = lazy(() => import('./sections/section-mcp-registered'))
-const SectionHermesPlugin = lazy(() => import('./sections/section-hermes-plugin'))
-const SectionStorage = lazy(() => import('./sections/section-storage'))
-const SectionPrivacy = lazy(() => import('./sections/section-privacy'))
-const SectionSafety = lazy(() => import('./sections/section-safety'))
-const SectionTelemetry = lazy(() => import('./sections/section-telemetry'))
-const SectionApiKeys = lazy(() => import('./sections/section-api-keys'))
-const SectionNetwork = lazy(() => import('./sections/section-network'))
-const SectionPerformance = lazy(() => import('./sections/section-performance'))
-const SectionUpdates = lazy(() => import('./sections/section-updates'))
-const SectionShortcuts = lazy(() => import('./sections/section-shortcuts'))
-const SectionAdvanced = lazy(() => import('./sections/section-advanced'))
-const SectionRawConfig = lazy(() => import('./sections/section-raw-config'))
-const SectionDanger = lazy(() => import('./sections/section-danger'))
-const SectionWorkflows = lazy(() => import('./sections/section-workflows'))
-
-const SECTION_COMPONENTS: Partial<Record<string, React.ComponentType>> = {
-  workspace: SectionWorkspace,
-  account: SectionAccount,
-  appearance: SectionAppearance,
-  notifications: SectionNotifications,
-  provider: SectionProvider,
-  'model-registry': SectionModelRegistry,
-  'agent-runtime': SectionAgentRuntime,
-  execution: SectionExecution,
-  gateway: SectionGateway,
-  'memory-wiki': SectionMemoryWiki,
-  skills: SectionSkills,
-  workflows: SectionWorkflows,
-  'mcp-servers': SectionMcpServers,
-  'mcp-registered': SectionMcpRegistered,
-  'hermes-plugin': SectionHermesPlugin,
-  storage: SectionStorage,
-  privacy: SectionPrivacy,
-  safety: SectionSafety,
-  telemetry: SectionTelemetry,
-  'api-keys': SectionApiKeys,
-  network: SectionNetwork,
-  performance: SectionPerformance,
-  updates: SectionUpdates,
-  shortcuts: SectionShortcuts,
-  advanced: SectionAdvanced,
-  'raw-config': SectionRawConfig,
-  danger: SectionDanger,
-}
-
-// ── Section registry ──────────────────────────────────────────────────────
-
-type SectionDef = {
-  id: string
-  label: string
-  group: string
-  p: number
-}
-
-const SECTIONS: Array<SectionDef> = [
-  // General
-  { id: 'workspace', label: 'Workspace', group: 'General', p: 2 },
-  { id: 'account', label: 'Account', group: 'General', p: 2 },
-  { id: 'appearance', label: 'Appearance', group: 'General', p: 2 },
-  { id: 'notifications', label: 'Notifications', group: 'General', p: 3 },
-  // Models
-  { id: 'provider', label: 'Provider', group: 'Models', p: 2 },
-  { id: 'model-registry', label: 'Model Registry', group: 'Models', p: 3 },
-  // Agent
-  { id: 'agent-runtime', label: 'Runtime', group: 'Agent', p: 3 },
-  { id: 'execution', label: 'Execution', group: 'Agent', p: 5 },
-  { id: 'gateway', label: 'Gateway', group: 'Agent', p: 5 },
-  // Memory
-  { id: 'memory-wiki', label: 'Memory & Wiki', group: 'Memory', p: 4 },
-  // Skills
-  { id: 'skills', label: 'Skills', group: 'Skills', p: 4 },
-  // Workflows
-  { id: 'workflows', label: 'Workflows', group: 'Workflows', p: 4 },
-  // MCP
-  { id: 'mcp-servers', label: 'Servers', group: 'MCP', p: 5 },
-  { id: 'mcp-registered', label: 'Registered', group: 'MCP', p: 5 },
-  { id: 'hermes-plugin', label: 'Hermes Plugin', group: 'MCP', p: 3 },
-  // System
-  { id: 'storage', label: 'Storage', group: 'System', p: 5 },
-  { id: 'privacy', label: 'Privacy', group: 'System', p: 5 },
-  { id: 'safety', label: 'Safety', group: 'System', p: 5 },
-  { id: 'telemetry', label: 'Telemetry', group: 'System', p: 6 },
-  { id: 'api-keys', label: 'API Keys', group: 'System', p: 2 },
-  { id: 'network', label: 'Network', group: 'System', p: 6 },
-  { id: 'performance', label: 'Performance', group: 'System', p: 6 },
-  { id: 'updates', label: 'Updates', group: 'System', p: 1 },
-  // Other
-  { id: 'shortcuts', label: 'Shortcuts', group: 'Shortcuts', p: 6 },
-  { id: 'advanced', label: 'Advanced', group: 'Advanced', p: 7 },
-  { id: 'raw-config', label: 'Raw config', group: 'Advanced', p: 6 },
-  { id: 'danger', label: 'Danger Zone', group: 'Danger', p: 7 },
-]
-
-const SECTION_MAP = new Map(SECTIONS.map((s) => [s.id, s]))
 
 const DEFAULT_SECTION = 'workspace'
 const LS_KEY = 'hermes.settings.section'
 
 // ── Sidebar groups ────────────────────────────────────────────────────────
 
-function buildSidebarGroups(dirty: Set<string>): Array<SidebarGroup> {
+/**
+ * The dirty dot used to be `dirty.has(section.id)` — a Set of setting *keys*
+ * tested against a section *id*, which can never be true. `dirtySectionIds`
+ * maps keys to owning sections instead.
+ */
+export function buildSidebarGroups(dirty: Set<string>): Array<SidebarGroup> {
+  const dirtyIds = dirtySectionIds(dirty)
   const groupMap = new Map<string, SidebarGroup>()
-  for (const s of SECTIONS) {
+  for (const s of SECTION_SPECS) {
     if (!groupMap.has(s.group)) {
       groupMap.set(s.group, { label: s.group, items: [] })
     }
     groupMap.get(s.group)!.items.push({
       id: s.id,
       label: s.label,
-      dirty: dirty.has(s.id),
+      dirty: dirtyIds.has(s.id),
+      ownership: s.ownership,
     })
   }
   return Array.from(groupMap.values())
@@ -150,20 +57,20 @@ function buildSidebarGroups(dirty: Set<string>): Array<SidebarGroup> {
 
 // ── Stub section component ────────────────────────────────────────────────
 
-function StubSection({ section }: { section: SectionDef }) {
+function StubSection({ section }: { section: SectionSpec }) {
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>{section.label}</h2>
-          <div className="desc">Coming in P{section.p}</div>
+          <div className="desc">This section has no body yet.</div>
         </div>
         <div className="meta">Section · <b>{section.id}</b></div>
       </div>
       <div className="card">
         <h3>{section.label}</h3>
         <div style={{ padding: '18px', font: '500 12px var(--m-font-mono)', color: 'var(--m-text-faint)' }}>
-          Content for this section will be implemented in P{section.p}.
+          Content for this section has not been implemented.
         </div>
       </div>
     </div>
@@ -186,9 +93,16 @@ function IconCog() {
 export function SettingsScreen() {
   const dirty = useSettingsStore((s) => s.dirty)
   const save = useSettingsStore((s) => s.save)
-  const loaded = useSettingsStore((s) => s.loaded)
+  const saveState = useSettingsStore((s) => s.saveState)
   const dirtyCount = useDirtyCount()
-  const seedOnceRef = useRef(false)
+
+  /**
+   * Holds the last server snapshot handed to `seed()`. The old code guarded on
+   * the store's `loaded` flag, which seven sections' mount effects also set —
+   * so a section could mark the store loaded before the fetch resolved and
+   * permanently block the real seed.
+   */
+  const seededRef = useRef<unknown>(undefined)
 
   const [activeId, setActiveId] = useState<string>(() => {
     try {
@@ -207,11 +121,21 @@ export function SettingsScreen() {
   })
 
   async function handleRefresh() {
+    // Refresh promises a reload from disk, so it is the one hard reset. A
+    // non-forced seed here would silently keep the drafts the user just chose
+    // to throw away.
+    if (
+      useSettingsStore.getState().dirty.size > 0 &&
+      !window.confirm('Discard unsaved changes and reload settings from disk?')
+    ) {
+      return
+    }
     const result = await refetchConfig()
     await queryClient.invalidateQueries({ queryKey: ['config', 'raw'] })
     if (result.data) {
       const flat = flattenConfig(result.data)
-      useSettingsStore.getState().load(flat)
+      seededRef.current = result.data
+      useSettingsStore.getState().seed(flat, { force: true })
       toast('Page settings refreshed', { type: 'success' })
     } else {
       toast('Failed to refresh settings', { type: 'error' })
@@ -219,11 +143,13 @@ export function SettingsScreen() {
   }
 
   useEffect(() => {
-    if (!serverConfig || seedOnceRef.current || loaded) return
-    seedOnceRef.current = true
-    const flat = flattenConfig(serverConfig)
-    useSettingsStore.getState().load(flat)
-  }, [serverConfig, loaded])
+    // Seeds on first data, and again on every new snapshot from the ['config']
+    // query — a self-saving section can invalidate that key and the non-forced
+    // seed will fold the new server truth in underneath any live drafts.
+    if (!serverConfig || seededRef.current === serverConfig) return
+    seededRef.current = serverConfig
+    useSettingsStore.getState().seed(flattenConfig(serverConfig))
+  }, [serverConfig])
 
   // Persist active section to localStorage
   useEffect(() => {
@@ -234,29 +160,50 @@ export function SettingsScreen() {
     }
   }, [activeId])
 
-  const activeSection = SECTION_MAP.get(activeId) ?? SECTION_MAP.get(DEFAULT_SECTION)!
+  // Unsaved-changes guard. Scoped to beforeunload only — the router's
+  // useBlocker has no precedent in this app and interacts badly with the lazy
+  // Suspense boundary below.
+  useEffect(() => {
+    if (dirtyCount === 0) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [dirtyCount])
+
+  const activeSection =
+    SECTION_SPEC_BY_ID.get(activeId) ?? SECTION_SPEC_BY_ID.get(DEFAULT_SECTION)!
 
   const sidebarGroups = buildSidebarGroups(dirty)
 
   function handleSave() {
-    save(settingsSaver)
-      .then((outcome) => {
-        if (outcome.failed.length === 0) {
-          if (outcome.persisted.length > 0) {
-            toast(`Saved ${outcome.persisted.length} setting${outcome.persisted.length === 1 ? '' : 's'}`, { type: 'success' })
-          }
-          return
-        }
-        const reason = outcome.failed[0].reason
-        if (outcome.persisted.length > 0) {
-          toast(`Saved ${outcome.persisted.length}, failed ${outcome.failed.length}: ${reason}`, { type: 'warning' })
-        } else {
-          toast(`Save failed: ${reason}`, { type: 'error' })
-        }
-      })
-      .catch((err: unknown) => {
-        toast(err instanceof Error ? err.message : 'Save failed', { type: 'error' })
-      })
+    void save(settingsSaver).then((outcome) => {
+      if (outcome.persisted.length === 0 && outcome.failed.length === 0) return
+      if (outcome.failed.length === 0) {
+        toast(
+          `Saved ${outcome.persisted.length} setting${outcome.persisted.length === 1 ? '' : 's'}`,
+          { type: 'success' },
+        )
+        return
+      }
+      const reason = outcome.failed[0].reason
+      if (outcome.persisted.length > 0) {
+        toast(
+          `Saved ${outcome.persisted.length}, ${outcome.failed.length} failed: ${reason}`,
+          { type: 'warning' },
+        )
+      } else {
+        toast(`Save failed: ${reason}`, { type: 'error' })
+      }
+    })
+  }
+
+  function handleDiscardAll() {
+    if (useSettingsStore.getState().dirty.size === 0) return
+    useSettingsStore.getState().discardAll()
+    toast('Unsaved changes discarded')
   }
 
   function handleExport() {
@@ -285,12 +232,20 @@ export function SettingsScreen() {
           if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
             throw new Error('Expected a JSON object')
           }
-          const committed = useSettingsStore.getState().committed
-          useSettingsStore.getState().load({ ...committed, ...parsed })
-          // Re-flag every imported key as dirty so user can review + Save
-          const setKey = useSettingsStore.getState().set
-          for (const [k, v] of Object.entries(parsed)) setKey(k, v)
-          toast(`Imported ${Object.keys(parsed).length} settings`, { type: 'success' })
+          // This used to call load({...committed, ...parsed}) first, which made
+          // every imported key equal to committed — so the follow-up set() loop
+          // took the else-branch and deleted it from dirty. Import could never
+          // save anything.
+          const changed = useSettingsStore
+            .getState()
+            .importValues(parsed as Record<string, unknown>)
+          const total = Object.keys(parsed).length
+          toast(
+            changed === 0
+              ? `Imported ${total} settings — none differ from the current values`
+              : `Imported ${total} settings · ${changed} changed`,
+            { type: changed === 0 ? 'info' : 'success' },
+          )
         } catch (err) {
           toast(err instanceof Error ? err.message : 'Import failed', { type: 'error' })
         }
@@ -328,7 +283,7 @@ export function SettingsScreen() {
               <span className="ok">Saved</span>
             )}
             <div className="sep" />
-            <span><b>{SECTIONS.length}</b> sections</span>
+            <span><b>{SECTION_SPECS.length}</b> sections</span>
           </div>
         </div>
 
@@ -353,8 +308,11 @@ export function SettingsScreen() {
         {/* Save bar */}
         <SaveBar
           dirtyCount={dirtyCount}
+          activeOwnership={activeSection.ownership}
+          saveState={saveState}
           onSave={handleSave}
-          onRefresh={handleRefresh}
+          onRefresh={() => { void handleRefresh() }}
+          onDiscardAll={handleDiscardAll}
           onExport={handleExport}
           onImport={handleImport}
         />

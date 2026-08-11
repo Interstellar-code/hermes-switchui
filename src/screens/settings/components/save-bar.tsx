@@ -1,6 +1,13 @@
 /**
  * save-bar.tsx — Sticky footer with dirty-change count + action buttons.
+ *
+ * Every prop beyond the original four is optional and defaults to the previous
+ * behaviour, so callers that know nothing about section ownership or save
+ * phase render exactly as before.
  */
+
+import type { SectionOwnership } from '../lib/section-registry'
+import type { SaveState } from '@/stores/settings-store'
 
 type SaveBarProps = {
   dirtyCount: number
@@ -8,6 +15,29 @@ type SaveBarProps = {
   onRefresh: () => void
   onExport?: () => void
   onImport?: () => void
+  /** Ownership of the section currently on screen, for honest idle copy. */
+  activeOwnership?: SectionOwnership
+  /** Save phase + failures from the settings store. */
+  saveState?: SaveState
+  /** Revert every unsaved edit. Button is hidden when omitted. */
+  onDiscardAll?: () => void
+}
+
+/**
+ * What the bar says when there is nothing dirty. A section whose controls
+ * write the gateway directly must not claim the save button applies to it.
+ */
+function idleLabel(ownership: SectionOwnership | undefined): string {
+  switch (ownership) {
+    case 'self-saving':
+      return 'This section saves its own changes'
+    case 'mixed':
+      return 'No unsaved changes · some cards save immediately'
+    case 'read-only':
+      return 'Nothing to save in this section'
+    default:
+      return 'No unsaved changes'
+  }
 }
 
 function IconSave() {
@@ -43,20 +73,41 @@ function IconImport() {
   )
 }
 
-export function SaveBar({ dirtyCount, onSave, onRefresh, onExport, onImport }: SaveBarProps) {
+export function SaveBar({
+  dirtyCount,
+  onSave,
+  onRefresh,
+  onExport,
+  onImport,
+  activeOwnership,
+  saveState,
+  onDiscardAll,
+}: SaveBarProps) {
   const hasDirty = dirtyCount > 0
+  const phase = saveState?.phase ?? 'idle'
+  const isSaving = phase === 'saving'
 
   return (
     <div className="save-bar" role="region" aria-label="Save changes">
-      {hasDirty ? (
-        <span className="dirty-label">
-          {dirtyCount} {dirtyCount === 1 ? 'change' : 'changes'}
-        </span>
-      ) : (
-        <span>No unsaved changes</span>
-      )}
+      <span aria-live="polite">
+        {phase === 'error' && saveState?.error ? (
+          <span className="warn">{saveState.error}</span>
+        ) : hasDirty ? (
+          <span className="dirty-label">
+            {dirtyCount} {dirtyCount === 1 ? 'change' : 'changes'}
+          </span>
+        ) : (
+          idleLabel(activeOwnership)
+        )}
+      </span>
 
       <div className="spacer" />
+
+      {onDiscardAll && hasDirty && (
+        <button type="button" className="btn" onClick={onDiscardAll} disabled={isSaving}>
+          Discard all
+        </button>
+      )}
 
       {onImport && (
         <button type="button" className="btn" onClick={onImport}>
@@ -88,10 +139,10 @@ export function SaveBar({ dirtyCount, onSave, onRefresh, onExport, onImport }: S
         type="button"
         className="btn primary"
         onClick={onSave}
-        disabled={!hasDirty}
+        disabled={isSaving || !hasDirty}
       >
         <IconSave />
-        Save changes
+        {isSaving ? 'Saving…' : 'Save changes'}
       </button>
     </div>
   )

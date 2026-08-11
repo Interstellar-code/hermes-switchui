@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SectionExecution from './section-execution'
-import { useSettingsStore } from '@/stores/settings-store'
+import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
 
 const { mockFetchAgentCwd } = vi.hoisted(() => ({
   mockFetchAgentCwd: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('@/components/hermes-docs-link', () => ({
 }))
 
 function loadDraft(patch: Record<string, unknown>) {
-  useSettingsStore.getState().load(patch)
+  useSettingsStore.getState().seed(patch)
 }
 
 function renderSection() {
@@ -53,12 +53,7 @@ const BASE_CWD_STATUS = {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
-  useSettingsStore.setState({
-    loaded: false,
-    committed: {},
-    draft: {},
-    dirty: new Set<string>(),
-  })
+  resetSettingsStore()
 })
 
 describe('SectionExecution', () => {

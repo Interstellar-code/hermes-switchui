@@ -537,7 +537,8 @@ function WikiCard() {
 // ── Main section ──────────────────────────────────────────────────────────────
 
 export default function SectionMemoryWiki() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   const memoryEnabled =
     (draft['config.memory.memory_enabled'] as boolean | undefined) ?? true

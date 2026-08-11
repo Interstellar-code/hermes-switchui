@@ -24,7 +24,8 @@ const LOG_LEVELS = [
 ]
 
 export default function SectionTelemetry() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   // logging.* — real DEFAULT_CONFIG keys
   const logLevel = (draft['config.logging.level'] as string | undefined) ?? 'INFO'

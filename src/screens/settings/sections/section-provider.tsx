@@ -17,7 +17,8 @@ import { modelInfo, modelOptions, setModelAssignment } from '@/lib/hermes-client
 import { toast } from '@/components/ui/toast'
 
 export default function SectionProvider() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
   const navigate = useNavigate()
 
   const { data: info, isLoading: infoLoading } = useQuery({

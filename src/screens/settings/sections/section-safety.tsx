@@ -43,7 +43,8 @@ const TONE_LABEL: Record<PostureTone, string> = {
 }
 
 export default function SectionSafety() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   const approvalsMode = (draft['config.approvals.mode'] as string | undefined) ?? 'smart'
   const cronMode = (draft['config.approvals.cron_mode'] as string | undefined) ?? 'deny'

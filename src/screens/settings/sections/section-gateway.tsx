@@ -121,7 +121,8 @@ export function validateApiServerPort(value: number): string | null {
 }
 
 export default function SectionGateway() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
   const [portInput, setPortInput] = useState<string | null>(null)
 
   const multiplexProfiles = (draft['config.gateway.multiplex_profiles'] as boolean | undefined) ?? false
@@ -140,7 +141,7 @@ export default function SectionGateway() {
     staleTime: 5_000,
     retry: false,
   })
-  const scopeData = scopeQuery.data as GatewayScopeStatus | undefined
+  const scopeData: GatewayScopeStatus | undefined = scopeQuery.data
   const liveMode = scopeData?.mode ?? null // 'single' | 'multiplex' | 'unknown' | null
   const servingProfile = liveMode === 'single' ? (scopeData?.servingProfile ?? null) : null
 

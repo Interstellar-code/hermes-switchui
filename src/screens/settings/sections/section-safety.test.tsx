@@ -2,20 +2,15 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import SectionSafety from './section-safety'
-import { useSettingsStore } from '@/stores/settings-store'
+import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
 
 function loadDraft(patch: Record<string, unknown>) {
-  useSettingsStore.getState().load(patch)
+  useSettingsStore.getState().seed(patch)
 }
 
 afterEach(() => {
   cleanup()
-  useSettingsStore.setState({
-    loaded: false,
-    committed: {},
-    draft: {},
-    dirty: new Set<string>(),
-  })
+  resetSettingsStore()
 })
 
 describe('SectionSafety', () => {

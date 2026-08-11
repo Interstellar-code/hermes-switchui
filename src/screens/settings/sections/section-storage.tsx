@@ -15,7 +15,8 @@ import { useSettingsStore } from '@/stores/settings-store'
 import { analyticsUsage } from '@/lib/hermes-client'
 
 export default function SectionStorage() {
-  const { draft, set } = useSettingsStore()
+  const draft = useSettingsStore((s) => s.draft)
+  const set = useSettingsStore((s) => s.set)
 
   const { data: usage, isLoading } = useQuery({
     queryKey: ['analytics-usage', 30],
