@@ -5,6 +5,7 @@ import { readResolvedSessionHeaders } from '@/lib/send-stream-session-headers'
 import { detectModelRejection, useChatStore } from '@/stores/chat-store'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { pushActivity } from '@/components/inspector/activity-store'
+import { useGoalProgressStore } from '@/stores/goal-progress-store'
 import { parseApprovalDetail } from '@/lib/approvals'
 import {
   activeScopeKey,
@@ -278,6 +279,8 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
 
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
   const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
+  const addGoalStatus = useGoalProgressStore((s) => s.addGoalStatus)
+  const clearGoalProgress = useGoalProgressStore((s) => s.clearGoalProgress)
 
   const ACCEPTED_NO_ACTIVITY_TIMEOUT_MS = acceptedTimeoutMs ?? 120_000
   const HANDOFF_NO_ACTIVITY_TIMEOUT_MS = handoffTimeoutMs ?? 300_000
@@ -504,6 +507,51 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
     [onChunk],
   )
 
+  /**
+   * Close the assistant turn that just ended, mid-run, and start a fresh one.
+   *
+   * A goal continuation is a NEW assistant turn inside the SAME run: one
+   * `run.started`, one `run.completed`, N `message.started` /
+   * `assistant.completed` pairs between them (measured live, 2026-08-13). The
+   * hook's text accumulator and the store's per-session streaming state are
+   * both keyed by session rather than by message, so without a boundary the
+   * second turn's deltas append to the first turn's text and the whole run
+   * lands as one giant merged message.
+   *
+   * The boundary reuses the store's `done` case deliberately: that is the ONE
+   * place that turns streaming state into a transcript message (text +
+   * thinking + tool calls, deduped, persisted for recovery). Sealing any other
+   * way would be a second, divergent implementation of "a turn ended".
+   *
+   * `finishedRef` is NOT set and the run id is NOT unregistered — the stream is
+   * still open and the next turn is about to start on the same run.
+   */
+  const sealTurnForContinuation = useCallback(() => {
+    const sessionKey = activeSessionKeyRef.current
+    const hasStreamingState =
+      useChatStore.getState().getStreamingState(sessionKey) !== null
+    if (fullTextRef.current.trim() || hasStreamingState) {
+      processStoreEvent({
+        type: 'done',
+        state: 'complete',
+        runId: activeRunIdRef.current ?? undefined,
+        sessionKey,
+        transport: 'send-stream',
+      })
+    }
+    // Reset the accumulator so the next turn's deltas start from empty. The
+    // sealed message already carries this text; leaving it here would make the
+    // next turn re-render it and then append to it.
+    fullTextRef.current = ''
+    renderedTextRef.current = ''
+    targetTextRef.current = ''
+    thinkingRef.current = ''
+    toolCallSeenRef.current = false
+    setState((prev) =>
+      prev.streamingText === '' ? prev : { ...prev, streamingText: '' },
+    )
+  }, [processStoreEvent])
+
   const finishStream = useCallback(
     (payload?: unknown) => {
       if (finishedRef.current) return
@@ -628,6 +676,11 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
               })
             }
           }
+          // The judge's verdicts describe the run that just ended, not this
+          // one. Dropping them at the run boundary is what keeps the card a
+          // live progress readout rather than an ever-growing log; the goal
+          // itself is unaffected (it lives in the agent's state.db).
+          clearGoalProgress(activeSessionKeyRef.current)
           // Register runId so chat-events skips duplicate chunks for this run
           const runId = payload.runId as string | undefined
           if (runId) {
@@ -1027,6 +1080,51 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           })
           break
         }
+        // ── Standing-goal events (agent ≥ 0.19.14) ───────────────────────
+        //
+        // Neither fires unless the session has a goal set, so the ordinary
+        // chat path never reaches these cases. Both are additive: an older
+        // agent simply never sends them, and this switch has no `default:`
+        // arm, so an unknown event is a no-op — that tolerance is deliberate
+        // and must survive (the gateway warns that clients which hard-fail on
+        // unknown SSE events break on every additive change).
+        case 'goal_continuation': {
+          // A turn boundary, NOT a notification. The message id in this event
+          // names the message that is ABOUT to start; everything after it
+          // belongs to that message and not to the one just completed. See
+          // sealTurnForContinuation.
+          markActivity()
+          sealTurnForContinuation()
+          pushActivity({
+            type: 'assistant_start',
+            time: new Date().toLocaleTimeString(),
+            text: `Goal continuation — turn ${
+              typeof payload.turn === 'number' ? payload.turn : '?'
+            }`,
+          })
+          break
+        }
+        case 'goal_status': {
+          const message =
+            typeof payload.message === 'string' ? payload.message.trim() : ''
+          if (!message) break
+          markActivity()
+          addGoalStatus(activeSessionKeyRef.current, {
+            message,
+            status:
+              typeof payload.status === 'string' ? payload.status : 'active',
+            verdict:
+              typeof payload.verdict === 'string' ? payload.verdict : undefined,
+            shouldContinue: payload.shouldContinue === true,
+            capped: payload.capped === true,
+            turnsUsed:
+              typeof payload.turnsUsed === 'number' ? payload.turnsUsed : 0,
+            maxTurns:
+              typeof payload.maxTurns === 'number' ? payload.maxTurns : 0,
+            runId: activeRunIdRef.current ?? undefined,
+          })
+          break
+        }
         case 'clarify_resolved':
         case 'interaction':
         case 'interaction_resolved': {
@@ -1073,13 +1171,16 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       }
     },
     [
+      addGoalStatus,
       clearClarifyUnlessApproval,
+      clearGoalProgress,
       clearPendingClarify,
       dismissUnresolvedClarify,
       finishClarifyRun,
       finishStream,
       markFailed,
       onStarted,
+      sealTurnForContinuation,
       onSessionResolved,
       onThinking,
       onTool,

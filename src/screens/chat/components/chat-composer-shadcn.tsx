@@ -89,6 +89,9 @@ import {
 import {
   SlashCommandMenu,
   SlashCommandPicker,
+  findSkillInvocation,
+  skillArgumentNotice,
+  useSlashCommandDefinitions,
 } from '@/components/slash-command-menu'
 import {
   normalizeMessageQueueSessionKey,
@@ -210,9 +213,15 @@ async function buildAttachment(
 // ─── Slash-command query parsing (mirrors live `readSlashCommandQuery`) ────
 function readSlashCommandQuery(value: string): string | null {
   if (!value.startsWith('/')) return null
-  // Only an active slash command while there is no whitespace yet.
-  if (/\s/.test(value)) return null
-  return value.slice(1)
+  if (value.includes('\n')) return null
+  // `/token` — the ordinary command search.
+  if (!/\s/.test(value)) return value.slice(1)
+  // `/token <partial>` — subcommand completion. Exactly one argument, so
+  // `/title My New Title` still closes the menu. SlashCommandMenu renders
+  // nothing when the token has no subcommands, which is what keeps free-typed
+  // prose after a slash token from showing an empty popover.
+  if (/^\/\S+\s\S*$/.test(value)) return value.slice(1)
+  return null
 }
 
 function getQueuedMessagePreview(item: QueuedChatMessage): string {
@@ -258,6 +267,25 @@ function ChatComposerShadcn({
   // selectors. The composer only needs it to gate fast mode.
   const thinkingLevel = externalThinkingLevel ?? 'low'
   const isWebSearchActive = webSearchEnabled ?? isWebSearchMode
+
+  /**
+   * The skill the composer is currently invoking, if any.
+   *
+   * Derived from the text rather than from what was picked, so it holds for a
+   * hand-typed `/arxiv …` too, and — the point of it — it survives the second
+   * space, where the slash menu closes and takes every hint it was showing with
+   * it. Skills have no `subcommands`, so selecting one dismisses the menu
+   * immediately; without this the argument affordance would be visible only in
+   * the moment before it is needed.
+   *
+   * Costs no extra request: `SlashCommandMenu` below is already a consumer of
+   * these queries.
+   */
+  const slashCommands = useSlashCommandDefinitions()
+  const skillInvocation = React.useMemo(
+    () => findSkillInvocation(value, slashCommands),
+    [slashCommands, value],
+  )
 
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const fileInputRef = React.useRef<HTMLInputElement>(null)
@@ -359,9 +387,12 @@ function ChatComposerShadcn({
         focusPrompt()
         return
       }
-      // Insert the selected command + a trailing space, then dismiss.
+      // Insert the selected command + a trailing space. Commands that take
+      // subcommands keep the menu open so the next token can be completed
+      // straight away; everything else dismisses it.
+      const hasSubcommands = (command.subcommands?.length ?? 0) > 0
       setValue(`${command.command} `)
-      setIsSlashMenuDismissed(true)
+      setIsSlashMenuDismissed(!hasSubcommands)
       focusPrompt()
     },
     [focusPrompt],
@@ -641,8 +672,12 @@ function ChatComposerShadcn({
   ])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // While the slash menu is open, route arrows / enter to it.
-    if (isSlashMenuOpen) {
+    // While the slash menu is open AND showing something, route arrows / enter
+    // to it. The `hasItems` guard matters because the menu also stays "open"
+    // for `/<token> <partial>` (subcommand completion) — a state reached just
+    // as easily by typing prose after a slash token, where the menu renders
+    // nothing and the arrow keys belong to the textarea.
+    if (isSlashMenuOpen && (slashMenuRef.current?.hasItems() ?? false)) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         slashMenuRef.current?.moveSelection(1)
@@ -768,6 +803,24 @@ function ChatComposerShadcn({
             >
               <X className="size-3.5" />
             </button>
+          </div>
+        )}
+
+        {/* skill-argument affordance — see `skillInvocation` above. Stays up for
+            as long as the text still invokes the skill, which is precisely the
+            window in which the slash menu is gone. */}
+        {skillInvocation && (
+          <div
+            className="flex items-start gap-2 rounded-lg border border-border/70 bg-muted px-3 py-1.5 text-xs text-muted-foreground"
+            data-testid="skill-argument-hint"
+          >
+            <Zap
+              className="mt-0.5 size-3.5 shrink-0 text-primary"
+              aria-hidden="true"
+            />
+            <span className="min-w-0">
+              {skillArgumentNotice(skillInvocation.command)}
+            </span>
           </div>
         )}
 

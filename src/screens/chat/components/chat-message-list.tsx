@@ -625,6 +625,12 @@ type ChatMessageListProps = {
    * row so the question, choices, and selected answer stay with tool activity.
    */
   clarifyCard?: React.ReactNode
+  /**
+   * Non-persisted agent slash-command output, rendered after the transcript.
+   * Deliberately a sibling of `messages` rather than an entry in it — see
+   * `stores/command-output-store.ts` for why it must never be a chat message.
+   */
+  commandOutputs?: React.ReactNode
   waitingForResponse: boolean
   sessionKey?: string
   pinToTop: boolean
@@ -697,6 +703,7 @@ function ChatMessageListComponent({
   notice,
   noticePosition = 'start',
   clarifyCard,
+  commandOutputs,
   waitingForResponse,
   sessionKey,
   pinToTop,
@@ -2032,6 +2039,7 @@ function ChatMessageListComponent({
                 ) : null}
               </div>
             ) : null}
+            {commandOutputs}
             {notice && noticePosition === 'end' ? notice : null}
             <ChatContainerScrollAnchor ref={anchorRef} />
           </ChatContainerContent>
@@ -2152,6 +2160,7 @@ function areChatMessageListEqual(
     prev.notice === next.notice &&
     prev.noticePosition === next.noticePosition &&
     prev.clarifyCard === next.clarifyCard &&
+    prev.commandOutputs === next.commandOutputs &&
     prev.waitingForResponse === next.waitingForResponse &&
     prev.sessionKey === next.sessionKey &&
     prev.pinToTop === next.pinToTop &&
