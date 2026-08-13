@@ -9,7 +9,10 @@ import {
   catalogPolicyInputs,
   getHermesCommandCatalog,
 } from '../../server/hermes-commands'
-import { runSlashCommand } from '../../server/hermes-slash-exec'
+import {
+  classifySlashFailure,
+  runSlashCommand,
+} from '../../server/hermes-slash-exec'
 
 /**
  * `POST /api/hermes-commands/exec` — run one Hermes agent slash command.
@@ -38,10 +41,22 @@ import { runSlashCommand } from '../../server/hermes-slash-exec'
  * Response: `{ ok: true, command, result: <union> }`
  *           `{ ok: false, refused: true, command, reason }`  (403)
  *           `{ ok: false, mode: 'agent-commands-unavailable', … }` (503)
+ *           `{ ok: false, command, error, kind, guidance, agentCode? }` (4xx/5xx)
+ *
+ * ── Two kinds of "no", and why they have different statuses ───────────────
+ * A **policy refusal** is a 403 carrying `reason` — unchanged, and the only
+ * thing `refused: true` ever means.
+ *
+ * An **agent failure** used to be a blanket 502 whatever it was, so a `/subgoal`
+ * 4004 whose message is literally `"usage: /subgoal remove <n>"` reached the
+ * user as a "Bad Gateway" error toast: fixable guidance rendered as breakage.
+ * `classifySlashFailure` (`server/hermes-slash-exec.ts`) now maps the agent's
+ * own JSON-RPC code — 4xxx to a 4xx with the agent's message verbatim, 5xxx to
+ * a 5xx, always — and the body carries `kind` and a `guidance` boolean so the
+ * client can tell "you typed it wrong" from "the agent broke" without parsing
+ * status codes. See that function for the code space, measured against the
+ * installed agent.
  */
-
-const REQUEST_TIMEOUT_MESSAGE =
-  'The agent did not answer in time. The command may still be running inside the agent.'
 
 function unavailable(reason: string): Response {
   return Response.json(
@@ -124,16 +139,19 @@ export const Route = createFileRoute('/api/hermes-commands/exec')({
           }
           return Response.json(outcome)
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : 'Command failed'
-          const timedOut = /timeout/i.test(message)
+          const failure = classifySlashFailure(error)
           return Response.json(
             {
               ok: false,
               command,
-              error: timedOut ? REQUEST_TIMEOUT_MESSAGE : message,
+              error: failure.message,
+              kind: failure.kind,
+              guidance: failure.guidance,
+              ...(failure.agentCode === null
+                ? {}
+                : { agentCode: failure.agentCode }),
             },
-            { status: timedOut ? 504 : 502 },
+            { status: failure.status },
           )
         }
       },

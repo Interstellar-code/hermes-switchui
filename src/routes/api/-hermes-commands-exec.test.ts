@@ -6,8 +6,12 @@ import {
   catalogPolicyInputs,
   getHermesCommandCatalog,
 } from '../../server/hermes-commands'
+import { HermesRpcError } from '../../server/hermes-rpc'
 import { runSlashCommand } from '../../server/hermes-slash-exec'
 import { Route } from './hermes-commands.exec'
+import type * as SlashExecModuleNs from '../../server/hermes-slash-exec'
+
+type SlashExecModule = typeof SlashExecModuleNs
 
 vi.mock('../../server/auth-middleware', () => ({
   isAuthenticated: vi.fn(),
@@ -23,9 +27,14 @@ vi.mock('../../server/hermes-commands', () => ({
   catalogPolicyInputs: vi.fn(),
 }))
 
-vi.mock('../../server/hermes-slash-exec', () => ({
-  runSlashCommand: vi.fn(),
-}))
+// Only `runSlashCommand` is stubbed. `classifySlashFailure` stays REAL — the
+// whole point of these cases is which status the real mapping produces, so a
+// double of it would assert nothing.
+vi.mock('../../server/hermes-slash-exec', async () => {
+  const actual =
+    await vi.importActual<SlashExecModule>('../../server/hermes-slash-exec')
+  return { ...actual, runSlashCommand: vi.fn() }
+})
 
 type RouteWithHandlers = typeof Route & {
   options: {
@@ -191,6 +200,140 @@ describe('POST /api/hermes-commands/exec', () => {
     await expect(response.json()).resolves.toMatchObject({
       ok: false,
       error: 'socket closed',
+      kind: 'agent-error',
+      guidance: false,
+    })
+  })
+
+  // ── Agent error codes ───────────────────────────────────────────────────
+  // The defect these pin: a `/subgoal` 4004 carries a message the user can act
+  // on ("usage: /subgoal remove <n>"), and the blanket 502 turned it into a
+  // Bad Gateway error toast. The status must say whose problem it is, and the
+  // agent's own words must survive intact.
+  describe('agent error codes', () => {
+    it('maps a 4004 to 400 with the agent’s message verbatim', async () => {
+      vi.mocked(runSlashCommand).mockRejectedValue(
+        new HermesRpcError(4004, 'usage: /subgoal remove <n>'),
+      )
+      const response = await handler({
+        request: request({ command: '/subgoal remove' }),
+      })
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({
+        ok: false,
+        command: '/subgoal remove',
+        error: 'usage: /subgoal remove <n>',
+        kind: 'invalid-input',
+        guidance: true,
+        agentCode: 4004,
+      })
+      // NOT a refusal: `refused` means the allowlist said no, and conflating
+      // the two would make a typo look like a policy decision.
+      const body = (await (
+        await handler({ request: request({ command: '/subgoal remove' }) })
+      ).json()) as Record<string, unknown>
+      expect(body).not.toHaveProperty('refused')
+    })
+
+    it('keeps every 4004 spelling the agent uses', async () => {
+      for (const message of [
+        '<n> must be an integer',
+        'index out of range (1..1)',
+        "undo: invalid count 'abc' — use /undo or /undo N",
+        'usage: /steer <prompt>',
+      ]) {
+        vi.mocked(runSlashCommand).mockRejectedValue(
+          new HermesRpcError(4004, message),
+        )
+        const response = await handler({ request: request({ command: '/subgoal x' }) })
+        expect(response.status, message).toBe(400)
+        await expect(response.json()).resolves.toMatchObject({ error: message })
+      }
+    })
+
+    it('maps 4001 to 404, 4009 to 409 and 4090 to 429', async () => {
+      const cases: Array<[number, string, number, string]> = [
+        [4001, 'session not found', 404, 'session-gone'],
+        [4009, 'session busy — /interrupt the current turn before /undo', 409, 'busy'],
+        [4090, 'too many active sessions', 429, 'rate-limited'],
+      ]
+      for (const [code, message, status, kind] of cases) {
+        vi.mocked(runSlashCommand).mockRejectedValue(
+          new HermesRpcError(code, message),
+        )
+        const response = await handler({ request: request({ command: '/undo' }) })
+        expect(response.status, message).toBe(status)
+        await expect(response.json()).resolves.toMatchObject({
+          error: message,
+          kind,
+          guidance: true,
+          agentCode: code,
+        })
+      }
+    })
+
+    it('maps a surviving 4018 to 400 — the routing retry already had its go', async () => {
+      vi.mocked(runSlashCommand).mockRejectedValue(
+        new HermesRpcError(4018, 'not a quick/plugin/bundle/skill command: nope'),
+      )
+      const response = await handler({ request: request({ command: '/nope' }) })
+      expect(response.status).toBe(400)
+      await expect(response.json()).resolves.toMatchObject({
+        kind: 'unroutable',
+        guidance: true,
+      })
+    })
+
+    it('leaves every 5xxx a 5xx — an outage must not read as a typo', async () => {
+      for (const [code, message] of [
+        [5030, 'slash worker start failed: [Errno 2] No such file'],
+        [5008, 'undo: failed to load history: database is locked'],
+        [5009, 'compress failed: connection reset'],
+        [5019, 'compute-host dispatch failed: timed out'],
+        [5000, 'resume failed: boom'],
+      ] as Array<[number, string]>) {
+        vi.mocked(runSlashCommand).mockRejectedValue(
+          new HermesRpcError(code, message),
+        )
+        const response = await handler({ request: request({ command: '/help' }) })
+        expect(response.status, message).toBe(502)
+        expect(response.status, message).toBeGreaterThanOrEqual(500)
+        await expect(response.json()).resolves.toMatchObject({
+          error: message,
+          kind: 'agent-error',
+          guidance: false,
+          agentCode: code,
+        })
+      }
+    })
+
+    it('treats a JSON-RPC framing error as ours, not the user’s', async () => {
+      vi.mocked(runSlashCommand).mockRejectedValue(
+        new HermesRpcError(-32602, 'invalid params'),
+      )
+      const response = await handler({ request: request({ command: '/help' }) })
+      expect(response.status).toBe(502)
+      await expect(response.json()).resolves.toMatchObject({
+        kind: 'agent-error',
+        guidance: false,
+      })
+    })
+
+    it('does not disturb the 403 refusal shape', async () => {
+      vi.mocked(runSlashCommand).mockResolvedValue({
+        ok: false,
+        refused: true,
+        command: '/yolo',
+        reason: 'use the approvals toggle instead',
+      })
+      const response = await handler({ request: request({ command: '/yolo' }) })
+      expect(response.status).toBe(403)
+      await expect(response.json()).resolves.toEqual({
+        ok: false,
+        refused: true,
+        command: '/yolo',
+        reason: 'use the approvals toggle instead',
+      })
     })
   })
 })

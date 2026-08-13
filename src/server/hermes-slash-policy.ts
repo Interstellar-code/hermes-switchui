@@ -159,7 +159,10 @@
  * branch in `evaluateSlashCommand`, `isBareOnlySlashCommand` returns false for
  * either so the catalog keeps its completions, and `slashArgumentCompletions`
  * feeds the picker the permitted forms so selecting the command leads to an
- * allowed one instead of a refusal. For `onlyArgs` a rejected argument falls
+ * allowed one instead of a refusal. `slashUsageHint` (foot of this file) reads
+ * the same four fields a fourth time, to correct the `(usage: …)` string the
+ * agent puts in every description — the one surface that used to advertise
+ * these commands' refused forms in full. For `onlyArgs` a rejected argument falls
  * through to that command's `SLASH_REFUSALS` entry, so the user is told what
  * bare would do rather than a generic "no arguments" line — which would be
  * actively wrong for `/compress` and `/debug`, where bare is the dangerous
@@ -778,16 +781,22 @@ export const SLASH_EXEC_ALLOWLIST: Readonly<
       'model auto, provider custom, per-provider key presence (values never ' +
       'printed), feature counts and config overrides, then the tail of ' +
       'agent.log. ' +
-      'SIZE — the one thing about this entry worth watching. Measured twice: ' +
-      '863,549 characters over the RPC, and a 395,991-byte response through ' +
-      'POST /api/hermes-commands/exec (1.10s) a few minutes later. It varies ' +
-      'because the bulk is the last 200 lines of agent.log and those lines ' +
-      'vary in length. Nothing truncates it: the route has no size cap. It is ' +
-      'bounded in practice — command-output-card.tsx renders it collapsed ' +
-      '(max-h-56 with a "Show all N lines" toggle) and command-output-store.ts ' +
-      'keeps at most 20 entries per session and never persists — but this is ' +
-      'by far the largest output on the list, ~1000x /profile, and a size ' +
-      'guard on the route is the obvious follow-up if anything else joins it. ' +
+      'SIZE — the one thing about this entry worth watching, and the reason ' +
+      'there is now a cap. Measured three times, growing each time: 863,549 ' +
+      'characters over the RPC, a 395,991-byte response through ' +
+      'POST /api/hermes-commands/exec, and 1,153,097 bytes over the RPC on ' +
+      '2026-08-13 (v0.19.16, throwaway session, 1777ms) against 69 bytes for ' +
+      '/profile on the same session. It varies because the bulk is the tail ' +
+      'of agent.log and those lines vary in length. ' +
+      'CAPPED SINCE 2026-08-13: SLASH_OUTPUT_LIMIT_BYTES (64 KiB) in ' +
+      'hermes-slash-exec.ts truncates it inside runSlashCommand — every ' +
+      'caller, not just the route — and appends a notice carrying the real ' +
+      'byte count and a pointer at GET /api/logs, so a truncated dump can ' +
+      'never read as the whole answer. Measured after: a 67,621-byte HTTP ' +
+      'response. The card renders it collapsed (max-h-56) and ' +
+      'command-output-store.ts keeps at most 20 entries per session and never ' +
+      'persists, but neither of those was ever a limit on what crosses the ' +
+      'wire. ' +
       'Note also that "redacted at upload time" means the LOCAL render is ' +
       'not redacted; that is the point of the form, and it goes only to the ' +
       "user's own browser. " +
@@ -1422,4 +1431,186 @@ export function slashArgumentCompletions(command: string): Array<string> {
     return [...entry.optionalCount.completions].sort((a, b) => Number(a) - Number(b))
   }
   return []
+}
+
+// ── The usage hint ──────────────────────────────────────────────────────────
+//
+// `commands.catalog` embeds the registry's `args_hint` in each description as a
+// trailing `(usage: /cmd …)`, and the picker renders it beside the command
+// token. Until this section existed that hint was the ONE thing about a command
+// that no policy touched: `runnable` came from the allowlist, `subcommands`
+// came from `slashArgumentCompletions`, and the hint came straight from the
+// agent — so `/reasoning` was advertised as
+// `[level|show|hide|full|clamp] [--global]` when every one of those forms is
+// refused, and `/goal` still advertised `show`/`draft`/`wait`/`unwait` after
+// `phantomArgs` was written specifically to refuse them.
+//
+// That was the same defect four times over (`/tools list`, `/compress`,
+// `/goal show`, and this), each fixed one command at a time, so the correction
+// lives HERE rather than in the picker: the hint is now derived from the same
+// entry `evaluateSlashCommand` reads, projected onto the catalog next to
+// `runnable` and `subcommands` (`hermes-commands.ts`), and rendered verbatim by
+// a picker that decides nothing. `hermes-commands.test.ts` holds the guard that
+// re-derives every advertised form and runs it through `evaluateSlashCommand`.
+//
+// ── The one convention a hint must obey ───────────────────────────────────
+// **Angle brackets mean "metavariable"; every other word is a literal form the
+// route must accept.** `<text>`, `<days 1-365>` and `<pid>` stand for values;
+// `pause`, `--preview` and `local` are strings a user can type and therefore
+// strings the exec route has to allow. `usageHintLiteralForms` is the shared
+// parser for that rule — the derivation below obeys it and the guard enforces
+// it, so a hint cannot advertise a refused word without failing a test.
+
+/**
+ * Split on a separator that is not nested inside `[...]` or `<...>`.
+ *
+ * The agent's hints nest one level (`[text | draft <text> | wait <pid>]`), so a
+ * naive `split('|')` would cut inside a metavariable that happened to contain
+ * one.
+ */
+function splitTopLevel(text: string, separator: string): Array<string> {
+  const parts: Array<string> = []
+  let depth = 0
+  let current = ''
+  for (const char of text) {
+    if (char === '[' || char === '<') depth += 1
+    else if (char === ']' || char === '>') depth = Math.max(0, depth - 1)
+    else if (char === separator && depth === 0) {
+      parts.push(current)
+      current = ''
+      continue
+    }
+    current += char
+  }
+  parts.push(current)
+  return parts
+}
+
+/**
+ * Unwrap a hint that is ONE `[...]` group wrapping the whole thing, so its
+ * alternatives can be split. Returns null when the hint is anything else —
+ * notably `/reasoning`'s `[a|b] [--global]`, where a greedy `^\[(.*)\]$` would
+ * "unwrap" across two groups and corrupt the string.
+ */
+function unwrapOptionalGroup(hint: string): string | null {
+  if (!hint.startsWith('[') || !hint.endsWith(']')) return null
+  let depth = 0
+  for (let i = 0; i < hint.length; i += 1) {
+    const char = hint[i]
+    if (char === '[') depth += 1
+    else if (char === ']') {
+      depth -= 1
+      // The opening bracket closed before the end ⇒ more than one group.
+      if (depth === 0 && i !== hint.length - 1) return null
+    }
+  }
+  return depth === 0 ? hint.slice(1, -1) : null
+}
+
+/**
+ * Every literal word a usage hint advertises — i.e. everything a user could
+ * type verbatim, with the `<…>` metavariables removed.
+ *
+ * This is the parser behind the guard: for a command the picker advertises,
+ * each of these has to be a form `evaluateSlashCommand` accepts, or the hint is
+ * telling the user to type something the server will refuse.
+ *
+ * It is deliberately crude — it flattens `[a|b] [--c]` to `a b --c` and reads
+ * the first word of a multi-word form (`remove N` ⇒ `remove`, `N`) as a form in
+ * its own right. Crude in the safe direction: it can only ever produce MORE
+ * strings to check, so a hint passes the guard by being restrictive, never by
+ * being unparseable.
+ */
+export function usageHintLiteralForms(hint: string): Array<string> {
+  const withoutMetavariables = hint.replace(/<[^>]*>/g, ' ')
+  const forms: Array<string> = []
+  for (const raw of withoutMetavariables.split(/[\s|[\]()]+/)) {
+    const token = raw.trim()
+    if (!token) continue
+    if (!forms.includes(token)) forms.push(token)
+  }
+  return forms
+}
+
+/**
+ * Drop the alternatives a `phantomArgs` entry refuses, keeping the rest of the
+ * agent's own hint.
+ *
+ * `/goal` is the holder and the reason: its hint advertises nine forms, four of
+ * which (`show`, `draft <text>`, `wait <pid>`, `unwait`) have no branch behind
+ * them and would become the goal text — a real turn, on a goal named "show".
+ * Subtraction rather than replacement because the other five are the agent's
+ * wording and are correct.
+ *
+ * Fails closed: if the result still advertises a refused word — a hint shaped
+ * in a way this parser did not anticipate — the whole hint is dropped rather
+ * than shown wrong.
+ */
+function subtractPhantomForms(
+  hint: string,
+  words: ReadonlySet<string>,
+): string | null {
+  const inner = unwrapOptionalGroup(hint)
+  const body = inner ?? hint
+  const kept = splitTopLevel(body, '|')
+    .map((part) => part.trim())
+    .filter((part) => {
+      if (!part) return false
+      const first = part.split(/\s+/)[0]?.toLowerCase() ?? ''
+      return !words.has(first)
+    })
+  if (kept.length === 0) return null
+  const rebuilt = kept.join(' | ')
+  const result = inner === null ? rebuilt : `[${rebuilt}]`
+  for (const form of usageHintLiteralForms(result)) {
+    if (words.has(form.toLowerCase())) return null
+  }
+  return result
+}
+
+/**
+ * The usage hint the picker may render for a command: the agent's own
+ * `args_hint`, corrected to the forms the exec route will actually accept.
+ *
+ * Five cases, one per argument mechanism in `SlashExecAllowEntry`:
+ *
+ *   1. **Not on the allowlist** — returned unchanged. That is skill commands
+ *      and bundle slugs (whose arguments are free prompt text, so the agent's
+ *      hint is already true of them) and the ~140 catalog commands that are
+ *      never advertised at all because `runnable` is false.
+ *   2. **`onlyArgs`** — replaced by the permitted set, unbracketed, because
+ *      the bare form is REFUSED and `[…]` would say the opposite. `/compress`
+ *      goes from `[here [N] | focus topic | --preview|--dry-run]` — three
+ *      quarters of which is refused, and one quarter of which really
+ *      compresses — to `--dry-run | --preview`.
+ *   3. **`optionalCount`** — replaced by the bound, as a metavariable, since
+ *      the permitted set is 365 values wide: `[<days 1-365>]`. The brackets
+ *      are honest here; bare runs.
+ *   4. **`allowArgs: false`** — no hint at all. This is the bug in its purest
+ *      form: ten of the fifteen entries are bare-only, six of them arrive with
+ *      a hint listing subcommands, and every one of those subcommands is
+ *      refused. `isBareOnlySlashCommand` already strips the *completions* for
+ *      these; the hint was the half nobody stripped.
+ *   5. **`allowArgs: true`** — the agent's hint, minus any `phantomArgs`
+ *      alternatives. `/learn` and `/subgoal` pass through untouched, which is
+ *      right: their arguments are the payload and any text is valid.
+ */
+export function slashUsageHint(
+  command: string,
+  catalogHint?: string | null,
+): string | null {
+  const key = command.trim().toLowerCase()
+  const hint = typeof catalogHint === 'string' ? catalogHint.trim() : ''
+  const entry = Object.prototype.hasOwnProperty.call(SLASH_EXEC_ALLOWLIST, key)
+    ? SLASH_EXEC_ALLOWLIST[key]
+    : null
+  if (!entry) return hint || null
+  if (entry.onlyArgs) return [...entry.onlyArgs].sort().join(' | ')
+  if (entry.optionalCount) {
+    return `[<${entry.optionalCount.label} 1-${entry.optionalCount.max}>]`
+  }
+  if (!entry.allowArgs) return null
+  if (!hint) return null
+  if (!entry.phantomArgs) return hint
+  return subtractPhantomForms(hint, entry.phantomArgs.words)
 }

@@ -392,10 +392,18 @@ export function useSlashCommands(
       })
 
       if (!outcome.ok) {
-        // A refusal is policy, not breakage — it reads as information. A
-        // transport failure is an error. Both say why; neither ever falls
-        // through to the model.
-        toast(outcome.reason, { type: outcome.refused ? 'info' : 'error' })
+        // Three cases, two tones. A refusal is policy, not breakage. So is
+        // `guidance` — the agent answered a 4xxx with something the user can
+        // act on ("usage: /subgoal remove <n>"), which the exec route now
+        // preserves verbatim instead of flattening every failure to 502.
+        // Styling that as an error tells the user something broke when what
+        // actually happened is that they were told how to fix it. Only a
+        // genuine transport or gateway failure is an error.
+        //
+        // `guidance` is optional on the wire, so an older response shape
+        // simply reads as an error, exactly as before.
+        const informational = outcome.refused || outcome.guidance === true
+        toast(outcome.reason, { type: informational ? 'info' : 'error' })
         return
       }
 

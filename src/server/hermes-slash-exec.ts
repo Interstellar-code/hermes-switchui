@@ -35,9 +35,30 @@ import type { EvaluateSlashOptions } from './hermes-slash-policy'
  *  than any browser should wait. */
 export const SLASH_EXEC_TIMEOUT_MS = 30_000
 
+/**
+ * Per-command output ceiling, in UTF-8 bytes.
+ *
+ * `/debug local` is the reason this exists. Measured over the dashboard RPC on
+ * a throwaway session against installed v0.19.16 (2026-08-13):
+ * **1,152,725 characters / 1,153,097 bytes** in 1777ms — against **69 bytes**
+ * for `/profile` on the same session. The bulk is the tail of `agent.log`, so
+ * the size is a property of the host's logging, not of the command, and it has
+ * only ever grown: the same command measured 863,549 chars a day earlier.
+ *
+ * Nothing else bounded it. The output card renders collapsed and
+ * `command-output-store` keeps 20 entries per session in memory, but neither is
+ * a limit on what crosses the wire, gets JSON-encoded, or is handed to a
+ * `{type:'send'}` prompt.
+ *
+ * 64 KiB is ~950x the largest *useful* allowlisted output (`/insights`,
+ * `/history`) and ~10x `/learn`'s ~6.0k-char prompt, so it never fires on a
+ * command whose whole answer is the point — only on a dump.
+ */
+export const SLASH_OUTPUT_LIMIT_BYTES = 64 * 1024
+
 export type SlashExecResult =
   | { type: 'exec'; output: string; warning?: string }
-  | { type: 'plugin'; output: string }
+  | { type: 'plugin'; output: string; warning?: string }
   | { type: 'send'; message: string; notice?: string }
   | { type: 'skill'; message: string; name?: string }
   | { type: 'prefill'; message: string; notice?: string }
@@ -49,6 +70,91 @@ export type SlashExecOutcome =
 
 function str(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+// ── Output cap ────────────────────────────────────────────────────────────
+
+const BYTES = new Intl.NumberFormat('en-US')
+
+/**
+ * Cut a string to at most `maxBytes` UTF-8 bytes **without splitting a
+ * character**. `Buffer.subarray(0, n).toString('utf8')` would happily cut a
+ * multi-byte sequence in half and hand the browser a U+FFFD; walking back off
+ * the continuation bytes (`10xxxxxx`) lands on a lead byte, and everything
+ * before a lead byte is a complete sequence.
+ */
+export function sliceUtf8(text: string, maxBytes: number): string {
+  const buf = Buffer.from(text, 'utf8')
+  if (buf.length <= maxBytes) return text
+  let end = maxBytes
+  while (end > 0 && (buf[end] & 0xc0) === 0x80) end -= 1
+  return buf.subarray(0, end).toString('utf8')
+}
+
+/**
+ * The truncation notice. It is appended to the text itself rather than carried
+ * only in a side channel, so a truncated dump can never read as the whole
+ * answer — whatever renders it. It says the real size, what was kept, that the
+ * remainder was discarded rather than parked somewhere, and where the bulk of a
+ * dump actually lives (`GET /api/logs`, which the Logs screen already tails).
+ */
+function truncationNotice(originalBytes: number): string {
+  return (
+    `\n\n── output truncated by SwitchUI ──\n` +
+    `The agent returned ${BYTES.format(originalBytes)} bytes; the first ` +
+    `${BYTES.format(SLASH_OUTPUT_LIMIT_BYTES)} are shown above and the rest was ` +
+    `discarded, not stored anywhere. Most of a large dump is the tail of ` +
+    `agent.log — read that in full on the Logs screen ` +
+    `(GET /api/logs?file=agent&lines=500).`
+  )
+}
+
+/** Short form for the card's warning strip, which shows while it is collapsed. */
+function truncationWarning(originalBytes: number): string {
+  return (
+    `Output truncated: ${BYTES.format(originalBytes)} bytes returned, ` +
+    `${BYTES.format(SLASH_OUTPUT_LIMIT_BYTES)} kept. See the note at the end of the output.`
+  )
+}
+
+function capText(text: string): { text: string; originalBytes: number } | null {
+  const originalBytes = Buffer.byteLength(text, 'utf8')
+  if (originalBytes <= SLASH_OUTPUT_LIMIT_BYTES) return null
+  return {
+    text: sliceUtf8(text, SLASH_OUTPUT_LIMIT_BYTES) + truncationNotice(originalBytes),
+    originalBytes,
+  }
+}
+
+/**
+ * Apply the cap to every text-bearing arm of the union.
+ *
+ * **Every** arm, including the `send`/`skill`/`prefill` messages that become
+ * prompts: an unbounded prompt is the same defect as an unbounded card, and the
+ * notice makes the cut visible in the composer too. In practice the largest
+ * prompt on the allowlist is `/learn` at ~6.0k chars, so this only ever fires on
+ * output. `alias.target` is a command name and is left alone.
+ */
+export function capSlashResult(result: SlashExecResult): SlashExecResult {
+  switch (result.type) {
+    case 'exec':
+    case 'plugin': {
+      const capped = capText(result.output)
+      if (!capped) return result
+      const warning = [result.warning, truncationWarning(capped.originalBytes)]
+        .filter(Boolean)
+        .join('\n')
+      return { ...result, output: capped.text, warning }
+    }
+    case 'send':
+    case 'skill':
+    case 'prefill': {
+      const capped = capText(result.message)
+      return capped ? { ...result, message: capped.text } : result
+    }
+    default:
+      return result
+  }
 }
 
 /**
@@ -212,5 +318,157 @@ export async function runSlashCommand(
     }
   })
 
-  return { ok: true, command: decision.command, result }
+  return { ok: true, command: decision.command, result: capSlashResult(result) }
+}
+
+// ── Failure classification ────────────────────────────────────────────────
+
+/**
+ * What went wrong, from the caller's point of view.
+ *
+ * `invalid-input`/`unroutable`/`session-gone`/`busy`/`rate-limited` are the
+ * caller's problem and carry the **agent's own message verbatim** — which is
+ * routinely better than anything we would write (`"usage: /subgoal remove <n>"`,
+ * `"<n> must be an integer"`, `"index out of range (1..1)"`). `agent-error` and
+ * `timeout` are the gateway's problem.
+ */
+export type SlashFailureKind =
+  | 'invalid-input'
+  | 'unroutable'
+  | 'session-gone'
+  | 'busy'
+  | 'rate-limited'
+  | 'agent-error'
+  | 'timeout'
+
+export type SlashFailure = {
+  /** HTTP status the exec route should answer with. */
+  status: number
+  kind: SlashFailureKind
+  /** User-facing text. The agent's own message, except for a timeout. */
+  message: string
+  /** The agent's JSON-RPC code, or null when the failure never reached it. */
+  agentCode: number | null
+  /**
+   * True when this is the caller's problem, so a client can render it as
+   * guidance ("you typed it wrong") rather than an error ("the agent broke").
+   */
+  guidance: boolean
+}
+
+export const SLASH_TIMEOUT_MESSAGE =
+  'The agent did not answer in time. The command may still be running inside the agent.'
+
+/**
+ * Map an agent JSON-RPC failure onto an HTTP status.
+ *
+ * ── The real error space, from installed hermes-agent v0.19.16 ────────────
+ * `_err(rid, code, msg)` is `tui_gateway/server.py:1618` (the plan's `~:1456`
+ * is against an older tree). It is a plain constructor — there is no code
+ * table, no enum and no doc, so the space is whatever the ~265 call sites use.
+ * Across the whole file that is **4000–4090** and **5000–5063**, and the split
+ * is consistent: 4xxx is always a rejected request, 5xxx is always a thrown
+ * exception or an absent subsystem. Hence the rule below is a **range** rule
+ * with a handful of named refinements, not a lookup table — an unlisted 4xxx is
+ * still the caller's problem and an unlisted 5xxx is still ours.
+ *
+ * The codes actually reachable through `slash.exec` (`server.py:15552`) and
+ * `command.dispatch` (`:13654`), which are the only two RPCs this module runs:
+ *
+ *   4001  session not found (`:1891`, via `_sess_nowait`) — also "no active
+ *         session" / "no session key" from the dispatch branches
+ *         (`:13809 :13863 :13917 :13925 :13998 :14006 :14103 :14113 :14218`)
+ *   4004  bad input — the fixable one. `"empty command"` (`:15559`),
+ *         `"usage: /queue <prompt>"` (`:13787`), `"usage: /steer <prompt>"`
+ *         (`:13897`), `"invalid goal: …"` (`:13970`),
+ *         `"usage: /subgoal remove <n>"` (`:14047`), `"/subgoal remove: …"`
+ *         (`:14059`), `"/subgoal clear: …"` (`:14069`), `"/subgoal: …"`
+ *         (`:14083`), `"undo: invalid count …"` (`:14121`)
+ *   4009  session busy — `"session busy — /interrupt the current turn before
+ *         /retry|/undo|/compress"` (`:13866 :14106 :14221 :14238`)
+ *   4018  unknown or unroutable — `"not a quick/plugin/bundle/skill command:
+ *         <name>"` (`:14314`), `"no previous user message to retry"`
+ *         (`:13870 :13878 :13887`), `"no user messages to undo"` (`:14129`),
+ *         `"bundle dispatch failed"` (`:13737 :13740`). Note `runSlashCommand`
+ *         already consumes the *routing* 4018 by retrying on `command.dispatch`
+ *         (§5.10), so a 4018 that reaches here is a genuine dead end
+ *   4090  active-session cap (`_claim_active_session_slot`, `:6135 :6570
+ *         :6638 :6715 :9365`) — raised by `session.create`/`session.resume`
+ *         inside `withSlashSession`, so it reaches this module too
+ *   5008  undo failed to load history (`:14127 :14139`)
+ *   5009  compress failed (`:14312`)
+ *   5019  compute-host dispatch failed (`:14234`)
+ *   5030  slash worker start/run failed (`:15668 :15684`), moa/goals
+ *         unavailable (`:13838 :13859 :13921 :14002`)
+ *
+ * `/handoff` is off the allowlist but its codes are in the same 4xxx family and
+ * fall out of the range rule correctly: 4024 unknown platform (`:7311`), 4025
+ * platform not enabled (`:7327`), 4026 no home channel (`:7331`), 4027 already
+ * in flight (`:7365`), 4028 no state.db row (`:7359`). (The brief's list omitted
+ * 4025.)
+ *
+ * **5xxx stays 5xx.** Flattening a wedged worker or a dead dashboard into a
+ * 400 would tell the user they typed something wrong while the agent is down.
+ * The one agent-side miscoding found — `5063 "project_id required"` (`:12784`),
+ * a client error wearing a server code — is unreachable from these two RPCs and
+ * is deliberately not special-cased: guessing per-code intent is exactly what
+ * the range rule exists to avoid.
+ */
+export function classifySlashFailure(error: unknown): SlashFailure {
+  const message = error instanceof Error ? error.message : 'Command failed'
+
+  if (error instanceof HermesRpcError) {
+    const code = error.code
+    if (code >= 4000 && code <= 4999) {
+      const kind: SlashFailureKind =
+        code === 4001 || code === 4007
+          ? 'session-gone'
+          : code === 4009 || code === 4023 || code === 4027
+            ? 'busy'
+            : code === 4090
+              ? 'rate-limited'
+              : code === 4018
+                ? 'unroutable'
+                : 'invalid-input'
+      const status =
+        kind === 'session-gone'
+          ? 404
+          : kind === 'busy'
+            ? 409
+            : kind === 'rate-limited'
+              ? 429
+              : 400
+      return { status, kind, message, agentCode: code, guidance: true }
+    }
+    // 5xxx, and the JSON-RPC framing codes (-32600…-32700) which mean this
+    // process built a bad request. Both are ours, not the user's.
+    return {
+      status: 502,
+      kind: 'agent-error',
+      message,
+      agentCode: code,
+      guidance: false,
+    }
+  }
+
+  // Not an RPC error at all: the per-request deadline, a dropped socket, an
+  // open circuit breaker. Only the deadline gets a rewritten message, because
+  // "Hermes RPC timeout after 30000ms for slash.exec" tells the user nothing
+  // about the command possibly still running inside the agent.
+  if (/timeout/i.test(message)) {
+    return {
+      status: 504,
+      kind: 'timeout',
+      message: SLASH_TIMEOUT_MESSAGE,
+      agentCode: null,
+      guidance: false,
+    }
+  }
+  return {
+    status: 502,
+    kind: 'agent-error',
+    message,
+    agentCode: null,
+    guidance: false,
+  }
 }
