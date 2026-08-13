@@ -9,8 +9,15 @@ import {
   getHermesCommandCatalog,
   invalidateHermesCommandCatalog,
   normalizeCommandCatalog,
+  splitUsageHint,
 } from './hermes-commands'
 import { resolveCommandTier } from './hermes-command-tiers'
+import {
+  SLASH_EXEC_ALLOWLIST,
+  evaluateSlashCommand,
+  isBareOnlySlashCommand,
+  usageHintLiteralForms,
+} from './hermes-slash-policy'
 
 vi.mock('./hermes-rpc', () => ({
   hermesRpc: vi.fn(),
@@ -689,5 +696,240 @@ describe('getHermesCommandCatalog — version freshness', () => {
     )
     // …and without a second RPC: the payload was already in hand.
     expect(hermesRpc).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('splitUsageHint', () => {
+  it('pulls the trailing (usage: …) out of a catalog description', () => {
+    expect(
+      splitUsageHint(
+        'Start a new session (fresh session ID + history) (usage: /new [name])',
+      ),
+    ).toEqual({
+      description: 'Start a new session (fresh session ID + history)',
+      usage: '[name]',
+    })
+  })
+
+  it('leaves descriptions without a usage hint alone', () => {
+    expect(splitUsageHint('Show conversation history')).toEqual({
+      description: 'Show conversation history',
+    })
+  })
+
+  it('keeps a multi-part hint intact', () => {
+    // What it splits out is the RAW agent hint. Correcting it against the exec
+    // policy is `slashUsageHint`'s job, and `/reasoning` is the case that
+    // proves the two steps are different: this string is accurate about the
+    // agent's CLI and false about this transport.
+    const result = splitUsageHint(
+      'Manage reasoning effort and display (usage: /reasoning [level|show|hide|full|clamp] [--global])',
+    )
+    expect(result.usage).toBe('[level|show|hide|full|clamp] [--global]')
+  })
+})
+
+// ── The advertisement guard ─────────────────────────────────────────────────
+//
+// The fourth instance of one pattern is what this is here to make the last.
+// `/tools list` was the first (the picker held its menu open to complete a
+// subcommand the exec route then refused), `/compress` was nearly the second,
+// `/goal show` was the third — and that one would have SUBMITTED A TURN,
+// spending tokens on a goal named "show". Each was fixed for one command.
+//
+// The invariant is one sentence: **every form the catalog advertises for a
+// command the picker will list is a form `evaluateSlashCommand` accepts.** Two
+// fields advertise forms — `subcommands` and `usage` — and both are checked
+// here against the real decision function, not against a copy of the policy.
+//
+// The fixture below is the live catalog's own wording, captured from
+// `GET /api/hermes-commands` on 2026-08-13 against agent v0.19.16, so this
+// fails on the actual strings the agent sends rather than on invented ones.
+
+/**
+ * Every allowlisted command, with the description the live agent serves for it
+ * — `(usage: …)` and all. Keyed by command so the exact-count assertion below
+ * can force a new allowlist entry to bring its real hint with it.
+ */
+const LIVE_DESCRIPTIONS: Readonly<Record<string, string>> = {
+  '/help': 'Show available commands',
+  '/history': 'Show conversation history',
+  '/compress':
+    "Compress conversation context; --preview shows what would happen ('here [N]' keeps the recent N turns — CLI and messaging platforms only, not the desktop/TUI) (usage: /compress [here [N] | focus topic | --preview|--dry-run])",
+  '/insights': 'Show usage insights and analytics (usage: /insights [days])',
+  '/curator':
+    'Background skill maintenance (status, run, pin, archive, list-archived) (usage: /curator [subcommand])',
+  '/debug':
+    'Upload debug report (system info + logs) and get shareable links (usage: /debug [nous|local])',
+  '/reasoning':
+    'Manage reasoning effort and display (usage: /reasoning [level|show|hide|full|clamp] [--global])',
+  '/version': 'Show Hermes Agent version',
+  '/profile': 'Show active profile name and home directory',
+  '/memory':
+    'Review pending memory writes / toggle the approval gate (usage: /memory [pending|approve|reject|approval] [id|on|off])',
+  '/suggestions':
+    'Review suggested automations (accept/dismiss) (usage: /suggestions [accept|dismiss N | catalog])',
+  '/bundles': 'List skill bundles (aliases /<name> for multiple skills)',
+  '/learn':
+    'Learn a reusable skill from anything you describe (dirs, URLs, this chat, notes) (usage: /learn <what to learn from>)',
+  '/goal':
+    'Set a standing goal Hermes works on across turns until achieved (usage: /goal [text | draft <text> | show | pause | resume | clear | status | wait <pid> | unwait])',
+  '/subgoal':
+    'Add or manage extra criteria on the active goal (usage: /subgoal [text | remove N | clear])',
+}
+
+/**
+ * A catalog shaped like the live one: every allowlisted command with its real
+ * description and the `sub` lists the agent really serves, plus a skill command
+ * and a bundle slug (both of which take free prompt text, and neither of which
+ * this pass may change).
+ */
+function liveShapedCatalog() {
+  const pairs = Object.entries(LIVE_DESCRIPTIONS).map(([command, description]) => [
+    command,
+    description,
+  ])
+  const skillPairs = [
+    ['/arxiv', 'Search arXiv papers (usage: /arxiv <query>)'],
+    ['/ascii-art', 'Render text as ASCII art'],
+  ]
+  const bundlePairs = [['/research-stack', 'Load 3 skills for literature work']]
+  return {
+    pairs: [...pairs, ...bundlePairs, ...skillPairs],
+    // The three `sub` lists the live agent serves for allowlisted commands.
+    // Every entry in the first two is refused; `/debug`'s `nous` uploads.
+    sub: {
+      '/reasoning': ['low', 'medium', 'high', 'show', 'hide'],
+      '/memory': ['pending', 'approve', 'reject', 'approval'],
+      '/debug': ['nous', 'local'],
+    },
+    canon: { '/compact': '/compress', '/fork': '/branch' },
+    categories: [
+      { name: 'Session', pairs },
+      { name: 'Bundles', pairs: bundlePairs },
+    ],
+    bundles: [
+      {
+        command: '/research-stack',
+        name: 'Research Stack',
+        description: 'Load 3 skills for literature work',
+        skills: ['arxiv'],
+      },
+    ],
+    bundle_count: 1,
+    skill_count: skillPairs.length,
+    warning: '',
+  }
+}
+
+describe('the catalog advertises only forms the exec route accepts', () => {
+  const catalog = normalize(liveShapedCatalog())
+  const policyInputs = catalogPolicyInputs(catalog)
+  const advertised = catalog.commands.filter((entry) => entry.runnable)
+
+  const decide = (input: string) =>
+    evaluateSlashCommand(input, {
+      agentVersion: CURRENT_AGENT_VERSION,
+      aliases: policyInputs.aliases,
+      skillCommands: policyInputs.skillCommands,
+      bundleCommands: policyInputs.bundleCommands,
+    })
+
+  it('captures the live description of every allowlisted command', () => {
+    // The exact-count discipline the allowlist already uses. Without it a new
+    // entry would arrive with no hint in this fixture and every assertion below
+    // would pass by not looking at it.
+    expect(
+      Object.keys(LIVE_DESCRIPTIONS).sort(),
+      'Add the new allowlist entry to LIVE_DESCRIPTIONS, copying the description\n' +
+        'verbatim from `GET /api/hermes-commands` on a running agent — the guard\n' +
+        'below is only as honest as the strings it is given.',
+    ).toEqual(Object.keys(SLASH_EXEC_ALLOWLIST).sort())
+  })
+
+  it('runs every advertised form through evaluateSlashCommand', () => {
+    expect(advertised.length).toBeGreaterThan(0)
+    for (const entry of advertised) {
+      const forms = [
+        ...(entry.subcommands ?? []),
+        ...(entry.usage ? usageHintLiteralForms(entry.usage) : []),
+      ]
+      for (const form of forms) {
+        const decision = decide(`${entry.command} ${form}`)
+        expect(
+          decision.ok,
+          `The picker advertises \`${entry.command} ${form}\` — from ` +
+            `${entry.subcommands?.includes(form) ? '`subcommands`' : `the usage hint \`${entry.usage}\``} ` +
+            `— and the exec route refuses it:\n` +
+            `  ${decision.ok ? '' : decision.reason}\n\n` +
+            `This is the /tools-list / /goal-show defect. Fix it where the form is\n` +
+            `derived, in server/hermes-slash-policy.ts (\`slashUsageHint\` for the\n` +
+            `hint, \`slashArgumentCompletions\` for the subcommands) — NOT by\n` +
+            `special-casing one command in the picker, which is how this bug got\n` +
+            `four lives.`,
+        ).toBe(true)
+      }
+    }
+  })
+
+  it('shows no usage hint at all for a bare-only command', () => {
+    // The rule the literal-form check cannot see: a hint made only of
+    // metavariables advertises an argument shape without naming a word, and is
+    // just as false beside a command that takes nothing.
+    for (const entry of advertised) {
+      if (!isBareOnlySlashCommand(entry.command)) continue
+      expect(
+        entry.usage,
+        `${entry.command} runs bare or not at all, but the catalog still ` +
+          `advertises \`${entry.usage}\` beside it.`,
+      ).toBeUndefined()
+    }
+  })
+
+  it('never brackets a hint as optional when the bare form is refused', () => {
+    // `/compress` and `/debug` are the holders: bare `/compress` compresses and
+    // bare `/debug` uploads to a public paste, so both are refused, and a
+    // `[…]` hint would tell the user the opposite.
+    for (const entry of advertised) {
+      if (!entry.usage) continue
+      if (decide(entry.command).ok) continue
+      expect(
+        entry.usage.startsWith('['),
+        `${entry.command} refuses its bare form, so its hint must not be ` +
+          `optional-bracketed — got \`${entry.usage}\`.`,
+      ).toBe(false)
+    }
+  })
+
+  it('leaves skills and bundle slugs with the agent’s own hint', () => {
+    const map = byCommand(catalog)
+    expect(map.get('/arxiv')?.usage).toBe('<query>')
+    expect(map.get('/arxiv')?.description).toBe('Search arXiv papers')
+    expect(map.get('/ascii-art')?.usage).toBeUndefined()
+    expect(map.get('/research-stack')?.usage).toBeUndefined()
+  })
+
+  it('projects the corrected hint for each of the commands that had a false one', () => {
+    const map = byCommand(catalog)
+    const usageOf = (command: string) => map.get(command)?.usage
+
+    // Bare-only: the hint is gone entirely.
+    expect(usageOf('/reasoning')).toBeUndefined()
+    expect(usageOf('/memory')).toBeUndefined()
+    expect(usageOf('/suggestions')).toBeUndefined()
+    expect(usageOf('/curator')).toBeUndefined()
+    // Argument-restricted: replaced by the permitted set.
+    expect(usageOf('/compress')).toBe('--dry-run | --preview')
+    expect(usageOf('/debug')).toBe('local')
+    expect(usageOf('/insights')).toBe('[<days 1-365>]')
+    // Free grammar minus the phantoms — `draft`, `show`, `wait`, `unwait` gone,
+    // the agent's own wording kept for the five forms that work.
+    expect(usageOf('/goal')).toBe('[text | pause | resume | clear | status]')
+    // Genuinely free: untouched.
+    expect(usageOf('/learn')).toBe('<what to learn from>')
+    expect(usageOf('/subgoal')).toBe('[text | remove N | clear]')
+    // No hint in, no hint out.
+    expect(usageOf('/history')).toBeUndefined()
+    expect(usageOf('/version')).toBeUndefined()
   })
 })

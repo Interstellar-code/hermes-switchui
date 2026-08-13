@@ -31,6 +31,12 @@
  *     pattern as its "User commands" bucket). See `bundleCommandSet` for how
  *     that is absorbed without double-counting or mis-tiering.
  *
+ *   • Every description may carry a trailing `(usage: /cmd …)` — the registry's
+ *     `args_hint`. It is split out here (`splitUsageHint`) and then CORRECTED
+ *     against the exec policy (`slashUsageHint`), because the agent's hint
+ *     describes its own CLI, not what this transport will run: `/reasoning`
+ *     advertises five subcommands and a `--global` flag, all six refused.
+ *
  * Measured live on 2026-08-13: 156 pairs, `skill_count: 78`, 6 categories,
  * `bundles: []` and `bundle_count: 0` — the keys exist, the arrays are empty,
  * and no "Bundles" bucket is present because there is nothing to put in it. So
@@ -43,6 +49,7 @@ import {
   isBareOnlySlashCommand,
   isSlashCommandRunnable,
   slashArgumentCompletions,
+  slashUsageHint,
 } from './hermes-slash-policy'
 import { getAgentVersion } from './hermes-agent-version'
 import { hermesRpc } from './hermes-rpc'
@@ -65,7 +72,25 @@ const CATALOG_RPC_TIMEOUT_MS = 15_000
 export type HermesCommand = {
   /** Canonical command including the leading slash, e.g. `/background`. */
   command: string
+  /**
+   * The prose, with the trailing `(usage: …)` the agent embeds in it split off
+   * into `usage`. See `splitUsageHint`.
+   */
   description: string
+  /**
+   * The argument shape the picker renders beside the command token, derived
+   * from the exec policy (`slashUsageHint`) rather than copied from the agent.
+   *
+   * This is the third policy-derived field on this type, alongside `runnable`
+   * and `subcommands`, and it is here for the same reason both of those are:
+   * the picker and the exec route must read one answer. It was the last piece
+   * of the catalog the policy did not touch, and it advertised refused forms
+   * for **seven** commands, measured against the live catalog — `/reasoning
+   * [level|show|hide|full|clamp] [--global]` next to a command that accepts
+   * nothing at all, `/memory`, `/suggestions`, `/curator`, `/compress`,
+   * `/debug` and `/goal`. Absent ⇒ render no hint.
+   */
+  usage?: string
   category: string
   subcommands?: Array<string>
   tier: HermesCommandTier
@@ -138,6 +163,33 @@ type RawCatalog = {
   bundles?: ReadonlyArray<unknown>
   bundle_count?: number
   warning?: unknown
+}
+
+/**
+ * `commands.catalog` embeds the registry's `args_hint` inside the description
+ * as a trailing `(usage: /cmd …)`. Split it back out so the hint can be
+ * rendered next to the command token instead of buried in prose.
+ *
+ * This used to live in `slash-command-menu.tsx` and ran on the client. It moved
+ * here because the *policy* correction applied to the hint
+ * (`slashUsageHint`) needs the raw hint, and a client that re-parsed the
+ * description would be a second place the "which forms are advertised?"
+ * question is answered — the exact shape of the bug this pass removed. The
+ * picker now renders `usage` verbatim.
+ */
+export function splitUsageHint(description: string): {
+  description: string
+  usage?: string
+} {
+  const match = /\s*\(usage:\s*(.+)\)\s*$/i.exec(description)
+  if (!match) return { description: description.trim() }
+  // The hint repeats the command name — drop it, the token is right there.
+  const usage = match[1].replace(/^\/\S+\s*/, '').trim()
+  const rest = description.slice(0, match.index).trim()
+  return {
+    description: rest || description.trim(),
+    ...(usage ? { usage } : {}),
+  }
 }
 
 function pairOf(entry: unknown): { command: string; description: string } | null {
@@ -255,9 +307,18 @@ export function normalizeCommandCatalog(
           ? rawSub.filter((s): s is string => typeof s === 'string' && s.length > 0)
           : []
 
+    // The agent's own hint, and then the policy's answer to it. A bare-only
+    // command loses the hint entirely, an argument-restricted one has it
+    // replaced by the permitted forms, and `/goal` keeps its own minus the four
+    // phantom subcommands. Skills, bundles and everything not on the allowlist
+    // keep the agent's wording — see `slashUsageHint`.
+    const split = splitUsageHint(pair.description)
+    const usage = slashUsageHint(pair.command, split.usage)
+
     commands.push({
       command: pair.command,
-      description: pair.description,
+      description: split.description,
+      ...(usage ? { usage } : {}),
       category: category ?? (bundle ? BUNDLE_CATEGORY : SKILL_CATEGORY),
       ...(subcommands.length > 0 ? { subcommands } : {}),
       tier: resolveCommandTier(pair.command, { categorized, bundle }),

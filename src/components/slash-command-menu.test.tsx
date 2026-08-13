@@ -18,6 +18,7 @@ import {
   SKILL_ARGUMENT_HINT,
   SlashCommandMenu,
   USER_CATEGORY,
+  agentCatalogEntries,
   applySkillMetadata,
   buildSlashCommandSections,
   countSlashCommandTabs,
@@ -34,7 +35,6 @@ import {
   slashCommandFacet,
   slashCommandMatches,
   splitSubcommandQuery,
-  splitUsageHint,
   useSlashCommandDefinitions,
   visibleSlashCommandTabs,
 } from './slash-command-menu'
@@ -287,29 +287,69 @@ describe('mergeSlashCommands', () => {
   })
 })
 
-describe('splitUsageHint', () => {
-  it('pulls the trailing (usage: …) out of a catalog description', () => {
-    expect(
-      splitUsageHint(
-        'Start a new session (fresh session ID + history) (usage: /new [name])',
-      ),
-    ).toEqual({
-      description: 'Start a new session (fresh session ID + history)',
-      usage: '[name]',
-    })
+// `splitUsageHint` used to live in this component and is now server-side, in
+// `server/hermes-commands.ts` — with the policy correction that has to be
+// applied to whatever it splits out. Its tests moved with it, next to the guard
+// that proves the corrected hint only advertises runnable forms.
+
+describe('agentCatalogEntries renders the hint it is given, and derives none', () => {
+  const catalogEntry = (over: Record<string, unknown>) => ({
+    command: '/x',
+    description: 'd',
+    category: 'Session',
+    tier: 'local' as const,
+    runnable: true,
+    skill: false,
+    bundle: false,
+    ...over,
   })
 
-  it('leaves descriptions without a usage hint alone', () => {
-    expect(splitUsageHint('Show conversation history')).toEqual({
-      description: 'Show conversation history',
-    })
-  })
-
-  it('keeps a multi-part hint intact', () => {
-    const result = splitUsageHint(
-      'Manage reasoning effort and display (usage: /reasoning [level|show|hide|full|clamp] [--global])',
+  it('carries the server’s policy-corrected usage through untouched', () => {
+    const [entry] = agentCatalogEntries(
+      {
+        available: true,
+        commands: [
+          catalogEntry({ command: '/insights', usage: '[<days 1-365>]' }),
+        ],
+        categories: ['Session'],
+        aliases: {},
+        skillCount: 0,
+        bundleCount: 0,
+        warning: '',
+      },
+      new Set(),
     )
-    expect(result.usage).toBe('[level|show|hide|full|clamp] [--global]')
+
+    expect(entry.usage).toBe('[<days 1-365>]')
+  })
+
+  it('does not re-parse a description into a hint the policy withheld', () => {
+    // The withholding is the point. `/reasoning` is bare-only, so the server
+    // sends no `usage` — and if this component ever splits one back out of the
+    // description again it will advertise the five subcommands and the
+    // `--global` flag that the exec route refuses, which is the bug this whole
+    // pass removed. The description below is deliberately the raw agent
+    // wording, i.e. the worst case.
+    const [entry] = agentCatalogEntries(
+      {
+        available: true,
+        commands: [
+          catalogEntry({
+            command: '/reasoning',
+            description:
+              'Manage reasoning effort and display (usage: /reasoning [level|show|hide|full|clamp] [--global])',
+          }),
+        ],
+        categories: ['Session'],
+        aliases: {},
+        skillCount: 0,
+        bundleCount: 0,
+        warning: '',
+      },
+      new Set(),
+    )
+
+    expect(entry.usage).toBeUndefined()
   })
 })
 
@@ -514,10 +554,14 @@ const CATALOG_COMMANDS = [
     runnable: true,
     skill: false,
   },
-  // runnable skill command → listed
+  // runnable skill command → listed. `usage` arrives already split out of the
+  // description and already reconciled with the exec policy — see
+  // `server/hermes-commands.ts`. A skill's hint passes through untouched
+  // because its argument really is free prompt text.
   {
     command: '/arxiv',
-    description: 'Search arXiv papers (usage: /arxiv <query>)',
+    description: 'Search arXiv papers',
+    usage: '<query>',
     category: 'Skills',
     tier: 'prompt',
     runnable: true,
@@ -672,10 +716,13 @@ describe('useSlashCommandDefinitions', () => {
     expect(byName.get('/history')?.category).toBe('Session')
     expect(byName.get('/history')?.featured).toBe(true)
 
-    // The usage hint is split back out of the description onto its own field.
+    // The usage hint arrives on its own field, already split out and already
+    // reconciled with the exec policy by the server.
     expect(byName.get('/arxiv')?.source).toBe('agent')
     expect(byName.get('/arxiv')?.usage).toBe('<query>')
     expect(byName.get('/arxiv')?.description).toBe('Search arXiv papers')
+
+    expect(byName.get('/status')?.usage).toBeUndefined()
 
     expect(byName.get('/mine')?.source).toBe('user')
     expect(byName.get('/mine')?.category).toBe(USER_CATEGORY)

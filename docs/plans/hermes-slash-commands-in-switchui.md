@@ -58,7 +58,7 @@ behaviour.
 | --- | --- | --- | --- |
 | `/insights [days]` | worker, bare + `optionalCount` | 2001ms cold bare; 1673ms for `3`; 14ms for `1` | Reads the local analytics DB directly (`cli.py:10192`), **not** the `insights.get` stub. 23 sessions, 2,373 messages, 96,194,601 tokens, per-platform split, top-15 tools, top skills, weekday histogram. Four categories the dashboard lacks. `/insights 3` really re-headers "Last 3 days" and re-totals |
 | `/curator` | worker, bare only | 27ms | Read-only status of a subsystem with no SwitchUI screen: schedule, thresholds, 73 agent-created skills with activity tables. Bare *is* `status` (`cli_commands_mixin.py:1570` substitutes `["status"]`). `prune`/`rollback`/`archive` stay excluded — bare `input()` at `curator.py:361`/`:463`; `run` is a synchronous LLM pass |
-| `/debug local` | worker, `onlyArgs {local}` | 1296ms / **863,549 chars** over RPC; 1.10s / **396KB** through the route | The one-click "give a maintainer my state" path. `local` never uploads (§5.4). Dump confirms profile `hermes-switch`, `agent.max_turns: 60` (the profile's value, not the default's 166). ⚠️ **New finding, not in the plan:** the size varies with the agent.log tail and nothing caps it — see §7 |
+| `/debug local` | worker, `onlyArgs {local}` | 1777ms / **1,153,097 bytes** over RPC (2026-08-13); **67,621 bytes** through the route once capped | The one-click "give a maintainer my state" path. `local` never uploads (§5.4). Dump confirms profile `hermes-switch`, `agent.max_turns: 60` (the profile's value, not the default's 166). ⚠️ **The size grows with the agent.log tail** — 864KB, then 1.15MB — and it is now **capped at 64 KiB in `runSlashCommand`**, with an honest truncation notice; see §7 |
 | `/reasoning` | worker, bare only | 2ms warm | The only truthful readout of `agent.reasoning_effort`, a real user-visible setting with **no** other surface (§5.3). Every argument mutates, so bare only |
 | `/version` | worker, bare | 348ms cold / 23ms warm | Agent build identity; no SwitchUI surface reports it. **The one addition with no `--isolated` caveat** — see §4 |
 | `/profile` | worker, bare | 96ms | Which profile the worker resolved — directly actionable given #229 (§4). Answered `hermes-switch` / `~/.hermes/profiles/hermes-switch` |
@@ -525,13 +525,42 @@ are already computed from the policy.
 > were added to an allowlist and silently deleted. Fixed in **§7.4**, which is
 > also where the guard lives.
 
-**Open follow-up from phase 4:** `POST /api/hermes-commands/exec` has **no
-output size cap**, and `/debug local` is the first entry that makes that
-visible — 396KB–864KB per call, varying with the agent.log tail, versus ~90
-bytes for `/profile`. It is survivable today (the card renders collapsed, the
-store is in-memory and capped at 20 entries per session) and it was shipped
-rather than held, but a cap on the route is the obvious next change and must
-land before anything else large joins the list.
+**Closed follow-up from phase 4 ✅ — the output size cap.** `/debug local` was
+the entry that made the gap visible, and it kept growing: 863,549 chars over
+the RPC on 2026-08-12, 395,991 bytes through the route the same day, and
+**1,153,097 bytes** over the RPC on 2026-08-13 (v0.19.16, throwaway session,
+1777ms) — against **69 bytes** for `/profile` on the same session. The card
+rendering collapsed and the 20-entry in-memory store were never limits on what
+crossed the wire.
+
+`SLASH_OUTPUT_LIMIT_BYTES` (**64 KiB**, `server/hermes-slash-exec.ts`) now caps
+it. It lives in **`runSlashCommand`, not in the route** — the route is one
+caller and a future one must not have to remember — and applies to every
+text-bearing arm of the union, including the `send`/`skill`/`prefill` messages
+that become prompts. The truncation is **honest**: the kept text carries a
+notice with the real byte count and a pointer at `GET /api/logs`, which is
+where the bulk of a dump (the `agent.log` tail) actually lives, and the `exec`
+arm additionally sets the card's `warning` strip so the fact is visible while
+the card is collapsed. Measured after: a **67,621-byte** HTTP response for the
+same command. The cut is UTF-8-safe (`sliceUtf8` walks back off continuation
+bytes rather than handing the browser a U+FFFD).
+
+**Also closed: the blanket 502.** The route's catch mapped *every* agent failure
+to 502, so a `/subgoal` 4004 whose message is literally
+`"usage: /subgoal remove <n>"` reached the user as a Bad Gateway error toast —
+fixable guidance rendered as breakage. `classifySlashFailure`
+(`server/hermes-slash-exec.ts`) now maps the agent's own JSON-RPC code. The
+space, read off installed v0.19.16 (`_err` is `tui_gateway/server.py:1618`, not
+the `~:1456` an earlier tree had): there is **no code table, no enum and no
+doc** — the space is whatever the ~265 call sites use, which is **4000–4090**
+and **5000–5063**, split consistently as "rejected request" vs "thrown
+exception". So the mapping is a **range rule** with named refinements, not a
+lookup table: 4001/4007 → 404, 4009/4023/4027 → 409, 4090 → 429, everything
+else 4xxx → 400 (`invalid-input`, or `unroutable` for 4018), **every** 5xxx and
+every JSON-RPC framing code → 502. The agent's message is preserved verbatim on
+the 4xxx path; only the timeout's text is rewritten. The 403 refusal path is
+untouched. The body carries `kind` and a `guidance` boolean so a client can
+render "you typed it wrong" as advice without parsing statuses.
 
 Two catalog-driven traps closed on the way in, both the exact failure §8
 describes. `/reasoning`, `/curator`, `/memory` and `/suggestions` all ship
@@ -874,6 +903,7 @@ first; none were duplicates.
 | **Billing renders empty** | `billing.*` / `subscription.*` RPCs are ready and `portal_url` solves the remote-browser problem, but this install is `provider: custom` (`~/.hermes/config.yaml:2`) and logged out of Nous — every field renders empty. **Do not build** while that holds |
 | **`/blueprint`'s `agent_seed` is dropped** | On every non-REPL path. Use the cron REST instead |
 | **`/rollback` needs a gate** | `rollback.list/diff/restore` are structured and ready, but gate on `checkpoints.enabled` (default **off**) or every call says "not enabled". `/backups` is a decoy — config zips, unrelated |
+| **The agent's `args_hint` describes the CLI, not this transport** | Four instances of one bug — `/tools list`, `/compress`, `/goal show`, and the `(usage: …)` hint itself, which advertised every refused form of `/reasoning`, `/memory`, `/suggestions`, `/curator`, `/compress`, `/debug` and `/goal`. **Nothing the picker shows may be derived from the catalog alone**: `runnable`, `subcommands` and now `usage` (`slashUsageHint`) are all projected server-side from `SLASH_EXEC_ALLOWLIST`, and `hermes-commands.test.ts` runs every advertised form back through `evaluateSlashCommand`. Add a field the picker renders ⇒ add it to that guard |
 
 ---
 

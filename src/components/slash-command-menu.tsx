@@ -90,7 +90,13 @@ export type SlashCommandDefinition = {
   source?: SlashCommandSource
   /** Section header this entry sorts under. */
   category?: string
-  /** `args_hint`-style usage, e.g. `[name]`. Rendered after the command token. */
+  /**
+   * `args_hint`-style usage, e.g. `[name]`. Rendered after the command token.
+   * For agent entries it is computed server-side from the exec allowlist
+   * (`HermesAgentCommand.usage`) and carried through verbatim — this component
+   * must not derive one, or the picker starts advertising forms the server
+   * refuses again.
+   */
   usage?: string
   subcommands?: Array<string>
   tier?: HermesCommandTier
@@ -382,28 +388,6 @@ export function recordRecentSlashCommand(command: string): Array<string> {
   return next
 }
 
-/**
- * `commands.catalog` embeds the registry's `args_hint` inside the description as
- * a trailing `(usage: /cmd …)`. Split it back out so the hint can be rendered
- * next to the command token instead of buried in prose.
- *
- * Applied to every agent entry by `agentCatalogEntries`.
- */
-export function splitUsageHint(description: string): {
-  description: string
-  usage?: string
-} {
-  const match = /\s*\(usage:\s*(.+)\)\s*$/i.exec(description)
-  if (!match) return { description: description.trim() }
-  // The hint repeats the command name — drop it, the token is right there.
-  const usage = match[1].replace(/^\/\S+\s*/, '').trim()
-  const rest = description.slice(0, match.index).trim()
-  return {
-    description: rest || description.trim(),
-    ...(usage ? { usage } : {}),
-  }
-}
-
 function normalizeSearchValue(value: string): string {
   return value
     .normalize('NFKD')
@@ -508,11 +492,17 @@ export function agentCatalogEntries(
     if (!item.runnable) continue
     if (item.tier === 'excluded') continue
     if (shadowed.has(item.command.toLowerCase())) continue
-    const split = splitUsageHint(item.description)
     entries.push({
       command: item.command,
-      description: split.description,
-      ...(split.usage ? { usage: split.usage } : {}),
+      description: item.description,
+      // Rendered, not decided: `usage` arrives already reconciled with the exec
+      // allowlist (`server/hermes-slash-policy.ts`'s `slashUsageHint`). The
+      // picker used to split it out of the description itself, which made it
+      // the one advertised field no policy had ever seen — so it offered
+      // `/reasoning [level|show|hide|full|clamp] [--global]` for a command that
+      // runs bare or not at all, and kept offering `/goal show` for months
+      // after `phantomArgs` was written to refuse exactly that.
+      ...(item.usage ? { usage: item.usage } : {}),
       source: 'agent',
       category: item.category,
       ...(item.subcommands?.length ? { subcommands: item.subcommands } : {}),

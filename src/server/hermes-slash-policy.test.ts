@@ -10,6 +10,8 @@ import {
   isBareOnlySlashCommand,
   isSlashCommandRunnable,
   slashArgumentCompletions,
+  slashUsageHint,
+  usageHintLiteralForms,
 } from './hermes-slash-policy'
 import type { EvaluateSlashOptions } from './hermes-slash-policy'
 
@@ -1172,6 +1174,105 @@ describe('slashArgumentCompletions', () => {
         expect(evaluate(`${command} ${arg}`).ok, arg).toBe(true)
       }
     }
+  })
+})
+
+describe('slashUsageHint', () => {
+  // The unit-level half of the guard in `hermes-commands.test.ts`. That one
+  // proves the projected catalog advertises nothing the exec route refuses;
+  // this one pins the shape each argument mechanism produces, so a change of
+  // wording is a visible diff rather than a silently different hint.
+
+  it('withholds the hint entirely from a bare-only command', () => {
+    // The bug, in its purest form: six bare-only commands arrived with a hint
+    // listing subcommands, and every one of those subcommands is refused.
+    expect(
+      slashUsageHint(
+        '/reasoning',
+        '[level|show|hide|full|clamp] [--global]',
+      ),
+    ).toBeNull()
+    expect(slashUsageHint('/memory', '[pending|approve|reject] [id|on|off]')).toBeNull()
+    expect(slashUsageHint('/curator', '[subcommand]')).toBeNull()
+    expect(slashUsageHint('/suggestions', '[accept|dismiss N | catalog]')).toBeNull()
+  })
+
+  it('replaces an argument-restricted hint with the permitted forms', () => {
+    // Unbracketed on purpose — the bare form of both is REFUSED (bare
+    // /compress compresses, bare /debug uploads to a public paste), so `[…]`
+    // would say the opposite of the policy.
+    expect(
+      slashUsageHint(
+        '/compress',
+        '[here [N] | focus topic | --preview|--dry-run]',
+      ),
+    ).toBe('--dry-run | --preview')
+    expect(slashUsageHint('/debug', '[nous|local]')).toBe('local')
+  })
+
+  it('states the bound for a counted argument, as a metavariable', () => {
+    // 365 permitted values cannot be listed, and `[days]` alone does not say
+    // that `--preview` is refused while `7` is not. Angle brackets mark it as
+    // a value rather than a literal word — the convention the guard's parser
+    // reads.
+    expect(slashUsageHint('/insights', '[days]')).toBe('[<days 1-365>]')
+  })
+
+  it('subtracts the phantom forms and keeps the agent’s wording for the rest', () => {
+    expect(
+      slashUsageHint(
+        '/goal',
+        '[text | draft <text> | show | pause | resume | clear | status | wait <pid> | unwait]',
+      ),
+    ).toBe('[text | pause | resume | clear | status]')
+  })
+
+  it('drops a phantom-bearing hint it cannot parse rather than showing it', () => {
+    // Fail closed. This shape (two groups, the phantom in the second) is not
+    // one the agent sends today, and the subtraction cannot rewrite it safely
+    // — so nothing is shown rather than something false.
+    expect(slashUsageHint('/goal', '[text] [show|pause]')).toBeNull()
+  })
+
+  it('leaves a genuinely free grammar alone', () => {
+    expect(slashUsageHint('/learn', '<what to learn from>')).toBe(
+      '<what to learn from>',
+    )
+    expect(slashUsageHint('/subgoal', '[text | remove N | clear]')).toBe(
+      '[text | remove N | clear]',
+    )
+  })
+
+  it('passes through anything not on the allowlist', () => {
+    // Skills and bundle slugs take free prompt text, so the agent's hint is
+    // already true of them; `/tools` is never advertised at all.
+    expect(slashUsageHint('/arxiv', '<query>')).toBe('<query>')
+    expect(slashUsageHint('/tools', '[list|disable|enable]')).toBe(
+      '[list|disable|enable]',
+    )
+    expect(slashUsageHint('/history', undefined)).toBeNull()
+  })
+})
+
+describe('usageHintLiteralForms', () => {
+  it('reads every word a user could type verbatim, and no metavariable', () => {
+    expect(
+      usageHintLiteralForms('[level|show|hide|full|clamp] [--global]'),
+    ).toEqual(['level', 'show', 'hide', 'full', 'clamp', '--global'])
+    expect(usageHintLiteralForms('[<days 1-365>]')).toEqual([])
+    expect(usageHintLiteralForms('<what to learn from>')).toEqual([])
+    expect(usageHintLiteralForms('--dry-run | --preview')).toEqual([
+      '--dry-run',
+      '--preview',
+    ])
+    // Crude in the safe direction: a multi-word form yields both of its words,
+    // so the guard checks more strings than the hint strictly promises.
+    expect(usageHintLiteralForms('[text | remove N | clear]')).toEqual([
+      'text',
+      'remove',
+      'N',
+      'clear',
+    ])
   })
 })
 

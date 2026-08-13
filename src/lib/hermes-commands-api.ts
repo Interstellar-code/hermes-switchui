@@ -21,7 +21,17 @@ export type HermesCommandTier = 'local' | 'proxy' | 'prompt' | 'excluded'
 export type HermesAgentCommand = {
   /** Canonical command including the leading slash, e.g. `/background`. */
   command: string
+  /** Prose only — the trailing `(usage: …)` is split off into `usage`. */
   description: string
+  /**
+   * The argument shape to render beside the command token, e.g. `[<days
+   * 1-365>]`. Derived server-side from the exec policy, NOT copied from the
+   * agent's `args_hint`: the agent describes its own CLI, where `/reasoning`
+   * takes five subcommands and a `--global` flag that this transport refuses.
+   * Absent ⇒ the command advertises no argument form (usually because it takes
+   * none).
+   */
+  usage?: string
   category: string
   subcommands?: Array<string>
   tier: HermesCommandTier
@@ -97,9 +107,15 @@ function normalizeEntry(value: unknown): HermesAgentCommand | null {
       )
     : []
 
+  // Absent is the common case (bare-only commands, and anything the agent gave
+  // no `args_hint`), and it is also the fail-closed case: a payload with no
+  // `usage` renders no hint rather than an invented one.
+  const usage = typeof raw.usage === 'string' ? raw.usage.trim() : ''
+
   return {
     command,
     description: typeof raw.description === 'string' ? raw.description : '',
+    ...(usage ? { usage } : {}),
     category: typeof raw.category === 'string' && raw.category ? raw.category : 'Other',
     ...(subcommands.length > 0 ? { subcommands } : {}),
     tier,
@@ -211,23 +227,79 @@ export function useHermesCommandCatalog() {
  */
 export type AgentCommandResult =
   | { type: 'exec'; output: string; warning?: string }
-  | { type: 'plugin'; output: string }
+  | { type: 'plugin'; output: string; warning?: string }
   | { type: 'send'; message: string; notice?: string }
   | { type: 'skill'; message: string; name?: string }
   | { type: 'prefill'; message: string; notice?: string }
   | { type: 'alias'; target: string }
 
+/**
+ * How the exec route classified a failure (`kind` in its body, from
+ * `server/hermes-slash-exec.ts::classifySlashFailure`).
+ *
+ * The first five are the caller's problem and carry the **agent's own message**;
+ * the last two are the agent's. `refusal` is this module's own label for the
+ * 403 policy path, which the route reports through `reason` rather than `kind`.
+ */
+export type AgentCommandFailureKind =
+  | 'refusal'
+  | 'invalid-input'
+  | 'unroutable'
+  | 'session-gone'
+  | 'busy'
+  | 'rate-limited'
+  | 'agent-error'
+  | 'timeout'
+
+/**
+ * Fields shared by both failure arms.
+ *
+ * `guidance` is the one a renderer wants: true means "tell the user this",
+ * false means "something broke". A policy refusal and a `usage: /subgoal
+ * remove <n>` are both guidance; a wedged slash worker is not. Optional so a
+ * response from an older server — or a test double that predates the field —
+ * still type-checks; treat an absent value as false.
+ */
+type AgentCommandFailureInfo = {
+  guidance?: boolean
+  kind?: AgentCommandFailureKind
+  /** The agent's raw JSON-RPC code (4004, 5030, …) when there was one. */
+  agentCode?: number
+}
+
+const FAILURE_KINDS: ReadonlySet<string> = new Set([
+  'refusal',
+  'invalid-input',
+  'unroutable',
+  'session-gone',
+  'busy',
+  'rate-limited',
+  'agent-error',
+  'timeout',
+])
+
+/** An unrecognized `kind` is dropped rather than passed through as a string. */
+function readFailureKind(value: unknown): AgentCommandFailureKind | undefined {
+  return typeof value === 'string' && FAILURE_KINDS.has(value)
+    ? (value as AgentCommandFailureKind)
+    : undefined
+}
+
 export type AgentCommandOutcome =
   | { ok: true; command: string; result: AgentCommandResult }
   /** The server allowlist said no. `reason` is written for the user. */
-  | { ok: false; command: string; reason: string; refused: true }
+  | ({ ok: false; command: string; reason: string; refused: true } & AgentCommandFailureInfo)
   /** Transport/agent failure — not a policy decision. */
-  | { ok: false; command: string; reason: string; refused: false }
+  | ({ ok: false; command: string; reason: string; refused: false } & AgentCommandFailureInfo)
 
 /**
  * Run an agent command. Never throws: a transport failure comes back as
  * `{ok:false, refused:false}` so the caller has exactly two branches, and a
  * failed command can never fall through to the model as prose.
+ *
+ * A failure also carries `guidance`/`kind`/`agentCode`, so a caller that wants
+ * three branches — ran / you-typed-it-wrong / it-broke — can have them without
+ * reading `response.status`.
  */
 export async function execAgentCommand(payload: {
   command: string
@@ -261,11 +333,24 @@ export async function execAgentCommand(payload: {
       (typeof body?.error === 'string' && body.error) ||
       `Command failed (${response.status})`
 
+    // A 403 is the allowlist, and it has always been guidance. Everything else
+    // takes the route's own classification; an unclassified body (older server,
+    // a 401, a non-JSON error page) degrades to "not guidance", which is the
+    // conservative direction — it shows as an error rather than as advice.
+    const refused = response.status === 403
+    const kind: AgentCommandFailureKind | undefined = refused
+      ? 'refusal'
+      : readFailureKind(body?.kind)
     return {
       ok: false,
       command,
       reason,
-      refused: response.status === 403,
+      refused,
+      guidance: refused || body?.guidance === true,
+      ...(kind ? { kind } : {}),
+      ...(typeof body?.agentCode === 'number'
+        ? { agentCode: body.agentCode }
+        : {}),
     }
   } catch (error) {
     return {
@@ -274,6 +359,8 @@ export async function execAgentCommand(payload: {
       reason:
         error instanceof Error ? error.message : 'Could not reach the agent',
       refused: false,
+      guidance: false,
+      kind: 'agent-error',
     }
   }
 }
