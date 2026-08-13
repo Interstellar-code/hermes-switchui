@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import type { ThinkingLevel } from '../components/chat-composer-types'
+import { normalizeThinkingLevel } from '@/lib/reasoning-effort'
 import { useSessionModelStore } from '@/stores/session-model-store'
 
 export function useThinkingLevel(params: {
@@ -23,9 +24,12 @@ export function useThinkingLevel(params: {
     if (typeof window === 'undefined') return 'low'
     const key = `claude-thinking-${activeFriendlyId || 'new'}`
     const stored = window.sessionStorage.getItem(key)
-    if (stored === 'off' || stored === 'low' || stored === 'adaptive')
-      return stored
-    return 'low'
+    // Validated against the canonical level list, NOT a hand-written
+    // allowlist. The allowlist here used to be `off | low | adaptive`, so a
+    // stored `medium`/`high` — both offered by the picker, both persisted by
+    // handleThinkingLevelChange below — was silently rehydrated as `low`.
+    // Those two levels were unreachable after a reload.
+    return normalizeThinkingLevel(stored) ?? 'low'
   })
 
   // Phase 4.1: Smart Model Suggestions

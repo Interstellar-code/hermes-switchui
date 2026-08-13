@@ -17,6 +17,7 @@ import {
   readProfile,
 } from '../../server/profile-scope'
 import { scopeKey } from '../../lib/session-scope'
+import { toReasoningEffort } from '../../lib/reasoning-effort'
 import { resolveMainSessionId } from '../../server/main-session-resolver'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
@@ -242,9 +243,7 @@ export type ModelErrorEnvelope = {
  * Returns null for anything that is not specifically a `model` refusal, so a
  * generic upstream error keeps the existing error path untouched.
  */
-export function parseModelErrorEnvelope(
-  raw: string,
-): ModelErrorEnvelope | null {
+function readGatewayErrorEnvelope(raw: string): ModelErrorEnvelope | null {
   const start = raw.indexOf('{')
   if (start < 0) return null
   let parsed: unknown
@@ -257,10 +256,45 @@ export function parseModelErrorEnvelope(
   if (!error) return null
   const message = readString(error.message)
   if (!message) return null
-  const code = readString(error.code) || null
-  const param = readString(error.param) || null
+  return {
+    message,
+    code: readString(error.code) || null,
+    param: readString(error.param) || null,
+  }
+}
+
+export function parseModelErrorEnvelope(
+  raw: string,
+): ModelErrorEnvelope | null {
+  const envelope = readGatewayErrorEnvelope(raw)
+  if (!envelope) return null
+  const { code, param } = envelope
   if (param !== 'model' && !(code && MODEL_ERROR_CODES.has(code))) return null
-  return { message, code, param }
+  return envelope
+}
+
+/**
+ * The same pre-stream JSON 400, for a `reasoning_effort` the gateway refuses
+ * (`_requested_reasoning_effort`, api_server.py:587). Its `error.message`
+ * names every level the gateway accepts, which is the single most useful
+ * thing the user can be shown, so it must reach the browser verbatim rather
+ * than as the `Hermes chat stream: 400 {…}` transport wrapper.
+ *
+ * Deliberately NOT folded into `parseModelErrorEnvelope`: that one drives
+ * `failModelSwitch`, which rolls the MODEL picker back. A reasoning refusal
+ * leaves the model untouched, so routing it there would revert a selection
+ * the gateway never rejected.
+ */
+export function parseReasoningErrorEnvelope(
+  raw: string,
+): ModelErrorEnvelope | null {
+  const envelope = readGatewayErrorEnvelope(raw)
+  if (!envelope) return null
+  const { code, param } = envelope
+  if (param !== 'reasoning_effort' && code !== 'invalid_reasoning_effort') {
+    return null
+  }
+  return envelope
 }
 
 function normalizeClaudeErrorMessage(error: unknown): string {
@@ -353,8 +387,49 @@ export const Route = createFileRoute('/api/send-stream')({
         const requestedFriendlyId =
           typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
         const message = String(body.message ?? '')
-        const thinking =
-          typeof body.thinking === 'string' ? body.thinking : undefined
+        // `body.thinking` (the composer's reasoning-effort label) and
+        // `body.fastMode` are both accepted on the wire, but only ONE of them
+        // has a gateway parameter to land in.
+        //
+        //   * Reasoning effort — FORWARDED, as of hermes-agent 0.19.15.
+        //     `POST /api/sessions/{id}/chat/stream` now reads a per-request
+        //     `reasoning_effort` (gateway/platforms/api_server.py:3748, and
+        //     :3674 for the non-streaming sibling), validated by
+        //     `_requested_reasoning_effort` (api_server.py:587) before the SSE
+        //     response is committed — so an unusable level is a plain JSON 400
+        //     naming the valid levels, never a silently-defaulted turn and
+        //     never a mid-stream error frame. The translation from the
+        //     composer's `ThinkingLevel` to that vocabulary lives in exactly
+        //     one place, `@/lib/reasoning-effort`, together with the
+        //     `adaptive` rationale and the not-sticky contract that obliges
+        //     the client to send the level on every turn.
+        //
+        //     Three defects were fixed here before this became forwardable,
+        //     and none of them may come back: the label was handed to the
+        //     gateway as `system_message` (which the agent applies verbatim
+        //     as the turn's ephemeral system prompt, so the run's system
+        //     prompt was the literal string 'low'), it was echoed to the
+        //     client as the `thinking` event's text, and it was written into
+        //     the final assistant message's thinking block — all three
+        //     displacing the reasoning the model actually produced.
+        //     `reasoning_effort` is a separate field from all of those; the
+        //     label still never appears in a prompt or in a rendered message.
+        //
+        //   * Fast mode — still NOT forwarded, because there is still nothing
+        //     to forward it to. `/fast` maps to `agent.service_tier`, resolved
+        //     from config plus a session-scoped override held in the *TUI*
+        //     gateway (gateway/run.py `_resolve_session_service_tier`, driven
+        //     by gateway/slash_commands.py). `api_server.py` contains no
+        //     `service_tier` reference at all (verified by grep against the
+        //     installed 0.19.16 source) and never passes one when it builds
+        //     the agent — so on this transport fast mode is not merely
+        //     un-overridable per request, it is unreachable entirely. Passing
+        //     it through would also have to survive
+        //     `resolve_fast_mode_overrides` (hermes_cli/models.py), which
+        //     returns None for every model outside gpt-*/o1/o3/o4 (no codex)
+        //     and claude-*opus-4-6. Inventing a parameter name here would put
+        //     back exactly the dead control this change removed.
+        const reasoningEffort = toReasoningEffort(body.thinking)
         const attachments = normalizeAttachments(body.attachments)
         const history = normalizePortableHistory(body.history)
         if (!message.trim() && (!attachments || attachments.length === 0)) {
@@ -873,8 +948,14 @@ export const Route = createFileRoute('/api/send-stream')({
                       persistActiveRun((runSessionKey, activeId) =>
                         setRunThinking(runSessionKey, activeId, chatThinking),
                       )
+                      // Emit the reasoning text the model actually produced.
+                      // This used to send `thinking` — the *effort label*
+                      // ('low'/'adaptive'/…) read off the request body — which
+                      // meant the thinking pane rendered the literal word
+                      // "low" and the accumulated `chatThinking` stream was
+                      // built up and then thrown away.
                       sendEvent('thinking', {
-                        text: thinking,
+                        text: chatThinking,
                         sessionKey: portableSessionKey,
                         runId,
                       })
@@ -948,7 +1029,16 @@ export const Route = createFileRoute('/api/send-stream')({
                     message: {
                       role: 'assistant',
                       content: [
-                        ...(thinking ? [{ type: 'thinking', thinking }] : []),
+                        // Same defect as the 'thinking' event above: this used
+                        // to persist the request's effort label as the final
+                        // message's thinking block. `chatThinking` is the
+                        // reasoning the model streamed on this run — the
+                        // `responseThinking` used in the /v1/responses branch
+                        // is a different (always-empty) variable in a scope
+                        // this path never enters.
+                        ...(chatThinking
+                          ? [{ type: 'thinking', thinking: chatThinking }]
+                          : []),
                         { type: 'text', text: accumulated },
                       ],
                     },
@@ -1125,7 +1215,14 @@ export const Route = createFileRoute('/api/send-stream')({
                     message: buildMultimodalContent(message, attachments),
                     model:
                       typeof body.model === 'string' ? body.model : undefined,
-                    system_message: thinking,
+                    // The picker's level for THIS turn. Per-request and not
+                    // sticky, so it rides along on every send — see the note
+                    // at the body parse above.
+                    reasoning_effort: reasoningEffort,
+                    // No `system_message`: this used to carry the reasoning
+                    // *effort label*, which the gateway applies verbatim as
+                    // the turn's ephemeral system prompt. See the note at the
+                    // body parse above.
                     attachments: attachments || undefined,
                   },
                   {
@@ -1234,6 +1331,75 @@ export const Route = createFileRoute('/api/send-stream')({
                           }
                           sendEvent('chunk', translated)
                         }
+                        return
+                      }
+
+                      // ── Standing-goal continuations (agent ≥ 0.19.14) ────
+                      //
+                      // `_evaluate_goal_after_turn` (installed
+                      // gateway/platforms/api_server.py:3544) runs the judge
+                      // after every completed turn of a session that has a
+                      // goal, and the stream loop acts on its verdict. Two
+                      // events come out of it, and their ORDER is the contract
+                      // (measured live on a throwaway session, 2026-08-13):
+                      //
+                      //   assistant.completed  message_id=A
+                      //   goal.status          message_id=A  ← verdict for A
+                      //   goal.continuation    message_id=B  ← B starts NOW
+                      //   message.started      id=B
+                      //   assistant.delta …    → belong to B, not to A
+                      //
+                      // So `goal.continuation` is a TURN BOUNDARY, not a
+                      // notification: the deltas after it are a new assistant
+                      // message. Forwarding it is what lets the browser seal
+                      // the finished turn instead of appending the next one to
+                      // it (the visible failure mode is one giant merged
+                      // message). See use-streaming-message.ts.
+                      //
+                      // Neither event fires on a session with no goal, which
+                      // is every session by default — hence no behaviour
+                      // change for the 99% case.
+                      if (event === 'goal.status') {
+                        // The judge's own line, already user-facing text
+                        // ("↻ Continuing toward goal (1/3): …", "✓ Goal
+                        // achieved …", "⏸ Goal paused — 3/3 turns used …").
+                        // Nothing to render without it, so drop the empty case
+                        // rather than emit a blank card.
+                        const judgeMessage = readString(data.message)
+                        if (!judgeMessage) return
+                        sendEvent('goal_status', {
+                          message: judgeMessage,
+                          status: readString(data.status) || 'active',
+                          verdict: readString(data.verdict) || undefined,
+                          shouldContinue: data.should_continue === true,
+                          // `capped: true` marks the per-request backstop
+                          // (MAX_GOAL_CONTINUATIONS_PER_REQUEST = 10,
+                          // api_server.py:243) rather than a judge verdict.
+                          capped: data.capped === true,
+                          turnsUsed: Number(data.turns_used) || 0,
+                          maxTurns: Number(data.max_turns) || 0,
+                          messageId: readString(data.message_id) || undefined,
+                          sessionKey: sessionKeyFromEvent,
+                          runId,
+                        })
+                        return
+                      }
+
+                      if (event === 'goal.continuation') {
+                        // `continuation_prompt` is deliberately NOT forwarded:
+                        // it is a ~400-character boilerplate re-statement of
+                        // the goal that the agent sends to itself, and putting
+                        // it in the browser would only invite rendering it as
+                        // a user message the user never wrote.
+                        sendEvent('goal_continuation', {
+                          messageId: readString(data.message_id) || undefined,
+                          turn: Number(data.turn) || 0,
+                          turnsUsed: Number(data.turns_used) || 0,
+                          maxTurns: Number(data.max_turns) || 0,
+                          status: readString(data.status) || 'active',
+                          sessionKey: sessionKeyFromEvent,
+                          runId,
+                        })
                         return
                       }
 
@@ -1761,6 +1927,28 @@ export const Route = createFileRoute('/api/send-stream')({
                       code: modelError.code,
                       param: modelError.param,
                       model: requestModel || undefined,
+                    },
+                  })
+                  closeStream()
+                  return
+                }
+                // Same failure shape for the reasoning level: a pre-stream
+                // JSON 400 whose message names the levels the gateway will
+                // accept. Surfaced verbatim — a picker that silently keeps a
+                // level the gateway rejected is the dead control this
+                // forwarding replaced.
+                const reasoningError = parseReasoningErrorEnvelope(
+                  err instanceof Error ? err.message : String(err),
+                )
+                if (reasoningError) {
+                  sendEvent('error', {
+                    message: reasoningError.message,
+                    sessionKey,
+                    reasoningError: {
+                      message: reasoningError.message,
+                      code: reasoningError.code,
+                      param: reasoningError.param,
+                      reasoningEffort: reasoningEffort ?? undefined,
                     },
                   })
                   closeStream()

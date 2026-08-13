@@ -1,4 +1,5 @@
 import type { Ref } from 'react'
+import type { ThinkingLevel } from '@/lib/reasoning-effort'
 
 export type ChatComposerAttachment = {
   id: string
@@ -10,7 +11,14 @@ export type ChatComposerAttachment = {
   kind?: 'image' | 'file' | 'audio'
 }
 
-export type ThinkingLevel = 'off' | 'low' | 'medium' | 'high' | 'adaptive'
+/**
+ * Re-exported, not redeclared: the level list lives with the gateway mapping
+ * in `@/lib/reasoning-effort` so a new picker entry cannot be added without
+ * deciding what `reasoning_effort` it sends. Two copies of this union is how
+ * `medium`/`high` ended up unreachable after a reload — see the rehydration
+ * allowlist in `use-thinking-level.ts`.
+ */
+export type { ThinkingLevel }
 
 export type ChatComposerHelpers = {
   reset: () => void

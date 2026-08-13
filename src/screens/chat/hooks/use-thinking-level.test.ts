@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import { useThinkingLevel } from './use-thinking-level'
 import type { ReactNode } from 'react'
+import { THINKING_LEVELS } from '@/lib/reasoning-effort'
 import { useSessionModelStore } from '@/stores/session-model-store'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -177,6 +178,33 @@ describe('one-shot sessionStorage init', () => {
       wrapper: makeWrapper(),
     })
     expect(result.current.thinkingLevel).toBe('off')
+  })
+
+  // Regression: the rehydration allowlist was hand-written as
+  // `off | low | adaptive` while the picker offered five levels, so a stored
+  // `medium`/`high` was silently downgraded to `low` on every reload — the two
+  // levels were selectable but unreachable after a refresh.
+  it.each(['medium', 'high'] as const)(
+    'reads "%s" from sessionStorage on first mount',
+    (level) => {
+      sessionStorage.setItem(STORAGE_KEY, level)
+      const { result } = renderHook(() => useThinkingLevel(defaultParams()), {
+        wrapper: makeWrapper(),
+      })
+      expect(result.current.thinkingLevel).toBe(level)
+    },
+  )
+
+  it('round-trips every level the picker offers', () => {
+    for (const level of THINKING_LEVELS) {
+      sessionStorage.setItem(STORAGE_KEY, level)
+      const { result, unmount } = renderHook(
+        () => useThinkingLevel(defaultParams()),
+        { wrapper: makeWrapper() },
+      )
+      expect(result.current.thinkingLevel).toBe(level)
+      unmount()
+    }
   })
 
   it('ignores unknown stored values and falls back to "low"', () => {

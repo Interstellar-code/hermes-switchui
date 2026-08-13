@@ -498,8 +498,14 @@ export function useSendMessageState(params: {
           history,
           attachments:
             payloadAttachments.length > 0 ? payloadAttachments : undefined,
-          thinking:
-            currentThinkingLevel === 'off' ? undefined : currentThinkingLevel,
+          // Sent on EVERY turn, `off` included. The gateway's
+          // `reasoning_effort` is per-request and NOT sticky (see
+          // `@/lib/reasoning-effort`), so a turn that omits it falls back to
+          // the configured default rather than inheriting the last level.
+          // Dropping `off` here used to make "None" mean "whatever
+          // agent.reasoning_effort says"; it maps to the gateway's `none`
+          // disable alias instead.
+          thinking: currentThinkingLevel,
           fastMode,
           model: currentModel || undefined,
           idempotencyKey: optimisticClientId || crypto.randomUUID(),
