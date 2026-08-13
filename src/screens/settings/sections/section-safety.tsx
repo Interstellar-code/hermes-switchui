@@ -145,7 +145,7 @@ export default function SectionSafety() {
       <SettingCard title="Command approval">
         <SettingRow
           label="Approval mode"
-          desc="manual prompts for every dangerous command; smart lets an auxiliary model screen low-risk ones; off skips every prompt (YOLO)."
+          desc="manual prompts for every dangerous command; smart lets an auxiliary model screen low-risk ones; off skips every prompt (YOLO). This setting is global and permanent. A single chat can also skip approvals from the shield button in its header — that bypass is per-session, held in gateway memory, and lost on restart. The two are OR'd: whichever is more permissive wins, so with this set to Off a chat's own bypass changes nothing and switching it off does not bring prompts back."
         >
           <Segmented
             options={approvalModes}

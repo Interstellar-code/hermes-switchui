@@ -455,26 +455,45 @@ export async function searchSessions(
   )
 }
 
+/**
+ * Branch a session: the gateway ends the source with `end_reason: "branched"`,
+ * creates a child carrying `parent_session_id` plus a copy of the transcript,
+ * and auto-titles it from the lineage ("Foo" -> "Foo #2").
+ *
+ * The gateway returns `{ object: "hermes.session", session: {...} }` and does
+ * NOT return a `forked_from` field — the link lives on `session.parent_session_id`.
+ * `forked_from` stays optional here only because the dashboard shortcut below
+ * historically claimed it.
+ */
 export async function forkSession(
   sessionId: string,
   profile?: string | null,
-): Promise<{ session: ClaudeSession; forked_from: string }> {
+): Promise<{ session: ClaudeSession; forked_from?: string }> {
   // A fork is a write. Unscoped, it resolves the raw session ID against
   // whichever state.db the gateway is running on, so an explicitly scoped
   // fork MUST go through the gateway chokepoint (claudePost -> scopedPath),
   // never the unscoped dashboard shortcut.
   if (!profile && getCapabilities().dashboard.available) {
-    return forkDashboardSession(sessionId) as Promise<{
-      session: ClaudeSession
-      forked_from: string
-    }>
+    try {
+      return (await forkDashboardSession(sessionId)) as {
+        session: ClaudeSession
+        forked_from?: string
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      // The dashboard (:9119) has no POST /api/sessions/{id}/fork route at all
+      // — its session family stops at GET/PATCH/DELETE + /messages, /export,
+      // /latest-descendant. Verified against hermes_cli/web_server.py. Fall
+      // through to the gateway rather than failing the branch, same shape as
+      // deleteSession() above.
+      if (!msg.includes(': 404') && !msg.includes(': 405')) throw err
+    }
   }
-  return claudePost(
-    `/api/sessions/${sessionId}/fork`,
-    undefined,
-    undefined,
-    profile,
-  )
+  // `{}` is required, not cosmetic: the gateway's _handle_fork_session calls
+  // _read_json_body() unconditionally, which returns 400 "Invalid JSON in
+  // request body" for a bodyless POST. claudePost() only serialises a truthy
+  // body, so passing `undefined` here made every real fork fail.
+  return claudePost(`/api/sessions/${sessionId}/fork`, {}, undefined, profile)
 }
 
 // ── Conversion helpers (Claude → Chat format) ─────────────────
@@ -653,6 +672,15 @@ export async function streamChat(
           | { type: 'image_url'; image_url: { url: string } }
         >
     model?: string
+    /**
+     * Per-request reasoning level for this turn (hermes-agent 0.19.15+).
+     * Unlike `model`, the gateway does NOT persist it on the session, so
+     * callers must send it every turn or the turn falls back to the
+     * configured `agent.reasoning_effort`. Validated gateway-side before the
+     * SSE stream opens: an unusable value is a JSON 400 that surfaces here as
+     * a thrown `Hermes chat stream: 400 …`. See `@/lib/reasoning-effort`.
+     */
+    reasoning_effort?: string
     system_message?: string
     attachments?: Array<Record<string, unknown>>
   },

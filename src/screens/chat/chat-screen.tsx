@@ -26,6 +26,8 @@ import { StreamingTextContext } from './components/streaming-text-context'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { InlineClarifyCard } from './components/inline-clarify-card'
+import { CommandOutputList } from './components/command-output-card'
+import { GoalProgressList } from './components/goal-progress-card'
 import { ConnectionStatusMessage } from './components/connection-status-message'
 import {
   hasPendingGeneration,
@@ -62,6 +64,7 @@ import { useChatSessions } from './hooks/use-chat-sessions'
 import { useErrorRedirect } from './hooks/use-error-redirect'
 import { useAutoSessionTitle } from './hooks/use-auto-session-title'
 import { useRenameSession } from './hooks/use-rename-session'
+import { useForkSession } from './hooks/use-fork-session'
 import { useContextAlert } from './hooks/use-context-alert'
 import { useSendMessageState } from './hooks/use-send-message-state'
 import { useSessionLifecycle } from './hooks/use-session-lifecycle'
@@ -90,6 +93,7 @@ import {
   profileBody,
   readSendFailure,
 } from '@/lib/session-scope'
+import { resolveSessionKeyValue } from '@/lib/send-stream-session-headers'
 
 import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
@@ -98,6 +102,7 @@ import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
 import {
   useEnabledUserCommands,
 } from '@/lib/commands-api'
+import { useHermesCommandCatalog } from '@/lib/hermes-commands-api'
 import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
 import { ErrorToastContainer } from '@/components/error-toast'
@@ -158,6 +163,9 @@ export function ChatScreen({
   const queryClient = useQueryClient()
   const userCommandsQuery = useEnabledUserCommands()
   const enabledUserCommands = userCommandsQuery.data
+  // Live agent catalog — empty when the `agentCommands` capability is off, so
+  // the slash router degrades to SwitchUI's own commands with no extra branch.
+  const agentCommandCatalog = useHermesCommandCatalog().data
   // Approval recovery must run wherever a chat can be blocked on one — the
   // full-page route AND the compact side panel (ChatPanel renders this same
   // component with `compact`) — so it lives on the unconditional root here
@@ -249,6 +257,7 @@ export function ChatScreen({
     (state) => state.panelHeight,
   )
   const { renameSession, renaming: renamingSessionTitle } = useRenameSession()
+  const { forkSession } = useForkSession()
 
   const {
     sessionsQuery,
@@ -315,6 +324,25 @@ export function ChatScreen({
     activeSessionKey ||
     activeFriendlyId ||
     undefined
+
+  // The key the GATEWAY registers this chat's approvals (and its approval
+  // bypass) under. `_yolo_session_key()` upstream is `gateway_session_key or
+  // session_id` — i.e. `X-Hermes-Session-Key` when sent, else the `{id}` in
+  // the URL — so it must be derived exactly as `send-stream.ts` derives that
+  // header, through the one shared helper. `useComposerSend` sends
+  // `friendlyId: activeFriendlyId` and `sessionKey: forcedSessionKey ||
+  // resolvedSessionKey || activeSessionKey`, and the server prefers the
+  // friendlyId; reproducing that here with an ad-hoc `||` is exactly the drift
+  // resolveSessionKeyValue exists to prevent.
+  //
+  // Portable mode gets `undefined`: those turns never reach the gateway agent,
+  // so there is no gateway-enforced approval to bypass and the control hides.
+  const approvalBypassSessionKey = isPortableMode
+    ? undefined
+    : resolveSessionKeyValue({
+        stableSessionKey: activeFriendlyId,
+        sessionId: forcedSessionKey || resolvedSessionKey || activeSessionKey,
+      })
 
   // Store maps are keyed by the composite profile::session key.
   const waitingStoreKey = activeScopeKey(resolvedSessionKey)
@@ -1115,6 +1143,12 @@ export function ChatScreen({
     | null
   >(null)
 
+  // Real composer write for the `prefill` arm of an agent command (`/undo`).
+  // `commandHelpers` above is a no-op stub, so it cannot serve this.
+  const setComposerValueFromCommand = useCallback((value: string) => {
+    composerHandleRef.current?.setValue(value)
+  }, [])
+
   const { handleUiSlashCommand, expandCustomSlashCommand } = useSlashCommands({
     navigate,
     forcedSessionKey,
@@ -1125,11 +1159,19 @@ export function ChatScreen({
     finalDisplayMessages,
     enabledUserCommands,
     handleAbortStreaming,
-    handleThinkingLevelChange,
+    // NO `handleThinkingLevelChange`: the hook's `/reasoning` handler is gone
+    // and stays gone. It shadowed the agent's own `/reasoning`, which is the
+    // truthful readout of `agent.reasoning_effort` — the configured default a
+    // turn falls back to when the composer sends no level. (`body.thinking`
+    // itself is no longer dead: send-stream now forwards it as the gateway's
+    // per-request `reasoning_effort`.) The meta bar owns the picker below.
     renameSession,
+    forkSession,
     sendRef,
     commandHelpers,
     userCommandsPending: userCommandsQuery.isPending,
+    agentCommandCatalog,
+    setComposerValue: setComposerValueFromCommand,
   })
 
   const { send } = useComposerSend({
@@ -1310,6 +1352,22 @@ export function ChatScreen({
       ) : null,
     [activeClarify, resolvedSessionKey, isApprovalClarify],
   )
+  // Agent slash-command output. Memoized on the key alone so the message
+  // list's props comparison stays meaningful — the list itself re-renders from
+  // the store subscription inside CommandOutputList, not from a new element.
+  // The standing goal's judge trail shares this slot for the same reason:
+  // it is about the conversation without being part of it, so it must not
+  // enter `finalDisplayMessages` (send path, exporter). Both subscribe to
+  // their own store, so the memo key stays the session alone.
+  const commandOutputs = useMemo(
+    () => (
+      <>
+        <GoalProgressList sessionKey={activeCanonicalKey} />
+        <CommandOutputList sessionKey={activeCanonicalKey} />
+      </>
+    ),
+    [activeCanonicalKey],
+  )
   const handleClearReply = useCallback(() => setReplyTo(null), [])
   const handleToggleSystemMessages = useCallback(
     () => setHideSystemMessages((value) => !value),
@@ -1424,6 +1482,7 @@ export function ChatScreen({
               <ChatHeaderV2
                 activeTitle={activeTitle}
                 sessionKey={activeSessionKey || activeFriendlyId}
+                approvalBypassSessionKey={approvalBypassSessionKey}
                 sourceKind={activeSourceKind}
                 fileExplorerCollapsed={fileExplorerCollapsed}
                 onToggleFileExplorer={handleToggleFileExplorer}
@@ -1537,6 +1596,7 @@ export function ChatScreen({
               sending={sending}
               toolDisplayMode={toolDisplayMode}
               clarifyCard={clarifyCard}
+              commandOutputs={commandOutputs}
             />
             </StreamingTextContext.Provider>
           )}

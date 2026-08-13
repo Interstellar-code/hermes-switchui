@@ -19,6 +19,7 @@ import type { ContextMenuPoint } from '@/lib/context-menu'
 import { clampContextMenuPosition } from '@/lib/context-menu'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useDeleteSession } from '@/screens/chat/hooks/use-delete-session'
+import { useForkSession } from '@/screens/chat/hooks/use-fork-session'
 import { useRenameSession } from '@/screens/chat/hooks/use-rename-session'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [branchOpen, setBranchOpen] = useState(false)
 
   const menuRef = useRef<HTMLDivElement>(null)
   // chat / cron / api / task / tg / cli / a2a are all backed by chat sessions
@@ -81,14 +83,14 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   // unmount the component before the dialog's onClick fires.
   useEffect(() => {
     function handle(e: MouseEvent) {
-      if (renameOpen || deleteOpen) return
+      if (renameOpen || deleteOpen || branchOpen) return
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         onClose()
       }
     }
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
-  }, [onClose, renameOpen, deleteOpen])
+  }, [onClose, renameOpen, deleteOpen, branchOpen])
 
   // Close on ESC
   useEffect(() => {
@@ -134,10 +136,27 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     if (typeof window === 'undefined') return position
     return clampContextMenuPosition(
       position,
-      { width: 180, height: isChatItem ? 216 : 120 },
+      { width: 180, height: isChatItem ? 244 : 120 },
       { width: window.innerWidth, height: window.innerHeight },
     )
   }, [isChatItem, position])
+
+  const { forkSession, forking, error: forkError } = useForkSession()
+
+  async function handleBranchConfirm() {
+    if (!isChatItem || !rawId) return
+    try {
+      const newKey = await forkSession(rawId)
+      setBranchOpen(false)
+      onClose()
+      void navigate({
+        to: '/chat/$sessionKey',
+        params: { sessionKey: newKey },
+      })
+    } catch {
+      // Error surfaced via forkError; dialog stays open
+    }
+  }
 
   async function handleDeleteConfirm() {
     if (!isChatItem || !rawId) return
@@ -198,6 +217,11 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
             <>
               <div style={{ height: 1, background: 'var(--theme-border)', margin: '4px 0' }} />
               <MenuItem
+                label="Branch"
+                icon="⑂"
+                onClick={() => { setBranchOpen(true) }}
+              />
+              <MenuItem
                 label="Rename"
                 icon="✎"
                 onClick={() => { setRenameOpen(true) }}
@@ -221,6 +245,17 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
           error={renameError}
           onSave={handleRenameSave}
           onCancel={() => { if (!renaming) { setRenameOpen(false); onClose() } }}
+        />,
+        document.body,
+      )}
+
+      {branchOpen && createPortal(
+        <InlineBranchDialog
+          sessionTitle={item.title}
+          forking={forking}
+          error={forkError}
+          onConfirm={handleBranchConfirm}
+          onCancel={() => { if (!forking) { setBranchOpen(false); onClose() } }}
         />,
         document.body,
       )}
@@ -286,6 +321,47 @@ function InlineRenameDialog({
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button type="button" onClick={onCancel} disabled={saving} style={{ ...cancelBtnStyle, opacity: saving ? 0.6 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>Cancel</button>
           <button type="button" onClick={() => onSave(value)} disabled={disabled} style={{ ...confirmBtnStyle, opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>{saving ? 'Saving…' : 'Save'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Branching is not a plain copy — the gateway closes the source session with
+ * `end_reason: "branched"` (it stays readable and the row remains in the list,
+ * but it now renders as ended) and carries the transcript into the child. The
+ * confirm step exists to say so; without it "Branch" reads as harmless.
+ */
+function InlineBranchDialog({
+  sessionTitle,
+  forking,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  sessionTitle: string
+  forking: boolean
+  error: string | null
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  return (
+    <div style={overlayStyle}>
+      <div style={dialogStyle}>
+        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>
+          Branch <strong>{sessionTitle}</strong>?
+        </p>
+        <p style={{ marginBottom: 8, fontSize: 11, color: 'var(--theme-text-muted, #888)' }}>
+          Copies the full history into a new session and opens it. The original
+          is marked closed as “branched”.
+        </p>
+        {error && (
+          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onCancel} disabled={forking} style={{ ...cancelBtnStyle, opacity: forking ? 0.6 : 1, cursor: forking ? 'not-allowed' : 'pointer' }}>Cancel</button>
+          <button type="button" onClick={onConfirm} disabled={forking} style={{ ...confirmBtnStyle, opacity: forking ? 0.6 : 1, cursor: forking ? 'not-allowed' : 'pointer' }}>{forking ? 'Branching…' : 'Branch'}</button>
         </div>
       </div>
     </div>

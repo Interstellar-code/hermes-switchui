@@ -56,12 +56,16 @@ const SINGLE = {
   gateways: [{ profile: 'hermes-switch' }],
 }
 
+/** Bodies of every non-status request, parallel to `wire`. */
+let wireBodies: Array<unknown>
+
 /** Records every non-status URL that leaves the process. */
 function stubFetch(topology: Record<string, unknown>) {
   const wire: Array<string> = []
+  wireBodies = []
   vi.stubGlobal(
     'fetch',
-    vi.fn((input: unknown) => {
+    vi.fn((input: unknown, init?: RequestInit) => {
       const url = String(input)
       if (url.includes('/api/status')) {
         return Promise.resolve(
@@ -72,6 +76,7 @@ function stubFetch(topology: Record<string, unknown>) {
         )
       }
       wire.push(url)
+      wireBodies.push(init?.body)
       return Promise.resolve(
         new Response(JSON.stringify({ results: [], session: { id: 'f' } }), {
           status: 200,
@@ -169,6 +174,21 @@ describe('forkSession scoping (row 11)', () => {
     expect(wire[0]).toContain('/p/neo/')
   })
 
+  it('sends a JSON body — the gateway 400s a bodyless fork', async () => {
+    // `_handle_fork_session` calls `_read_json_body()` unconditionally and
+    // answers a bodyless POST with 400 "Invalid JSON in request body".
+    // claudePost() only serialises a truthy body, so passing `undefined`
+    // (as this function originally did) made every real fork fail — invisible
+    // to the URL-only assertions above.
+    const wire = stubFetch(MULTIPLEX)
+    const { forkSession } = await import('./hermes-api')
+
+    await forkSession('abc123', 'neo')
+
+    expect(wire).toHaveLength(1)
+    expect(wireBodies[0]).toBe('{}')
+  })
+
   it('leaves the unscoped fork byte-identical (dashboard shortcut, no prefix)', async () => {
     capabilities.dashboard.available = true
     const wire = stubFetch(MULTIPLEX)
@@ -178,5 +198,25 @@ describe('forkSession scoping (row 11)', () => {
 
     expect(dashboardApi.forkSession).toHaveBeenCalledWith('abc123')
     expect(wire).toHaveLength(0)
+  })
+
+  it('falls through to the gateway when the dashboard has no fork route', async () => {
+    // The dashboard (:9119) never exposed POST /api/sessions/{id}/fork — its
+    // session family is GET/PATCH/DELETE + /messages, /export,
+    // /latest-descendant (hermes_cli/web_server.py). Without this fallthrough
+    // the shortcut turns every unscoped branch into a hard 404.
+    capabilities.dashboard.available = true
+    dashboardApi.forkSession.mockRejectedValueOnce(
+      new Error('Hermes Agent dashboard /api/sessions/abc123/fork: 404 '),
+    )
+    const wire = stubFetch(MULTIPLEX)
+    const { forkSession } = await import('./hermes-api')
+
+    const out = await forkSession('abc123')
+
+    expect(dashboardApi.forkSession).toHaveBeenCalledWith('abc123')
+    expect(wire).toHaveLength(1)
+    expect(wire[0]).toBe('http://127.0.0.1:8642/api/sessions/abc123/fork')
+    expect(out.session.id).toBe('f')
   })
 })

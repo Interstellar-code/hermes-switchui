@@ -7,10 +7,19 @@ import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd } from '@/lib/format'
 import { SOURCE_COLORS, SOURCE_LABELS } from '@/screens/chat/source-visuals'
 import { ApprovalsBell } from '@/screens/gateway/components/approvals-bell'
+import { ApprovalBypassToggle } from '@/screens/chat/components/v2/approval-bypass-toggle'
 
 type ChatHeaderV2Props = {
   activeTitle: string
   sessionKey: string
+  /**
+   * The key the gateway registers this chat's approvals under — see
+   * `chat-screen.tsx`, which derives it through `resolveSessionKeyValue`.
+   * Deliberately separate from `sessionKey` above (a display/status key):
+   * toggling the bypass under a different key flips a set nothing reads.
+   * `undefined` in portable mode, where no gateway agent enforces approvals.
+   */
+  approvalBypassSessionKey?: string
   activeTab: SourceTab
   onTabChange: (tab: SourceTab) => void
   tabCounts?: Partial<Record<SourceTab, number>>
@@ -22,6 +31,7 @@ type ChatHeaderV2Props = {
 function ChatHeaderV2Component({
   activeTitle,
   sessionKey,
+  approvalBypassSessionKey,
   activeTab,
   onTabChange,
   tabCounts,
@@ -83,8 +93,15 @@ function ChatHeaderV2Component({
           Renders nothing when the queue is empty. */}
       <ApprovalsBell className="shrink-0" />
 
+      {/* Per-chat approval bypass. Sits next to the bell on purpose: this is
+          the switch that decides whether that bell ever rings for this chat.
+          Session-scoped and process-resident — it is NOT the global
+          Settings → Safety approval mode, and the two combine by OR. */}
+      <ApprovalBypassToggle sessionKey={approvalBypassSessionKey} />
+
       {/* Session cost pill */}
       <SessionCostPill sessionKey={sessionKey} />
+
 
       {/* Right: actions */}
       <div className="shrink-0">

@@ -75,3 +75,24 @@ describe('composer model catalog scoping (row 34)', () => {
     expect(urls[0]).toBe('/api/models')
   })
 })
+
+describe('per-session approval bypass scoping', () => {
+  it('sends ?profile= on the read', async () => {
+    const urls = stubFetch()
+    setSessionProfile('neo')
+    const { fetchSessionYolo } = await import('./hooks/use-session-yolo')
+
+    await fetchSessionYolo('sess-1', 'neo')
+
+    expect(urls[0]).toBe('/api/sessions/sess-1/yolo?profile=neo')
+  })
+
+  it('stays byte-identical when unscoped', async () => {
+    const urls = stubFetch()
+    const { fetchSessionYolo } = await import('./hooks/use-session-yolo')
+
+    await fetchSessionYolo('sess-1', null)
+
+    expect(urls[0]).toBe('/api/sessions/sess-1/yolo')
+  })
+})
