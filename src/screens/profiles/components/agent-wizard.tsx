@@ -10,7 +10,6 @@ import {
   wizardReducer,
 } from '../types'
 import { ConfirmDialog } from './confirm-dialog'
-import { useFocusTrap } from './use-focus-trap'
 import { WizardStepConfig } from './wizard-step-config'
 import { WizardStepIdentity } from './wizard-step-identity'
 import { WizardStepMcp } from './wizard-step-mcp'
@@ -22,6 +21,7 @@ import { WizardStepSkills } from './wizard-step-skills'
 import { WizardStepToolset } from './wizard-step-toolset'
 import type { NewAgentDraft, WizardStep } from '../types'
 import type { ProfileConfig, ProfileDetail } from '@/server/profiles-browser'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { randomMatrixName } from '@/lib/matrix-names'
 import { useProfilesList } from '@/hooks/use-profiles-list'
 

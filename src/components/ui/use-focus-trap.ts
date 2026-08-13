@@ -1,12 +1,14 @@
 /**
  * use-focus-trap.ts — the missing half of `role="dialog" aria-modal="true"` (P-16).
  *
- * Both profile dialogs (`.wiz-modal`, `.pf-confirm`) are hand-rolled rather than
- * Radix, and they have to stay that way: `.wiz-modal` and `.wiz-backdrop` are
- * declared *inside* the `[data-screen="profiles"]` block in matrix-profiles.css,
- * so a Radix `Dialog.Portal` — which mounts to `document.body` — would render
- * them completely unstyled. `ConfirmDialog` is additionally imported by a dozen
- * screens outside this one, so converting it is not a local change either.
+ * Used by the hand-rolled dialogs that cannot be Radix. The profile dialogs
+ * (`.wiz-modal`, `.pf-confirm`) have to stay that way: `.wiz-modal` and
+ * `.wiz-backdrop` are declared *inside* the `[data-screen="profiles"]` block in
+ * matrix-profiles.css, so a Radix `Dialog.Portal` — which mounts to
+ * `document.body` — would render them completely unstyled. The shared
+ * `ui/confirm-dialog.tsx` stays hand-rolled for a different reason: it must
+ * stack *above* surfaces that already sit at z-9999+ (Update Center), which
+ * Radix's fixed `z-50` cannot do.
  *
  * What Radix would have given us for free is therefore implemented here once:
  * initial focus, a Tab cycle, Escape, and focus restore.

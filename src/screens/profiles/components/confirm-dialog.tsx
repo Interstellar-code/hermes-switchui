@@ -1,6 +1,6 @@
 import { useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useFocusTrap } from './use-focus-trap'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 type Props = {
   open: boolean
