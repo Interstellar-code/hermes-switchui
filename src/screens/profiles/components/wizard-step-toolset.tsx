@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import type { NewAgentDraft } from '../types'
 import type { NormalizedToolset } from '@/lib/toolsets'
 import {
@@ -8,6 +7,9 @@ import {
   getToolsetSecurityHint,
   isToolsetSuppressed,
 } from '@/lib/toolsets'
+// Same fetch + query key as the Toolsets screen, so the two share one cache
+// entry instead of each holding their own copy of the catalog.
+import { useToolsetCatalog } from '@/lib/toolsets-api'
 
 type Props = {
   draft: NewAgentDraft
@@ -15,23 +17,8 @@ type Props = {
   onChange: (patch: Partial<NewAgentDraft>) => void
 }
 
-type ToolsetCatalog = {
-  toolsets: Array<NormalizedToolset>
-  source: 'gateway' | 'static'
-}
-
-async function fetchToolsetCatalog(): Promise<ToolsetCatalog> {
-  const r = await fetch('/api/profiles/toolsets')
-  if (!r.ok) throw new Error(`toolsets ${r.status}`)
-  return (await r.json()) as ToolsetCatalog
-}
-
 export function WizardStepToolset({ draft, errors, onChange }: Props) {
-  const catalogQuery = useQuery({
-    queryKey: ['toolsets', 'catalog'],
-    queryFn: fetchToolsetCatalog,
-    staleTime: 60_000,
-  })
+  const catalogQuery = useToolsetCatalog()
 
   // While loading or on error, fall back to the static catalog so the step
   // always renders. source stays 'static' until live data arrives.

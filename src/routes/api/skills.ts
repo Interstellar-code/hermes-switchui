@@ -204,6 +204,8 @@ function mergeSkillSummaries(
     content: existing.content || incoming.content,
     fileCount: Math.max(existing.fileCount, incoming.fileCount),
     sourcePath: existing.sourcePath || incoming.sourcePath,
+    provenance: existing.provenance || incoming.provenance,
+    usage: Math.max(existing.usage, incoming.usage),
     enabled: existing.enabled,
     installed: existing.installed,
     builtin: existing.builtin || incoming.builtin,
@@ -246,6 +248,10 @@ function toLocalSkillSummary(id: string, meta: LocalSkillMeta): SkillSummary {
     featuredGroup: undefined,
     security: { level: 'safe', flags: [], score: 0 },
     origin: 'marketplace',
+    // A row the filesystem scan found has no agent-side provenance or counter;
+    // if the agent also knows it, `mergeSkillSummaries` fills both in.
+    provenance: '',
+    usage: 0,
     profileNames: [],
     profileCount: 0,
     shared: false,
@@ -312,6 +318,15 @@ type SkillSummary = {
   featuredGroup?: string
   security: SecurityRisk
   origin: 'builtin' | 'agent-created' | 'marketplace'
+  /**
+   * Hermes' own `provenance` for this skill (`bundled` / `agent` / …), passed
+   * through verbatim. Distinct from `origin`, which SwitchUI *derives* from the
+   * author and the bundled manifest — when the agent tells us directly, that is
+   * the better answer. `''` for rows discovered by the local filesystem scan.
+   */
+  provenance: string
+  /** Hermes' invocation counter for this skill. `0` when it never ran / unknown. */
+  usage: number
   profileNames?: Array<string>
   profileCount?: number
   shared?: boolean
@@ -531,6 +546,11 @@ function normalizeSkill(value: unknown): SkillSummary | null {
     featuredGroup: undefined,
     security: normalizeSecurity(record.security),
     origin: 'marketplace' as const,
+    provenance: readString(record.provenance),
+    usage:
+      typeof record.usage === 'number' && Number.isFinite(record.usage)
+        ? record.usage
+        : 0,
   }
 }
 
@@ -626,6 +646,12 @@ export const Route = createFileRoute('/api/skills')({
             sortParam === 'category' || sortParam === 'name'
               ? sortParam
               : 'name'
+          // `fields=summary` drops `content` — the whole SKILL.md body, which is
+          // ~95% of this payload (1.0 MB vs 56 KB for the 88 rows on this
+          // machine). Callers that only need the metadata (name, category,
+          // provenance, usage) ask for it; the skills screen, which renders the
+          // body, does not.
+          const summaryOnly = url.searchParams.get('fields') === 'summary'
           const page = Math.max(1, Number(url.searchParams.get('page') || '1'))
           const limit = Math.min(
             1000,
@@ -779,7 +805,10 @@ export const Route = createFileRoute('/api/skills')({
 
           const total = filtered.length
           const start = (page - 1) * limit
-          const skills = filtered.slice(start, start + limit)
+          const paged = filtered.slice(start, start + limit)
+          const skills = summaryOnly
+            ? paged.map(({ content: _content, ...rest }) => rest)
+            : paged
 
           return Response.json({
             skills,

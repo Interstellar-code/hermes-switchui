@@ -481,6 +481,7 @@ export function PrimaryNavV2() {
   const isSkills = pathname.startsWith('/skills')
   const isPlugins = pathname.startsWith('/plugins')
   const isMcp = pathname.startsWith('/mcp')
+  const isToolsets = pathname.startsWith('/toolsets')
   const isProfiles = pathname.startsWith('/profiles')
   const isProviders = pathname.startsWith('/settings/providers')
   const isSettings = pathname.startsWith('/settings') && !isProviders
@@ -910,6 +911,16 @@ export function PrimaryNavV2() {
           active={isMcp}
           collapsed={collapsed}
           badge={counts.mcp}
+        />
+        {/* Sits next to MCP: both answer "what can the agent actually call?".
+            No badge — the count is only meaningful when the gateway answers,
+            and the screen itself is the place that says whether it did. */}
+        <NavItem
+          label="Toolsets"
+          iconKey="mcp"
+          to="/toolsets"
+          active={isToolsets}
+          collapsed={collapsed}
         />
         <NavItem
           label="Profiles"

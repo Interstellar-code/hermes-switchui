@@ -258,6 +258,15 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
         onSelect: () => void navigate({ to: '/mcp' }),
       },
       {
+        id: 'screen-toolsets',
+        group: 'Screens',
+        label: 'Toolsets',
+        keywords: 'toolsets tools capabilities enabled suppressed gateway',
+        shortcut: 'Go',
+        icon: McpServerIcon,
+        onSelect: () => void navigate({ to: '/toolsets' }),
+      },
+      {
         id: 'screen-settings',
         group: 'Screens',
         label: 'Settings',

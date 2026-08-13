@@ -1,6 +1,6 @@
 /* matrix-skills.css — shared Skills/Plugins inventory contract. */
 /* prettier-ignore */
-[data-screen="skills"], [data-screen="plugins"] {
+[data-screen="skills"], [data-screen="plugins"], [data-screen="toolsets"] {
 
 /* ── shell layout (applied to same element as data-screen) ── */
 &.sk-shell {

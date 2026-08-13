@@ -113,6 +113,13 @@ export const MOBILE_HAMBURGER_NAV_ITEMS = [
     match: (p: string) => p.startsWith('/mcp'),
   },
   {
+    id: 'toolsets',
+    label: 'Toolsets',
+    icon: McpServerIcon,
+    to: '/toolsets',
+    match: (p: string) => p.startsWith('/toolsets'),
+  },
+  {
     id: 'profiles',
     label: 'Profiles',
     icon: UserGroupIcon,

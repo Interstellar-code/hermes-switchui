@@ -251,4 +251,85 @@ describe('GET /api/skills — profile filtering', () => {
     expect(activeBody.profiles.find((profile) => profile.name === 'neo')?.skillCount).toBe(1)
     expect(activeBody.profiles.find((profile) => profile.name === 'trinity')?.skillCount).toBe(0)
   })
+
+  /**
+   * What the slash picker reads (`lib/skill-metadata.ts`): the agent's own
+   * `provenance` and invocation counter, and a projection without the SKILL.md
+   * bodies. Without `fields=summary` this payload is ~1 MB for 88 skills, and
+   * the picker needs none of it.
+   */
+  it('passes provenance and the invocation counter through from the agent', async () => {
+    dashboardFetch.mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          {
+            id: 'switch-only-skill',
+            name: 'switch-only-skill',
+            description: 'Runtime active skill payload',
+            installed: true,
+            enabled: true,
+            provenance: 'agent',
+            usage: 54,
+          },
+        ]),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    )
+
+    const handler = await getHandler()
+    const res = await handler({
+      request: new Request('http://localhost/api/skills?tab=installed&limit=50'),
+    })
+    const body = (await res.json()) as {
+      skills: Array<{ id: string; provenance?: string; usage?: number }>
+    }
+
+    const skill = body.skills.find((entry) => entry.id === 'switch-only-skill')
+    expect(skill?.provenance).toBe('agent')
+    expect(skill?.usage).toBe(54)
+    // A skill only the filesystem scan knows about has neither, and says so
+    // rather than inventing a zero-usage "bundled" row.
+    const localOnly = body.skills.find((entry) => entry.id === 'shared-skill')
+    expect(localOnly?.provenance).toBe('')
+    expect(localOnly?.usage).toBe(0)
+  })
+
+  it('drops the SKILL.md bodies for fields=summary, and only then', async () => {
+    // A fresh Response per call: a body can only be read once, and this test
+    // calls the handler twice.
+    dashboardFetch.mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    )
+    const handler = await getHandler()
+
+    const full = (await (
+      await handler({
+        request: new Request(
+          'http://localhost/api/skills?tab=installed&limit=50',
+        ),
+      })
+    ).json()) as { skills: Array<Record<string, unknown>> }
+    expect(full.skills.some((skill) => 'content' in skill)).toBe(true)
+
+    const summary = (await (
+      await handler({
+        request: new Request(
+          'http://localhost/api/skills?tab=installed&limit=50&fields=summary',
+        ),
+      })
+    ).json()) as { skills: Array<Record<string, unknown>> }
+    expect(summary.skills.length).toBe(full.skills.length)
+    expect(summary.skills.some((skill) => 'content' in skill)).toBe(false)
+    // Everything the picker joins on survives the projection.
+    expect(summary.skills[0]).toMatchObject({
+      id: expect.any(String),
+      name: expect.any(String),
+      category: expect.any(String),
+    })
+  })
 })
