@@ -2,11 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SessionHistoryMessage } from '@/lib/gateway-api'
 import { cn } from '@/lib/utils'
 import { Markdown } from '@/components/prompt-kit/markdown'
-import {
-  fetchSessionHistory,
-  sendToSession,
-  steerAgent,
-} from '@/lib/gateway-api'
+import { fetchSessionHistory, sendToSession } from '@/lib/gateway-api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -187,12 +183,18 @@ export function AgentChatPanel({
 
     try {
       if (isRunning) {
-        // Agent is running — use steer to send a directive
-        await steerAgent(sessionKey, text)
-      } else {
-        // Agent is idle — send a new message to the session
-        await sendToSession(sessionKey, text)
+        // Steering a mid-turn agent has no transport here. `steerAgent()`
+        // POSTed to `/api/agent-steer`, a route that never existed, so this
+        // branch always 404'd; it was deleted rather than faked. Real steering
+        // requires the live-agent registry over the tui_gateway WebSocket
+        // (`session.steer` on the dashboard's /api/ws) — see
+        // docs/plans/hermes-slash-commands-in-switchui.md §4.2.
+        throw new Error(
+          'Steering a running agent is not supported yet. Wait for the turn to finish, then send.',
+        )
       }
+      // Agent is idle — send a new message to the session
+      await sendToSession(sessionKey, text)
       // Reload history to get agent's response
       setTimeout(() => void loadHistory(), 1500)
     } catch (e) {
@@ -230,7 +232,7 @@ export function AgentChatPanel({
                 Chat with {agentName}
               </p>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                {isRunning ? 'Running — messages sent as directives' : 'Idle — direct conversation'}
+                {isRunning ? 'Running — wait for the turn to finish' : 'Idle — direct conversation'}
                 {sessionKey ? ` · ${sessionKey.slice(0, 24)}…` : ' · No session'}
               </p>
             </div>
@@ -327,7 +329,7 @@ export function AgentChatPanel({
                 !sessionKey
                   ? 'No session available…'
                   : isRunning
-                    ? 'Send a directive to the running agent…'
+                    ? 'Agent is running — sending is disabled…'
                     : 'Send a message…'
               }
               disabled={!sessionKey || sending}
@@ -349,12 +351,12 @@ export function AgentChatPanel({
                 'bg-accent-500 hover:bg-accent-600 disabled:opacity-40 disabled:cursor-not-allowed',
               )}
             >
-              {sending ? '…' : isRunning ? 'Steer ⌘↵' : 'Send ⌘↵'}
+              {sending ? '…' : 'Send ⌘↵'}
             </button>
           </div>
           <p className="mt-1.5 text-[10px] text-neutral-400">
             {isRunning
-              ? 'Agent is running. Messages are sent as steering directives.'
+              ? 'Agent is running. Mid-turn steering is not supported yet.'
               : 'Agent is idle. Messages start a new conversation turn.'}
           </p>
         </div>

@@ -151,16 +151,6 @@ export function SearchModal() {
           navigate({ to: '/settings', search: {} })
         },
       },
-      {
-        id: 'qa-usage',
-        emoji: '📊',
-        label: 'Usage',
-        description: 'Open usage meter details',
-        onSelect: () => {
-          closeModal()
-          emitSearchModalEvent(SEARCH_MODAL_EVENTS.OPEN_USAGE)
-        },
-      },
     ],
     [closeModal, navigate],
   )

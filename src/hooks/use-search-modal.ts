@@ -2,7 +2,6 @@ import { create } from 'zustand'
 
 export const SEARCH_MODAL_EVENTS = {
   OPEN_SETTINGS: 'search-modal:open-settings',
-  OPEN_USAGE: 'search-modal:open-usage',
   TOGGLE_FILE_EXPLORER: 'search-modal:toggle-file-explorer',
 } as const
 

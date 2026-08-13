@@ -303,43 +303,18 @@ export async function setDefaultModel(
   }
 }
 
-export async function steerAgent(
-  sessionKey: string,
-  message: string,
-): Promise<GatewayAgentActionResponse> {
-  const controller = new AbortController()
-  const timeout = globalThis.setTimeout(() => controller.abort(), 12000)
-
-  try {
-    const response = await fetch(makeEndpoint('/api/agent-steer'), {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionKey, message }),
-      signal: controller.signal,
-    })
-
-    const payload = (await response
-      .json()
-      .catch(() => ({}))) as GatewayAgentActionResponse
-
-    if (!response.ok || payload.ok === false) {
-      const errorMessage =
-        typeof payload.error === 'string' && payload.error.trim().length > 0
-          ? payload.error
-          : response.statusText || 'Failed to send directive'
-      throw new Error(errorMessage)
-    }
-
-    return payload
-  } catch (error) {
-    if (isAbortError(error)) {
-      throw new Error('Request timed out')
-    }
-    throw error
-  } finally {
-    globalThis.clearTimeout(timeout)
-  }
-}
+// NOTE: `steerAgent` (POST /api/agent-steer) used to live here. Deleted for the
+// same reason as `switchModel` above: the route does not exist. `BASE_URL` is
+// `window.location.origin` in the browser, so the request targeted SwitchUI's
+// own server, and `src/routes/api/` has no `agent-steer.ts` — every call 404'd.
+// Its only caller was `AgentChatPanel`, which is itself orphaned (zero import
+// sites), so nothing user-reachable regressed.
+//
+// Do not reimplement this as a REST route. Real mid-turn steering needs the
+// live-agent registry, which is only reachable over the tui_gateway JSON-RPC
+// WebSocket (`session.steer` on the dashboard's `/api/ws`, :9119). The REST
+// chat path on :8642 has no handle on the running turn at all. See
+// docs/plans/hermes-slash-commands-in-switchui.md §4.2 and §7.3.
 
 export async function killAgentSession(
   sessionKey: string,

@@ -351,7 +351,6 @@ export function WorkspaceShell({ children }: WorkspaceShellProps) {
                 ? 'rounded-md border border-[color:var(--theme-border)] my-2 mr-2'
                 : '',
             ].join(' ')}
-            data-tour="chat-area"
           >
             {/* Persistent terminal — stays mounted to preserve session across navigation */}
             <div
