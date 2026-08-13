@@ -1,34 +1,25 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { CLAUDE_DASHBOARD_URL } from '../../server/gateway-capabilities'
+import { getAgentVersion } from '../../server/hermes-agent-version'
 
-let cached: { version: string | null; ts: number } = { version: null, ts: 0 }
-const TTL_MS = 60_000
-
+/**
+ * `GET /api/agent-version` — the running agent's version string, or null.
+ *
+ * The read, its cache and its failure semantics live in
+ * `server/hermes-agent-version.ts`, which is also what the slash-command
+ * version floor (`server/hermes-slash-policy.ts`) consults. Sharing it is the
+ * point: this route used to hold a private 60s cache with no invalidation, so
+ * the sidebar badge and the exec gate could disagree about which build was
+ * running for a minute after a restart. One cache, 10s, dropped on every
+ * gateway re-probe.
+ *
+ * Unchanged for callers: `{ version: string }` or `{ version: null }`, always
+ * 200 — the onboarding trust-boundary check and the sidebar badge both treat a
+ * null as "could not tell" rather than an error.
+ */
 export const Route = createFileRoute('/api/agent-version')({
   server: {
     handlers: {
-      GET: async ({ request }) => {
-        const now = Date.now()
-        // Guard against backward clock skew (NTP correction, sleep/wake, DST):
-        // if now < cached.ts, "now - cached.ts" is negative and would keep
-        // returning stale data forever. Require monotonic forward progress
-        // before applying the TTL.
-        if (cached.version && now >= cached.ts && now - cached.ts < TTL_MS) {
-          return Response.json({ version: cached.version })
-        }
-        try {
-          const res = await fetch(`${CLAUDE_DASHBOARD_URL}/api/status`, {
-            signal: AbortSignal.timeout(3000),
-          })
-          if (!res.ok) return Response.json({ version: null })
-          const body = (await res.json()) as { version?: string }
-          const version = body.version || null
-          cached = { version, ts: now }
-          return Response.json({ version })
-        } catch {
-          return Response.json({ version: null })
-        }
-      },
+      GET: async () => Response.json({ version: await getAgentVersion() }),
     },
   },
 })

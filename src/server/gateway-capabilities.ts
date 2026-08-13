@@ -289,6 +289,20 @@ export type EnhancedCapabilities = {
    * gracefully to a BackendUnavailableState when absent.
    */
   projects: boolean
+  /**
+   * True when the agent's live command catalog is reachable — the dashboard is
+   * up AND the `commands.catalog` JSON-RPC over `/api/ws` actually answered.
+   *
+   * Deliberately NOT a route-presence probe: unlike `probeConductor()` /
+   * `probeEnhancedChatStream()` below, there is no HTTP status to read here
+   * and a 401 equivalent (WS close 4401) means the credential was rejected,
+   * so nothing would work at runtime either. The only honest signal is a
+   * successful round trip, which is what `probeAgentCommands()` requires.
+   * Everything degrades to `false` when the dashboard is absent — the slash
+   * menu then falls back to its hardcoded local commands. See
+   * `docs/plans/hermes-slash-commands-in-switchui.md` §5 step 9.
+   */
+  agentCommands: boolean
 }
 
 export type DashboardCapabilities = {
@@ -337,6 +351,7 @@ let capabilities: GatewayCapabilities = {
   conductor: false,
   kanban: false,
   projects: false,
+  agentCommands: false,
   dashboard: {
     available: false,
     url: CLAUDE_DASHBOARD_URL,
@@ -941,6 +956,30 @@ async function probeProjects(dashboardAvailable: boolean): Promise<boolean> {
   }
 }
 
+/**
+ * Probe for the agent's live command catalog over the dashboard's `/api/ws`
+ * JSON-RPC sidecar.
+ *
+ * Strictly a round-trip probe — see the `agentCommands` field's doc comment
+ * for why the "401 proves the route exists" shortcut the HTTP probes above use
+ * is wrong here. Warming the shared 60s catalog cache is a deliberate side
+ * effect: `GET /api/hermes-commands` then answers from cache on the first hit.
+ *
+ * The import is dynamic because `hermes-rpc` imports this module for
+ * `CLAUDE_DASHBOARD_URL` / `dashboardFetch` / `getDashboardToken`; a static
+ * import here would close the cycle at module-init time.
+ */
+async function probeAgentCommands(dashboardAvailable: boolean): Promise<boolean> {
+  if (!dashboardAvailable) return false
+  try {
+    const { getHermesCommandCatalog } = await import('./hermes-commands')
+    const catalog = await getHermesCommandCatalog({ force: true })
+    return catalog.commands.length > 0
+  } catch {
+    return false
+  }
+}
+
 async function probeConductor(dashboardAvailable: boolean): Promise<boolean> {
   if (!dashboardAvailable) return false
   try {
@@ -979,6 +1018,10 @@ export const OPTIONAL_APIS = new Set([
   'mcpFallback',
   'kanban', // task board degrades gracefully when Agent Kanban plugin is absent
   'projects', // projects screen degrades gracefully when Projects plugin is absent
+  // The slash menu falls back to its hardcoded local commands when the
+  // dashboard's /api/ws catalog is unreachable — a degraded feature, not a
+  // broken install, so it must not trigger "reinstall the agent".
+  'agentCommands',
   // Conductor renders an 'upstream not ready' placeholder when the dashboard
   // does not expose /api/conductor/missions (see the `conductor` field's doc
   // comment and #262), so its absence is a degraded feature, not a broken
@@ -1011,6 +1054,7 @@ function logCapabilities(next: GatewayCapabilities): void {
     'conductor',
     'kanban',
     'projects',
+    'agentCommands',
   ]
 
   for (const key of coreKeys) {
@@ -1103,6 +1147,17 @@ export async function probeGateway(options?: {
   probePromise = (async () => {
     await Promise.all([autoDetectGatewayUrl(), autoDetectDashboardUrl()])
 
+    // A re-probe is the moment we already suspect the agent changed under us —
+    // it is what the UI's "Reconnect" runs, and what the stale-TTL path runs
+    // after a restart. Drop the cached agent version here so the slash-command
+    // floor (`hermes-slash-policy.ts`) re-reads it instead of carrying a
+    // version from the previous process for up to its own TTL. Dynamic import
+    // because `hermes-agent-version` imports `CLAUDE_DASHBOARD_URL` from this
+    // module — the same cycle `probeAgentCommands` avoids the same way.
+    await import('./hermes-agent-version')
+      .then((mod) => mod.invalidateAgentVersion())
+      .catch(() => {})
+
     const dashboard = await probeDashboard()
 
     const [
@@ -1143,6 +1198,7 @@ export async function probeGateway(options?: {
     const conductor = await probeConductor(dashboard.available)
     const kanban = await probeKanban(dashboard.available)
     const projects = await probeProjects(dashboard.available)
+    const agentCommands = await probeAgentCommands(dashboard.available)
 
     // Phase 1.5 fallback: when native /api/mcp is missing but the dashboard
     // exposes `config.mcp_servers` AND we are loopback-only, allow a config
@@ -1177,6 +1233,7 @@ export async function probeGateway(options?: {
       conductor,
       kanban,
       projects,
+      agentCommands,
       dashboard,
     }
     lastProbeAt = Date.now()
@@ -1239,6 +1296,7 @@ export function getEnhancedCapabilities(): EnhancedCapabilities {
     conductor: capabilities.conductor,
     kanban: capabilities.kanban,
     projects: capabilities.projects,
+    agentCommands: capabilities.agentCommands,
   }
 }
 

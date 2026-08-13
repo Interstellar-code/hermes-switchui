@@ -101,6 +101,7 @@ const baseCaps = (): GatewayCapabilities => ({
   conductor: true,
   kanban: true,
   projects: true,
+  agentCommands: true,
   dashboard: { available: true, url: 'http://127.0.0.1:9119' },
 })
 

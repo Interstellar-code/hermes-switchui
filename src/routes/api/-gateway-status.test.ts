@@ -65,6 +65,7 @@ const baseCapabilities = {
   conductor: false,
   kanban: false,
   projects: false,
+  agentCommands: false,
   dashboard: { available: false, url: 'http://127.0.0.1:9119' },
 }
 

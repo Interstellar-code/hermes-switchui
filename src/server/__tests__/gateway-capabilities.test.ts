@@ -27,6 +27,23 @@ vi.mock('node:os', () => ({
   homedir,
 }))
 
+// `probeAgentCommands()` in gateway-capabilities dynamically imports this
+// module and, when the dashboard probe reported available, opens a REAL
+// WebSocket to :9119. Unmocked, this suite's behaviour depends on whether a
+// dashboard happens to be running on the machine: green on a dev box, a
+// CONNECT_TIMEOUT_MS (15s) hang on CI — which is exactly how it surfaced,
+// as an intermittent timeout in "keeps public dashboard availability when
+// token discovery fails" (the one case that forces dashboard.available true).
+// No assertion in this file depends on the catalog, so stub it to empty:
+// `agentCommands` is covered by hermes-commands.test.ts against a fake socket.
+vi.mock('../hermes-commands', () => ({
+  SKILL_CATEGORY: 'Skills',
+  normalizeCommandCatalog: vi.fn(() => ({ commands: [], fetchedAt: 0 })),
+  invalidateHermesCommandCatalog: vi.fn(),
+  hermesCommandCatalogCachedAt: vi.fn(() => 0),
+  getHermesCommandCatalog: vi.fn(async () => ({ commands: [], fetchedAt: 0 })),
+}))
+
 beforeEach(() => {
   vi.clearAllMocks()
   delete process.env.CLAUDE_HOME
