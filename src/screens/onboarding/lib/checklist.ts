@@ -8,12 +8,18 @@
  * keep working after that, so it falls back to the `skipped` *and* `completed`
  * lists carried on a `'complete'` `OnboardingOutcome` once the draft is gone.
  *
- * `chatProven` / `pluginsTouched` and friends are live signals that only exist
- * while a wizard session is mounted. Outside one they arrive as `false`, so the
- * completion record has to be able to answer for them — otherwise a user who
- * finished everything keeps a permanent badge with no way to clear it. Hence:
- * an item is done if the live probe says so **or** the persisted run recorded
- * that step as completed.
+ * `chatProven` / `pluginsTouched` and friends are live signals. Inside a wizard
+ * session they are what that session observed; outside one they come from
+ * `use-onboarding-checklist.ts`'s own probes of the real configuration. Either
+ * way the completion record still has to be able to answer for them, because a
+ * probe can be unavailable — otherwise a user who finished everything keeps a
+ * permanent badge with no way to clear it. Hence: an item is done if a live
+ * signal says so **or** the persisted run recorded that step as completed.
+ *
+ * The two are never merged in the other direction. Nothing here writes back
+ * into `completed`: "a machine noticed the install is configured" and "a human
+ * walked this step" stay separate records, the same distinction
+ * `onboarding-storage.ts` keeps between `autoDetected` and `complete`.
  *
  * ## What the ordering encodes
  *
@@ -62,6 +68,11 @@ export type BuildChecklistInput = {
   agentCwd: string | null
   /** True when that directory came from an explicit `terminal.cwd`. */
   agentCwdExplicit: boolean
+  /**
+   * Whether the core plugin set is settled — the wizard reads this as "this
+   * session toggled something", the dashboard as "every core plugin is
+   * already on". Both mean the same thing to a checklist: nothing left here.
+   */
   pluginsTouched: boolean
   /**
    * Whether this session actually activated a profile. A 200 from
@@ -72,6 +83,18 @@ export type BuildChecklistInput = {
   profileTouched: boolean
   /** Same contract as `profileTouched`, for `memory.provider`. */
   memoryTouched: boolean
+  /**
+   * Whether a theme has been picked for this browser.
+   *
+   * The odd one out: every other signal above describes the machine, and this
+   * one describes `localStorage`, because that is where `setTheme` puts it.
+   * Before this input existed the item read `completed.has('theme')` alone,
+   * which is only ever written by a wizard run — so an install that settled
+   * via the legacy flag or auto-detection (`use-onboarding-gate.ts`'s
+   * `readGateOutcome`, both of which synthesise `completed: []`) could pick
+   * every theme in the list and still be told to "Pick a theme".
+   */
+  themeChosen: boolean
   /**
    * Whether every profile on disk is actually reachable by the live
    * gateway — the gap where a multi-profile install with multiplexing off
@@ -108,6 +131,7 @@ export function buildChecklist(
   const profileTouched = input.profileTouched || completed.has('profile')
   const memoryTouched = input.memoryTouched || completed.has('memory')
   const connected = input.gatewayReachable === true || completed.has('connect')
+  const themeChosen = input.themeChosen || completed.has('theme')
 
   function stateFor(
     id: OnboardingStepId,
@@ -215,8 +239,12 @@ export function buildChecklist(
     {
       id: 'plugins',
       label: 'Review core plugins',
+      // "In place", not "Reviewed": outside the wizard this is satisfied by
+      // every core plugin actually being on, which nobody necessarily sat and
+      // reviewed. Both readings make the same claim — there is nothing left to
+      // do here — without either one asserting something that did not happen.
       detail: pluginsTouched
-        ? 'Reviewed.'
+        ? 'In place.'
         : 'Optional — some screens stay empty without them.',
       state: stateFor('plugins', pluginsTouched, optionalBlocked),
       goTo: 'plugins',
@@ -225,8 +253,8 @@ export function buildChecklist(
     {
       id: 'theme',
       label: 'Pick a theme',
-      detail: completed.has('theme') ? 'Chosen.' : 'Optional.',
-      state: stateFor('theme', completed.has('theme'), optionalBlocked),
+      detail: themeChosen ? 'Chosen.' : 'Optional.',
+      state: stateFor('theme', themeChosen, optionalBlocked),
       goTo: 'theme',
       required: false,
     },

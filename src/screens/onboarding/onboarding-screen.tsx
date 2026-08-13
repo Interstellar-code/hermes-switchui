@@ -98,7 +98,7 @@ import {
 } from '@/components/wizard'
 import { MatrixRainCanvas } from '@/components/terminal/matrix-rain-canvas'
 import { normalizeProviderId } from '@/lib/provider-catalog'
-import { getTheme } from '@/lib/theme'
+import { getTheme, readStoredTheme } from '@/lib/theme'
 // Imported here and nowhere else, matching `providers-screen.tsx`: a screen
 // stylesheet pulled in from a leaf component ends up in a shared chunk and
 // ships to every route.
@@ -237,6 +237,11 @@ function OnboardingFlow({
   const [outcome] = useState(() => readOnboardingOutcome(safeStorage()))
   const [storedDraft] = useState(() => readOnboardingDraft(safeStorage()))
   const [initialTheme] = useState<ThemeId>(() => getTheme())
+  // Whether a theme was already stored before this run, captured at mount for
+  // the same reason as `initialTheme`: the picker writes one the instant it is
+  // clicked, so after the first click the live read can no longer answer
+  // "was this workspace already on a theme the user chose?".
+  const [themePrechosen] = useState(() => readStoredTheme() !== null)
 
   const mode: OnboardingMode = relaunch
     ? 'relaunch'
@@ -590,6 +595,8 @@ function OnboardingFlow({
         pluginsTouched: plugins.touched,
         profileTouched: profiles.touched,
         memoryTouched: memory.touched,
+        // Either this run picked one, or one was already stored before it.
+        themeChosen: draft.themeId !== null || themePrechosen,
         profileServability,
       }),
     [
@@ -604,6 +611,7 @@ function OnboardingFlow({
       plugins.touched,
       profiles.touched,
       profileServability,
+      themePrechosen,
     ],
   )
 

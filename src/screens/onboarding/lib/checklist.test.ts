@@ -44,6 +44,7 @@ function input(
     pluginsTouched: false,
     profileTouched: false,
     memoryTouched: false,
+    themeChosen: false,
     profileServability: null,
     ...overrides,
   }
@@ -160,6 +161,35 @@ describe('buildChecklist', () => {
     expect(
       explicit.find((entry) => entry.id === 'workspace')?.detail,
     ).toContain('/srv/code')
+  })
+
+  // ── theme ─────────────────────────────────────────────────────────────────
+
+  it('theme is done from the live signal alone, with nothing in completed', () => {
+    // The completion record is only ever written by a wizard run. An install
+    // that settled via the legacy flag or auto-detection carries
+    // `completed: []` forever, so this item had no way to notice a theme.
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        themeChosen: true,
+      }),
+    )
+    expect(stateOf(items, 'theme')).toBe('done')
+    expect(items.find((entry) => entry.id === 'theme')?.detail).toBe('Chosen.')
+  })
+
+  it('theme still honours the completion record when no live signal exists', () => {
+    const items = buildChecklist(
+      input({
+        activeProvider: 'anthropic',
+        chatProven: true,
+        themeChosen: false,
+        draft: draft({ completed: ['theme'] }),
+      }),
+    )
+    expect(stateOf(items, 'theme')).toBe('done')
   })
 
   // ── the persisted record stands in for live probes ────────────────────────

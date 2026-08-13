@@ -19,7 +19,8 @@ export const THEMES: Array<{
   {
     id: 'claude-nous',
     label: 'Nous',
-    description: 'Deep teal background, cream accent — matches Nous Research chrome',
+    description:
+      'Deep teal background, cream accent — matches Nous Research chrome',
     icon: '◱',
   },
   {
@@ -135,10 +136,38 @@ export function getThemeVariant(
     : DARK_THEME_MAP[theme as keyof typeof DARK_THEME_MAP]
 }
 
+/**
+ * Exported so a listener can tell a `storage` event for the theme apart from
+ * the noise of every other feature sharing this origin, without a second copy
+ * of the literal drifting out of sync with `setTheme`.
+ */
+export const THEME_STORAGE_KEY = STORAGE_KEY
+
+/**
+ * The theme this browser has explicitly stored, or `null` when none has ever
+ * been picked.
+ *
+ * `getTheme()` cannot answer that question: it substitutes `DEFAULT_THEME` for
+ * an absent or unrecognised value, which makes "sitting on Matrix because I
+ * chose it" and "never opened the theme picker" indistinguishable. The
+ * onboarding checklist needs the difference — see
+ * `use-onboarding-checklist.ts`.
+ *
+ * Never throws: `localStorage` access itself can raise in private-browsing
+ * modes, and a checklist has no business taking a render down over a theme.
+ */
+export function readStoredTheme(): ThemeId | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    return isValidTheme(stored) ? stored : null
+  } catch {
+    return null
+  }
+}
+
 export function getTheme(): ThemeId {
-  if (typeof window === 'undefined') return DEFAULT_THEME
-  const stored = localStorage.getItem(STORAGE_KEY)
-  return isValidTheme(stored) ? stored : DEFAULT_THEME
+  return readStoredTheme() ?? DEFAULT_THEME
 }
 
 export function setTheme(theme: ThemeId): void {
