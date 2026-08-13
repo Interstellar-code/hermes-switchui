@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as WorkflowsRouteImport } from './routes/workflows'
+import { Route as ToolsetsRouteImport } from './routes/toolsets'
 import { Route as TerminalRouteImport } from './routes/terminal'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as SkillsRouteImport } from './routes/skills'
@@ -60,7 +61,6 @@ import { Route as ApiSessionSendRouteImport } from './routes/api/session-send'
 import { Route as ApiSessionHistoryRouteImport } from './routes/api/session-history'
 import { Route as ApiSendStreamRouteImport } from './routes/api/send-stream'
 import { Route as ApiSendRouteImport } from './routes/api/send'
-import { Route as ApiProviderUsageRouteImport } from './routes/api/provider-usage'
 import { Route as ApiPluginsRouteImport } from './routes/api/plugins'
 import { Route as ApiPingRouteImport } from './routes/api/ping'
 import { Route as ApiPathsRouteImport } from './routes/api/paths'
@@ -74,6 +74,7 @@ import { Route as ApiIntegrationsRouteImport } from './routes/api/integrations'
 import { Route as ApiHistoryRouteImport } from './routes/api/history'
 import { Route as ApiHermesPluginRouteImport } from './routes/api/hermes-plugin'
 import { Route as ApiHermesDocsRouteImport } from './routes/api/hermes-docs'
+import { Route as ApiHermesCommandsRouteImport } from './routes/api/hermes-commands'
 import { Route as ApiGatewayStatusRouteImport } from './routes/api/gateway-status'
 import { Route as ApiGatewayReprobeRouteImport } from './routes/api/gateway-reprobe'
 import { Route as ApiFilesRouteImport } from './routes/api/files'
@@ -178,6 +179,7 @@ import { Route as ApiHermesKanbanBulkRouteImport } from './routes/api/hermes-kan
 import { Route as ApiHermesKanbanBoardsRouteImport } from './routes/api/hermes-kanban/boards'
 import { Route as ApiHermesKanbanBoardRouteImport } from './routes/api/hermes-kanban/board'
 import { Route as ApiHermesKanbanAssigneesRouteImport } from './routes/api/hermes-kanban/assignees'
+import { Route as ApiHermesCommandsExecRouteImport } from './routes/api/hermes-commands.exec'
 import { Route as ApiDashboardOverviewRouteImport } from './routes/api/dashboard/overview'
 import { Route as ApiDashboardProxySplatRouteImport } from './routes/api/dashboard-proxy/$'
 import { Route as ApiConductorWorkersRouteImport } from './routes/api/conductor/workers'
@@ -197,7 +199,9 @@ import { Route as ApiApprovalsPendingRouteImport } from './routes/api/approvals.
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
+import { Route as ApiSessionsSessionKeyYoloRouteImport } from './routes/api/sessions/$sessionKey.yolo'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
+import { Route as ApiSessionsSessionKeyForkRouteImport } from './routes/api/sessions/$sessionKey.fork'
 import { Route as ApiSessionsSessionKeyDelegationsRouteImport } from './routes/api/sessions/$sessionKey.delegations'
 import { Route as ApiSessionsSessionKeyClarifyRouteImport } from './routes/api/sessions/$sessionKey.clarify'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
@@ -244,6 +248,11 @@ import { Route as ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 const WorkflowsRoute = WorkflowsRouteImport.update({
   id: '/workflows',
   path: '/workflows',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ToolsetsRoute = ToolsetsRouteImport.update({
+  id: '/toolsets',
+  path: '/toolsets',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TerminalRoute = TerminalRouteImport.update({
@@ -496,11 +505,6 @@ const ApiSendRoute = ApiSendRouteImport.update({
   path: '/api/send',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiProviderUsageRoute = ApiProviderUsageRouteImport.update({
-  id: '/api/provider-usage',
-  path: '/api/provider-usage',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiPluginsRoute = ApiPluginsRouteImport.update({
   id: '/api/plugins',
   path: '/api/plugins',
@@ -564,6 +568,11 @@ const ApiHermesPluginRoute = ApiHermesPluginRouteImport.update({
 const ApiHermesDocsRoute = ApiHermesDocsRouteImport.update({
   id: '/api/hermes-docs',
   path: '/api/hermes-docs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiHermesCommandsRoute = ApiHermesCommandsRouteImport.update({
+  id: '/api/hermes-commands',
+  path: '/api/hermes-commands',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiGatewayStatusRoute = ApiGatewayStatusRouteImport.update({
@@ -1095,6 +1104,11 @@ const ApiHermesKanbanAssigneesRoute =
     path: '/api/hermes-kanban/assignees',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiHermesCommandsExecRoute = ApiHermesCommandsExecRouteImport.update({
+  id: '/exec',
+  path: '/exec',
+  getParentRoute: () => ApiHermesCommandsRoute,
+} as any)
 const ApiDashboardOverviewRoute = ApiDashboardOverviewRouteImport.update({
   id: '/api/dashboard/overview',
   path: '/api/dashboard/overview',
@@ -1193,10 +1207,22 @@ const ApiWorkflowDefinitionsIdParsedRoute =
     path: '/parsed',
     getParentRoute: () => ApiWorkflowDefinitionsIdRoute,
   } as any)
+const ApiSessionsSessionKeyYoloRoute =
+  ApiSessionsSessionKeyYoloRouteImport.update({
+    id: '/$sessionKey/yolo',
+    path: '/$sessionKey/yolo',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 const ApiSessionsSessionKeyStatusRoute =
   ApiSessionsSessionKeyStatusRouteImport.update({
     id: '/$sessionKey/status',
     path: '/$sessionKey/status',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
+const ApiSessionsSessionKeyForkRoute =
+  ApiSessionsSessionKeyForkRouteImport.update({
+    id: '/$sessionKey/fork',
+    path: '/$sessionKey/fork',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
 const ApiSessionsSessionKeyDelegationsRoute =
@@ -1469,6 +1495,7 @@ export interface FileRoutesByFullPath {
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
+  '/toolsets': typeof ToolsetsRoute
   '/workflows': typeof WorkflowsRoute
   '/api/agent-cwd': typeof ApiAgentCwdRoute
   '/api/agent-version': typeof ApiAgentVersionRoute
@@ -1494,6 +1521,7 @@ export interface FileRoutesByFullPath {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-commands': typeof ApiHermesCommandsRouteWithChildren
   '/api/hermes-docs': typeof ApiHermesDocsRoute
   '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
@@ -1507,7 +1535,6 @@ export interface FileRoutesByFullPath {
   '/api/paths': typeof ApiPathsRoute
   '/api/ping': typeof ApiPingRoute
   '/api/plugins': typeof ApiPluginsRoute
-  '/api/provider-usage': typeof ApiProviderUsageRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
   '/api/session-history': typeof ApiSessionHistoryRoute
@@ -1551,6 +1578,7 @@ export interface FileRoutesByFullPath {
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
+  '/api/hermes-commands/exec': typeof ApiHermesCommandsExecRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
   '/api/hermes-kanban/boards': typeof ApiHermesKanbanBoardsRouteWithChildren
@@ -1654,7 +1682,9 @@ export interface FileRoutesByFullPath {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
+  '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
@@ -1700,6 +1730,7 @@ export interface FileRoutesByTo {
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
+  '/toolsets': typeof ToolsetsRoute
   '/workflows': typeof WorkflowsRoute
   '/api/agent-cwd': typeof ApiAgentCwdRoute
   '/api/agent-version': typeof ApiAgentVersionRoute
@@ -1725,6 +1756,7 @@ export interface FileRoutesByTo {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-commands': typeof ApiHermesCommandsRouteWithChildren
   '/api/hermes-docs': typeof ApiHermesDocsRoute
   '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
@@ -1738,7 +1770,6 @@ export interface FileRoutesByTo {
   '/api/paths': typeof ApiPathsRoute
   '/api/ping': typeof ApiPingRoute
   '/api/plugins': typeof ApiPluginsRoute
-  '/api/provider-usage': typeof ApiProviderUsageRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
   '/api/session-history': typeof ApiSessionHistoryRoute
@@ -1782,6 +1813,7 @@ export interface FileRoutesByTo {
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
+  '/api/hermes-commands/exec': typeof ApiHermesCommandsExecRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
   '/api/hermes-kanban/boards': typeof ApiHermesKanbanBoardsRouteWithChildren
@@ -1885,7 +1917,9 @@ export interface FileRoutesByTo {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
+  '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
@@ -1934,6 +1968,7 @@ export interface FileRoutesById {
   '/skills': typeof SkillsRoute
   '/tasks': typeof TasksRoute
   '/terminal': typeof TerminalRoute
+  '/toolsets': typeof ToolsetsRoute
   '/workflows': typeof WorkflowsRoute
   '/api/agent-cwd': typeof ApiAgentCwdRoute
   '/api/agent-version': typeof ApiAgentVersionRoute
@@ -1959,6 +1994,7 @@ export interface FileRoutesById {
   '/api/files': typeof ApiFilesRoute
   '/api/gateway-reprobe': typeof ApiGatewayReprobeRoute
   '/api/gateway-status': typeof ApiGatewayStatusRoute
+  '/api/hermes-commands': typeof ApiHermesCommandsRouteWithChildren
   '/api/hermes-docs': typeof ApiHermesDocsRoute
   '/api/hermes-plugin': typeof ApiHermesPluginRouteWithChildren
   '/api/history': typeof ApiHistoryRoute
@@ -1972,7 +2008,6 @@ export interface FileRoutesById {
   '/api/paths': typeof ApiPathsRoute
   '/api/ping': typeof ApiPingRoute
   '/api/plugins': typeof ApiPluginsRoute
-  '/api/provider-usage': typeof ApiProviderUsageRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
   '/api/session-history': typeof ApiSessionHistoryRoute
@@ -2016,6 +2051,7 @@ export interface FileRoutesById {
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
+  '/api/hermes-commands/exec': typeof ApiHermesCommandsExecRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
   '/api/hermes-kanban/boards': typeof ApiHermesKanbanBoardsRouteWithChildren
@@ -2119,7 +2155,9 @@ export interface FileRoutesById {
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
+  '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
@@ -2169,6 +2207,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/terminal'
+    | '/toolsets'
     | '/workflows'
     | '/api/agent-cwd'
     | '/api/agent-version'
@@ -2194,6 +2233,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-commands'
     | '/api/hermes-docs'
     | '/api/hermes-plugin'
     | '/api/history'
@@ -2207,7 +2247,6 @@ export interface FileRouteTypes {
     | '/api/paths'
     | '/api/ping'
     | '/api/plugins'
-    | '/api/provider-usage'
     | '/api/send'
     | '/api/send-stream'
     | '/api/session-history'
@@ -2251,6 +2290,7 @@ export interface FileRouteTypes {
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
+    | '/api/hermes-commands/exec'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
     | '/api/hermes-kanban/boards'
@@ -2354,7 +2394,9 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/delegations'
+    | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
+    | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
@@ -2400,6 +2442,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/terminal'
+    | '/toolsets'
     | '/workflows'
     | '/api/agent-cwd'
     | '/api/agent-version'
@@ -2425,6 +2468,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-commands'
     | '/api/hermes-docs'
     | '/api/hermes-plugin'
     | '/api/history'
@@ -2438,7 +2482,6 @@ export interface FileRouteTypes {
     | '/api/paths'
     | '/api/ping'
     | '/api/plugins'
-    | '/api/provider-usage'
     | '/api/send'
     | '/api/send-stream'
     | '/api/session-history'
@@ -2482,6 +2525,7 @@ export interface FileRouteTypes {
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
+    | '/api/hermes-commands/exec'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
     | '/api/hermes-kanban/boards'
@@ -2585,7 +2629,9 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/delegations'
+    | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
+    | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
@@ -2633,6 +2679,7 @@ export interface FileRouteTypes {
     | '/skills'
     | '/tasks'
     | '/terminal'
+    | '/toolsets'
     | '/workflows'
     | '/api/agent-cwd'
     | '/api/agent-version'
@@ -2658,6 +2705,7 @@ export interface FileRouteTypes {
     | '/api/files'
     | '/api/gateway-reprobe'
     | '/api/gateway-status'
+    | '/api/hermes-commands'
     | '/api/hermes-docs'
     | '/api/hermes-plugin'
     | '/api/history'
@@ -2671,7 +2719,6 @@ export interface FileRouteTypes {
     | '/api/paths'
     | '/api/ping'
     | '/api/plugins'
-    | '/api/provider-usage'
     | '/api/send'
     | '/api/send-stream'
     | '/api/session-history'
@@ -2715,6 +2762,7 @@ export interface FileRouteTypes {
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
+    | '/api/hermes-commands/exec'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
     | '/api/hermes-kanban/boards'
@@ -2818,7 +2866,9 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/delegations'
+    | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
+    | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
@@ -2867,6 +2917,7 @@ export interface RootRouteChildren {
   SkillsRoute: typeof SkillsRoute
   TasksRoute: typeof TasksRoute
   TerminalRoute: typeof TerminalRoute
+  ToolsetsRoute: typeof ToolsetsRoute
   WorkflowsRoute: typeof WorkflowsRoute
   ApiAgentCwdRoute: typeof ApiAgentCwdRoute
   ApiAgentVersionRoute: typeof ApiAgentVersionRoute
@@ -2892,6 +2943,7 @@ export interface RootRouteChildren {
   ApiFilesRoute: typeof ApiFilesRoute
   ApiGatewayReprobeRoute: typeof ApiGatewayReprobeRoute
   ApiGatewayStatusRoute: typeof ApiGatewayStatusRoute
+  ApiHermesCommandsRoute: typeof ApiHermesCommandsRouteWithChildren
   ApiHermesDocsRoute: typeof ApiHermesDocsRoute
   ApiHermesPluginRoute: typeof ApiHermesPluginRouteWithChildren
   ApiHistoryRoute: typeof ApiHistoryRoute
@@ -2905,7 +2957,6 @@ export interface RootRouteChildren {
   ApiPathsRoute: typeof ApiPathsRoute
   ApiPingRoute: typeof ApiPingRoute
   ApiPluginsRoute: typeof ApiPluginsRoute
-  ApiProviderUsageRoute: typeof ApiProviderUsageRoute
   ApiSendRoute: typeof ApiSendRoute
   ApiSendStreamRoute: typeof ApiSendStreamRoute
   ApiSessionHistoryRoute: typeof ApiSessionHistoryRoute
@@ -3008,6 +3059,13 @@ declare module '@tanstack/react-router' {
       path: '/workflows'
       fullPath: '/workflows'
       preLoaderRoute: typeof WorkflowsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/toolsets': {
+      id: '/toolsets'
+      path: '/toolsets'
+      fullPath: '/toolsets'
+      preLoaderRoute: typeof ToolsetsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/terminal': {
@@ -3360,13 +3418,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSendRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/provider-usage': {
-      id: '/api/provider-usage'
-      path: '/api/provider-usage'
-      fullPath: '/api/provider-usage'
-      preLoaderRoute: typeof ApiProviderUsageRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/plugins': {
       id: '/api/plugins'
       path: '/api/plugins'
@@ -3456,6 +3507,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hermes-docs'
       fullPath: '/api/hermes-docs'
       preLoaderRoute: typeof ApiHermesDocsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hermes-commands': {
+      id: '/api/hermes-commands'
+      path: '/api/hermes-commands'
+      fullPath: '/api/hermes-commands'
+      preLoaderRoute: typeof ApiHermesCommandsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/gateway-status': {
@@ -4186,6 +4244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesKanbanAssigneesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/hermes-commands/exec': {
+      id: '/api/hermes-commands/exec'
+      path: '/exec'
+      fullPath: '/api/hermes-commands/exec'
+      preLoaderRoute: typeof ApiHermesCommandsExecRouteImport
+      parentRoute: typeof ApiHermesCommandsRoute
+    }
     '/api/dashboard/overview': {
       id: '/api/dashboard/overview'
       path: '/api/dashboard/overview'
@@ -4319,11 +4384,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkflowDefinitionsIdParsedRouteImport
       parentRoute: typeof ApiWorkflowDefinitionsIdRoute
     }
+    '/api/sessions/$sessionKey/yolo': {
+      id: '/api/sessions/$sessionKey/yolo'
+      path: '/$sessionKey/yolo'
+      fullPath: '/api/sessions/$sessionKey/yolo'
+      preLoaderRoute: typeof ApiSessionsSessionKeyYoloRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/sessions/$sessionKey/status': {
       id: '/api/sessions/$sessionKey/status'
       path: '/$sessionKey/status'
       fullPath: '/api/sessions/$sessionKey/status'
       preLoaderRoute: typeof ApiSessionsSessionKeyStatusRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
+    '/api/sessions/$sessionKey/fork': {
+      id: '/api/sessions/$sessionKey/fork'
+      path: '/$sessionKey/fork'
+      fullPath: '/api/sessions/$sessionKey/fork'
+      preLoaderRoute: typeof ApiSessionsSessionKeyForkRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
     '/api/sessions/$sessionKey/delegations': {
@@ -4699,6 +4778,17 @@ const ApiCommandsRouteWithChildren = ApiCommandsRoute._addFileChildren(
   ApiCommandsRouteChildren,
 )
 
+interface ApiHermesCommandsRouteChildren {
+  ApiHermesCommandsExecRoute: typeof ApiHermesCommandsExecRoute
+}
+
+const ApiHermesCommandsRouteChildren: ApiHermesCommandsRouteChildren = {
+  ApiHermesCommandsExecRoute: ApiHermesCommandsExecRoute,
+}
+
+const ApiHermesCommandsRouteWithChildren =
+  ApiHermesCommandsRoute._addFileChildren(ApiHermesCommandsRouteChildren)
+
 interface ApiHermesPluginRouteChildren {
   ApiHermesPluginSettingsRoute: typeof ApiHermesPluginSettingsRoute
 }
@@ -4792,7 +4882,9 @@ interface ApiSessionsRouteChildren {
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
   ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
   ApiSessionsSessionKeyDelegationsRoute: typeof ApiSessionsSessionKeyDelegationsRoute
+  ApiSessionsSessionKeyForkRoute: typeof ApiSessionsSessionKeyForkRoute
   ApiSessionsSessionKeyStatusRoute: typeof ApiSessionsSessionKeyStatusRoute
+  ApiSessionsSessionKeyYoloRoute: typeof ApiSessionsSessionKeyYoloRoute
   ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute: typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
 
@@ -4801,7 +4893,9 @@ const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
   ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,
   ApiSessionsSessionKeyDelegationsRoute: ApiSessionsSessionKeyDelegationsRoute,
+  ApiSessionsSessionKeyForkRoute: ApiSessionsSessionKeyForkRoute,
   ApiSessionsSessionKeyStatusRoute: ApiSessionsSessionKeyStatusRoute,
+  ApiSessionsSessionKeyYoloRoute: ApiSessionsSessionKeyYoloRoute,
   ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute:
     ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute,
 }
@@ -5197,6 +5291,7 @@ const rootRouteChildren: RootRouteChildren = {
   SkillsRoute: SkillsRoute,
   TasksRoute: TasksRoute,
   TerminalRoute: TerminalRoute,
+  ToolsetsRoute: ToolsetsRoute,
   WorkflowsRoute: WorkflowsRoute,
   ApiAgentCwdRoute: ApiAgentCwdRoute,
   ApiAgentVersionRoute: ApiAgentVersionRoute,
@@ -5222,6 +5317,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiFilesRoute: ApiFilesRoute,
   ApiGatewayReprobeRoute: ApiGatewayReprobeRoute,
   ApiGatewayStatusRoute: ApiGatewayStatusRoute,
+  ApiHermesCommandsRoute: ApiHermesCommandsRouteWithChildren,
   ApiHermesDocsRoute: ApiHermesDocsRoute,
   ApiHermesPluginRoute: ApiHermesPluginRouteWithChildren,
   ApiHistoryRoute: ApiHistoryRoute,
@@ -5235,7 +5331,6 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPathsRoute: ApiPathsRoute,
   ApiPingRoute: ApiPingRoute,
   ApiPluginsRoute: ApiPluginsRoute,
-  ApiProviderUsageRoute: ApiProviderUsageRoute,
   ApiSendRoute: ApiSendRoute,
   ApiSendStreamRoute: ApiSendStreamRoute,
   ApiSessionHistoryRoute: ApiSessionHistoryRoute,

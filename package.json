@@ -29,7 +29,8 @@
     "electron:build:mac": "pnpm build && pnpm electron:bundle-server && electron-builder --mac --config electron-builder.config.cjs",
     "electron:build:win": "pnpm build && pnpm electron:bundle-server && electron-builder --win --config electron-builder.config.cjs",
     "electron:bundle-server": "esbuild dist/server/server.js --bundle --platform=node --format=cjs --outfile=electron/server-bundle.cjs",
-    "seed-personas": "tsx scripts/seed-personas.ts"
+    "seed-personas": "tsx scripts/seed-personas.ts",
+    "dev:health": "node scripts/dev-health.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
