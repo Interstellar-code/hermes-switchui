@@ -3,6 +3,42 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.37] — 2026-08-14
+
+### Added
+
+- **Hermes' Commands, In The Composer**: The picker hardcoded thirteen commands against a registry of 156, and two of the thirteen — `/mcp` and `/help` — had no handler at all, so typing them sent the literal text to the model as prose. It is now built from the agent's live catalog: **14 agent commands, ~78 of your skills grouped into eleven categories, and skill bundles when you install one**, behind faceted tabs. Every allowlisted command carries a measurement taken against the running agent, and every refusal carries a reason — because the alternative, discovered repeatedly while building this, is a command that reports success and changes nothing.
+- **Standing Goals**: `/goal <text>` sets an objective the agent works toward across turns, with a judge deciding after each one whether to continue. Continuations render as **distinct messages** rather than folding into the previous reply, and a progress card shows the verdict and turn count. `/subgoal` adds criteria. This was the one capability the web UI lacked that the CLI and messaging surfaces both had.
+- **A Toolsets Screen**: Toolsets govern what the agent may do, and nothing in the app showed which existed or which the gateway was suppressing. Read-only, deliberately: `tools.configure` hardcodes its platform to `"cli"` while chats run under `api_server`, so a toggle would report success and change nothing you could see. A test asserts the screen renders no toggle.
+- **Session Branching**: `forkSession()` had existed for months, referenced only by tests. Branch from the sidebar to explore a different path; the confirm says the original session is closed, because "Branch" otherwise reads as a harmless copy.
+- **A Per-Chat Approval Bypass**: `/yolo` never worked here — the state is an in-process set with no IPC, so the command toggled a subprocess while approvals were enforced elsewhere. This calls the gateway endpoint that enforces them. Four honest states including **unknown**, because reporting "off" for a state we could not read is the failure it replaces.
+- **`pnpm dev:health`**: This app serves HTTPS under `pnpm dev` and HTTP under `pnpm start`, and an `http://` probe against the HTTPS server returns an instant empty reply — indistinguishable from a wedged process. The probe tries both, tells "wrong scheme" apart from "nothing listening", allows 90s for a cold SSR compile, and warns when Vite has silently auto-incremented onto a second port.
+
+### Fixed
+
+- **The Reasoning Level Was Sent As Your System Prompt**: `body.thinking` carries the effort *label*, and three consumers treated it as content. The thinking pane rendered the literal word "low" while the model's actual reasoning was accumulated and discarded; the final message persisted the label as its reasoning block; and worst, the enhanced path sent it as `system_message`, which the gateway applies verbatim — so **every reasoning-enabled send prepended `"low"` as a system prompt**.
+- **The Reasoning Picker Did Nothing**: The level never reached the gateway. It is now forwarded per request. Two further defects surfaced: the field was dropped entirely when set to **None**, so "None" silently meant "use whatever the config says"; and the rehydration allowlist covered three of the five levels the picker offers, so a stored `medium` or `high` came back as `low` after reload, making both unreachable.
+- **Forking Returned 400 On Every Real Call**: Two independent faults, invisible to tests that stub `fetch` and assert only on URLs. It sent no request body, and the gateway parses one unconditionally. Its unscoped path also took a shortcut to a dashboard route that does not exist.
+- **The Setup Checklist Reported Seven Configured Steps As Outstanding**: It asked "did someone walk the wizard?" rather than "is this configured?" — every signal but one was hardcoded, and the fallback read an array that installs settling via auto-detect leave permanently empty. "Connect a provider" was the tell: the one item with a live signal, and the one item reporting correctly. The theme step never read the theme at all, so being on one was indistinguishable from never choosing one.
+- **The Picker Offered Commands The Server Would Refuse**: Four times, in four shapes. `/tools` held its menu open to complete a subcommand that was then rejected; `/compress` nearly shipped the same way; and `/goal draft` — advertised, unhandled — would have set your goal to the literal text "draft" and started an agent loop working on it. Advertised forms are now derived from the same policy that accepts them, with a guard that fails the build on the fifth instance.
+- **Five Commands Were Neither Advertised Nor Runnable**: A command both allowlisted and locally handled is dropped from the picker as "shadowed" *and* answered locally. `/status` hit this, was fixed by hand, and the fix was not generalised — so adding four commands recreated it four times. Now guarded in both directions.
+- **A Fixable Message Arrived As A Crash**: `/subgoal remove abc` answers `must be an integer`, which reached the user as HTTP 502 through a generic catch. The agent has no error-code table — a bare constructor with ~265 call sites — so this is a range rule rather than a lookup that would drift: your mistakes become 4xx with the agent's own words, real gateway failures stay 5xx.
+- **Command Output Was Unbounded**: `/debug local` returns **1.15 MB**, and grows with the log tail. Capped at 64 KiB, in-band, stating the real size rather than silently truncating.
+
+### Removed
+
+- **A Usage Meter That Would Have Shown Zero**: Written months ago, never mounted, and broken: both meters fetched session status without a session key, and that endpoint answers a bare request with the "new session" payload. It would have rendered a confident zero regardless of spend. Removed with its details dialog, its ⌘K entry and the `/api/provider-usage` route it was the only consumer of — 39 KB of provider fetchers that had never run in production.
+- **Scaffolding For Features That Do Not Exist**: `steerAgent()` posted to a route that was never built, from a component with no import sites. Two `data-tour` markers pointed at a guided tour deleted in an earlier refactor.
+
+### Changed
+
+- **`/stop` Is Now `/interrupt`**: The agent's `/stop` kills background processes and does *not* stop the turn — the opposite meaning under the same word. `/stop` keeps working as a transitional alias.
+- **Commands Refuse To Run Against An Old Agent**: Below hermes-agent 0.19.16, `/compress --preview` really compresses and reads hit the wrong profile. The floor is enforced independently of the picker, and skills are checked *before* it — an older agent loses fifteen registry commands and keeps its ~78 skills.
+
+### Note
+
+Ten defects found in the agent while building this were filed upstream; nine shipped as hermes-agent 0.19.12 through 0.19.16, including one where `/compress --preview` performed a real, irreversible compression. `docs/plans/hermes-slash-commands-in-switchui.md` records the rule that survived the work — does the answer come from a surface both processes share, does the effect land where turns run, does it carry information a screen does not — with the measurement behind every verdict and an appendix of what we believed and why it was wrong.
+
 ## [2.5.36] — 2026-08-11
 
 ### Fixed
