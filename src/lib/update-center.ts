@@ -47,6 +47,55 @@ export type ApplyUpdateResult = {
 
 export const UPDATE_STATUS_QUERY_KEY = ['update-status-v2'] as const
 
+export function shortSha(value: string | null | undefined): string {
+  return value ? value.slice(0, 7) : 'unknown'
+}
+
+/** The version the update moves *to* — a tag for desktop, a SHA for git. */
+export function productVersionLabel(product: ProductUpdateStatus): string {
+  return product.installKind === 'desktop'
+    ? (product.targetVersion ?? product.version)
+    : shortSha(product.latestHead)
+}
+
+/**
+ * Copy for the pre-update confirmation, shared by the Update Center popup and
+ * Settings → Updates so both describe the same action the same way.
+ *
+ * The consequence line matters more than the version pair: a workspace update
+ * rebuilds and needs a restart, and an Agent update restarts the gateway —
+ * neither is obvious from "8ade871 → f43cec1".
+ */
+export function updateConfirmOptions(product: ProductUpdateStatus): {
+  title: string
+  message: string
+  confirmLabel: string
+} {
+  const from =
+    product.installKind === 'desktop'
+      ? product.version
+      : shortSha(product.currentHead)
+  const to = productVersionLabel(product)
+  const consequence =
+    product.updateMode === 'desktop-install-ready'
+      ? 'The app will install the downloaded update and restart.'
+      : product.installKind === 'desktop'
+        ? 'The update downloads in the background; you install it afterwards.'
+        : product.id === 'agent'
+          ? 'Hermes applies the update, refreshes dependencies, and restarts the gateway. Running sessions will be interrupted.'
+          : 'The checkout is fast-forwarded and rebuilt. A restart is required afterwards.'
+  return {
+    title: `Update ${product.label}?`,
+    message: `${from} → ${to}. ${consequence}`,
+    confirmLabel:
+      product.updateMode === 'desktop-install-ready'
+        ? 'Install & restart'
+        : product.installKind === 'desktop'
+          ? 'Download'
+          : 'Update',
+  }
+}
+
 function desktopWorkspaceStatus(
   state: HermesDesktopUpdateState,
 ): ProductUpdateStatus {

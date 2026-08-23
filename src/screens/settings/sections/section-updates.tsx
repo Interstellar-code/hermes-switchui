@@ -9,21 +9,15 @@ import {
   UPDATE_STATUS_QUERY_KEY,
   applyDesktopWorkspaceUpdate,
   fetchUpdateStatus,
+  shortSha,
+  updateConfirmOptions,
 } from '@/lib/update-center'
 import { toast } from '@/components/ui/toast'
-
-function shortSha(value: string | null): string {
-  return value?.slice(0, 7) ?? 'unknown'
-}
-
-function targetLabel(product: ProductUpdateStatus): string {
-  return product.installKind === 'desktop'
-    ? (product.targetVersion ?? product.version)
-    : shortSha(product.latestHead)
-}
+import { useConfirm } from '@/components/ui/confirm-dialog'
 
 export default function SectionUpdates() {
   const queryClient = useQueryClient()
+  const { confirm, confirmDialog } = useConfirm()
   const [updating, setUpdating] = useState<string | null>(null)
   const { data, isFetching, refetch, error } = useQuery({
     queryKey: UPDATE_STATUS_QUERY_KEY,
@@ -34,12 +28,7 @@ export default function SectionUpdates() {
 
   async function apply(product: ProductUpdateStatus) {
     if (!product.canUpdate || updating) return
-    if (
-      !window.confirm(
-        `Update ${product.label} from ${product.installKind === 'desktop' ? product.version : shortSha(product.currentHead)} to ${targetLabel(product)}?`,
-      )
-    )
-      return
+    if (!(await confirm(updateConfirmOptions(product)))) return
     setUpdating(product.id)
     try {
       const result =
@@ -186,6 +175,7 @@ export default function SectionUpdates() {
           </SettingCard>
         )
       })}
+      {confirmDialog}
     </div>
   )
 }

@@ -19,12 +19,16 @@ import type {
 } from '@/lib/update-center'
 import { cn } from '@/lib/utils'
 import { toast } from '@/components/ui/toast'
+import { useConfirm } from '@/components/ui/confirm-dialog'
 import {
   UPDATE_STATUS_QUERY_KEY,
   applyDesktopWorkspaceUpdate,
   fetchUpdateStatus,
   mergeDesktopUpdateState,
+  productVersionLabel,
+  shortSha,
   subscribeDesktopUpdates,
+  updateConfirmOptions,
 } from '@/lib/update-center'
 
 type Phase = 'idle' | 'updating' | 'done' | 'error'
@@ -38,16 +42,6 @@ const CHECK_INTERVAL_MS = 30 * 60 * 1000
 const DISMISS_PREFIX = 'hermes-update-v2-dismissed:'
 const NOTES_KEY = 'hermes-update-v2-release-notes'
 const NOTES_SEEN_KEY = 'hermes-update-v2-release-notes-seen'
-
-function shortSha(value: string | null | undefined): string {
-  return value ? value.slice(0, 7) : 'unknown'
-}
-
-function productVersionLabel(product: ProductUpdateStatus): string {
-  return product.installKind === 'desktop'
-    ? (product.targetVersion ?? product.version)
-    : shortSha(product.latestHead)
-}
 
 function productDismissKey(product: ProductUpdateStatus): string {
   return `${product.id}:${product.latestHead ?? product.version}`
@@ -101,6 +95,7 @@ function readNotes(): Notes | null {
 
 export function UpdateCenterNotifier() {
   const queryClient = useQueryClient()
+  const { confirm, confirmDialog } = useConfirm()
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set())
   const [phases, setPhases] = useState<Record<ProductId, Phase>>({
     workspace: 'idle',
@@ -170,12 +165,7 @@ export function UpdateCenterNotifier() {
 
   async function update(product: ProductUpdateStatus) {
     if (!product.canUpdate) return
-    if (
-      !window.confirm(
-        `Update ${product.label} from ${product.installKind === 'desktop' ? product.version : shortSha(product.currentHead)} to ${productVersionLabel(product)}?`,
-      )
-    )
-      return
+    if (!(await confirm(updateConfirmOptions(product)))) return
     setPhases((prev) => ({ ...prev, [product.id]: 'updating' }))
     setErrors((prev) => ({ ...prev, [product.id]: '' }))
     try {
@@ -279,6 +269,7 @@ export function UpdateCenterNotifier() {
         onDismiss={dismiss}
         onUpdate={(product) => void update(product)}
       />
+      {confirmDialog}
     </>
   )
 }
