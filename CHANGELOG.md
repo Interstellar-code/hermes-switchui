@@ -3,6 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.38] — 2026-08-23
+
+### Fixed
+
+- **The Setup Checklist Still Could Not Tell The Truth About Four Steps**: 2.5.37 gave the checklist live probes; these are the four items that stayed wrong regardless of what you did. **"Pick a theme" completed itself for every install on its first page load** — boot-time appearance setup ran `setTheme(getTheme())`, which writes the *default* theme to storage when nothing is stored, destroying the one distinction that separates "chose Matrix" from "never opened the picker". Painting a theme and choosing one are now different operations. **A theme picked in the current tab was invisible** until reload: `storage` events reach every tab except the writer, and the theme control opens in a dialog *over* the dashboard card, so there was no remount to fall back on either. **"Review core plugins" could not end in "no"** — it was satisfied only by all seven core plugins being enabled at once, so anyone who opened the catalogue and deliberately left one off was told forever that a review was outstanding, clearable only by enabling the plugin they had just rejected.
+- **A Stopped Gateway Erased A Configured Install**: `/api/claude-config` blanked its whole payload behind a gateway capability flag, yet every field it returns is read off local disk by this process — `config.yaml`, `.env`, `auth.json`. A user with a wired provider and a `memory:` block was told they had neither the moment the gateway stopped, which is precisely when the checklist's advice is least checkable. The flag now annotates the response instead of emptying it, and `ok` stays true: a caller writing the obvious `if (!payload.ok) return` would otherwise discard a config it can act on, reinstating the defect one layer up.
+
+### Changed
+
+- **Update Confirmations Say What Will Happen**: Both update surfaces asked through the browser's native `window.confirm`, unthemed and blocking, with the copy built inline in each. "Update Workspace from 8ade871 to f43cec1?" states the one thing you can already see and omits the one you cannot — an Agent update restarts the gateway and interrupts running sessions; a workspace update rebuilds the checkout and needs a restart. The consequence is now in the message, the button matches the action ("Download" when it only fetches, "Install & restart" when it does not), and both surfaces read from one source rather than drifting apart again.
+
 ## [2.5.37] — 2026-08-14
 
 ### Added
