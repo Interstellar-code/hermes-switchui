@@ -239,12 +239,13 @@ export function buildChecklist(
     {
       id: 'plugins',
       label: 'Review core plugins',
-      // "In place", not "Reviewed": outside the wizard this is satisfied by
-      // every core plugin actually being on, which nobody necessarily sat and
-      // reviewed. Both readings make the same claim — there is nothing left to
-      // do here — without either one asserting something that did not happen.
+      // Neither "In place" nor "Reviewed": this settles three different ways —
+      // the wizard toggled something, every core plugin is already on, or the
+      // Plugins screen put the catalogue in front of the user, who may well
+      // have looked and left one off on purpose. All three mean the same thing
+      // to a checklist, and only this phrasing claims no more than that.
       detail: pluginsTouched
-        ? 'In place.'
+        ? 'Nothing outstanding.'
         : 'Optional — some screens stay empty without them.',
       state: stateFor('plugins', pluginsTouched, optionalBlocked),
       goTo: 'plugins',

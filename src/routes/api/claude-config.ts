@@ -238,17 +238,22 @@ export const Route = createFileRoute('/api/claude-config')({
         const authResult = isAuthenticated(request) as AuthResult
         if (authResult !== true) return authResult
         await ensureGatewayProbed()
-        if (!getCapabilities().config) {
-          return Response.json({
-            ...createCapabilityUnavailablePayload('config'),
-            config: {},
-            providers: [],
-            activeProvider: '',
-            activeModel: '',
-            claudeHome: CLAUDE_HOME,
-          })
-        }
 
+        // Everything this handler returns is read straight off the local
+        // filesystem — ~/.hermes/config.yaml, ~/.hermes/.env, ~/.hermes/auth.json
+        // — by this very process. None of it is fetched from the gateway, so a
+        // gateway that is down, unprobed, or too old to expose /api/config
+        // cannot make any of it less true. This used to hard-return
+        // `{config: {}, providers: [], activeProvider: ''}` whenever the
+        // `config` capability was false, which meant a user with a fully wired
+        // provider and a `memory:` block on disk was told they had neither the
+        // moment the gateway stopped — the onboarding checklist derives both
+        // `activeProvider` and `memoryTouched` from this payload, so the advice
+        // was at its most wrong exactly when the user was least able to check
+        // it. The capability flag now only ANNOTATES the response (merged
+        // below): it describes what the gateway will do with this config, not
+        // what we managed to read.
+        const configCapability = getCapabilities().config
         const config = readConfig()
         const env = readEnv()
 
@@ -297,6 +302,22 @@ export const Route = createFileRoute('/api/claude-config')({
         }
 
         return Response.json({
+          // Spread FIRST so every locally-derived field below outranks it.
+          // `createCapabilityUnavailablePayload` contributes only
+          // ok/code/capability/source/message today — none of which collide
+          // with the real data — but putting the spread first means a field
+          // added to it later can never silently blank a real value.
+          //
+          // `ok` is then forced back to `true`: the read succeeded, and every
+          // field below is genuine. The helper's `ok: false` means "there is
+          // no usable payload here", which is exactly the claim this whole
+          // change exists to stop making — a caller writing the obvious
+          // `if (!payload.ok) return` would throw away a config it can act on.
+          // `code`/`capability`/`message` survive as what they actually are:
+          // an annotation that the *gateway* will not honour this config yet.
+          ...(configCapability
+            ? {}
+            : { ...createCapabilityUnavailablePayload('config'), ok: true }),
           // Masked server-side, not in the client. Env-sourced keys were
           // already masked above, but `config` was shipped verbatim — and
           // config.yaml is precisely where inline `api_key` values live, so

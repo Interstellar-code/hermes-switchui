@@ -2,7 +2,7 @@
 
 import '@/styles/matrix-skills.css'
 import '@/styles/matrix-plugins.css'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { PluginsHubPlugin } from '@/lib/hermes-client'
 import {
@@ -17,6 +17,7 @@ import {
 import { toast } from '@/components/ui/toast'
 import { cn } from '@/lib/utils'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
+import { writePluginsReviewed } from '@/screens/onboarding/lib/onboarding-storage'
 
 const HUB_QUERY_KEY = ['plugins-hub'] as const
 const RESTART_NOTICE =
@@ -228,6 +229,26 @@ export function PluginsScreen() {
     queryFn: getPluginsHub,
     refetchInterval: 30_000,
   })
+
+  // Settle the onboarding checklist's "Review core plugins" step — but only
+  // once the catalogue is actually on screen. Mounting the route is not a
+  // review if the hub never answered: the user would have been looking at an
+  // error, and recording that as "reviewed" would retire the step on exactly
+  // the installs that most need it. Keyed off real data, so a failed or
+  // still-loading hub records nothing.
+  const hubLoaded = hubQuery.isSuccess
+  useEffect(() => {
+    if (!hubLoaded) return
+    let storage: Storage | null = null
+    try {
+      // The property access itself throws in some private-browsing modes,
+      // which is why this is not folded into `writePluginsReviewed`.
+      storage = typeof window === 'undefined' ? null : window.localStorage
+    } catch {
+      storage = null
+    }
+    writePluginsReviewed(storage)
+  }, [hubLoaded])
 
   const refreshHub = () =>
     queryClient.invalidateQueries({ queryKey: HUB_QUERY_KEY })

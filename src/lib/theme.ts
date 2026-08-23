@@ -170,12 +170,50 @@ export function getTheme(): ThemeId {
   return readStoredTheme() ?? DEFAULT_THEME
 }
 
-export function setTheme(theme: ThemeId): void {
+/**
+ * Fired on `window` immediately after `setTheme` records a choice.
+ *
+ * `storage` events are delivered to every tab on the origin *except* the one
+ * that wrote, so a same-tab listener — the dashboard's setup card sitting
+ * behind an open settings dialog, which is exactly where the theme control
+ * lives — never hears about the pick and keeps reporting "Pick a theme" until
+ * the page is reloaded. Consumers listen for both: this event for their own
+ * tab, `storage` for the others.
+ */
+export const THEME_CHANGE_EVENT = 'claude:theme-change'
+
+/**
+ * The DOM half of a theme switch, carrying no claim that a human chose it.
+ * Shared by `setTheme` (which then records the choice) and `applyStoredTheme`
+ * (which deliberately does not).
+ */
+function paintTheme(theme: ThemeId): void {
   const root = document.documentElement
   root.setAttribute('data-theme', theme)
   root.classList.remove('light', 'dark', 'system')
   const nextMode = isDarkTheme(theme) ? 'dark' : 'light'
   root.classList.add(nextMode)
   root.style.setProperty('color-scheme', nextMode)
+}
+
+/**
+ * Paint the effective theme — the stored one, or `DEFAULT_THEME` when nothing
+ * has ever been picked — *without* persisting it.
+ *
+ * This is what boot-time appearance setup wants. `setTheme(getTheme())` looks
+ * equivalent and is not: on a browser that has never picked a theme it writes
+ * `DEFAULT_THEME` into storage, which permanently destroys the one distinction
+ * `readStoredTheme` exists to preserve. Boot code ran on every mount, so that
+ * call marked the onboarding checklist's "Pick a theme" step done for every
+ * user on their first page load, whether or not they had ever opened a picker.
+ */
+export function applyStoredTheme(): void {
+  paintTheme(getTheme())
+}
+
+export function setTheme(theme: ThemeId): void {
+  paintTheme(theme)
   localStorage.setItem(STORAGE_KEY, theme)
+  // After the write, so a listener that re-reads storage sees the new value.
+  window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT, { detail: theme }))
 }

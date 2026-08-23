@@ -9,6 +9,7 @@ import {
   ONBOARDING_KEYS,
 } from '../lib/onboarding-storage'
 import { useOnboardingChecklist } from './use-onboarding-checklist'
+import { THEME_CHANGE_EVENT } from '@/lib/theme'
 
 const mockFetch = vi.fn()
 global.fetch = mockFetch
@@ -483,5 +484,117 @@ describe('useOnboardingChecklist', () => {
     // snapshot reference is unchanged.
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(result.current.items).toBe(before)
+  })
+
+  describe('the plugins item can end in "no"', () => {
+    /** Same install, except one core plugin is deliberately switched off. */
+    function routesWithA2AOff(): Record<string, unknown> {
+      return {
+        ...CONFIGURED_ROUTES,
+        '/api/dashboard-proxy/api/dashboard/plugins/hub': {
+          plugins: [
+            {
+              name: 'workflow-engine',
+              runtime_status: 'enabled',
+              source: 'bundled',
+            },
+            {
+              name: 'a2a_fleet',
+              runtime_status: 'disabled',
+              source: 'bundled',
+            },
+            { name: 'personas', runtime_status: 'enabled', source: 'bundled' },
+            { name: 'mcp_lazy', runtime_status: 'enabled', source: 'bundled' },
+            { name: 'projects', runtime_status: 'enabled', source: 'bundled' },
+          ],
+        },
+      }
+    }
+
+    it('stays outstanding when a core plugin is off and nothing was reviewed', async () => {
+      routeFetch(routesWithA2AOff())
+
+      const { result } = renderHook(() => useOnboardingChecklist(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => expect(result.current.ready).toBe(true))
+
+      const plugins = result.current.items.find((i) => i.id === 'plugins')
+      expect(plugins?.state).toBe('todo')
+    })
+
+    it('settles once the catalogue has been reviewed, plugin still off', async () => {
+      // The defect this covers: "reviewed it and left one off on purpose" was
+      // indistinguishable from "never looked", so the step could only be
+      // cleared by enabling a plugin the user had already rejected.
+      window.localStorage.setItem(ONBOARDING_KEYS.pluginsReviewed, 'true')
+      routeFetch(routesWithA2AOff())
+
+      const { result } = renderHook(() => useOnboardingChecklist(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => expect(result.current.ready).toBe(true))
+
+      const plugins = result.current.items.find((i) => i.id === 'plugins')
+      expect(plugins?.state).toBe('done')
+      expect(plugins?.detail).toBe('Nothing outstanding.')
+    })
+
+    it('does not let a review speak for any other item', async () => {
+      window.localStorage.setItem(ONBOARDING_KEYS.pluginsReviewed, 'true')
+      routeFetch({})
+
+      const { result } = renderHook(() => useOnboardingChecklist(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => expect(result.current.ready).toBe(true))
+
+      const byId = Object.fromEntries(
+        result.current.items.map((i) => [i.id, i.state]),
+      )
+      expect(byId.provider).toBe('todo')
+      expect(byId.memory).toBe('blocked')
+    })
+  })
+
+  describe('theme', () => {
+    it('stays outstanding when the browser has never picked one', async () => {
+      // Regression guard for boot-time appearance setup writing the default
+      // into `claude-theme`, which used to complete this step for everyone on
+      // their first page load.
+      routeFetch(CONFIGURED_ROUTES)
+
+      const { result } = renderHook(() => useOnboardingChecklist(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => expect(result.current.ready).toBe(true))
+
+      const theme = result.current.items.find((i) => i.id === 'theme')
+      expect(theme?.state).toBe('todo')
+      expect(theme?.detail).toBe('Optional.')
+    })
+
+    it('notices a pick made in this same tab', async () => {
+      // `storage` events never reach the writing tab, and the theme control
+      // opens in a dialog over this card without unmounting it.
+      routeFetch(CONFIGURED_ROUTES)
+
+      const { result } = renderHook(() => useOnboardingChecklist(), {
+        wrapper: createWrapper(),
+      })
+      await waitFor(() => expect(result.current.ready).toBe(true))
+      expect(result.current.items.find((i) => i.id === 'theme')?.state).toBe(
+        'todo',
+      )
+
+      window.localStorage.setItem('claude-theme', 'claude-slate')
+      window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT))
+
+      await waitFor(() =>
+        expect(result.current.items.find((i) => i.id === 'theme')?.state).toBe(
+          'done',
+        ),
+      )
+    })
   })
 })

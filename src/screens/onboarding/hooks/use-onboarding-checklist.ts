@@ -63,6 +63,7 @@ import {
   ONBOARDING_KEYS,
   readOnboardingDraft,
   readOnboardingOutcome,
+  readPluginsReviewed,
 } from '../lib/onboarding-storage'
 import type { ChecklistItem } from '../lib/checklist'
 import type {
@@ -70,7 +71,11 @@ import type {
   OnboardingOutcome,
   StorageLike,
 } from '../lib/onboarding-storage'
-import { THEME_STORAGE_KEY, readStoredTheme } from '@/lib/theme'
+import {
+  THEME_CHANGE_EVENT,
+  THEME_STORAGE_KEY,
+  readStoredTheme,
+} from '@/lib/theme'
 import { getPluginsHub } from '@/lib/hermes-client'
 
 // Same key `onboarding-screen.tsx` uses for its own `/api/claude-config`
@@ -172,6 +177,7 @@ type Snapshot = {
   outcome: OnboardingOutcome
   draft: OnboardingDraft | null
   themeChosen: boolean
+  pluginsReviewed: boolean
 }
 
 export type UseOnboardingChecklistResult = {
@@ -186,6 +192,7 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
     outcome: { kind: 'fresh' },
     draft: null,
     themeChosen: false,
+    pluginsReviewed: false,
   })
 
   const readSnapshot = useCallback(() => {
@@ -194,6 +201,7 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
       outcome: readOnboardingOutcome(storage),
       draft: readOnboardingDraft(storage),
       themeChosen: readStoredTheme() !== null,
+      pluginsReviewed: readPluginsReviewed(storage),
     })
     setHydrated(true)
   }, [])
@@ -210,11 +218,18 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
       // from an unrelated feature sharing the same localStorage.
       if (event.key === null || WATCHED_KEYS.has(event.key)) readSnapshot()
     }
+    // `storage` is delivered to every tab *except* the writer, so it cannot
+    // see a theme picked in this one — and the theme control lives in a dialog
+    // that opens over this card without unmounting it, so there is no remount
+    // to fall back on either. `setTheme` fires this for exactly that gap.
+    const onThemeChange = () => readSnapshot()
 
     window.addEventListener(ONBOARDING_COMPLETE_EVENT, onComplete)
+    window.addEventListener(THEME_CHANGE_EVENT, onThemeChange)
     window.addEventListener('storage', onStorage)
     return () => {
       window.removeEventListener(ONBOARDING_COMPLETE_EVENT, onComplete)
+      window.removeEventListener(THEME_CHANGE_EVENT, onThemeChange)
       window.removeEventListener('storage', onStorage)
     }
   }, [readSnapshot])
@@ -324,11 +339,24 @@ export function useOnboardingChecklist(): UseOnboardingChecklistResult {
       }),
     [connection?.capabilities?.kanban, pluginsHubQuery.data],
   )
-  // Nothing left to do here = nothing is off. An unreachable hub marks every
-  // row `absent`, so a failed probe reads as `todo`, never as done.
-  const pluginsTouched = corePluginRows.every(
+  // Two ways this settles, and it needs both.
+  //
+  // "Everything is on" is the happy path: an unreachable hub marks every row
+  // `absent`, so a failed probe reads as `todo`, never as done. But on its own
+  // it made the step unsatisfiable for anyone with an opinion — a user who
+  // opened the catalogue and deliberately left one plugin off was told, in
+  // perpetuity, that they still had a review to do, and the only way to clear
+  // it was to enable the plugin they had just rejected. A step called *Review*
+  // has to be able to end in "no".
+  //
+  // So an explicit review counts too: the Plugins screen records one once it
+  // has actually rendered the catalogue (see `readPluginsReviewed`). That is a
+  // weaker claim than "all enabled" and is stored separately from the wizard's
+  // `completed` list for exactly that reason.
+  const allCorePluginsEnabled = corePluginRows.every(
     (row) => row.state === 'enabled' || row.state === 'self',
   )
+  const pluginsTouched = allCorePluginsEnabled || snapshot.pluginsReviewed
 
   // Every probe has answered (with data, `null`, or an error). Consumers stay
   // silent until then rather than flashing a wrong count — see the header.

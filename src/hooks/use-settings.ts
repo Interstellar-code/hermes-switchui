@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { getTheme, setTheme } from '@/lib/theme'
+import { applyStoredTheme } from '@/lib/theme'
 
 export type SettingsThemeMode = 'system' | 'light' | 'dark'
 export type AccentColor = 'orange' | 'purple' | 'blue' | 'green'
@@ -111,12 +111,22 @@ export function resolveTheme(theme: SettingsThemeMode): 'light' | 'dark' {
     : 'light'
 }
 
+/**
+ * Re-paint whatever theme is already in effect. Takes a mode argument only so
+ * existing callers keep compiling — the concrete theme id is owned by
+ * `claude-theme`, and the light/dark callers switch it via `setTheme` before
+ * calling here.
+ *
+ * Paints without persisting (`applyStoredTheme`, not `setTheme(getTheme())`):
+ * see that function's comment — writing the default on a browser that never
+ * picked one silently completes the onboarding "Pick a theme" step.
+ */
 export function applyTheme(_theme?: SettingsThemeMode) {
-  setTheme(getTheme())
+  applyStoredTheme()
   document.documentElement.setAttribute('data-accent', 'orange')
 }
 
 export function initializeSettingsAppearance() {
-  setTheme(getTheme())
+  applyStoredTheme()
   document.documentElement.setAttribute('data-accent', 'orange')
 }

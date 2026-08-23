@@ -26,6 +26,7 @@ export const ONBOARDING_KEYS = {
   draft: 'hermes-onboarding-draft',
   outcome: 'hermes-onboarding-outcome',
   autoDetected: 'hermes-onboarding-auto-detected',
+  pluginsReviewed: 'hermes-onboarding-plugins-reviewed',
 } as const
 
 export const ONBOARDING_COMPLETE_EVENT = 'claude:onboarding-complete'
@@ -289,4 +290,44 @@ export function readOnboardingAutoDetected(
     return null
   }
   return { kind: 'auto-detected', at: record.at }
+}
+
+/**
+ * "The core plugin list has been put in front of this browser."
+ *
+ * The checklist's `plugins` item used to be satisfiable only by every core
+ * plugin being enabled at once, which made a *decision* indistinguishable from
+ * inaction: a user who looked at the list and deliberately left one off — the
+ * whole point of a step labelled "Review" — was told forever that they had
+ * work outstanding, with nothing they could do to settle it short of enabling
+ * a plugin they had already rejected.
+ *
+ * Kept out of the wizard's `completed` list on purpose. That list means "a
+ * human walked this wizard step" and nothing else is allowed to forge an entry
+ * in it (see this file's header and `checklist.ts`); this is a separate, more
+ * modest claim — the Plugins screen rendered its catalogue — so it gets its
+ * own key. Being an `ONBOARDING_KEYS` member is what makes a sibling tab's
+ * write invalidate the checklist, via that hook's `WATCHED_KEYS` set.
+ *
+ * Never throws: `localStorage` can raise outright in private-browsing modes,
+ * and neither a checklist nor a plugin catalogue may take a render down over
+ * a bookkeeping flag.
+ */
+export function readPluginsReviewed(storage: StorageLike | null): boolean {
+  if (!storage) return false
+  try {
+    return storage.getItem(ONBOARDING_KEYS.pluginsReviewed) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function writePluginsReviewed(storage: StorageLike | null): void {
+  if (!storage) return
+  try {
+    storage.setItem(ONBOARDING_KEYS.pluginsReviewed, 'true')
+  } catch {
+    /* Storage unavailable; the item simply stays outstanding, which is the
+       same safe direction every other probe failure takes. */
+  }
 }

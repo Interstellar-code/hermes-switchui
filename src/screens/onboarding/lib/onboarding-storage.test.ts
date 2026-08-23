@@ -7,11 +7,13 @@ import {
   readOnboardingAutoDetected,
   readOnboardingDraft,
   readOnboardingOutcome,
+  readPluginsReviewed,
   sanitizeDraftForStorage,
   writeOnboardingAutoDetected,
   writeOnboardingComplete,
   writeOnboardingDismissed,
   writeOnboardingDraft,
+  writePluginsReviewed,
 } from './onboarding-storage'
 import type { OnboardingDraft, OnboardingTransient } from './onboarding-storage'
 
@@ -238,5 +240,57 @@ describe('the auto-detected record', () => {
     writeOnboardingComplete(storage, { branch: 'main', skipped: [] })
     expect(storage.getItem(ONBOARDING_KEYS.complete)).toBe('true')
     expect(ONBOARDING_KEYS.complete).toBe('claude-onboarding-complete')
+  })
+})
+
+describe('plugins-reviewed flag', () => {
+  it('defaults to false and flips only after an explicit write', () => {
+    const storage = new MemoryStorage()
+    expect(readPluginsReviewed(storage)).toBe(false)
+
+    writePluginsReviewed(storage)
+    expect(readPluginsReviewed(storage)).toBe(true)
+  })
+
+  it('reads false when there is no storage at all', () => {
+    // Private-browsing modes and SSR both land here; a checklist must not
+    // claim a review happened because it could not check.
+    expect(readPluginsReviewed(null)).toBe(false)
+    expect(() => writePluginsReviewed(null)).not.toThrow()
+  })
+
+  it('survives a storage that throws on every operation', () => {
+    const hostile = {
+      getItem() {
+        throw new Error('SecurityError')
+      },
+      setItem() {
+        throw new Error('QuotaExceededError')
+      },
+      removeItem() {
+        throw new Error('SecurityError')
+      },
+    }
+
+    expect(readPluginsReviewed(hostile)).toBe(false)
+    expect(() => writePluginsReviewed(hostile)).not.toThrow()
+  })
+
+  it('is an onboarding key, so a sibling tab invalidates the checklist', () => {
+    // `use-onboarding-checklist.ts` builds its `storage` listener's watch set
+    // from `Object.values(ONBOARDING_KEYS)`; membership is what wires this up.
+    expect(Object.values(ONBOARDING_KEYS)).toContain(
+      'hermes-onboarding-plugins-reviewed',
+    )
+  })
+
+  it('does not touch the wizard completion record', () => {
+    // "The catalogue was rendered" is a weaker claim than "a human walked the
+    // wizard step", and the two must stay separately auditable.
+    const storage = new MemoryStorage()
+    writePluginsReviewed(storage)
+
+    expect(storage.getItem(ONBOARDING_KEYS.outcome)).toBeNull()
+    expect(storage.getItem(ONBOARDING_KEYS.complete)).toBeNull()
   })
 })
