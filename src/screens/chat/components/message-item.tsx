@@ -347,6 +347,29 @@ export function withoutDelegateTaskToolSections<
   })
 }
 
+/**
+ * Drops rows whose tool name is the literal string `tool`.
+ *
+ * That name is never real: it is the fallback both ingest paths substitute
+ * when an event arrives with no usable name — `use-streaming-message.ts`
+ * (`payload.name` absent) for live events, `parseToolNameFromMessageText`
+ * for persisted ones. Such a row has no name, no args and no result, so it
+ * renders as a bare wrench line with nothing to expand. Filtering here keeps
+ * it out of both activity surfaces.
+ *
+ * ponytail: hides the symptom, not the cause — something upstream is emitting
+ * nameless tool events. If the real name matters, fix it at the ingest sites
+ * above instead of widening this filter.
+ */
+export function withoutUnnamedToolSections<
+  T extends { type?: string; name?: string },
+>(toolSections: Array<T>): Array<T> {
+  return toolSections.filter((section) => {
+    const id = (section.type ?? section.name ?? '').trim().toLowerCase()
+    return id !== 'tool'
+  })
+}
+
 type InlineArtifact = {
   type: string
   title: string
@@ -2525,23 +2548,17 @@ function MessageItemComponent({
   ])
   const toolSectionsWithClarify = useMemo(() => {
     if (!clarifyCard) return inlineToolSections
-
-    const meaningfulToolSections = inlineToolSections.filter(
-      (section) => section.type.toLowerCase() !== 'tool',
-    )
-    return attachClarifyCard(
-      meaningfulToolSections,
-      clarifyCard,
-      'output-available',
-    )
+    // Unnamed rows are dropped for every message now (see finalToolSections),
+    // so this only has to attach the card.
+    return attachClarifyCard(inlineToolSections, clarifyCard, 'output-available')
   }, [clarifyCard, inlineToolSections])
 
   // When streaming is done, force all tool sections to completed state
   // Prevents stuck timers from race conditions where tool.completed SSE
   // arrives after the done event or phase wasn't properly updated
   const finalToolSections = useMemo(() => {
-    const visibleToolSections = withoutDelegateTaskToolSections(
-      toolSectionsWithClarify,
+    const visibleToolSections = withoutUnnamedToolSections(
+      withoutDelegateTaskToolSections(toolSectionsWithClarify),
     )
     if (effectiveIsStreaming) return visibleToolSections
     return visibleToolSections.map((section) =>

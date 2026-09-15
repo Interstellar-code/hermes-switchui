@@ -27,28 +27,40 @@ describe('ChatScreen approval surface (task #9)', () => {
     return source.slice(start, end)
   }
 
-  it('splits activeClarify into mutually exclusive clarifyCard / approvalCard by kind', () => {
-    // clarifyCard (feeds the message-list surfaces) must exclude approval-kind.
-    const clarifyCardBlock = between(
+  it('splits activeClarify into mutually exclusive clarifyCard / approvalCard by docked-ness', () => {
+    // Only an UNANSWERED approval takes the docked surface. Once answered the
+    // card is a receipt, not a security prompt, so it goes back through the
+    // message-list path and renders inside the ACTIVITY card in timeline
+    // order rather than pinning itself above the composer forever.
+    const dockedPredicate = between(
       'const isApprovalClarify = activeClarify?.kind === \'approval\'',
-      'const approvalCard = useMemo(',
+      'const clarifyCard = useMemo(',
     )
-    expect(clarifyCardBlock).toContain('const clarifyCard = useMemo(')
-    expect(clarifyCardBlock).toContain(
-      'activeClarify && resolvedSessionKey && !isApprovalClarify',
+    expect(dockedPredicate).toContain(
+      'const isDockedApproval = isApprovalClarify && !activeClarify.resolved',
     )
 
-    // approvalCard (the new unconditional surface) must require approval-kind.
+    // clarifyCard (feeds the message-list surfaces) must exclude only the
+    // docked (still-unanswered) approval.
+    const clarifyCardBlock = between(
+      'const clarifyCard = useMemo(',
+      'const approvalCard = useMemo(',
+    )
+    expect(clarifyCardBlock).toContain(
+      'activeClarify && resolvedSessionKey && !isDockedApproval',
+    )
+
+    // approvalCard (the unconditional security surface) must require it.
     const approvalCardBlock = source.slice(
       source.indexOf('const approvalCard = useMemo('),
       source.indexOf('const handleClearReply'),
     )
     expect(approvalCardBlock).toContain(
-      'activeClarify && resolvedSessionKey && isApprovalClarify',
+      'activeClarify && resolvedSessionKey && isDockedApproval',
     )
 
-    // Because one branch requires `isApprovalClarify` and the other requires
-    // `!isApprovalClarify` off the SAME `activeClarify`, at most one of
+    // Because one branch requires `isDockedApproval` and the other requires
+    // `!isDockedApproval` off the SAME `activeClarify`, at most one of
     // clarifyCard / approvalCard is non-null for any given pending clarify —
     // the two render surfaces can never both show a card for it (no double
     // render).

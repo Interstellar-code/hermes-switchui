@@ -5,6 +5,7 @@ import {
   compactInlineToolRenderPlan,
   detectAssistantCorruptionWarning,
   withoutDelegateTaskToolSections,
+  withoutUnnamedToolSections,
 } from './message-item'
 import type { ChatMessage } from '../types'
 
@@ -18,6 +19,38 @@ describe('withoutDelegateTaskToolSections', () => {
     ).toEqual([{ type: 'read_file', key: 'read' }])
 
     expect(withoutDelegateTaskToolSections([{ type: 'delegate_task' }])).toEqual([])
+  })
+})
+
+describe('withoutUnnamedToolSections', () => {
+  it('drops rows whose name is the literal "tool" fallback', () => {
+    // `tool` is what both ingest paths substitute when an event has no usable
+    // name; such a row renders as a bare wrench with nothing to expand.
+    expect(
+      withoutUnnamedToolSections([
+        { type: 'bash' },
+        { type: 'tool' },
+        { type: 'Tool' },
+        { type: ' tool ' },
+        { type: 'read_file' },
+      ]),
+    ).toEqual([{ type: 'bash' }, { type: 'read_file' }])
+  })
+
+  it('keeps real tool names that merely contain "tool"', () => {
+    expect(
+      withoutUnnamedToolSections([{ type: 'tool_use' }, { name: 'list_tools' }]),
+    ).toEqual([{ type: 'tool_use' }, { name: 'list_tools' }])
+  })
+
+  it('reads the streaming shape (name) as well as the section shape (type)', () => {
+    expect(
+      withoutUnnamedToolSections([{ name: 'tool' }, { name: 'bash' }]),
+    ).toEqual([{ name: 'bash' }])
+  })
+
+  it('does not throw when both fields are missing', () => {
+    expect(withoutUnnamedToolSections([{}])).toEqual([{}])
   })
 })
 

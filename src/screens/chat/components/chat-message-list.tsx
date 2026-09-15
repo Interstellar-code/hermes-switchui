@@ -6,7 +6,11 @@ import {
   getToolCallsFromMessage,
   textFromMessage,
 } from '../utils'
-import { MessageItem, withoutDelegateTaskToolSections } from './message-item'
+import {
+  MessageItem,
+  withoutDelegateTaskToolSections,
+  withoutUnnamedToolSections,
+} from './message-item'
 import { StreamingMessageItem } from './streaming-text-context'
 import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
 import {
@@ -1330,7 +1334,9 @@ function ChatMessageListComponent({
   const clarifyResolved = Boolean(clarifyCard)
 
   const clarifyToolCalls = useMemo(() => {
-    const visibleToolCalls = withoutDelegateTaskToolSections(normalizedStreamingToolCalls)
+    const visibleToolCalls = withoutUnnamedToolSections(
+      withoutDelegateTaskToolSections(normalizedStreamingToolCalls),
+    )
     if (!clarifyReceiptCard) return visibleToolCalls
 
     // While a Hermes clarify request is active, live activity may also contain

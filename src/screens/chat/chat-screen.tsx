@@ -1328,29 +1328,34 @@ export function ChatScreen({
   // clarifies are unaffected — they keep flowing through `clarifyCard`
   // exactly as before.
   const isApprovalClarify = activeClarify?.kind === 'approval'
+  // Only an UNANSWERED approval needs the ungated docked surface. Once it is
+  // answered the card is a receipt, not a prompt, so it goes back through the
+  // message-list path and lands inside the ACTIVITY card in timeline order
+  // instead of pinning itself above the composer forever.
+  const isDockedApproval = isApprovalClarify && !activeClarify.resolved
   const clarifyCard = useMemo(
     () =>
-      activeClarify && resolvedSessionKey && !isApprovalClarify ? (
+      activeClarify && resolvedSessionKey && !isDockedApproval ? (
         <InlineClarifyCard
           clarify={activeClarify}
           sessionKey={resolvedSessionKey}
         />
       ) : null,
-    [activeClarify, resolvedSessionKey, isApprovalClarify],
+    [activeClarify, resolvedSessionKey, isDockedApproval],
   )
   // The always-present approval surface (task #9). Renders whenever the
-  // active clarify is approval-kind, independent of tool display mode, the
-  // thinking indicator, message search, or whether a last assistant message
-  // exists to anchor to.
+  // active clarify is approval-kind and still unanswered, independent of tool
+  // display mode, the thinking indicator, message search, or whether a last
+  // assistant message exists to anchor to.
   const approvalCard = useMemo(
     () =>
-      activeClarify && resolvedSessionKey && isApprovalClarify ? (
+      activeClarify && resolvedSessionKey && isDockedApproval ? (
         <InlineClarifyCard
           clarify={activeClarify}
           sessionKey={resolvedSessionKey}
         />
       ) : null,
-    [activeClarify, resolvedSessionKey, isApprovalClarify],
+    [activeClarify, resolvedSessionKey, isDockedApproval],
   )
   // Agent slash-command output. Memoized on the key alone so the message
   // list's props comparison stays meaningful — the list itself re-renders from
