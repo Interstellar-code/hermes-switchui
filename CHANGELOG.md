@@ -3,6 +3,13 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.39] — 2026-09-15
+
+### Fixed
+
+- **An Answered Approval Stayed Stuck Above The Composer For The Rest Of The Session**: An approval prompt is deliberately pinned above the composer, where nothing can hide it — not the tool display mode, the thinking indicator, an active message search, or the absence of an assistant message to attach to. A security question you cannot see is a security question you cannot answer. But the card never left that slot once you answered it: the prompt turned into an "Approval recorded" receipt and stayed exactly where the prompt had been, sitting above the composer for the rest of the session while the conversation continued underneath it. Nothing removed it, by design at every layer — answered cards are kept on purpose as a record, and approvals are exempt from the cleanup that clears other cards on error or timeout — so it went away only on reload, or when the next approval happened to replace it. The pin now applies only while the question is unanswered. Once you have answered, the receipt drops into the activity card of the message it belongs to and scrolls away with the rest of the run, which is where reloading the page had been putting it all along.
+- **Some Tool Rows Were A Wrench Icon And Nothing Else**: Activity cards listed rows labelled only `tool` — no name, no arguments, no result, and nothing to expand if you clicked them. `tool` is not a real name; it is the placeholder substituted whenever an event arrives without one, so each of these rows marked a point where the actual tool name had gone missing somewhere upstream. They were already recognised as noise and filtered out, but only in the one case where an approval card happened to be attached to the same message — so identical rows disappeared or remained depending on something entirely unrelated to them. They are now filtered everywhere, in both live and reloaded conversations. The rows carrying no information are gone; whatever is dropping those names upstream is still dropping them, and is noted in the code for whoever picks it up.
+
 ## [2.5.38] — 2026-08-23
 
 ### Fixed
