@@ -79,13 +79,16 @@ describe('TuiActivityCard — reasoning', () => {
   })
 })
 
-describe('MessageItem wiring', () => {
-  // Not `new URL(..., import.meta.url)` — this suite runs under jsdom, where
-  // import.meta.url is an http: URL that readFileSync rejects.
-  const source = readFileSync(
-    resolve(process.cwd(), 'src/screens/chat/components/message-item.tsx'),
+// Not `new URL(..., import.meta.url)` — this suite runs under jsdom, where
+// import.meta.url is an http: URL that readFileSync rejects.
+const readSource = (file: string) =>
+  readFileSync(
+    resolve(process.cwd(), 'src/screens/chat/components', file),
     'utf8',
   )
+
+describe('MessageItem wiring — settled turns', () => {
+  const source = readSource('message-item.tsx')
 
   it('passes the computed reasoning into TuiActivityCard', () => {
     // This is the line that was `thinking={null}`. A renderer nothing feeds is
@@ -98,5 +101,22 @@ describe('MessageItem wiring', () => {
     expect(source).toContain(
       '(finalToolSections.length > 0 || !!thinking?.trim())',
     )
+  })
+})
+
+describe('ChatMessageList wiring — live streaming turns', () => {
+  // TuiActivityCard has TWO callers. Fixing only message-item.tsx left
+  // reasoning invisible for the entire streaming phase — the one stretch where
+  // the user is staring at a bubble that says "Thinking…" and nothing else.
+  // Both call sites are asserted here so a future fix cannot be half-applied.
+  const source = readSource('chat-message-list.tsx')
+
+  it('passes live reasoning into the streaming TuiActivityCard', () => {
+    expect(source).toContain('thinking={streamingThinking ?? null}')
+    expect(source).not.toContain('thinking={null}')
+  })
+
+  it('branches on reasoning even when no tool has been called yet', () => {
+    expect(source).toContain('!!streamingThinking?.trim()')
   })
 })
