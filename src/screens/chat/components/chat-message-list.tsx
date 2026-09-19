@@ -1976,8 +1976,15 @@ function ChatMessageListComponent({
                 {/* Branch from the thinking bubble into a single compact
                     TUI-style tool activity card. Use normalized streaming calls
                     so the card appears for both structured tool events and the
-                    lighter live activity feed. */}
-                {clarifyToolCalls.length > 0 ? (
+                    lighter live activity feed.
+
+                    Live reasoning alone is enough to branch here. This is the
+                    phase where the bubble above is showing nothing but the word
+                    "Thinking…", so it is precisely when the model's actual
+                    reasoning is worth showing — waiting for a tool call or for
+                    the answer text to land defeats the point. */}
+                {clarifyToolCalls.length > 0 ||
+                !!streamingThinking?.trim() ? (
                   <div className="flex max-w-[var(--chat-content-max-width)]">
                     <div
                       className="ml-[14px] mr-2 w-px shrink-0"
@@ -2027,7 +2034,7 @@ function ChatMessageListComponent({
                           clarifyReceiptCard,
                           'input-streaming',
                         )}
-                        thinking={null}
+                        thinking={streamingThinking ?? null}
                         isStreaming={true}
                         formatLabel={(name) => name.replace(/_/g, ' ')}
                         formatArg={(_name, args) => {

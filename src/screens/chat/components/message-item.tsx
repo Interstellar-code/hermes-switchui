@@ -2701,9 +2701,15 @@ function MessageItemComponent({
       {/* Grouped tool card above the assistant bubble. Only show once there
           is real assistant text in the bubble. While streaming with no text,
           the legacy ThinkingBubble in chat-message-list owns the visual and
-          renders its own branched TuiActivityCard so we don't double up. */}
+          renders its own branched TuiActivityCard so we don't double up.
+
+          Reasoning alone is enough to earn the card: a plain question the
+          model thought about but used no tools for still has something to
+          show, and gating on tool count is what kept reasoning invisible on
+          exactly those turns. TuiActivityCard already renders a tool-less
+          card (headerLabel falls back to 'ACTIVITY'). */}
       {!isUser &&
-      finalToolSections.length > 0 &&
+      (finalToolSections.length > 0 || !!thinking?.trim()) &&
       toolDisplayMode !== 'hidden' &&
       (hasText || !effectiveIsStreaming) ? (
         <div className="w-full max-w-[var(--chat-content-max-width)] flex">
@@ -2711,7 +2717,8 @@ function MessageItemComponent({
           <div className="min-w-0 flex-1">
             <TuiActivityCard
               toolSections={finalToolSections}
-              thinking={null}
+              thinking={thinking}
+              thinkingElapsedSeconds={thinkingElapsedSeconds}
               isStreaming={effectiveIsStreaming}
               expandAll={toolDisplayMode === 'expanded'}
               formatLabel={formatToolDisplayLabel}
