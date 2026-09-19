@@ -424,6 +424,62 @@ describe('non-multiplexed gateway: its own profile is reachable unprefixed', () 
     )
   })
 
+  it('does not infer multiplex from a big served_profiles roster when gateway_mode says single', async () => {
+    // The shape a real non-multiplexing install reports: ONE gateway, mode
+    // explicitly 'single', and a served_profiles roster listing every profile
+    // that EXISTS in the install rather than every profile it multiplexes.
+    //
+    // Treating that roster as proof of multiplexing made us prefix
+    // `/p/<profile>/` at a gateway that rejects the prefix, so every scoped
+    // request — including send — failed with
+    // `404 {"error": "Unknown or unconfigured profile"}`.
+    stubFetch({
+      gateway_mode: 'single',
+      profiles: ['hermes-switch', 'default', 'morpheus', 'neo', 'trinity'],
+      gateways: [
+        {
+          profile: 'hermes-switch',
+          ports: { api_server: 8642 },
+          served_profiles: [
+            'hermes-switch',
+            'default',
+            'morpheus',
+            'neo',
+            'trinity',
+          ],
+        },
+      ],
+    })
+    const { scopedPath } = await import('./profile-scope')
+
+    // The gateway's own profile resolves UNPREFIXED — the bare path is what
+    // actually reaches it.
+    expect(await scopedPath('/api/sessions', 'hermes-switch')).toBe(
+      '/api/sessions',
+    )
+  })
+
+  it('refuses a non-active profile on a single gateway instead of prefixing it', async () => {
+    // The roster must not become an authorization list either: these profiles
+    // exist, but only the gateway's own is reachable through THIS process.
+    stubFetch({
+      gateway_mode: 'single',
+      profiles: ['hermes-switch', 'neo'],
+      gateways: [
+        {
+          profile: 'hermes-switch',
+          ports: { api_server: 8642 },
+          served_profiles: ['hermes-switch', 'neo'],
+        },
+      ],
+    })
+    const { scopedPath, ProfileScopeUnavailableError } = await import(
+      './profile-scope'
+    )
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeUnavailableError)
+  })
+
   it('fails closed when the probe cannot determine the active profile', async () => {
     // No `gateways[]` — topology unknown beyond "not multiplexed". Guessing
     // here would be the wrong-profile write this module exists to prevent.

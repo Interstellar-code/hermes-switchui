@@ -358,9 +358,25 @@ async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
       profiles?: Array<string>
     }
     const entries = body.gateways ?? []
+    const declaredMode =
+      typeof body.gateway_mode === 'string' ? body.gateway_mode.trim() : ''
+    // An explicit `gateway_mode` is the gateway stating what it is; the roster
+    // heuristic is only a fallback for builds that don't report one.
+    //
+    // A NON-multiplexing gateway still advertises a multi-entry
+    // `served_profiles` — it lists the profiles that EXIST in the install, not
+    // the ones it multiplexes. Letting that outvote `gateway_mode: 'single'`
+    // made us prefix `/p/<profile>/` at a gateway that rejects the prefix, so
+    // every profile-scoped request — send included — died with
+    // `404 {"error": "Unknown or unconfigured profile"}`.
+    //
+    // This also closes the same hole for `'multiple'` (several independent
+    // single-profile gateways, none of which understands the prefix), which
+    // the heuristic could previously flip to multiplex on roster size alone.
     const isMultiplex =
-      body.gateway_mode === 'multiplex' ||
-      entries.some((g) => (g.served_profiles?.length ?? 0) > 1)
+      declaredMode === 'multiplex' ||
+      (declaredMode === '' &&
+        entries.some((g) => (g.served_profiles?.length ?? 0) > 1))
 
     // `auth_required` survives the loopback gate on every `/api/status` reply
     // (hermes_cli/web_server.py's "always-public liveness" block — see the
