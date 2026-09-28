@@ -193,6 +193,7 @@ import { Route as ApiBackupsRestoreUploadRouteImport } from './routes/api/backup
 import { Route as ApiBackupsRestoreRouteImport } from './routes/api/backups/restore'
 import { Route as ApiBackupsListRouteImport } from './routes/api/backups/list'
 import { Route as ApiBackupsDownloadRouteImport } from './routes/api/backups/download'
+import { Route as ApiBackupsDeleteRouteImport } from './routes/api/backups/delete'
 import { Route as ApiBackupsCreateRouteImport } from './routes/api/backups/create'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiApprovalsPendingRouteImport } from './routes/api/approvals.pending'
@@ -1174,6 +1175,11 @@ const ApiBackupsDownloadRoute = ApiBackupsDownloadRouteImport.update({
   path: '/api/backups/download',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiBackupsDeleteRoute = ApiBackupsDeleteRouteImport.update({
+  id: '/api/backups/delete',
+  path: '/api/backups/delete',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiBackupsCreateRoute = ApiBackupsCreateRouteImport.update({
   id: '/api/backups/create',
   path: '/api/backups/create',
@@ -1565,6 +1571,7 @@ export interface FileRoutesByFullPath {
   '/api/approvals/pending': typeof ApiApprovalsPendingRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/backups/create': typeof ApiBackupsCreateRoute
+  '/api/backups/delete': typeof ApiBackupsDeleteRoute
   '/api/backups/download': typeof ApiBackupsDownloadRoute
   '/api/backups/list': typeof ApiBackupsListRoute
   '/api/backups/restore': typeof ApiBackupsRestoreRoute
@@ -1800,6 +1807,7 @@ export interface FileRoutesByTo {
   '/api/approvals/pending': typeof ApiApprovalsPendingRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/backups/create': typeof ApiBackupsCreateRoute
+  '/api/backups/delete': typeof ApiBackupsDeleteRoute
   '/api/backups/download': typeof ApiBackupsDownloadRoute
   '/api/backups/list': typeof ApiBackupsListRoute
   '/api/backups/restore': typeof ApiBackupsRestoreRoute
@@ -2038,6 +2046,7 @@ export interface FileRoutesById {
   '/api/approvals/pending': typeof ApiApprovalsPendingRoute
   '/api/artifacts/$artifactId': typeof ApiArtifactsArtifactIdRoute
   '/api/backups/create': typeof ApiBackupsCreateRoute
+  '/api/backups/delete': typeof ApiBackupsDeleteRoute
   '/api/backups/download': typeof ApiBackupsDownloadRoute
   '/api/backups/list': typeof ApiBackupsListRoute
   '/api/backups/restore': typeof ApiBackupsRestoreRoute
@@ -2277,6 +2286,7 @@ export interface FileRouteTypes {
     | '/api/approvals/pending'
     | '/api/artifacts/$artifactId'
     | '/api/backups/create'
+    | '/api/backups/delete'
     | '/api/backups/download'
     | '/api/backups/list'
     | '/api/backups/restore'
@@ -2512,6 +2522,7 @@ export interface FileRouteTypes {
     | '/api/approvals/pending'
     | '/api/artifacts/$artifactId'
     | '/api/backups/create'
+    | '/api/backups/delete'
     | '/api/backups/download'
     | '/api/backups/list'
     | '/api/backups/restore'
@@ -2749,6 +2760,7 @@ export interface FileRouteTypes {
     | '/api/approvals/pending'
     | '/api/artifacts/$artifactId'
     | '/api/backups/create'
+    | '/api/backups/delete'
     | '/api/backups/download'
     | '/api/backups/list'
     | '/api/backups/restore'
@@ -2982,6 +2994,7 @@ export interface RootRouteChildren {
   WebsiteIndexRoute: typeof WebsiteIndexRoute
   ApiApprovalsPendingRoute: typeof ApiApprovalsPendingRoute
   ApiBackupsCreateRoute: typeof ApiBackupsCreateRoute
+  ApiBackupsDeleteRoute: typeof ApiBackupsDeleteRoute
   ApiBackupsDownloadRoute: typeof ApiBackupsDownloadRoute
   ApiBackupsListRoute: typeof ApiBackupsListRoute
   ApiBackupsRestoreRoute: typeof ApiBackupsRestoreRoute
@@ -4342,6 +4355,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiBackupsDownloadRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/backups/delete': {
+      id: '/api/backups/delete'
+      path: '/api/backups/delete'
+      fullPath: '/api/backups/delete'
+      preLoaderRoute: typeof ApiBackupsDeleteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/backups/create': {
       id: '/api/backups/create'
       path: '/api/backups/create'
@@ -5356,6 +5376,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsiteIndexRoute: WebsiteIndexRoute,
   ApiApprovalsPendingRoute: ApiApprovalsPendingRoute,
   ApiBackupsCreateRoute: ApiBackupsCreateRoute,
+  ApiBackupsDeleteRoute: ApiBackupsDeleteRoute,
   ApiBackupsDownloadRoute: ApiBackupsDownloadRoute,
   ApiBackupsListRoute: ApiBackupsListRoute,
   ApiBackupsRestoreRoute: ApiBackupsRestoreRoute,

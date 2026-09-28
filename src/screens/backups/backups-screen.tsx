@@ -4,18 +4,23 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   useBackupList,
   useCreateBackup,
+  useDeleteBackup,
   useRestoreBackup,
   useRestoreUpload,
 } from './hooks/use-backups'
 import { RestoreConfirmDialog } from './components/restore-confirm-dialog'
 import type { BackupEntry } from './hooks/use-backups'
+import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
 // ── helpers ──
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)))
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+  )
   const val = bytes / Math.pow(1024, i)
   return `${val.toFixed(val < 10 && i > 0 ? 1 : 0)} ${units[i]}`
 }
@@ -34,8 +39,10 @@ export function BackupsScreen() {
   const createBackup = useCreateBackup()
   const restoreBackup = useRestoreBackup()
   const restoreUpload = useRestoreUpload()
+  const deleteBackup = useDeleteBackup()
 
   const [restoreTarget, setRestoreTarget] = useState<BackupEntry | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<BackupEntry | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -159,6 +166,11 @@ export function BackupsScreen() {
                 entry={b}
                 onDownload={() => handleDownload(b)}
                 onRestore={() => setRestoreTarget(b)}
+                onDelete={() => setDeleteTarget(b)}
+                deleting={
+                  deleteBackup.isPending &&
+                  deleteBackup.variables.archive === b.archive
+                }
               />
             ))}
           </div>
@@ -189,6 +201,20 @@ export function BackupsScreen() {
         </div>
       </main>
 
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete backup?"
+        message={`Permanently deletes ${deleteTarget?.name ?? ''}. This cannot be undone.`}
+        confirmLabel="Delete backup"
+        destructive
+        onConfirm={() => {
+          if (deleteTarget)
+            deleteBackup.mutate({ archive: deleteTarget.archive })
+          setDeleteTarget(null)
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
+
       {restoreTarget && (
         <RestoreConfirmDialog
           open={true}
@@ -207,10 +233,14 @@ function BackupCard({
   entry,
   onDownload,
   onRestore,
+  onDelete,
+  deleting,
 }: {
   entry: BackupEntry
   onDownload: () => void
   onRestore: () => void
+  onDelete: () => void
+  deleting: boolean
 }) {
   return (
     <div className="bk-card">
@@ -227,6 +257,13 @@ function BackupCard({
         </button>
         <button className="bk-btn bk-btn-danger" onClick={onRestore}>
           Restore
+        </button>
+        <button
+          className="bk-btn bk-btn-danger"
+          onClick={onDelete}
+          disabled={deleting}
+        >
+          {deleting ? 'Deleting\u2026' : 'Delete'}
         </button>
       </div>
     </div>
