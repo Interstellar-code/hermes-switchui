@@ -1,14 +1,20 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/shadcn/ui/dialog'
 import { cn } from '@/lib/utils'
+import { execAgentCommand } from '@/lib/hermes-commands-api'
+import { toast } from '@/components/ui/toast'
 
 type ContextAlertModalProps = {
   open: boolean
   onClose: () => void
   threshold: number
   contextPercent: number
+  /** Session to run `/compress` against; omit to hide the button. */
+  sessionKey?: string | null
+  /** A reply is streaming — compressing mid-turn is not allowed. */
+  busy?: boolean
 }
 
 function ContextAlertModalComponent({
@@ -16,10 +22,30 @@ function ContextAlertModalComponent({
   onClose,
   threshold,
   contextPercent,
+  sessionKey,
+  busy = false,
 }: ContextAlertModalProps) {
   const isCritical = threshold >= 90
   const isDanger = threshold >= 75
-  // 35% is an early warning — gateway auto-compacts at ~40%
+  const [compressing, setCompressing] = useState(false)
+
+  // Same path as typing `/compress`: the gateway summarizes older turns and
+  // rotates the session; the usage store resets the meter when it lands.
+  async function handleCompress() {
+    if (!sessionKey || compressing) return
+    setCompressing(true)
+    const outcome = await execAgentCommand({
+      command: '/compress',
+      sessionId: sessionKey,
+    })
+    setCompressing(false)
+    if (outcome.ok) {
+      toast('Context compressed', { type: 'success' })
+      onClose()
+    } else {
+      toast(`Compress failed\n${outcome.reason}`, { type: 'error' })
+    }
+  }
 
   const barColor = isCritical
     ? 'bg-red-500'
@@ -102,7 +128,7 @@ function ContextAlertModalComponent({
                 ? "Your conversation history is nearly at the model's limit. Responses may become less accurate as the model loses access to earlier context. You should start a new chat soon."
                 : isDanger
                   ? 'Your conversation is getting long. The model may start forgetting earlier messages. Consider starting a new chat for best results.'
-                  : "The gateway will auto-compact your context soon (it triggers at ~40% usage). Older messages will be summarized. Consider writing a handoff or starting a new chat to preserve full context."}
+                  : 'The gateway auto-compacts when context passes its configured threshold (compression.threshold, 50% by default). Older messages get summarized — compress now, or start a new chat to keep full context.'}
             </p>
           </div>
 
@@ -144,6 +170,18 @@ function ContextAlertModalComponent({
             >
               Got it
             </button>
+            {sessionKey ? (
+              <button
+                onClick={() => void handleCompress()}
+                disabled={busy || compressing}
+                title={
+                  busy ? 'Wait for the current reply to finish' : undefined
+                }
+                className="rounded-lg border border-primary-300 bg-surface px-4 py-2 text-xs font-medium text-primary-800 hover:bg-primary-50 transition-colors disabled:opacity-50"
+              >
+                {compressing ? 'Compressing…' : 'Compress'}
+              </button>
+            ) : null}
             {isDanger && (
               <a
                 href="/new"

@@ -1716,6 +1716,8 @@ export function ChatScreen({
         onClose={dismissAlert}
         threshold={alertThreshold}
         contextPercent={alertPercent}
+        sessionKey={isNewChat ? null : resolvedSessionKey || activeFriendlyId}
+        busy={waitingForResponse}
       />
 
       <ErrorToastContainer />
