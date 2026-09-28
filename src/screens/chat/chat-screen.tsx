@@ -1718,17 +1718,6 @@ export function ChatScreen({
         contextPercent={alertPercent}
         sessionKey={isNewChat ? null : resolvedSessionKey || activeFriendlyId}
         busy={waitingForResponse}
-        onCompressed={(continuationKey) => {
-          // Compacted in place: same session, shorter transcript — refetch.
-          // Rotated: follow the continuation, as the agent now writes there.
-          void queryClient.invalidateQueries({ queryKey: ['chat'] })
-          if (continuationKey) {
-            void navigate({
-              to: '/chat/$sessionKey',
-              params: { sessionKey: continuationKey },
-            })
-          }
-        }}
       />
 
       <ErrorToastContainer />

@@ -1207,7 +1207,7 @@ function ChatComposerShadcn({
               <div className="flex-1" />
 
               {/* live context counter (real ContextBar) */}
-              <ContextBar compact sessionId={sessionKey} />
+              <ContextBar compact sessionId={sessionKey} busy={isLoading} />
 
               {/* send / stop */}
               {isLoading ? (

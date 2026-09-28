@@ -5,10 +5,16 @@ import { useQuery } from '@tanstack/react-query'
 import { buildCompactionNotice } from './streaming-lifecycle-ui'
 import { cn } from '@/lib/utils'
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/shadcn/ui/popover'
+import {
   PreviewCard,
   PreviewCardPopup,
   PreviewCardTrigger,
 } from '@/components/ui/preview-card'
+import { useCompressSession } from '@/screens/chat/hooks/use-compress-session'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 import { chatQueryKeys, fetchSessions } from '@/screens/chat/chat-queries'
@@ -54,7 +60,9 @@ async function fetchActiveModelInfo(): Promise<LiveModelInfo> {
       activeModel:
         typeof payload.activeModel === 'string' ? payload.activeModel : '',
       activeProvider:
-        typeof payload.activeProvider === 'string' ? payload.activeProvider : '',
+        typeof payload.activeProvider === 'string'
+          ? payload.activeProvider
+          : '',
     }
   } catch {
     return { activeModel: '', activeProvider: '' }
@@ -86,14 +94,26 @@ function formatTokens(n: number): string {
   return String(n)
 }
 
+const MAX_SOURCE_LABEL: Record<string, string> = {
+  gateway: 'reported by gateway',
+  config: 'from config.yaml',
+  catalog: 'model catalog',
+  default: 'default — model window unknown',
+}
+
 function ContextBarComponent({
   compact = false,
   sessionId,
+  busy = false,
 }: {
   compact?: boolean
   sessionId?: string
+  /** A reply is streaming — compress is disabled until it finishes. */
+  busy?: boolean
 }) {
   const status = useSessionStatus(sessionId)
+  const { compress, compressing } = useCompressSession(sessionId)
+  const [menuOpen, setMenuOpen] = useState(false)
   // Live percent pushed from the SSE stream (usage.update / compaction events).
   // Updates instantly during a turn; the 15s status poll only refreshes between.
   const liveContextPercent = useContextUsageStore((s) =>
@@ -177,14 +197,31 @@ function ContextBarComponent({
   // window size — session-status maxTokens can be stale or smaller than the
   // configured value. Fall back to status.maxTokens only when no catalog entry
   // has a contextLength.
-  const effectiveMax =
+  // Server limits from the gateway or config.yaml are authoritative; the
+  // client catalog only beats a server default (routing models like
+  // manifest/auto have no catalog entry and used to read as 200k).
+  const serverHasRealMax =
+    status.maxTokens > 0 && status.maxSource !== 'default'
+  const catalogMax =
     typeof matchingModel?.contextLength === 'number' &&
     Number.isFinite(matchingModel.contextLength) &&
     matchingModel.contextLength > 0
       ? matchingModel.contextLength
+      : 0
+  const effectiveMax = serverHasRealMax
+    ? status.maxTokens
+    : catalogMax > 0
+      ? catalogMax
       : status.maxTokens > 0
         ? status.maxTokens
         : fallbackMax
+  const maxSource = serverHasRealMax
+    ? status.maxSource
+    : catalogMax > 0
+      ? 'catalog'
+      : status.maxSource
+  const threshold = status.compressionThreshold
+  const thresholdPct = threshold !== null ? threshold * 100 : null
   const effectiveUsed = status.usedTokens > 0 ? status.usedTokens : fallbackUsed
   // Recompute percent from used/max so the bar stays consistent with the
   // displayed token counts when effectiveMax differs from the server's value.
@@ -197,9 +234,7 @@ function ContextBarComponent({
           ? status.contextPercent
           : fallbackPct
   const effectivePct =
-    liveContextPercent > 0
-      ? Math.max(liveContextPercent, serverPct)
-      : serverPct
+    liveContextPercent > 0 ? Math.max(liveContextPercent, serverPct) : serverPct
   const [showLabel, setShowLabel] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
@@ -266,51 +301,80 @@ function ContextBarComponent({
   })
 
   if (compact) {
+    // Point on the ring where auto-compaction fires (ring starts at 12 o'clock).
+    const tick =
+      thresholdPct !== null
+        ? (() => {
+            const angle = (thresholdPct / 100) * 2 * Math.PI
+            return {
+              x1: 12 + 7.6 * Math.sin(angle),
+              y1: 12 - 7.6 * Math.cos(angle),
+              x2: 12 + 11.9 * Math.sin(angle),
+              y2: 12 - 11.9 * Math.cos(angle),
+            }
+          })()
+        : null
+    const tokensToCompaction =
+      threshold !== null
+        ? Math.max(0, Math.round(effectiveMax * threshold - effectiveUsed))
+        : null
+
     return (
-      <PreviewCard>
-        <PreviewCardTrigger
+      <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+        <PopoverTrigger
           className="group inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
           aria-label={`Context window: ${compactLabel}% used`}
           title={`Context window: ${compactLabel}% used`}
         >
           <span className="relative inline-flex h-10 w-10 items-center justify-center">
             <svg
-              className="absolute inset-0 h-10 w-10 -rotate-90 overflow-visible"
+              className="absolute inset-0 h-10 w-10 overflow-visible"
               viewBox="0 0 24 24"
               aria-hidden="true"
             >
-              <circle
-                cx="12"
-                cy="12"
-                r="9.75"
-                fill="none"
-                stroke="var(--theme-border)"
-                strokeOpacity="0.9"
-                strokeWidth="2.4"
-              />
-              <circle
-                cx="12"
-                cy="12"
-                r="9.75"
-                fill="none"
-                stroke={ringColor}
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeDasharray={circumference}
-                strokeDashoffset={dashOffset}
-                className="transition-[stroke-dashoffset,stroke] duration-500 ease-out"
-              />
+              <g transform="rotate(-90 12 12)">
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9.75"
+                  fill="none"
+                  stroke="var(--theme-border)"
+                  strokeOpacity="0.9"
+                  strokeWidth="2.4"
+                />
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9.75"
+                  fill="none"
+                  stroke={ringColor}
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={dashOffset}
+                  className="transition-[stroke-dashoffset,stroke] duration-500 ease-out"
+                />
+              </g>
+              {tick ? (
+                <line
+                  {...tick}
+                  stroke="var(--theme-text)"
+                  strokeOpacity="0.7"
+                  strokeWidth="1.2"
+                  strokeLinecap="round"
+                />
+              ) : null}
             </svg>
             <span className="relative flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[2px] text-[10px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
               {compactLabel}
             </span>
           </span>
-        </PreviewCardTrigger>
+        </PopoverTrigger>
 
-        <PreviewCardPopup
+        <PopoverContent
           align="end"
           sideOffset={8}
-          className="w-64 rounded-xl px-3 py-2.5"
+          className="w-72 rounded-xl px-3 py-2.5"
         >
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -320,11 +384,15 @@ function ContextBarComponent({
               <span
                 className={cn('text-xs font-semibold tabular-nums', textColor)}
               >
+                {status.estimated ? '~' : ''}
                 {Math.round(clampedPct)}%
               </span>
             </div>
             <div
-              className={cn('h-2 w-full overflow-hidden rounded-full', barBg)}
+              className={cn(
+                'relative h-2 w-full overflow-hidden rounded-full',
+                barBg,
+              )}
             >
               <div
                 className={cn(
@@ -333,9 +401,17 @@ function ContextBarComponent({
                 )}
                 style={{ width: `${clampedPct}%` }}
               />
+              {thresholdPct !== null ? (
+                <div
+                  className="absolute inset-y-0 w-0.5 bg-[var(--theme-text)] opacity-80"
+                  style={{ left: `${thresholdPct}%` }}
+                  title={`Auto-compacts at ${Math.round(thresholdPct)}%`}
+                />
+              ) : null}
             </div>
             <div className="flex items-center justify-between gap-3 text-[11px] text-primary-500">
               <span className="tabular-nums">
+                {status.estimated ? '~' : ''}
                 {formatTokens(effectiveUsed)} / {formatTokens(effectiveMax)}{' '}
                 tokens
               </span>
@@ -345,17 +421,62 @@ function ContextBarComponent({
                 </span>
               ) : null}
             </div>
-            {isCritical ? (
-              <p className="text-[11px] font-medium text-red-600">
-                Context almost full — consider starting a new chat
-              </p>
-            ) : null}
+            <dl className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 text-[11px] text-primary-500">
+              <dt>Used</dt>
+              <dd className="text-right">
+                {status.estimated
+                  ? 'estimated from transcript'
+                  : 'last prompt (gateway)'}
+              </dd>
+              <dt>Window</dt>
+              <dd
+                className={cn(
+                  'text-right',
+                  maxSource === 'default' && 'text-orange-600',
+                )}
+              >
+                {MAX_SOURCE_LABEL[maxSource] ?? maxSource}
+              </dd>
+              <dt>Auto-compact</dt>
+              <dd className="text-right">
+                {thresholdPct !== null && tokensToCompaction !== null
+                  ? `at ${Math.round(thresholdPct)}% · ${
+                      tokensToCompaction > 0
+                        ? `${formatTokens(tokensToCompaction)} to go`
+                        : 'due next turn'
+                    }`
+                  : 'off'}
+              </dd>
+            </dl>
             {compactionNotice ? (
               <p className="text-[11px] text-primary-500">{compactionNotice}</p>
             ) : null}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                disabled={!sessionId || busy || compressing}
+                title={
+                  busy ? 'Wait for the current reply to finish' : undefined
+                }
+                onClick={() => {
+                  void compress().then((ok) => {
+                    if (ok) setMenuOpen(false)
+                  })
+                }}
+                className="flex-1 rounded-lg border border-primary-300 px-2 py-1.5 text-[11px] font-medium text-primary-800 transition-colors hover:bg-primary-50 disabled:opacity-50 dark:hover:bg-primary-800/60"
+              >
+                {compressing ? 'Compressing…' : 'Compress now'}
+              </button>
+              <a
+                href="/new"
+                className="flex-1 rounded-lg bg-primary-900 px-2 py-1.5 text-center text-[11px] font-medium text-white transition-colors hover:bg-primary-800"
+              >
+                New chat
+              </a>
+            </div>
           </div>
-        </PreviewCardPopup>
-      </PreviewCard>
+        </PopoverContent>
+      </Popover>
     )
   }
 

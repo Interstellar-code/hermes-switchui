@@ -1,9 +1,9 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import { Dialog, DialogContent } from '@/components/shadcn/ui/dialog'
 import { cn } from '@/lib/utils'
-import { toast } from '@/components/ui/toast'
+import { useCompressSession } from '@/screens/chat/hooks/use-compress-session'
 
 type ContextAlertModalProps = {
   open: boolean
@@ -14,8 +14,6 @@ type ContextAlertModalProps = {
   sessionKey?: string | null
   /** A reply is streaming — compressing mid-turn is not allowed. */
   busy?: boolean
-  /** After a successful compress; `continuationKey` is set if it rotated. */
-  onCompressed?: (continuationKey: string | null) => void
 }
 
 function ContextAlertModalComponent({
@@ -25,50 +23,13 @@ function ContextAlertModalComponent({
   contextPercent,
   sessionKey,
   busy = false,
-  onCompressed,
 }: ContextAlertModalProps) {
   const isCritical = threshold >= 90
   const isDanger = threshold >= 75
-  const [compressing, setCompressing] = useState(false)
+  const { compress, compressing } = useCompressSession(sessionKey)
 
-  // Dedicated route: bare `/compress` is refused on the general slash path
-  // because it can rotate the session; this one reports the continuation.
   async function handleCompress() {
-    if (!sessionKey || compressing) return
-    setCompressing(true)
-    try {
-      const res = await fetch(
-        `/api/sessions/${encodeURIComponent(sessionKey)}/compress`,
-        {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: '{}',
-        },
-      )
-      const data = (await res.json().catch(() => ({}))) as {
-        ok?: boolean
-        error?: string
-        compressed?: boolean
-        message?: string
-        continuationKey?: string | null
-      }
-      if (!res.ok || !data.ok)
-        throw new Error(data.error || `HTTP ${res.status}`)
-      toast(data.message || 'Context compressed', {
-        type: data.compressed ? 'success' : 'info',
-      })
-      if (data.compressed) {
-        onCompressed?.(data.continuationKey ?? null)
-        onClose()
-      }
-    } catch (err) {
-      toast(
-        `Compress failed\n${err instanceof Error ? err.message : String(err)}`,
-        { type: 'error' },
-      )
-    } finally {
-      setCompressing(false)
-    }
+    if (await compress()) onClose()
   }
 
   const barColor = isCritical

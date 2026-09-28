@@ -7,6 +7,7 @@ import {
 } from '@/server/gateway-capabilities'
 import { getLocalMessages, getLocalSession } from '@/server/local-session-store'
 import { scopedPath } from '@/server/profile-scope'
+import { getActiveProfileName, readProfile } from '@/server/profiles-browser'
 
 export type ContextUsageSnapshot = {
   ok: true
@@ -16,6 +17,81 @@ export type ContextUsageSnapshot = {
   model: string
   staticTokens: number
   conversationTokens: number
+  /** False only when `usedTokens` is the gateway's own last-prompt count. */
+  estimated: boolean
+  /** Where `maxTokens` came from — `default` means nothing better was known. */
+  maxSource: 'gateway' | 'config' | 'catalog' | 'default'
+  /** `compression.threshold` (0–1) the gateway auto-compacts at, or null. */
+  compressionThreshold: number | null
+}
+
+type ContextLimits = Pick<
+  ContextUsageSnapshot,
+  'maxTokens' | 'maxSource' | 'compressionThreshold'
+>
+
+function num(value: unknown): number {
+  const n = Number(value)
+  return Number.isFinite(n) && n > 0 ? n : 0
+}
+
+// Window size and compaction threshold from the active profile's config.yaml:
+// `providers.<p>.models.<m>.context_length`, then `providers.<p>.context_length`,
+// then `model.context_length`. A routing model like `manifest/auto` has no
+// catalog entry, so without this the gauge silently assumed 200k.
+function readConfigLimits(model: string): {
+  contextLength: number
+  compressionThreshold: number | null
+} {
+  try {
+    const cfg = readProfile(getActiveProfileName()).config as Record<
+      string,
+      any
+    >
+    const modelCfg = typeof cfg.model === 'object' && cfg.model ? cfg.model : {}
+    const providerName = String(modelCfg.provider || '')
+    const provider = cfg.providers?.[providerName] ?? {}
+    const modelName = model || String(modelCfg.default || '')
+    const contextLength =
+      num(provider.models?.[modelName]?.context_length) ||
+      num(provider.context_length) ||
+      num(modelCfg.context_length)
+    const compression = cfg.compression ?? {}
+    const threshold = Number(compression.threshold)
+    return {
+      contextLength,
+      compressionThreshold:
+        compression.enabled !== false && threshold > 0 && threshold < 1
+          ? threshold
+          : null,
+    }
+  } catch {
+    return { contextLength: 0, compressionThreshold: null }
+  }
+}
+
+function resolveLimits(model: string, gatewayLength = 0): ContextLimits {
+  const config = readConfigLimits(model)
+  if (gatewayLength > 0) {
+    return {
+      maxTokens: gatewayLength,
+      maxSource: 'gateway',
+      compressionThreshold: config.compressionThreshold,
+    }
+  }
+  if (config.contextLength > 0) {
+    return {
+      maxTokens: config.contextLength,
+      maxSource: 'config',
+      compressionThreshold: config.compressionThreshold,
+    }
+  }
+  const catalog = getContextWindow(model)
+  return {
+    maxTokens: catalog,
+    maxSource: catalog === DEFAULT_CONTEXT_WINDOW ? 'default' : 'catalog',
+    compressionThreshold: config.compressionThreshold,
+  }
 }
 
 const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
@@ -42,6 +118,7 @@ const MODEL_CONTEXT_WINDOWS: Record<string, number> = {
 }
 
 const CHARS_PER_TOKEN = 3.5
+const DEFAULT_CONTEXT_WINDOW = 200_000
 
 function getContextWindow(model: string): number {
   if (MODEL_CONTEXT_WINDOWS[model]) return MODEL_CONTEXT_WINDOWS[model]
@@ -52,7 +129,7 @@ function getContextWindow(model: string): number {
     )
       return value
   }
-  return 200_000
+  return DEFAULT_CONTEXT_WINDOW
 }
 
 function authHeaders(): Record<string, string> {
@@ -76,6 +153,9 @@ function emptySnapshot(): ContextUsageSnapshot {
     model: '',
     staticTokens: 0,
     conversationTokens: 0,
+    estimated: true,
+    maxSource: 'default',
+    compressionThreshold: null,
   }
 }
 
@@ -98,17 +178,19 @@ export async function readContextUsage(
         )
         const usedTokens = Math.ceil(totalChars / CHARS_PER_TOKEN)
         const model = localSession.model || 'gpt-5.5'
-        const maxTokens = getContextWindow(model)
+        const limits = resolveLimits(model)
+        const maxTokens = limits.maxTokens
         const contextPercent =
           maxTokens > 0 ? Math.round((usedTokens / maxTokens) * 1000) / 10 : 0
         return {
           ok: true,
           contextPercent,
-          maxTokens,
           usedTokens,
           model,
           staticTokens: 0,
           conversationTokens: usedTokens,
+          estimated: true,
+          ...limits,
         }
       }
     }
@@ -134,7 +216,9 @@ export async function readContextUsage(
           const data = (await res.json()) as {
             session?: Record<string, unknown>
           } & Record<string, unknown>
-          sessionData = capabilities.dashboard.available ? data : (data.session ?? null)
+          sessionData = capabilities.dashboard.available
+            ? data
+            : (data.session ?? null)
         }
       } catch {
         /* ignore */
@@ -149,9 +233,12 @@ export async function readContextUsage(
     if (!sessionData) {
       try {
         const listRes = capabilities.dashboard.available
-          ? await dashboardFetch(withProfileQuery('/api/sessions?limit=1', profile), {
-              signal: AbortSignal.timeout(3000),
-            })
+          ? await dashboardFetch(
+              withProfileQuery('/api/sessions?limit=1', profile),
+              {
+                signal: AbortSignal.timeout(3000),
+              },
+            )
           : await fetch(
               `${CLAUDE_API}${await scopedPath('/api/sessions?limit=1', profile)}`,
               {
@@ -185,7 +272,8 @@ export async function readContextUsage(
         : Number(sessionData.context_length) > 0
           ? Number(sessionData.context_length)
           : 0
-    const maxTokens = gatewayContextLength > 0 ? gatewayContextLength : getContextWindow(model)
+    const limits = resolveLimits(model, gatewayContextLength)
+    const maxTokens = limits.maxTokens
 
     const gatewayLastPromptTokens =
       Number(sessionData.last_prompt_tokens) > 0
@@ -199,11 +287,12 @@ export async function readContextUsage(
       return {
         ok: true,
         contextPercent,
-        maxTokens,
         usedTokens,
         model,
         staticTokens: 0,
         conversationTokens: usedTokens,
+        estimated: false,
+        ...limits,
       }
     }
 
@@ -213,11 +302,14 @@ export async function readContextUsage(
     let usedTokens = 0
     const assistantTurns = Math.max(1, Math.ceil(messageCount / 2))
 
-    if (cacheReadTokens > 0 && assistantTurns > 0) {
-      usedTokens = Math.ceil((cacheReadTokens / assistantTurns) * 1.2)
-    } else if (messageCount > 0) {
+    // Transcript size first. The cache-read heuristic is a last resort only:
+    // cache_read_tokens is cumulative over every tool-loop call, so dividing
+    // by turns overstates a live prompt several times over (a 14-message chat
+    // read as 178k).
+    if (messageCount > 0) {
       try {
-        const targetSessionId = explicitSessionId || String(sessionData.id || '')
+        const targetSessionId =
+          explicitSessionId || String(sessionData.id || '')
         if (targetSessionId) {
           const capabilitiesNow = getCapabilities()
           const msgRes = capabilitiesNow.dashboard.available
@@ -255,7 +347,8 @@ export async function readContextUsage(
             for (const msg of messages) {
               totalChars += (msg.content || '').length
               if (msg.reasoning) totalChars += msg.reasoning.length
-              if (msg.tool_calls) totalChars += JSON.stringify(msg.tool_calls).length
+              if (msg.tool_calls)
+                totalChars += JSON.stringify(msg.tool_calls).length
             }
             usedTokens = Math.ceil(totalChars / CHARS_PER_TOKEN)
           }
@@ -265,6 +358,10 @@ export async function readContextUsage(
       }
     }
 
+    if (usedTokens === 0 && cacheReadTokens > 0) {
+      usedTokens = Math.ceil((cacheReadTokens / assistantTurns) * 1.2)
+    }
+
     usedTokens = Math.min(usedTokens, maxTokens)
     const contextPercent =
       maxTokens > 0 ? Math.round((usedTokens / maxTokens) * 1000) / 10 : 0
@@ -272,11 +369,12 @@ export async function readContextUsage(
     return {
       ok: true,
       contextPercent,
-      maxTokens,
       usedTokens,
       model,
       staticTokens: 0,
       conversationTokens: usedTokens,
+      estimated: true,
+      ...limits,
     }
   } catch {
     return {
@@ -287,6 +385,9 @@ export async function readContextUsage(
       model: '',
       staticTokens: 0,
       conversationTokens: 0,
+      estimated: true,
+      maxSource: 'default',
+      compressionThreshold: null,
     }
   }
 }

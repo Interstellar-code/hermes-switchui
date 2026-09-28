@@ -20,6 +20,22 @@ export type SessionStatusPayload = {
   apiCallCount: number
   source: string
   endReason: string
+  /** False only when usedTokens is the gateway's own last-prompt count. */
+  estimated: boolean
+  maxSource: 'gateway' | 'config' | 'catalog' | 'default'
+  /** compression.threshold (0–1) auto-compaction fires at, or null. */
+  compressionThreshold: number | null
+}
+
+function readMaxSource(value: unknown): SessionStatusPayload['maxSource'] {
+  return value === 'gateway' || value === 'config' || value === 'catalog'
+    ? value
+    : 'default'
+}
+
+function readThreshold(value: unknown): number | null {
+  const n = Number(value)
+  return value != null && n > 0 && n < 1 ? n : null
 }
 
 const EMPTY_PAYLOAD: SessionStatusPayload = {
@@ -42,6 +58,9 @@ const EMPTY_PAYLOAD: SessionStatusPayload = {
   apiCallCount: 0,
   source: '',
   endReason: '',
+  estimated: true,
+  maxSource: 'default',
+  compressionThreshold: null,
 }
 
 const BACKOFF_INIT_MS = 5_000
@@ -56,7 +75,9 @@ const POLL_MS = 15_000
  * - Logs errors once per fail-cluster (not on every retry).
  * - Falls back to /api/context-usage if session-status returns no useful data.
  */
-export function useSessionStatus(sessionKey: string | null | undefined): SessionStatusPayload {
+export function useSessionStatus(
+  sessionKey: string | null | undefined,
+): SessionStatusPayload {
   const [payload, setPayload] = useState<SessionStatusPayload>(EMPTY_PAYLOAD)
   const consecutiveFailures = useRef(0)
   const lastErrorLogged = useRef('')
@@ -75,7 +96,9 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
     if (consecutiveFailures.current >= MAX_FAILURES) return
 
     try {
-      const params = sessionKey ? `?sessionKey=${encodeURIComponent(sessionKey)}` : ''
+      const params = sessionKey
+        ? `?sessionKey=${encodeURIComponent(sessionKey)}`
+        : ''
       const res = await fetch(`/api/session-status${params}`)
 
       if (res.ok) {
@@ -89,6 +112,9 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
             model: String(p.model ?? ''),
             maxTokens: Number(p.maxTokens ?? 0),
             usedTokens: Number(p.usedTokens ?? 0),
+            estimated: p.estimated !== false,
+            maxSource: readMaxSource(p.maxSource),
+            compressionThreshold: readThreshold(p.compressionThreshold),
             status: String(p.status ?? 'idle'),
             sessionKey: String(p.sessionKey ?? 'new'),
             sessionLabel: String(p.sessionLabel ?? ''),
@@ -117,7 +143,7 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
         if (lastErrorLogged.current !== errKey) {
           console.warn(
             `[session-status] ${res.status} for session ${sessionKey ?? '—'} ` +
-            `(failure ${consecutiveFailures.current}/${MAX_FAILURES})`,
+              `(failure ${consecutiveFailures.current}/${MAX_FAILURES})`,
           )
           lastErrorLogged.current = errKey
         }
@@ -127,13 +153,18 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
           )
           return
         }
-        const backoff = Math.min(BACKOFF_INIT_MS * 2 ** (consecutiveFailures.current - 1), BACKOFF_MAX_MS)
+        const backoff = Math.min(
+          BACKOFF_INIT_MS * 2 ** (consecutiveFailures.current - 1),
+          BACKOFF_MAX_MS,
+        )
         scheduleNext(backoff)
         return
       }
 
       // Non-5xx failure (e.g. 401/403) — try context-usage fallback then resume normal polling
-      const fbParams = sessionKey ? `?sessionId=${encodeURIComponent(sessionKey)}` : ''
+      const fbParams = sessionKey
+        ? `?sessionId=${encodeURIComponent(sessionKey)}`
+        : ''
       const fbRes = await fetch(`/api/context-usage${fbParams}`)
       if (fbRes.ok) {
         const fbData = await fbRes.json()
@@ -146,6 +177,9 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
             contextPercent: fbData.contextPercent ?? 0,
             usedTokens: fbData.usedTokens ?? 0,
             maxTokens: fbData.maxTokens ?? 0,
+            estimated: fbData.estimated !== false,
+            maxSource: readMaxSource(fbData.maxSource),
+            compressionThreshold: readThreshold(fbData.compressionThreshold),
           }))
         }
       }
@@ -153,7 +187,10 @@ export function useSessionStatus(sessionKey: string | null | undefined): Session
     } catch {
       consecutiveFailures.current += 1
       scheduleNext(
-        Math.min(BACKOFF_INIT_MS * 2 ** (consecutiveFailures.current - 1), BACKOFF_MAX_MS),
+        Math.min(
+          BACKOFF_INIT_MS * 2 ** (consecutiveFailures.current - 1),
+          BACKOFF_MAX_MS,
+        ),
       )
     }
   }, [sessionKey, scheduleNext])

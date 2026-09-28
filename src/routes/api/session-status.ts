@@ -16,7 +16,10 @@ export const Route = createFileRoute('/api/session-status')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         await ensureGatewayProbed()
         let requestedKey = ''
@@ -99,6 +102,9 @@ export const Route = createFileRoute('/api/session-status')({
                 contextPercent: contextUsage.contextPercent,
                 maxTokens: contextUsage.maxTokens,
                 usedTokens: contextUsage.usedTokens,
+                estimated: contextUsage.estimated,
+                maxSource: contextUsage.maxSource,
+                compressionThreshold: contextUsage.compressionThreshold,
                 sessions: [],
               },
             })
@@ -135,6 +141,9 @@ export const Route = createFileRoute('/api/session-status')({
               contextPercent: contextUsage.contextPercent,
               maxTokens: contextUsage.maxTokens,
               usedTokens: contextUsage.usedTokens,
+              estimated: contextUsage.estimated,
+              maxSource: contextUsage.maxSource,
+              compressionThreshold: contextUsage.compressionThreshold,
               sessions: [
                 {
                   key: session.id,
@@ -171,10 +180,7 @@ export const Route = createFileRoute('/api/session-status')({
               },
             })
           }
-          return Response.json(
-            { ok: false, error: msg },
-            { status: 503 },
-          )
+          return Response.json({ ok: false, error: msg }, { status: 503 })
         }
       },
     },
