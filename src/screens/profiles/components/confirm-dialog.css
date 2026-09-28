@@ -1,0 +1,93 @@
+/* Shared confirm dialog — portaled to document.body, so it must style itself
+   instead of relying on whichever screen's stylesheet happened to load. */
+.pf-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 9000;
+  display: grid;
+  place-items: center;
+  animation: pf-confirm-fade var(--m-dur-base, 160ms)
+    var(--m-ease-out, ease-out);
+}
+.pf-confirm {
+  min-width: 360px;
+  max-width: 480px;
+  padding: 22px 24px 20px;
+  border: 1px solid var(--m-green-500, var(--theme-accent));
+  border-radius: 12px;
+  background: var(--m-panel, var(--theme-panel));
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(0, 255, 65, 0.18);
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+}
+.pf-confirm h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-green-500, var(--theme-accent));
+}
+.pf-confirm p {
+  margin: 0 0 18px;
+  color: var(--m-text-muted, var(--theme-muted));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pf-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.pf-confirm .btn {
+  padding: 8px 16px;
+  font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  border-radius: var(--m-radius-md, 6px);
+  cursor: pointer;
+  border: 1px solid var(--m-border, var(--theme-border));
+  background: var(--m-bg-deep, var(--theme-bg));
+  color: var(--m-text, var(--theme-text));
+  transition: all var(--m-dur-fast, 120ms) var(--m-ease-out, ease-out);
+}
+.pf-confirm .btn:hover {
+  border-color: var(--m-border-subtle, var(--theme-border));
+  color: var(--m-text-strong, var(--theme-text));
+}
+.pf-confirm .btn.btn-primary {
+  background: var(--m-green-500, var(--theme-accent));
+  color: var(--m-bg-deep, var(--theme-bg));
+  border-color: var(--m-green-500, var(--theme-accent));
+}
+.pf-confirm .btn.btn-danger,
+.pf-confirm .btn.btn-danger:hover {
+  border-color: #ff5fa2;
+  color: #ff5fa2;
+}
+.pf-confirm .btn.btn-danger:hover {
+  background: rgba(255, 95, 162, 0.1);
+}
+@keyframes pf-confirm-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-confirm-backdrop {
+    animation: none;
+  }
+}
+@media (max-width: 640px) {
+  /* `min-width: 360px` overflowed any viewport narrower than 384px. */
+  .pf-confirm {
+    min-width: 0;
+    width: calc(100vw - 24px);
+    padding: 18px 16px 16px;
+  }
+}

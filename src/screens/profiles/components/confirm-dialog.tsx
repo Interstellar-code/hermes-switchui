@@ -1,6 +1,7 @@
 import { useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import './confirm-dialog.css'
 
 type Props = {
   open: boolean
