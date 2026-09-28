@@ -3,6 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.42] — 2026-09-28
+
+### Fixed
+
+- **The Context Ring Read 100% On Chats That Were Barely Half Full**: The ring in the composer guessed how much context a chat used by dividing its lifetime cache-read tokens by the number of turns. Those reads pile up across every tool loop, so the guess ran several times too high — a 14-message chat read as 178k tokens — and it was measured against a hard-coded 200k window when the profile's config set 750k. Long chats pinned at 100% for no reason. Usage is now estimated from the chat's actual transcript (marked `~` as an estimate; the gateway's own prompt count still wins whenever it reports one), and the window comes from `config.yaml` — the provider or model's `context_length` — before any fallback. A 448-message chat that read 100% now reads 37%.
+- **Compress On The Context-Full Warning Always Failed**: 2.5.41's Compress button sent `/compress` down the general command path, which refuses it on purpose because compressing can rotate the session. Every click failed. It now has its own route, which compresses through the gateway's session API, waits for the agent to be ready, and follows the continuation session if compression rotated to one. By default hermes-agent compacts in place, so the chat simply reloads with a shorter history. Typing `/compress` is still refused.
+
+### Changed
+
+- **The Context Ring Shows Where Compaction Happens, And Lets You Act On It**: A tick on the ring and on its bar marks `compression.threshold`, where the gateway auto-compacts. Clicking the ring (it used to open only on hover) shows how much is used and whether that is an estimate, where the window size came from — flagged in orange when it is only a default because the real window is unknown — how far is left until auto-compaction, and **Compress now** and **New chat** buttons. The ring and the context-full warning share the same compress action.
+
 ## [2.5.41] — 2026-09-28
 
 ### Added
