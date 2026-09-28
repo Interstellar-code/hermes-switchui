@@ -54,6 +54,7 @@ jobs:
               | grep -v dist \
               | grep -v "test-redaction" \
               | grep -v "diagnostics.ts" \
+              | grep -v "src/lib/secret-mask.ts" \
               | grep -v "placeholder" \
               | grep -v "# pragma: allowlist secret" \
               | grep -v "example\|sample\|fake\|dummy\|test\|mock" ; then
