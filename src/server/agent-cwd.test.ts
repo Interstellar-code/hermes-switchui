@@ -124,6 +124,20 @@ describe('resolveAgentCwd — the gateway ladder', () => {
       backend: 'modal',
     },
     {
+      // terminal_tool.py:578 — vercel_sandbox has its own default, and a host
+      // path is discarded for it like any other container backend.
+      name: 'vercel_sandbox discards a host path for /vercel/sandbox',
+      input: {
+        config: terminal({
+          cwd: '/Users/tester/app',
+          backend: 'vercel_sandbox',
+        }),
+      },
+      path: '/vercel/sandbox',
+      source: 'container-default',
+      backend: 'vercel_sandbox',
+    },
+    {
       name: 'MESSAGING_CWD does NOT rescue a container backend without the mount flag',
       input: {
         config: terminal({ cwd: '.', backend: 'singularity' }),
@@ -203,7 +217,11 @@ describe('resolveAgentCwd — CLI/TUI divergence', () => {
   it('the same "." resolves to $HOME in the gateway but the process cwd in the CLI', () => {
     const config = terminal({ cwd: '.', backend: 'local' })
     const gateway = resolve({ config, host: 'gateway' })
-    const cli = resolve({ config, host: 'cli', cliProcessCwd: '/tmp/somewhere' })
+    const cli = resolve({
+      config,
+      host: 'cli',
+      cliProcessCwd: '/tmp/somewhere',
+    })
 
     expect(gateway.path).toBe(HOME)
     expect(gateway.source).toBe('home-sentinel')
@@ -355,14 +373,24 @@ describe('resolveAgentCwd — adjacent settings', () => {
 
   it('warns that persistent_shell is a no-op on local', () => {
     const result = resolve({
-      config: terminal({ cwd: '/srv/x', backend: 'local', persistentShell: true }),
+      config: terminal({
+        cwd: '/srv/x',
+        backend: 'local',
+        persistentShell: true,
+      }),
     })
-    expect(result.warnings.join('\n')).toMatch(/persistent_shell: true is a no-op/)
+    expect(result.warnings.join('\n')).toMatch(
+      /persistent_shell: true is a no-op/,
+    )
   })
 
   it('does not warn about persistent_shell on ssh, where it IS read', () => {
     const result = resolve({
-      config: terminal({ cwd: '/srv/x', backend: 'ssh', persistentShell: true }),
+      config: terminal({
+        cwd: '/srv/x',
+        backend: 'ssh',
+        persistentShell: true,
+      }),
     })
     expect(result.warnings.join('\n')).not.toMatch(/no-op/)
   })
@@ -380,7 +408,9 @@ describe('resolveAgentCwd — adjacent settings', () => {
 
 describe('resolveAgentCwd — "./" is not a gateway sentinel', () => {
   it('refuses to guess for a relative local path and explains the divergence', () => {
-    const result = resolve({ config: terminal({ cwd: './', backend: 'local' }) })
+    const result = resolve({
+      config: terminal({ cwd: './', backend: 'local' }),
+    })
     expect(result.path).toBeNull()
     expect(result.source).toBe('unknown')
     const text = result.warnings.join('\n')
@@ -389,7 +419,9 @@ describe('resolveAgentCwd — "./" is not a gateway sentinel', () => {
   })
 
   it('also refuses for a bare relative segment', () => {
-    const result = resolve({ config: terminal({ cwd: 'src', backend: 'local' }) })
+    const result = resolve({
+      config: terminal({ cwd: 'src', backend: 'local' }),
+    })
     expect(result.path).toBeNull()
     expect(result.source).toBe('unknown')
   })
@@ -414,12 +446,15 @@ describe('isCwdPlaceholder', () => {
 })
 
 describe('isUnusableContainerCwd', () => {
-  it.each([['/home/me/app'], ['/Users/me/app'], ['src'], ['.'], ['C:\\Users\\me']])(
-    'rejects %j as a container workdir',
-    (value) => {
-      expect(isUnusableContainerCwd(value)).toBe(true)
-    },
-  )
+  it.each([
+    ['/home/me/app'],
+    ['/Users/me/app'],
+    ['src'],
+    ['.'],
+    ['C:\\Users\\me'],
+  ])('rejects %j as a container workdir', (value) => {
+    expect(isUnusableContainerCwd(value)).toBe(true)
+  })
 
   it.each([['/workspace'], ['/root'], ['/opt/app']])(
     'accepts %j as a container workdir',
@@ -455,7 +490,9 @@ describe('readTerminalConfig', () => {
   })
 
   it('accepts the legacy env_type key with backend taking precedence', () => {
-    expect(readTerminalConfig({ terminal: { env_type: 'ssh' } }).backend).toBe('ssh')
+    expect(readTerminalConfig({ terminal: { env_type: 'ssh' } }).backend).toBe(
+      'ssh',
+    )
     expect(
       readTerminalConfig({ terminal: { env_type: 'ssh', backend: 'docker' } })
         .backend,

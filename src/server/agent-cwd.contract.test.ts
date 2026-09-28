@@ -24,6 +24,7 @@ import {
   GATEWAY_CWD_PLACEHOLDERS,
   HOST_CWD_PREFIXES,
   SSH_DEFAULT_CWD,
+  VERCEL_SANDBOX_DEFAULT_CWD,
 } from './agent-cwd'
 
 /** Same candidate list as `resolveClaudeAgentDir`, minus the `webapi` gate —
@@ -58,12 +59,13 @@ function parseStringLiteralSet(source: string, marker: string): Set<string> {
   }
   const open = source.indexOf('{', at)
   const paren = source.indexOf('(', at)
-  const start =
-    open !== -1 && (paren === -1 || open < paren) ? open : paren
+  const start = open !== -1 && (paren === -1 || open < paren) ? open : paren
   const close = source.indexOf(open !== -1 && start === open ? '}' : ')', start)
   const body = source.slice(start + 1, close)
   const values = new Set<string>()
-  for (const match of body.matchAll(/"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g)) {
+  for (const match of body.matchAll(
+    /"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'/g,
+  )) {
     // Strip the surrounding quotes off the whole match rather than picking a
     // capture group — `""` is itself a sentinel, so an empty group is real data.
     values.add(match[0].slice(1, -1).replace(/\\\\/g, '\\'))
@@ -88,13 +90,16 @@ describe.skipIf(!AGENT_SOURCE)(
     })
 
     it('cli.py mirrors the same placeholder tuple', () => {
-      const upstream = parseStringLiteralSet(read('cli.py'), '_CWD_PLACEHOLDERS')
+      const upstream = parseStringLiteralSet(
+        read('cli.py'),
+        '_CWD_PLACEHOLDERS',
+      )
       expect([...upstream].sort()).toEqual([...GATEWAY_CWD_PLACEHOLDERS].sort())
     })
 
-    it('FILE_TOOLS_CWD_SENTINELS matches tools/file_tools.py', () => {
+    it('FILE_TOOLS_CWD_SENTINELS matches tools/file_tools_paths.py', () => {
       const upstream = parseStringLiteralSet(
-        read('tools/file_tools.py'),
+        read('tools/file_tools_paths.py'),
         '_TERMINAL_CWD_SENTINELS',
       )
       expect([...upstream].sort()).toEqual([...FILE_TOOLS_CWD_SENTINELS].sort())
@@ -112,45 +117,55 @@ describe.skipIf(!AGENT_SOURCE)(
       )
     })
 
-    it('CONTAINER_BACKENDS matches tools/terminal_tool.py', () => {
+    it('CONTAINER_BACKENDS matches tools/terminal_tool_config.py', () => {
       const upstream = parseStringLiteralSet(
-        read('tools/terminal_tool.py'),
+        read('tools/terminal_tool_config.py'),
         '_CONTAINER_BACKENDS = frozenset',
       )
       expect([...upstream].sort()).toEqual([...CONTAINER_BACKENDS].sort())
     })
 
-    it('HOST_CWD_PREFIXES matches tools/terminal_tool.py', () => {
+    it('HOST_CWD_PREFIXES matches tools/terminal_tool_config.py', () => {
       const upstream = parseStringLiteralSet(
-        read('tools/terminal_tool.py'),
+        read('tools/terminal_tool_config.py'),
         '_HOST_CWD_PREFIXES',
       )
       expect([...upstream].sort()).toEqual([...HOST_CWD_PREFIXES].sort())
     })
 
-    it('the per-backend default cwds still read /root, ~ and /workspace', () => {
+    it('the per-backend default cwds still read /root, ~, /vercel/sandbox and /workspace', () => {
       const source = read('tools/terminal_tool.py')
-      // terminal_tool.py:1387-1392
+      // terminal_tool.py:578 + 588
       expect(source).toMatch(
-        /if env_type == "local":\s*\n\s*default_cwd = _safe_getcwd\(\)\s*\n\s*elif env_type == "ssh":\s*\n\s*default_cwd = "~"\s*\n\s*else:\s*\n\s*default_cwd = "\/root"/,
+        /_DEFAULT_CWD_BY_BACKEND = \{"ssh": "~", "vercel_sandbox": _VERCEL_SANDBOX_DEFAULT_CWD\}/,
+      )
+      expect(source).toMatch(
+        /default_cwd = _safe_getcwd\(\) if env_type == "local" else _DEFAULT_CWD_BY_BACKEND\.get\(env_type, "\/root"\)/,
+      )
+      expect(read('tools/terminal_tool_backends.py')).toMatch(
+        new RegExp(
+          `_VERCEL_SANDBOX_DEFAULT_CWD = "${VERCEL_SANDBOX_DEFAULT_CWD}"`,
+        ),
       )
       expect(SSH_DEFAULT_CWD).toBe('~')
       expect(CONTAINER_DEFAULT_CWD).toBe('/root')
-      // terminal_tool.py:1409-1410
+      // terminal_tool.py:600-601
       expect(source).toMatch(/host_cwd = candidate\s*\n\s*cwd = "\/workspace"/)
       expect(DOCKER_MOUNT_WORKSPACE_CWD).toBe('/workspace')
     })
 
     it('the local branch of the placeholder resolver still returns home', () => {
-      // gateway/cwd_placeholder.py:40-42 — the single line the whole
+      // gateway/cwd_placeholder.py:32-34 — the single line the whole
       // "your agent runs in $HOME" finding rests on.
       expect(read('gateway/cwd_placeholder.py')).toMatch(
-        /if backend == "local":\s*\n\s*messaging = \(messaging_cwd or ""\)\.strip\(\)\s*\n\s*return messaging or home_fallback/,
+        /messaging = \(messaging_cwd or ""\)\.strip\(\)\s*\n\s*if backend == "local":\s*\n\s*return messaging or home_fallback/,
       )
     })
 
     it('gateway/run.py still passes Path.home() as the home fallback', () => {
-      expect(read('gateway/run.py')).toMatch(/home_fallback=str\(Path\.home\(\)\)/)
+      expect(read('gateway/run.py')).toMatch(
+        /home_fallback=str\(Path\.home\(\)\)/,
+      )
     })
 
     it('cli.py still overwrites a local cwd with os.getcwd()', () => {
@@ -170,16 +185,18 @@ describe.skipIf(!AGENT_SOURCE)(
     })
 
     it('persistent_shell still bridges only to the SSH default, never local', () => {
-      // tools/terminal_tool.py:1438-1444 — local reads TERMINAL_LOCAL_PERSISTENT,
+      // tools/terminal_tool.py:659-662 — local reads TERMINAL_LOCAL_PERSISTENT,
       // which no config key writes, so `persistent_shell: true` is a no-op there.
       const source = read('tools/terminal_tool.py')
       expect(source).toMatch(
-        /"ssh_persistent": os\.getenv\(\s*"TERMINAL_SSH_PERSISTENT",\s*os\.getenv\("TERMINAL_PERSISTENT_SHELL", "true"\),/,
+        /"ssh_persistent": _tenv_bool\(\s*"TERMINAL_SSH_PERSISTENT",\s*_tenv\("TERMINAL_PERSISTENT_SHELL", "true"\),/,
       )
       expect(source).toMatch(
-        /"local_persistent": os\.getenv\("TERMINAL_LOCAL_PERSISTENT", "false"\)/,
+        /"local_persistent": _tenv_bool\("TERMINAL_LOCAL_PERSISTENT", "false"\)/,
       )
-      expect(source).not.toMatch(/TERMINAL_LOCAL_PERSISTENT["']?,?\s*\n?\s*os\.getenv\("TERMINAL_PERSISTENT_SHELL"/)
+      expect(source).not.toMatch(
+        /TERMINAL_LOCAL_PERSISTENT["']?,?\s*\n?\s*os\.getenv\("TERMINAL_PERSISTENT_SHELL"/,
+      )
     })
 
     it('the gateway HTTP API still has no cwd concept at all', () => {

@@ -22,7 +22,7 @@
  * `terminal.cwd: .` is a SENTINEL, not a relative path. Three modules say so:
  *   - `gateway/cwd_placeholder.py:12`  `CWD_PLACEHOLDERS = {".", "auto", "cwd"}`
  *   - `cli.py:648`                     `_CWD_PLACEHOLDERS = (".", "auto", "cwd")`
- *   - `tools/file_tools.py:166`        `_TERMINAL_CWD_SENTINELS = {"", ".", "./", "auto", "cwd"}`
+ *   - `tools/file_tools_paths.py:16`   `_TERMINAL_CWD_SENTINELS = {"", ".", "./", "auto", "cwd"}`
  *
  * Stage A — `gateway/run.py:1891-1908` decides what `TERMINAL_CWD` holds:
  *   - explicit non-placeholder path  → bridged verbatim (config bridge at
@@ -89,7 +89,7 @@ export const GATEWAY_CWD_PLACEHOLDERS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * `tools/file_tools.py:166` — the file/terminal-tool layer treats a strictly
+ * `tools/file_tools_paths.py:16` — the file/terminal-tool layer treats a strictly
  * LARGER set as sentinels. `""` and `"./"` are in this set but NOT in the
  * gateway's, which is a real divergence: `terminal.cwd: ./` survives the gateway
  * bridge as a literal relative path.
@@ -102,26 +102,28 @@ export const FILE_TOOLS_CWD_SENTINELS: ReadonlySet<string> = new Set([
   'cwd',
 ])
 
-/** `tools/terminal_tool.py:1268`. */
+/** `tools/terminal_tool_config.py:64`. */
 export const CONTAINER_BACKENDS: ReadonlySet<string> = new Set([
   'docker',
   'singularity',
   'modal',
   'daytona',
+  'vercel_sandbox',
 ])
 
-/** `tools/terminal_tool.py:1266` — prefixes that mark a path as host-side. */
-export const HOST_CWD_PREFIXES: ReadonlyArray<string> = [
-  '/Users/',
-  '/home/',
-  'C:\\',
-  'C:/',
-]
+/**
+ * `tools/terminal_tool_config.py:57` — prefixes that mark a path as host-side.
+ * Windows drive paths are matched by a separate regex upstream; here they are
+ * already caught by `isUnusableContainerCwd`'s not-absolute check.
+ */
+export const HOST_CWD_PREFIXES: ReadonlyArray<string> = ['/Users/', '/home/']
 
-/** `tools/terminal_tool.py:1392` — default cwd for container backends. */
+/** `tools/terminal_tool.py:588` — default cwd for container backends. */
 export const CONTAINER_DEFAULT_CWD = '/root'
-/** `tools/terminal_tool.py:1390` — default cwd for the ssh backend. */
+/** `tools/terminal_tool.py:578` — default cwd for the ssh backend. */
 export const SSH_DEFAULT_CWD = '~'
+/** `tools/terminal_tool_backends.py:27` — default cwd for vercel_sandbox. */
+export const VERCEL_SANDBOX_DEFAULT_CWD = '/vercel/sandbox'
 /** `tools/terminal_tool.py:1410` — in-container cwd when the host cwd is mounted. */
 export const DOCKER_MOUNT_WORKSPACE_CWD = '/workspace'
 /** `tools/terminal_tool.py:1440-1444` reads `TERMINAL_ENV`, defaulting to local. */
@@ -358,7 +360,12 @@ function resolveInGateway(
     return { path: homeDir, source: 'home-sentinel' }
   }
 
-  const defaultCwd = backend === 'ssh' ? SSH_DEFAULT_CWD : CONTAINER_DEFAULT_CWD
+  const defaultCwd =
+    backend === 'ssh'
+      ? SSH_DEFAULT_CWD
+      : backend === 'vercel_sandbox'
+        ? VERCEL_SANDBOX_DEFAULT_CWD
+        : CONTAINER_DEFAULT_CWD
 
   if (terminalCwd === null) {
     warnings.push(
@@ -466,7 +473,8 @@ export function resolveAgentCwd(input: ResolveAgentCwdInput): ResolvedCwd {
   }
 
   // ── Adjacent settings that silently follow the same ladder ───────────────
-  const executionMode = (input.codeExecutionMode ?? '').trim() || DEFAULT_EXECUTION_MODE
+  const executionMode =
+    (input.codeExecutionMode ?? '').trim() || DEFAULT_EXECUTION_MODE
   if (executionMode === 'project' && resolved.source === 'home-sentinel') {
     warnings.push(
       'code_execution.mode is "project" (the default), which follows this same ladder ' +
@@ -570,9 +578,7 @@ export async function getGatewayLaunchInfo(
   return value
 }
 
-function readProfileConfigSafe(
-  name: string,
-): Record<string, unknown> | null {
+function readProfileConfigSafe(name: string): Record<string, unknown> | null {
   try {
     return readProfile(name).config
   } catch {
@@ -620,12 +626,16 @@ export async function getAgentCwdStatus(opts?: {
   const launchConfig = readTerminalConfig(launchRaw)
 
   const governingRaw =
-    launch.multiplex && launch.launchProfile && launch.launchProfile !== activeProfile
+    launch.multiplex &&
+    launch.launchProfile &&
+    launch.launchProfile !== activeProfile
       ? launchRaw
       : activeRaw
   const codeExecution = governingRaw?.code_execution
   const codeExecutionMode =
-    codeExecution && typeof codeExecution === 'object' && !Array.isArray(codeExecution)
+    codeExecution &&
+    typeof codeExecution === 'object' &&
+    !Array.isArray(codeExecution)
       ? readString((codeExecution as Record<string, unknown>).mode)
       : ''
 
@@ -678,7 +688,10 @@ export class AgentCwdValidationError extends Error {
  * a directory — the three things that make `docker run -w` / `subprocess.Popen`
  * fail loudly if we get them wrong.
  */
-export function validateAgentCwd(input: string, homeDir = os.homedir()): string {
+export function validateAgentCwd(
+  input: string,
+  homeDir = os.homedir(),
+): string {
   const raw = input.trim()
   if (!raw) throw new AgentCwdValidationError('A directory is required.')
   if (GATEWAY_CWD_PLACEHOLDERS.has(raw) || FILE_TOOLS_CWD_SENTINELS.has(raw)) {
