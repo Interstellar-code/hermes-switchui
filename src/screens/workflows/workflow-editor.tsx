@@ -15,6 +15,7 @@ import {
 import type React from 'react'
 import type { WorkflowDefinitionRow, WorkflowRunRow } from './api-client'
 import type { NodeType, ParsedWorkflow, WorkflowDagNode, WorkflowSource } from './types'
+import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -253,6 +254,7 @@ function WorkflowHeaderActions({
   const duplicateMutation = useUpsertWorkflowDefinition()
   const deleteMutation = useDeleteWorkflowDefinition()
   const isBundled = def.source === 'bundled'
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   function handleExportYaml() {
     const blob = new Blob([def.yaml], { type: 'text/yaml;charset=utf-8' })
@@ -287,14 +289,22 @@ function WorkflowHeaderActions({
   }
 
   function handleDelete() {
-    if (
-      !window.confirm(`Delete workflow "${def.name}"? This cannot be undone.`)
-    ) {
-      return
-    }
+    setConfirmDelete(false)
     deleteMutation.mutate(def.id, {
       onSuccess: () => {
         onDeselect?.()
+        window.dispatchEvent(
+          new CustomEvent('wf-toast', {
+            detail: { msg: `Deleted workflow "${def.name}"` },
+          }),
+        )
+      },
+      onError: (err) => {
+        window.dispatchEvent(
+          new CustomEvent('wf-toast', {
+            detail: { msg: `Delete failed: ${err.message}` },
+          }),
+        )
       },
     })
   }
@@ -320,11 +330,20 @@ function WorkflowHeaderActions({
       <button
         className="ed-action-btn ed-action-btn--danger"
         disabled={isBundled || deleteMutation.isPending}
-        onClick={handleDelete}
+        onClick={() => setConfirmDelete(true)}
         title={isBundled ? 'Bundled workflows cannot be deleted — use Reset to factory to restore' : undefined}
       >
         {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
       </button>
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete workflow?"
+        message={`Delete workflow "${def.name}"? This cannot be undone.`}
+        confirmLabel="Delete workflow"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </div>
   )
 }

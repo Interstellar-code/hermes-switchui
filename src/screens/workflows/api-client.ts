@@ -625,6 +625,8 @@ export async function deleteWorkflowDefinition(id: string): Promise<void> {
     `/api/workflow-definitions/${encodeURIComponent(id)}`,
     {
       method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
     },
   )
   if (!res.ok) {
@@ -637,6 +639,7 @@ export async function deleteWorkflowDefinition(id: string): Promise<void> {
       ),
       {
         status: res.status,
+        serverError: body.error,
       },
     )
   }
