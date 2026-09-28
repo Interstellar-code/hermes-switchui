@@ -58,7 +58,10 @@ type TerminalPanelState = {
   setTabStatus: (tabId: string, status: TerminalTabStatus) => void
 }
 
-function createDefaultTab(counter: number, cwd = DEFAULT_TERMINAL_CWD): TerminalTab {
+function createDefaultTab(
+  counter: number,
+  cwd = DEFAULT_TERMINAL_CWD,
+): TerminalTab {
   return {
     id: crypto.randomUUID(),
     title: `Terminal ${counter}`,
@@ -86,6 +89,10 @@ export const useTerminalPanelStore = create<TerminalPanelState>()(
         const clamped = Math.max(MIN_PANEL_HEIGHT, Math.round(height))
         set({ panelHeight: clamped })
       },
+      // Creating a tab never opens the docked panel. Tabs are created from the
+      // fullscreen /terminal route and by the always-mounted (hidden) workspace;
+      // opening the panel here persisted `isPanelOpen: true`, so the dock then
+      // appeared on whatever page the user navigated to next (e.g. /files).
       createTab: function createTab(cwd = '~') {
         const { terminalCounter } = get()
         const nextCounter = terminalCounter + 1
@@ -94,7 +101,6 @@ export const useTerminalPanelStore = create<TerminalPanelState>()(
           tabs: [...state.tabs, tab],
           activeTabId: tab.id,
           terminalCounter: nextCounter,
-          isPanelOpen: true,
         }))
         return tab.id
       },

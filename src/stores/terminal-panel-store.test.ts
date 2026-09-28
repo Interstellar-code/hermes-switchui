@@ -48,7 +48,7 @@ describe('terminal-panel-store — single default cwd', () => {
     )
   })
 
-  it('closeTab\'s fallback tab (last tab closed) defaults to DEFAULT_TERMINAL_CWD', async () => {
+  it("closeTab's fallback tab (last tab closed) defaults to DEFAULT_TERMINAL_CWD", async () => {
     const { useTerminalPanelStore, DEFAULT_TERMINAL_CWD } = await getStore()
     const onlyTabId = useTerminalPanelStore.getState().tabs[0].id
     useTerminalPanelStore.getState().closeTab(onlyTabId)
@@ -58,7 +58,7 @@ describe('terminal-panel-store — single default cwd', () => {
     )
   })
 
-  it('closeAllTabs\'s fallback tab defaults to DEFAULT_TERMINAL_CWD', async () => {
+  it("closeAllTabs's fallback tab defaults to DEFAULT_TERMINAL_CWD", async () => {
     const { useTerminalPanelStore, DEFAULT_TERMINAL_CWD } = await getStore()
     useTerminalPanelStore.getState().createTab('/some/other/path')
     useTerminalPanelStore.getState().closeAllTabs()
@@ -73,5 +73,12 @@ describe('terminal-panel-store — single default cwd', () => {
     const id = useTerminalPanelStore.getState().createTab('/explicit/path')
     const tab = useTerminalPanelStore.getState().tabs.find((t) => t.id === id)
     expect(tab?.cwd).toBe('/explicit/path')
+  })
+
+  it('createTab does not open the docked panel', async () => {
+    const { useTerminalPanelStore } = await getStore()
+    useTerminalPanelStore.getState().setPanelOpen(false)
+    useTerminalPanelStore.getState().createTab('~/x')
+    expect(useTerminalPanelStore.getState().isPanelOpen).toBe(false)
   })
 })
