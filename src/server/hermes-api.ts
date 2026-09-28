@@ -29,6 +29,7 @@ import {
   updateSession as updateDashboardSession,
 } from './claude-dashboard-api'
 import { assertProfileResponseOk, scopedPath } from './profile-scope'
+import type { SessionSourceFilter } from './claude-dashboard-api'
 
 const _authHeaders = (): Record<string, string> =>
   BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -309,13 +310,31 @@ export async function checkHealth(): Promise<{ status: string }> {
 
 // ── Sessions ─────────────────────────────────────────────────────
 
+const DASHBOARD_SESSIONS_PAGE_MAX = 100
+
 export async function listSessions(
   limit = 50,
   offset = 0,
+  filter?: SessionSourceFilter,
 ): Promise<Array<ClaudeSession>> {
   if (getCapabilities().dashboard.available) {
-    const resp = await listDashboardSessions(limit, offset)
-    return resp.sessions as Array<ClaudeSession>
+    // hermes-agent 0.21.3 caps dashboard /api/sessions at limit<=100 (422
+    // above it), so larger requests are fetched in pages.
+    const sessions = [] as Array<ClaudeSession>
+    while (sessions.length < limit) {
+      const pageSize = Math.min(
+        DASHBOARD_SESSIONS_PAGE_MAX,
+        limit - sessions.length,
+      )
+      const resp = await listDashboardSessions(
+        pageSize,
+        offset + sessions.length,
+        filter,
+      )
+      sessions.push(...(resp.sessions as Array<ClaudeSession>))
+      if (resp.sessions.length < pageSize) break
+    }
+    return sessions
   }
   const resp = await claudeGet<{ items: Array<ClaudeSession>; total: number }>(
     `/api/sessions?limit=${limit}&offset=${offset}`,

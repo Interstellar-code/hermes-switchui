@@ -81,7 +81,7 @@ describe('applyFiltersAndDecorate', () => {
     expect(result.totalCount).toBe(3)
   })
 
-  it('source filter narrows results', () => {
+  it('a selected source is hidden, not the only one shown', () => {
     const items = [
       makeItem({ id: 'chat:a', src: 'chat' }),
       makeItem({ id: 'task:b', src: 'task' }),
@@ -93,7 +93,7 @@ describe('applyFiltersAndDecorate', () => {
     )
     expect(result.totalCount).toBe(1)
     expect(
-      result.groups.flatMap((g) => g.items).every((i) => i.src === 'chat'),
+      result.groups.flatMap((g) => g.items).every((i) => i.src === 'task'),
     ).toBe(true)
   })
 
@@ -160,9 +160,9 @@ describe('applyFiltersAndDecorate', () => {
       }),
     )
 
-    expect(result.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([
-      'chat:updated',
-    ])
+    expect(
+      result.groups.flatMap((group) => group.items).map((item) => item.id),
+    ).toEqual(['chat:updated'])
   })
 
   it('archived items hidden by default (state = all)', () => {
@@ -311,6 +311,28 @@ describe('applyFiltersAndDecorate', () => {
     expect(result.groups.flatMap((g) => g.items)[0].id).toBe('chat:a')
   })
 
+  it('a search matches outside the date window (search bypasses dateRange)', () => {
+    const items = [
+      makeItem({
+        id: 'chat:old',
+        title: 'needle in the archive',
+        when: new Date('2024-06-01').getTime(),
+        day: 'earlier',
+      }),
+      makeItem({ id: 'chat:new', title: 'unrelated', day: 'today' }),
+    ]
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({
+        query: 'needle',
+        dateRange: { from: '2025-01-01', to: '2025-01-31' },
+      }),
+      makeLocal(),
+    )
+    expect(result.totalCount).toBe(1)
+    expect(result.groups.flatMap((g) => g.items)[0].id).toBe('chat:old')
+  })
+
   it('pinned items appear in Pinned group above Today', () => {
     const now = Date.now()
     const items = [
@@ -415,7 +437,7 @@ describe('applyFiltersAndDecorate', () => {
       makeItem({ id: 'task:a', src: 'task', state: 'idle' }),
       makeItem({ id: 'cron:a', src: 'cron', state: 'idle' }),
     ]
-    // Filter to chat only, but sourceCounts should reflect all sources
+    // Hide chat; every chip still shows what it would contribute.
     const result = applyFiltersAndDecorate(
       items,
       makeFilter({ sources: ['chat'] }),
@@ -424,8 +446,8 @@ describe('applyFiltersAndDecorate', () => {
     expect(result.sourceCounts['chat']).toBe(1)
     expect(result.sourceCounts['task']).toBe(1)
     expect(result.sourceCounts['cron']).toBe(1)
-    // But totalCount reflects the actual source filter
-    expect(result.totalCount).toBe(1)
+    // But totalCount reflects the hidden source
+    expect(result.totalCount).toBe(2)
   })
 
   it('sourceCounts respects state+search+date filters', () => {

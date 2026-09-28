@@ -78,12 +78,7 @@ export function applyFiltersAndDecorate(
   items: Array<SessionFeedItem>,
   filter: Pick<
     FilterState,
-    | 'sources'
-    | 'state'
-    | 'query'
-    | 'dateRange'
-    | 'sort'
-    | 'updatesOnly'
+    'sources' | 'state' | 'query' | 'dateRange' | 'sort' | 'updatesOnly'
   >,
   local: Pick<
     LocalState,
@@ -113,10 +108,13 @@ export function applyFiltersAndDecorate(
       (item.live || !isSessionUpdateUnseen(item.id, item.when, local))
     )
       return false
-    // Pending updates must remain discoverable even after the usual sidebar
-    // date window has moved on.
+    // Pending updates — and anything the user explicitly searched for — must
+    // remain discoverable even after the usual sidebar date window has moved
+    // on. A search that silently drops every hit older than the window reads
+    // as a broken search box.
     return (
       filter.updatesOnly ||
+      Boolean(query) ||
       matchesDateRange(item, filter.dateRange.from, filter.dateRange.to)
     )
   }
@@ -127,11 +125,11 @@ export function applyFiltersAndDecorate(
       sourceCounts[item.src] = (sourceCounts[item.src] ?? 0) + 1
   }
 
-  const sourceSet = new Set(filter.sources)
+  // `filter.sources` is a blocklist: a selected chip hides that source. Empty
+  // = nothing hidden = everything shows.
+  const hiddenSources = new Set(filter.sources)
   const filtered = items.filter(
-    (item) =>
-      (sourceSet.size === 0 || sourceSet.has(item.src)) &&
-      passesBaseFilters(item),
+    (item) => !hiddenSources.has(item.src) && passesBaseFilters(item),
   )
 
   const decorated = sortItems(

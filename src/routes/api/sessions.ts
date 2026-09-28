@@ -29,10 +29,13 @@ import {
 import type { ClaudeSession } from '../../server/hermes-api'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
 
-async function listAllSessions(pageSize = 1000) {
+async function listAllSessions(
+  pageSize = 1000,
+  filter?: Parameters<typeof listSessions>[2],
+) {
   const sessions = [] as Array<Awaited<ReturnType<typeof listSessions>>[number]>
   for (let offset = 0; ; offset += pageSize) {
-    const page = await listSessions(pageSize, offset)
+    const page = await listSessions(pageSize, offset, filter)
     sessions.push(...page)
     if (page.length < pageSize) break
   }
@@ -193,6 +196,17 @@ export const Route = createFileRoute('/api/sessions')({
             }
           }
 
+          // Pass-through source scoping so the sidebar can fetch recents
+          // (exclude_sources=cron) and cron runs (source=cron) as two
+          // windows — otherwise cron volume starves chats out of the page.
+          const source = url.searchParams.get('source') ?? undefined
+          const excludeSources =
+            url.searchParams.get('exclude_sources') ?? undefined
+          const sourceFilter =
+            source || excludeSources
+              ? { source, exclude_sources: excludeSources }
+              : undefined
+
           if (requestedProfile) {
             const profileLimit = Number(url.searchParams.get('limit'))
             const profileOffset = Number(url.searchParams.get('offset'))
@@ -204,6 +218,7 @@ export const Route = createFileRoute('/api/sessions')({
               Number.isFinite(profileOffset) && profileOffset > 0
                 ? profileOffset
                 : 0,
+              sourceFilter,
             )
             return Response.json({
               ok: true,
@@ -240,8 +255,12 @@ export const Route = createFileRoute('/api/sessions')({
             ? Math.max(0, offset - localSessions.length)
             : 0
           const sessions = hasPagination
-            ? await listSessions(limit + localSessions.length, gatewayOffset)
-            : await listAllSessions(limit)
+            ? await listSessions(
+                limit + localSessions.length,
+                gatewayOffset,
+                sourceFilter,
+              )
+            : await listAllSessions(limit, sourceFilter)
           const gatewaySessions = sessions.map(toSessionSummary)
 
           // Merge local portable sessions (Ollama, Atomic Chat, etc.)

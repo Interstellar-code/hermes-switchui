@@ -6,6 +6,7 @@ import { SidebarSourceChipsV2 } from './sidebar-source-chips-v2'
 const filterStore = {
   sources: [] as Array<string>,
   toggleSource: vi.fn(),
+  clearSources: vi.fn(),
   reset: vi.fn(),
 }
 
@@ -21,6 +22,7 @@ describe('SidebarSourceChipsV2 attention markers', () => {
   beforeEach(() => {
     filterStore.sources = []
     filterStore.toggleSource.mockReset()
+    filterStore.clearSources.mockReset()
     filterStore.reset.mockReset()
   })
 
@@ -50,14 +52,49 @@ describe('SidebarSourceChipsV2 attention markers', () => {
     )
   })
 
-  it('uses the calm selection color without an attention glow', () => {
+  it('draws a selected source chip as hidden, not as the current view', () => {
     filterStore.sources = ['chat']
     render(<SidebarSourceChipsV2 sourceCounts={{ chat: 1 }} />)
 
     const chip = screen.getByTestId('chip-chat')
-    expect(chip.getAttribute('data-attention')).toBeNull()
-    expect(chip.getAttribute('style')).toContain('var(--m-info, #5fcfff)')
+    expect(chip.getAttribute('aria-pressed')).toBe('true')
+    expect(chip.getAttribute('aria-label')).toBe('CHAT hidden')
+    expect(chip.getAttribute('style')).toContain('line-through')
     expect(chip.getAttribute('style')).toContain('box-shadow: none')
   })
 
+  it('a hidden source neither glows nor pulses', () => {
+    filterStore.sources = ['chat']
+    const { rerender } = render(
+      <SidebarSourceChipsV2
+        sourceCounts={{ chat: 1 }}
+        attention={{ chat: { live: true, updated: false } }}
+      />,
+    )
+    const hiddenChip = screen.getByTestId('chip-chat')
+    const hidden = hiddenChip.getAttribute('style')
+    expect(hiddenChip.classList.contains('session-attention-pulse')).toBe(false)
+    expect(hiddenChip.getAttribute('data-attention')).toBeNull()
+
+    filterStore.sources = []
+    rerender(
+      <SidebarSourceChipsV2
+        sourceCounts={{ chat: 1 }}
+        attention={{ chat: { live: true, updated: false } }}
+      />,
+    )
+    const shownChip = screen.getByTestId('chip-chat')
+    expect(shownChip.getAttribute('style')).not.toBe(hidden)
+    expect(shownChip.classList.contains('session-attention-pulse')).toBe(true)
+  })
+
+  it('the ALL chip clears hidden sources without resetting other filters', () => {
+    filterStore.sources = ['chat']
+    render(<SidebarSourceChipsV2 sourceCounts={{ chat: 1 }} />)
+
+    screen.getByRole('button', { name: 'ALL' }).click()
+
+    expect(filterStore.clearSources).toHaveBeenCalledTimes(1)
+    expect(filterStore.reset).not.toHaveBeenCalled()
+  })
 })

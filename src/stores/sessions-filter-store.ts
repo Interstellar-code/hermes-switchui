@@ -7,14 +7,22 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { SessionDateRange, SessionFeedSort, SessionSource, SessionState } from '@/screens/chat/sessions-feed-types'
+import type {
+  SessionDateRange,
+  SessionFeedSort,
+  SessionSource,
+  SessionState,
+} from '@/screens/chat/sessions-feed-types'
 import { UNSCOPED_PROFILE, setDeviceSessionProfile } from '@/lib/session-scope'
 
 export { UNSCOPED_PROFILE }
 
 export type FilterState = {
-  version: 8
-  /** Multi-select; empty array = all sources (no implicit "All" chip). */
+  version: 9
+  /**
+   * Sources to HIDE. A selected source chip excludes that source from the
+   * list; empty array = nothing hidden = everything shows.
+   */
   sources: Array<SessionSource>
   /** Single-select; kept for compatibility, sidebar uses all. */
   state: SessionState | 'all'
@@ -51,6 +59,7 @@ export type FilterState = {
 
 type FilterActions = {
   toggleSource: (src: SessionSource) => void
+  clearSources: () => void
   setState: (s: SessionState | 'all') => void
   setQuery: (q: string) => void
   setDateRange: (from: string | null, to: string | null) => void
@@ -62,20 +71,23 @@ type FilterActions = {
   reset: () => void
 }
 
-function toISODate(d: Date): string {
-  return d.toISOString().slice(0, 10)
-}
-
+/**
+ * No window by default.
+ *
+ * This used to return a rolling 7-day range. Persisted, that range froze at the
+ * date of first load — `migrate` returns a same-version payload verbatim — so
+ * weeks later the sidebar was silently clipped to a dead window nobody picked.
+ * Chip counts went to zero and toggling a source looked like a no-op. A filter
+ * the user never chose must not hide their sessions; the date popover still
+ * offers 7d for anyone who wants it.
+ */
 export function buildDefaultDateRange(): SessionDateRange {
-  const now = new Date()
-  const from = new Date(now)
-  from.setDate(from.getDate() - 7)
-  return { from: toISODate(from), to: toISODate(now) }
+  return { from: null, to: null }
 }
 
 function buildInitialState(): FilterState {
   return {
-    version: 8,
+    version: 9,
     sources: [],
     state: 'all',
     query: '',
@@ -102,6 +114,8 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
             : [...s.sources, src],
         })),
 
+      clearSources: () => set({ sources: [] }),
+
       setState: (state) => set({ state }),
 
       setQuery: (query) => set({ query }),
@@ -124,21 +138,25 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
     {
       name: 'hermes.sessions.filter',
       migrate: (persisted, _version) => {
-        const stored = (persisted ?? {}) as Partial<FilterState> & { version?: number }
+        const stored = (persisted ?? {}) as Partial<FilterState> & {
+          version?: number
+        }
         const v = Number(stored.version) || 0
         const defaults = buildInitialState()
-        const storedDateRange = stored.dateRange ?? { from: null, to: null }
-        const hasExplicitDateRange = Boolean(storedDateRange.from || storedDateRange.to)
+        if (v === 9) return stored as FilterState
 
-        if (v === 8) return stored as FilterState
-
-        if (v >= 2 && v <= 7) {
+        if (v >= 2 && v <= 8) {
           return {
             ...defaults,
             ...stored,
-            version: 8,
+            version: 9,
             sources: v === 3 ? [] : (stored.sources ?? defaults.sources),
-            dateRange: hasExplicitDateRange ? storedDateRange : defaults.dateRange,
+            // Dropped, not carried forward. Every v<=8 payload has a concrete
+            // date window in it, and there is no way to tell one the user chose
+            // from the rolling 7-day default that froze on the day they first
+            // loaded the app. A stale window silently empties the sidebar, so
+            // the safe read of an ambiguous value is "no window".
+            dateRange: defaults.dateRange,
             // Deliberately dropped, not carried forward. Through v7 this field
             // only filtered a list; from v8 it also decides where messages are
             // sent. Promoting a browse selection somebody made months ago into
@@ -150,7 +168,7 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
         }
         return defaults
       },
-      version: 8,
+      version: 9,
     },
   ),
 )

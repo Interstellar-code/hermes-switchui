@@ -123,8 +123,13 @@ describe('GET /api/sessions', () => {
     const body = (await res.json()) as { sessions: Array<{ id: string }> }
 
     expect(res.status).toBe(200)
-    expect(hermes.listSessions).toHaveBeenNthCalledWith(1, 1000, 0)
-    expect(hermes.listSessions).toHaveBeenNthCalledWith(2, 1000, 1000)
+    expect(hermes.listSessions).toHaveBeenNthCalledWith(1, 1000, 0, undefined)
+    expect(hermes.listSessions).toHaveBeenNthCalledWith(
+      2,
+      1000,
+      1000,
+      undefined,
+    )
     expect(body.sessions).toHaveLength(1002)
     expect(body.sessions.at(-1)?.id).toBe('s-1001')
   })
@@ -149,7 +154,7 @@ describe('GET /api/sessions', () => {
 
     expect(res.status).toBe(200)
     expect(hermes.listSessions).toHaveBeenCalledTimes(1)
-    expect(hermes.listSessions).toHaveBeenCalledWith(200, 200)
+    expect(hermes.listSessions).toHaveBeenCalledWith(200, 200, undefined)
     expect(body.sessions).toEqual([
       { id: 's-200', key: 's-200', friendlyId: 's-200' },
     ])
@@ -186,7 +191,7 @@ describe('GET /api/sessions', () => {
     })
     const body = (await res.json()) as { sessions: Array<{ id: string }> }
 
-    expect(hermes.listSessions).toHaveBeenCalledWith(3, 0)
+    expect(hermes.listSessions).toHaveBeenCalledWith(3, 0, undefined)
     expect(body.sessions.map((session) => session.id)).toEqual([
       'gateway-new',
       'local-new',
@@ -315,13 +320,41 @@ describe('GET /api/sessions?profile=', () => {
     }
 
     expect(res.status).toBe(200)
-    expect(dashboard.listProfileSessions).toHaveBeenCalledWith('all', 1, 0)
+    expect(dashboard.listProfileSessions).toHaveBeenCalledWith(
+      'all',
+      1,
+      0,
+      undefined,
+    )
     // The unscoped active-profile listing is the silent wrong-profile hazard.
     expect(hermes.listSessions).not.toHaveBeenCalled()
     expect(body.profile_totals).toEqual({ neo: 306, default: 12 })
     expect(body.sessions).toEqual([
       { key: 'neo-1', friendlyId: 'neo-1', profile: 'neo' },
     ])
+  })
+
+  it('forwards source scoping so cron and recents are separate windows', async () => {
+    hermes.ensureGatewayProbed.mockResolvedValue({ sessions: true })
+    profileScope.readProfile.mockImplementation(realReadProfile)
+    dashboard.listProfileSessions.mockResolvedValue({
+      sessions: [],
+      total: 0,
+      limit: 200,
+      offset: 0,
+    })
+
+    const handler = await getHandler()
+    await handler({
+      request: new Request(
+        'http://localhost/api/sessions?profile=neo&limit=200&exclude_sources=cron',
+      ),
+    })
+
+    expect(dashboard.listProfileSessions).toHaveBeenCalledWith('neo', 200, 0, {
+      source: undefined,
+      exclude_sources: 'cron',
+    })
   })
 
   it('passes the dashboard errors[] through so a schema-drifted profile reads as degraded, not as 0', async () => {
@@ -390,7 +423,7 @@ describe('GET /api/sessions?profile=', () => {
 
     expect(res.status).toBe(200)
     expect(dashboard.listProfileSessions).not.toHaveBeenCalled()
-    expect(hermes.listSessions).toHaveBeenCalledWith(10, 0)
+    expect(hermes.listSessions).toHaveBeenCalledWith(10, 0, undefined)
     expect(body.sessions).toEqual([{ key: 's-1', friendlyId: 's-1' }])
   })
 })
