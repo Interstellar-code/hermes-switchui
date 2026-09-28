@@ -3,6 +3,19 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.41] — 2026-09-28
+
+### Added
+
+- **Delete A Backup From Its Card**: Backups could be created, downloaded and restored, but never removed — old archives piled up in the profile's backups folder with no way out short of the file manager. Each card now has a Delete button behind the in-app confirmation. hermes-agent's dashboard has no delete endpoint, so SwitchUI removes the archive itself, and only a real `.zip` sitting directly in the active profile's backups folder: no traversal, no subfolders, no symlinks.
+- **Compress From The Context-Full Warning**: The warning that your conversation was nearly full offered "Got it" and "New chat" — acknowledge the problem or abandon the conversation. It now also offers **Compress**, which runs `/compress` for the current chat. It waits while a reply is still streaming. The warning's text also said auto-compaction triggers at ~40%; it triggers at `compression.threshold`, 50% by default, and now says so.
+
+### Fixed
+
+- **Remove Did Nothing On Providers, Plugins And Backups**: The shared confirmation dialog took its styling from the Profiles and Jobs stylesheets. Open Providers first in a session and the dialog rendered as an unstyled block at the foot of the page, behind the drawer — so clicking Remove looked like it did nothing at all. The dialog now carries its own styles and looks the same wherever it opens.
+- **The Terminal Turned Up On Pages You Never Opened It On**: Creating a terminal tab also switched the docked panel on, and that choice was remembered. Tabs get created on the Terminal page and by the terminal kept loaded in the background, so after using it the docked terminal appeared at the bottom of the next page — Files, say. Creating a tab no longer opens the panel; the panel opens when you toggle it (Ctrl/⌘+`). If it shows once more after updating, close it and it stays closed.
+- **Deleting A Workflow Asked The Browser, Then Didn't Delete**: The workflow Delete button used the browser's own confirm box, and the request it sent was missing its JSON content type, so the server's cross-site-request guard rejected it — silently, since nothing reported the failure. It now uses the in-app dialog, sends a well-formed request, and tells you whether it worked. A workflow that has ever been run still can't be deleted, because hermes-agent's run history holds on to it ([hermes-agent#250](https://github.com/Interstellar-code/hermes-agent/issues/250)); instead of a generic error you now get "Can't delete — this workflow has run history".
+
 ## [2.5.40] — 2026-09-28
 
 ### Added
