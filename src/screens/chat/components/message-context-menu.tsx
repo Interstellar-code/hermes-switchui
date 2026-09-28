@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy01Icon, RefreshIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Reply } from 'lucide-react'
+import { Reply, TextQuote } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ContextMenuPoint } from '@/lib/context-menu'
 import { clampContextMenuPosition } from '@/lib/context-menu'
@@ -80,7 +80,16 @@ export function MessageContextMenu({
     if (typeof window === 'undefined') return position
     return clampContextMenuPosition(
       position,
-      { width: 188, height: onQuote ? (onReply && onRetry ? 184 : 148) : (onReply && onRetry ? 148 : 112) },
+      {
+        width: 188,
+        height: onQuote
+          ? onReply && onRetry
+            ? 184
+            : 148
+          : onReply && onRetry
+            ? 148
+            : 112,
+      },
       { width: window.innerWidth, height: window.innerHeight },
     )
   }, [onQuote, onReply, onRetry, position])
@@ -139,7 +148,7 @@ export function MessageContextMenu({
       ) : null}
       {onQuote ? (
         <MenuAction
-          icon={<Reply size={15} strokeWidth={1.8} />}
+          icon={<TextQuote size={15} strokeWidth={1.8} />}
           label="Quote"
           onClick={() => {
             onQuote()
@@ -149,7 +158,9 @@ export function MessageContextMenu({
       ) : null}
       {onRetry ? (
         <MenuAction
-          icon={<HugeiconsIcon icon={RefreshIcon} size={15} strokeWidth={1.8} />}
+          icon={
+            <HugeiconsIcon icon={RefreshIcon} size={15} strokeWidth={1.8} />
+          }
           label="Retry"
           danger
           onClick={() => {
