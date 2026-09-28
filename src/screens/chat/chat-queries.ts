@@ -114,11 +114,37 @@ export const DEFAULT_CHAT_HISTORY_LIMIT = 150
 export const DEFAULT_SESSION_LIST_LIMIT = 200
 
 export async function fetchSessions(): Promise<Array<SessionMeta>> {
+  return fetchSessionWindows(getSessionProfile())
+}
+
+// Two windows: recent non-cron sessions and recent cron runs. A single
+// newest-N window lets high-volume cron runs push every chat out of it.
+async function fetchSessionWindows(
+  profile: string | null | undefined,
+): Promise<Array<SessionMeta>> {
+  const [recents, cron] = await Promise.all([
+    fetchSessionWindow({ exclude_sources: 'cron' }, profile),
+    fetchSessionWindow({ source: 'cron' }, profile),
+  ])
+  const seen = new Set<string>()
+  return [...recents, ...cron]
+    .filter((session) => {
+      if (seen.has(session.key)) return false
+      seen.add(session.key)
+      return true
+    })
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+}
+
+async function fetchSessionWindow(
+  filter: Record<string, string>,
+  profile: string | null | undefined,
+): Promise<Array<SessionMeta>> {
   const query = new URLSearchParams({
     limit: String(DEFAULT_SESSION_LIST_LIMIT),
     offset: '0',
+    ...filter,
   })
-  const profile = getSessionProfile()
   if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
   if (!res.ok) {
@@ -142,19 +168,7 @@ export async function fetchSessions(): Promise<Array<SessionMeta>> {
 export async function fetchProfileSessions(
   profile: string,
 ): Promise<Array<SessionMeta>> {
-  const query = new URLSearchParams({
-    profile,
-    limit: String(DEFAULT_SESSION_LIST_LIMIT),
-    offset: '0',
-  })
-  const res = await fetch(`/api/sessions?${query.toString()}`)
-  if (!res.ok) {
-    const error = new Error(await readError(res)) as Error & { status?: number }
-    error.status = res.status
-    throw error
-  }
-  const data = (await res.json()) as SessionListResponse
-  return normalizeSessions(data.sessions)
+  return fetchSessionWindows(profile)
 }
 
 export async function fetchSession(

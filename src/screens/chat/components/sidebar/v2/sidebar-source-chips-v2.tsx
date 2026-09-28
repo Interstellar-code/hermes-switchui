@@ -5,7 +5,8 @@
  *
  * Phase 3b: ALL chip, source icons, count badges, availability gating.
  * 8 chips: ALL, CHAT, RECOVERED, CRON, TASKS, API, CLI, A2A, TELEGRAM
- * ALL chip clears sources. Other chips toggle in/out.
+ * Source chips are a blocklist: a selected chip HIDES that source. ALL clears
+ * every hidden source. Empty selection = nothing hidden = everything shows.
  * Hidden chips: sources where available === false.
  */
 
@@ -203,9 +204,9 @@ export function SidebarSourceChipsV2({
   sourceCounts,
   attention,
 }: SidebarSourceChipsV2Props) {
-  const sources = useSessionsFilterStore((s) => s.sources)
+  const hidden = useSessionsFilterStore((s) => s.sources)
   const toggleSource = useSessionsFilterStore((s) => s.toggleSource)
-  const reset = useSessionsFilterStore((s) => s.reset)
+  const clearSources = useSessionsFilterStore((s) => s.clearSources)
 
   // Build availability map
   const availabilityMap: Partial<Record<SessionSource, boolean>> = {}
@@ -215,7 +216,7 @@ export function SidebarSourceChipsV2({
     }
   }
 
-  const isAllActive = sources.length === 0
+  const isAllActive = hidden.length === 0
 
   // Total count for ALL chip
   const totalCount = sourceCounts
@@ -230,10 +231,9 @@ export function SidebarSourceChipsV2({
   )
 
   const handleAllClick = () => {
-    // Clear all sources (= show all)
-    if (!isAllActive) {
-      reset()
-    }
+    // Un-hide every source. Only the source chips — the date window, search and
+    // profile are separate controls and clearing them here surprises people.
+    if (!isAllActive) clearSources()
   }
 
   return (
@@ -292,14 +292,15 @@ export function SidebarSourceChipsV2({
           return null
         }
 
-        const active = sources.includes(id)
+        const isHidden = hidden.includes(id)
 
         return (
           <Chip
             key={id}
             label={label}
             icon={icon}
-            active={active}
+            active={isHidden}
+            excluded={isHidden}
             count={count}
             accentColor={SOURCE_COLORS[id]}
             live={attention?.[id]?.live ?? false}
@@ -319,6 +320,8 @@ interface ChipProps {
   label: string
   icon: React.ReactNode
   active: boolean
+  /** Active means "this source is hidden" — draw it struck out, not selected. */
+  excluded?: boolean
   count?: number
   accentColor: string
   live?: boolean
@@ -331,6 +334,7 @@ function Chip({
   label,
   icon,
   active,
+  excluded = false,
   count,
   accentColor,
   live = false,
@@ -338,39 +342,52 @@ function Chip({
   onClick,
   'data-testid': testId,
 }: ChipProps) {
-  const hasAttention = live || updated
-  const visualColor = hasAttention
-    ? accentColor
+  // A hidden source draws no attention: its sessions are not in the list, so
+  // pulsing at the user about them is noise they cannot act on.
+  const hasAttention = (live || updated) && !excluded
+  // Selection wins over attention for the chip's chrome: a live chip that is
+  // also selected must still *look* selected, or clicking it reads as a no-op.
+  // Attention keeps the glow and the pulse, which selection never draws.
+  const visualColor = excluded
+    ? 'var(--theme-muted)'
     : active
       ? SELECTED_FILTER_COLOR
-      : 'var(--theme-muted)'
+      : hasAttention
+        ? accentColor
+        : 'var(--theme-muted)'
   return (
     <button
       type="button"
       role="button"
       aria-pressed={active}
       aria-label={
-        live
-          ? `${label} has active sessions`
-          : updated
-            ? `${label} has unread updates`
-            : label
+        excluded
+          ? `${label} hidden`
+          : live
+            ? `${label} has active sessions`
+            : updated
+              ? `${label} has unread updates`
+              : label
       }
       onClick={onClick}
       data-testid={testId}
       data-attention={hasAttention || undefined}
-      className={`m-chip flex items-center gap-1 rounded-full px-2 py-0.5 transition-all${live ? ' session-attention-pulse' : ''}`}
+      className={`m-chip flex items-center gap-1 rounded-full px-2 py-0.5 transition-all${live && !excluded ? ' session-attention-pulse' : ''}`}
       style={{
-        background:
-          hasAttention
-            ? `color-mix(in srgb, ${accentColor} 18%, transparent)`
-            : active
-              ? `color-mix(in srgb, ${SELECTED_FILTER_COLOR} 18%, transparent)`
-            : 'var(--theme-card)',
+        background: excluded
+          ? 'transparent'
+          : active
+            ? `color-mix(in srgb, ${SELECTED_FILTER_COLOR} 18%, transparent)`
+            : hasAttention
+              ? `color-mix(in srgb, ${accentColor} 18%, transparent)`
+              : 'var(--theme-card)',
         color: visualColor,
-        border: `1px solid ${hasAttention || active ? visualColor : 'var(--theme-border)'}`,
-        boxShadow:
-          live
+        opacity: excluded ? 0.5 : 1,
+        textDecoration: excluded ? 'line-through' : 'none',
+        border: `1px ${excluded ? 'dashed' : 'solid'} ${hasAttention || active ? visualColor : 'var(--theme-border)'}`,
+        boxShadow: excluded
+          ? 'none'
+          : live
             ? `0 0 6px ${accentColor}66`
             : updated
               ? `0 0 4px ${accentColor}55`
@@ -392,12 +409,11 @@ function Chip({
         <span
           className="m-mono rounded-full px-1"
           style={{
-            background:
-              hasAttention
+            background: active
+              ? `color-mix(in srgb, ${SELECTED_FILTER_COLOR} 30%, transparent)`
+              : hasAttention
                 ? `color-mix(in srgb, ${accentColor} 30%, transparent)`
-                : active
-                  ? `color-mix(in srgb, ${SELECTED_FILTER_COLOR} 30%, transparent)`
-                  : 'var(--theme-border)',
+                : 'var(--theme-border)',
             color: visualColor,
             fontSize: 9,
             lineHeight: '14px',

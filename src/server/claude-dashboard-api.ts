@@ -152,16 +152,33 @@ async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+/** Dashboard-side source scoping: `source=cron` or `exclude_sources=cron`. */
+export type SessionSourceFilter = {
+  source?: string
+  exclude_sources?: string
+}
+
+function sourceFilterQuery(filter: SessionSourceFilter = {}): string {
+  let q = ''
+  if (filter.source) q += `&source=${encodeURIComponent(filter.source)}`
+  if (filter.exclude_sources)
+    q += `&exclude_sources=${encodeURIComponent(filter.exclude_sources)}`
+  return q
+}
+
 export async function listSessions(
   limit = 50,
   offset = 0,
+  filter?: SessionSourceFilter,
 ): Promise<{
   sessions: Array<DashboardSession>
   total: number
   limit: number
   offset: number
 }> {
-  return dashboardJson(`/api/sessions?limit=${limit}&offset=${offset}`)
+  return dashboardJson(
+    `/api/sessions?limit=${limit}&offset=${offset}${sourceFilterQuery(filter)}`,
+  )
 }
 
 export async function getSession(id: string): Promise<DashboardSession> {
@@ -191,6 +208,7 @@ export async function listProfileSessions(
   profile: string,
   limit = 50,
   offset = 0,
+  filter?: SessionSourceFilter,
 ): Promise<{
   sessions: Array<DashboardProfileSession>
   total: number
@@ -200,7 +218,7 @@ export async function listProfileSessions(
   errors?: Array<{ profile: string; error: string }>
 }> {
   return dashboardJson(
-    `/api/profiles/sessions?profile=${encodeURIComponent(profile)}&limit=${limit}&offset=${offset}`,
+    `/api/profiles/sessions?profile=${encodeURIComponent(profile)}&limit=${limit}&offset=${offset}${sourceFilterQuery(filter)}`,
   )
 }
 
