@@ -28,7 +28,21 @@ export const Route = createFileRoute('/api/workflow-definitions/$id')({
         if (existing.source === 'bundled') {
           return Response.json({ error: 'bundled definitions are read-only' }, { status: 403 });
         }
-        const rowsAffected = await engine.deleteWorkflowDefinition(params.id);
+        let rowsAffected: number;
+        try {
+          rowsAffected = await engine.deleteWorkflowDefinition(params.id);
+        } catch (err) {
+          // The plugin's workflow_runs FK has no ON DELETE, so any definition
+          // with run history 500s (hermes-agent#250). Say why instead.
+          const runs = await engine.listRuns({ workflowId: params.id, limit: 1 }).catch(() => []);
+          if (runs.length > 0) {
+            return Response.json(
+              { error: "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250)." },
+              { status: 409 },
+            );
+          }
+          throw err;
+        }
         if (rowsAffected === 0) return Response.json({ error: 'not found' }, { status: 404 });
         // Phase 2: always plugin path — plugin manages its own manifest state.
 return Response.json({ ok: true });
