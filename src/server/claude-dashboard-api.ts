@@ -140,6 +140,12 @@ export type DashboardStatus = {
 export type SessionMessagesQuery = {
   limit?: number
   offset?: number
+  /**
+   * `latest` pages from the newest end. hermes-agent defaults to `oldest`
+   * whenever a limit is given, so a capped fetch without this returns the
+   * chat's first N messages, not its last.
+   */
+  order?: 'oldest' | 'latest'
 }
 
 async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -237,6 +243,7 @@ export async function getSessionMessages(
   if (typeof query.offset === 'number' && Number.isFinite(query.offset)) {
     params.set('offset', String(query.offset))
   }
+  if (query.order) params.set('order', query.order)
   const suffix = params.size > 0 ? `?${params.toString()}` : ''
   return dashboardJson(
     `/api/sessions/${encodeURIComponent(id)}/messages${suffix}`,

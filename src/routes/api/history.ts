@@ -27,7 +27,10 @@ export const Route = createFileRoute('/api/history')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         await ensureGatewayProbed()
         if (!getGatewayCapabilities().sessions) {
@@ -41,7 +44,9 @@ export const Route = createFileRoute('/api/history')({
         }
         try {
           const url = new URL(request.url)
-          const limit = Number(url.searchParams.get('limit') || String(DEFAULT_HISTORY_LIMIT))
+          const limit = Number(
+            url.searchParams.get('limit') || String(DEFAULT_HISTORY_LIMIT),
+          )
           const rawSessionKey = url.searchParams.get('sessionKey')?.trim()
           const friendlyId = url.searchParams.get('friendlyId')?.trim()
           const profile = readProfile(url.searchParams.get('profile'))
@@ -93,14 +98,22 @@ export const Route = createFileRoute('/api/history')({
               // Resolution failure stays soft: an unresolvable "main" simply
               // presents as a fresh chat rather than an error (#217). The
               // messages-fetch failure below is the one that must surface 503.
-              return Response.json({ sessionKey: 'new', sessionId: 'new', messages: [] })
+              return Response.json({
+                sessionKey: 'new',
+                sessionId: 'new',
+                messages: [],
+              })
             }
           }
           let messages: Awaited<ReturnType<typeof getMessages>> = []
           try {
             messages = await getMessages(
               sessionKey,
-              { limit: limit > 0 ? limit : undefined, offset: 0 },
+              {
+                limit: limit > 0 ? limit : undefined,
+                offset: 0,
+                order: 'latest',
+              },
               profile,
             )
           } catch (err) {

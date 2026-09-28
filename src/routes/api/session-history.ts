@@ -27,7 +27,10 @@ export const Route = createFileRoute('/api/session-history')({
     handlers: {
       GET: async ({ request }) => {
         if (!isAuthenticated(request)) {
-          return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 })
+          return Response.json(
+            { ok: false, error: 'Unauthorized' },
+            { status: 401 },
+          )
         }
         await ensureGatewayProbed()
         const url = new URL(request.url)
@@ -41,13 +44,22 @@ export const Route = createFileRoute('/api/session-history')({
         // back the active profile's transcript under the scoped chat's id.
         const profile = readProfile(url.searchParams.get('profile'))
         if (!key) {
-          return Response.json({ ok: false, messages: [], error: 'key is required' })
+          return Response.json({
+            ok: false,
+            messages: [],
+            error: 'key is required',
+          })
         }
         // Try local store first (in-memory sessions)
         const local = getLocalSession(key)
         if (local) {
           const messages = getLocalMessages(key).slice(-limit)
-          return Response.json({ ok: true, messages, sessionKey: key, source: 'local' })
+          return Response.json({
+            ok: true,
+            messages,
+            sessionKey: key,
+            source: 'local',
+          })
         }
         if (!getGatewayCapabilities().sessions) {
           return Response.json({
@@ -81,7 +93,11 @@ export const Route = createFileRoute('/api/session-history')({
           }
           const rows = await getMessages(
             effectiveSessionKey,
-            { limit: limit > 0 ? limit : undefined, offset: 0 },
+            {
+              limit: limit > 0 ? limit : undefined,
+              offset: 0,
+              order: 'latest',
+            },
             profile,
           )
           const trimmed = rows.slice(-limit)

@@ -54,4 +54,14 @@ describe('getMessages', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0]?.id).toBe(2)
   })
+
+  it('forwards order=latest (hermes defaults a limited fetch to oldest)', async () => {
+    vi.mocked(getSessionMessages).mockResolvedValue({ messages: [] })
+    await getMessages('session-1', { limit: 150, offset: 0, order: 'latest' })
+    expect(getSessionMessages).toHaveBeenCalledWith('session-1', {
+      limit: 150,
+      offset: 0,
+      order: 'latest',
+    })
+  })
 })

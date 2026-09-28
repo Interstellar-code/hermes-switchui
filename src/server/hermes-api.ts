@@ -97,6 +97,9 @@ export type ClaudeConfig = {
 export type SessionMessagesQuery = {
   limit?: number
   offset?: number
+  /** See claude-dashboard-api's SessionMessagesQuery — hermes defaults to
+   * `oldest` whenever a limit is given. */
+  order?: 'oldest' | 'latest'
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -447,6 +450,7 @@ export async function getMessages(
   if (typeof query.offset === 'number' && Number.isFinite(query.offset)) {
     params.set('offset', String(query.offset))
   }
+  if (query.order) params.set('order', query.order)
   const suffix = params.size > 0 ? `?${params.toString()}` : ''
   const resp = await claudeGet<{
     items?: Array<ClaudeMessage>
