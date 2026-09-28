@@ -3,6 +3,18 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.40] — 2026-09-28
+
+### Added
+
+- **Quoting Became A Real Feature Instead Of A Reply In Disguise**: Quote used to be Reply with a different label — the same icon in the menu, the same "Reply to #N" chip in the composer, the same one-line card on the sent message. It also flattened what you quoted: newlines collapsed to spaces, the text cut to 140 characters on the way out and 80 on the way back, so a quoted block of code arrived as a single broken line. Quoting a second passage replaced the first. Quotes now have their own icon and accent everywhere, keep line breaks and indentation up to 4,000 characters, and stack — quote several passages, remove any one of them, and pair them with a reply. The agent receives each quote as a full markdown blockquote rather than a truncated snippet. Selecting text inside a message now shows a floating **Quote** button, and **⌘/Ctrl+Shift+Q** quotes the selection; right-click still works. Messages sent in the old format still render as before.
+
+### Fixed
+
+- **`#N` References Pointed At The Wrong Message After Filtering**: A reply or quote numbered its target by position in the list on screen, so the same message got a different number depending on what was filtered or de-duplicated at the time. Numbering now counts over the loaded history, before any display filtering.
+- **Search And Filters Only Saw About Ten Of Your Sessions**: hermes-agent 0.21.3 rejects session-list requests above 100 rows, so larger requests failed and the sidebar fell back to a tiny window. Requests are now fetched in pages. Cron runs are fetched as their own window so a busy schedule no longer pushes your chats out of the list, the source filter's include/exclude logic is corrected, and the implicit default date range that hid older sessions is gone.
+- **Agent Working Directory Resolution Drifted From hermes-agent 0.21.3**: Source references followed the upstream module split, and the new `vercel_sandbox` backend is recognised with its `/vercel/sandbox` default directory.
+
 ## [2.5.39] — 2026-09-15
 
 ### Fixed
