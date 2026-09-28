@@ -70,6 +70,14 @@ jobs:
                  mkdir -p "$dir"
                fi
              done
+             # docs/ holds the embedded Starlight docs. Its subdirs predate the
+             # loop above and some lack group write, so rsync hits
+             # "Permission denied" (exit 23) on them. Best-effort: if the
+             # sudoers rule does not cover docs/, warn instead of failing here.
+             if [ -e "${{ secrets.DEPLOY_PATH }}/docs" ]; then
+               sudo -n /bin/chmod -R g+rwX "${{ secrets.DEPLOY_PATH }}/docs" \
+                 || echo "warn: could not restore group write on docs/ (sudoers?)"
+             fi
              echo "dirs recreated"'
 
       - name: Deploy dist/ to web root
