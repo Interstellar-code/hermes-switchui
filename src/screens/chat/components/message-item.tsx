@@ -1,7 +1,7 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowDown01Icon, Idea01Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Reply } from 'lucide-react'
+import { Reply, TextQuote } from 'lucide-react'
 import {
   getMessageTimestamp,
   getToolCallsFromMessage,
@@ -9,6 +9,7 @@ import {
   hasVisibleText,
   textFromMessage,
 } from '../utils'
+import { parseMessageMarkers } from '../quote-markers'
 import { MessageActionsBar } from './message-actions-bar'
 import { MessageContextMenu } from './message-context-menu'
 import {
@@ -17,11 +18,13 @@ import {
 } from './streaming-activity-ui'
 import { selectVisibleLifecycleEvents } from './streaming-lifecycle-ui'
 import { TuiActivityCard, attachClarifyCard } from './tui-activity-card'
+import { getContainedSelectionText, useSelectionQuote } from './selection-quote'
 import type { ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import type { MessageContextMenuPosition } from './message-context-menu'
 import type { ChatAttachment, ChatMessage, ToolCallContent } from '../types'
 import type { ToolPart } from '@/components/prompt-kit/tool'
+import type { QuoteRef } from '../quote-markers'
 import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
 import { AssistantAvatar, UserAvatar } from '@/components/avatars'
 import { CodeBlock } from '@/components/prompt-kit/code-block'
@@ -50,15 +53,10 @@ const WORDS_PER_TICK = 4
 const TICK_INTERVAL_MS = 50
 const STUCK_SENDING_THRESHOLD_MS = 120_000
 const REPLY_REFERENCE_SNIPPET_LIMIT = 80
-const SENTINEL_REPLY_MARKER_PATTERN =
-  /^\u200B\[reply:#(\d+)\]\s*([^\r\n]*)(?:\r?\n){2}/
-const BLOCKQUOTE_REPLY_MARKER_PATTERN =
-  /^>\s*\[Re:\s*#(\d+)\]\s*([^\r\n]*)(?:\r?\n){2}/
 
 type ReplyReference = {
   seq: number
   snippet: string
-  body: string
 }
 
 const USER_REPLY_MARKDOWN_COMPONENTS = {
@@ -155,29 +153,28 @@ const USER_MARKDOWN_COMPONENTS = {
   },
 } satisfies Partial<Components>
 
-function normalizeReplyReferenceSnippet(value: string): string {
-  return value.replace(/\s+/g, ' ').trim()
-}
-
 function truncateReplyReferenceSnippet(value: string): string {
   if (value.length <= REPLY_REFERENCE_SNIPPET_LIMIT) return value
   return `${value.slice(0, REPLY_REFERENCE_SNIPPET_LIMIT).trimEnd()}…`
 }
 
-function parseReplyReference(content: string): ReplyReference | null {
-  const match =
-    content.match(SENTINEL_REPLY_MARKER_PATTERN) ??
-    content.match(BLOCKQUOTE_REPLY_MARKER_PATTERN)
-  if (!match) return null
-
-  const seq = Number.parseInt(match[1], 10)
-  if (!Number.isFinite(seq)) return null
-
-  return {
-    seq,
-    snippet: normalizeReplyReferenceSnippet(match[2]),
-    body: content.slice(match[0].length),
-  }
+function QuoteReferenceBlock({ quote }: { quote: QuoteRef }) {
+  return (
+    <div className="rounded-lg border border-border/70 border-l-2 border-l-amber-500 bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-1.5">
+        <TextQuote
+          className="size-3.5 shrink-0 text-amber-500"
+          aria-hidden="true"
+        />
+        <span className="font-medium text-foreground">
+          Quoted from #{quote.seq}
+        </span>
+      </div>
+      <div className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+        {quote.text}
+      </div>
+    </div>
+  )
 }
 
 function ReplyReferenceBlock({ reference }: { reference: ReplyReference }) {
@@ -2142,6 +2139,12 @@ function MessageItemComponent({
   >(null)
 
   const bubbleRef = useRef<HTMLDivElement | null>(null)
+  const quoteSelection = useCallback(
+    (text: string) => onReplyMessage?.(message, text),
+    [message, onReplyMessage],
+  )
+  const { capture: captureSelectionQuote, button: selectionQuoteButton } =
+    useSelectionQuote(bubbleRef, onReplyMessage ? quoteSelection : undefined)
 
   const messageStreamingText =
     typeof message.__streamingText === 'string'
@@ -2324,11 +2327,14 @@ function MessageItemComponent({
       ? remoteStreamingThinking
       : thinkingFromMessage(message)
   const isUser = role === 'user'
-  const userReplyReference = useMemo(
-    () => (isUser ? parseReplyReference(displayText) : null),
+  const userMarkers = useMemo(
+    () => (isUser ? parseMessageMarkers(displayText) : null),
     [displayText, isUser],
   )
-  const userDisplayText = userReplyReference?.body ?? displayText
+  const userReplyReference = userMarkers?.reply ?? null
+  const userQuotes = userMarkers?.quotes ?? []
+  const hasUserMarkers = userReplyReference !== null || userQuotes.length > 0
+  const userDisplayText = userMarkers?.body ?? displayText
   const hasUserDisplayText = userDisplayText.trim().length > 0
   const execNotification = isUser ? readExecNotification(message) : null
   const timestamp = getMessageTimestamp(message)
@@ -2550,7 +2556,11 @@ function MessageItemComponent({
     if (!clarifyCard) return inlineToolSections
     // Unnamed rows are dropped for every message now (see finalToolSections),
     // so this only has to attach the card.
-    return attachClarifyCard(inlineToolSections, clarifyCard, 'output-available')
+    return attachClarifyCard(
+      inlineToolSections,
+      clarifyCard,
+      'output-available',
+    )
   }, [clarifyCard, inlineToolSections])
 
   // When streaming is done, force all tool sections to completed state
@@ -2783,22 +2793,11 @@ function MessageItemComponent({
           <div
             ref={bubbleRef}
             data-chat-message-bubble={isUser ? 'user' : 'assistant'}
+            onMouseUp={captureSelectionQuote}
+            onKeyUp={captureSelectionQuote}
             onContextMenu={(event) => {
               event.preventDefault()
-              const selection =
-                typeof window !== 'undefined' ? window.getSelection() : null
-              const selectedText = (() => {
-                const raw = selection?.toString().trim() ?? ''
-                const anchor = selection?.anchorNode
-                const focus = selection?.focusNode
-                if (!raw || !bubbleRef.current || !anchor || !focus) return ''
-                if (
-                  !bubbleRef.current.contains(anchor) ||
-                  !bubbleRef.current.contains(focus)
-                )
-                  return ''
-                return raw.replace(/\s+/g, ' ').trim()
-              })()
+              const selectedText = getContainedSelectionText(bubbleRef.current)
               setMessageContextMenu({
                 x: event.clientX,
                 y: event.clientY,
@@ -2829,6 +2828,11 @@ function MessageItemComponent({
                   }
             }
           >
+            {isUser
+              ? userQuotes.map((quote, index) => (
+                  <QuoteReferenceBlock key={index} quote={quote} />
+                ))
+              : null}
             {isUser && userReplyReference ? (
               <ReplyReferenceBlock reference={userReplyReference} />
             ) : null}
@@ -2915,7 +2919,7 @@ function MessageItemComponent({
             )}
             {hasText &&
               (isUser ? (
-                userReplyReference ? (
+                hasUserMarkers ? (
                   hasUserDisplayText ? (
                     <MessageContent
                       markdown
@@ -2996,6 +3000,7 @@ function MessageItemComponent({
               </span>
             )}
           </div>
+          {selectionQuoteButton}
           {messageContextMenu ? (
             <MessageContextMenu
               position={messageContextMenu}

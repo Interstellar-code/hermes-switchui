@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Bot } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
@@ -12,14 +6,12 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { useMcpServers } from '../mcp/hooks/use-mcp-servers'
 import { deriveFriendlyIdFromKey, textFromMessage } from './utils'
+import { normalizeQuoteText, stableMessageSeq } from './quote-markers'
 import {
   advanceStickyStreamingText,
   scrollChatToBottom as scrollChatToBottomImpl,
 } from './chat-screen-utils'
-import {
-  appendHistoryMessage,
-  chatQueryKeys,
-} from './chat-queries'
+import { appendHistoryMessage, chatQueryKeys } from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
 import { ChatNoticeBanners } from './components/chat-notice-banners'
 import { StreamingTextContext } from './components/streaming-text-context'
@@ -79,6 +71,7 @@ import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
 import { ToolTabView } from './components/v2/chat-tab-views-v2'
 import { DelegationSidebarOverlay } from './components/v2/delegation-tab-view'
+import type { QuoteRef } from './quote-markers'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,
@@ -99,9 +92,7 @@ import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
-import {
-  useEnabledUserCommands,
-} from '@/lib/commands-api'
+import { useEnabledUserCommands } from '@/lib/commands-api'
 import { useHermesCommandCatalog } from '@/lib/hermes-commands-api'
 import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
@@ -115,9 +106,7 @@ import { useContextUsageStore } from '@/stores/context-usage-store'
 // MOBILE_TAB_BAR_OFFSET removed — tab bar always hidden in chat
 import { useTapDebug } from '@/hooks/use-tap-debug'
 import { useChatMode } from '@/hooks/use-chat-mode'
-import {
-  useChatActivityStore,
-} from '@/stores/chat-activity-store'
+import { useChatActivityStore } from '@/stores/chat-activity-store'
 
 const EMPTY_STREAMING_DELEGATIONS: Array<StreamingDelegation> = []
 
@@ -195,6 +184,8 @@ export function ChatScreen({
     role: string
     preview: string
   } | null>(null)
+  // Quoted passages — appended per quote, cleared on send and session change
+  const [quotes, setQuotes] = useState<Array<QuoteRef>>([])
   // System-messages visibility toggle (default: hidden)
   const [hideSystemMessages, setHideSystemMessages] = useState(true)
   const { alertOpen, alertThreshold, alertPercent, dismissAlert } =
@@ -207,6 +198,7 @@ export function ChatScreen({
   // Clear reply-to when the user navigates to a different session.
   useEffect(() => {
     setReplyTo(null)
+    setQuotes([])
   }, [activeFriendlyId, isNewChat])
 
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
@@ -517,7 +509,9 @@ export function ChatScreen({
 
   // Snapshot cached history for the recovery predicate. Cheap reference
   // pass; the predicate runs only on mount/relist of the active session.
-  const recoveryMessages = (historyQuery.data as { messages?: Array<ChatMessage> } | undefined)?.messages
+  const recoveryMessages = (
+    historyQuery.data as { messages?: Array<ChatMessage> } | undefined
+  )?.messages
 
   // On remount, check if the server still has an active run for this session.
   // If so, re-set waitingForResponse in the store so the UI shows the spinner.
@@ -616,9 +610,8 @@ export function ChatScreen({
     useCallback(
       (state) =>
         resolvedSessionKey
-          ? state.streamingState.get(activeScopeKey(resolvedSessionKey))
-              ?.delegations ??
-            EMPTY_STREAMING_DELEGATIONS
+          ? (state.streamingState.get(activeScopeKey(resolvedSessionKey))
+              ?.delegations ?? EMPTY_STREAMING_DELEGATIONS)
           : EMPTY_STREAMING_DELEGATIONS,
       [resolvedSessionKey],
     ),
@@ -1283,26 +1276,36 @@ export function ChatScreen({
         : sending || waitingForResponse
           ? 'sending'
           : 'idle'
+  // A selection routes to quotes (appended); no selection is a plain reply.
+  // `#N` counts over `realtimeMessages` — the list before display filtering
+  // and dedup — so hiding/deduping rows never renumbers a reference.
   const handleReplyMessage = useCallback(
     (msg: ChatMessage, selectedText?: string) => {
-      const preview = (selectedText && selectedText.trim().length > 0
-        ? selectedText
-        : textFromMessage(msg)
-            .replace(/```[\s\S]*?```/g, ' ')
-            .replace(/`([^`]+)`/g, '$1')
-            .replace(/^\s*#{1,6}\s+/gm, '')
-            .replace(/^\s*>\s?/gm, '')
-            .replace(/^\s*\|.*$/gm, '')
-            .replace(/^\s*[-*+]\s+/gm, '')
-            .replace(/\*\*([^*]+)\*\*/g, '$1')
-            .replace(/\*([^*]+)\*/g, '$1')
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'))
+      const seq = stableMessageSeq(realtimeMessages, msg)
+      const quoteText = selectedText ? normalizeQuoteText(selectedText) : ''
+      if (quoteText) {
+        setQuotes((prev) =>
+          prev.some((q) => q.seq === seq && q.text === quoteText)
+            ? prev
+            : [...prev, { seq, text: quoteText }],
+        )
+        return
+      }
+      const preview = textFromMessage(msg)
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/`([^`]+)`/g, '$1')
+        .replace(/^\s*#{1,6}\s+/gm, '')
+        .replace(/^\s*>\s?/gm, '')
+        .replace(/^\s*\|.*$/gm, '')
+        .replace(/^\s*[-*+]\s+/gm, '')
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
         .replace(/\s+/g, ' ')
         .trim()
-      const seq = finalDisplayMessages.indexOf(msg) + 1
       setReplyTo({ seq, role: msg.role ?? 'assistant', preview })
     },
-    [finalDisplayMessages],
+    [realtimeMessages],
   )
   const handleEmptyStateSuggestion = useCallback((prompt: string) => {
     composerHandleRef.current?.setValue(prompt + ' ')
@@ -1374,6 +1377,11 @@ export function ChatScreen({
     [activeCanonicalKey],
   )
   const handleClearReply = useCallback(() => setReplyTo(null), [])
+  const handleRemoveQuote = useCallback(
+    (index: number) => setQuotes((prev) => prev.filter((_, i) => i !== index)),
+    [],
+  )
+  const handleClearQuotes = useCallback(() => setQuotes([]), [])
   const handleToggleSystemMessages = useCallback(
     () => setHideSystemMessages((value) => !value),
     [],
@@ -1563,46 +1571,50 @@ export function ChatScreen({
                 ''
               }
             >
-            <ChatMessageList
-              messages={finalDisplayMessages}
-              onRetryMessage={handleRetryMessage}
-              onReplyMessage={handleReplyMessage}
-              onRefresh={handleRefreshHistory}
-              loading={historyLoading}
-              empty={historyEmpty}
-              emptyState={emptyState}
-              notice={null}
-              noticePosition="end"
-              waitingForResponse={waitingForResponse}
-              sessionKey={activeCanonicalKey}
-              pinToTop={false}
-              pinGroupMinHeight={pinGroupMinHeight}
-              headerHeight={headerHeight}
-              contentStyle={stableContentStyle}
-              bottomOffset={
-                isMobile ? mobileScrollBottomOffset : terminalPanelInset
-              }
-              isStreaming={derivedStreamingInfo.isStreaming}
-              streamingMessageId={derivedStreamingInfo.streamingMessageId}
-              hasStreamingText={Boolean(
-                (stableActiveStreamingText || completedStreamingText.current || '').trim(),
-              )}
-              streamingThinking={
-                realtimeStreamingThinking ||
-                completedStreamingThinking.current ||
-                undefined
-              }
-              lifecycleEvents={realtimeLifecycleEvents}
-              hideSystemMessages={hideSystemMessages}
-              activeToolCalls={activeToolCalls}
-              liveToolActivity={liveToolActivity}
-              isCompacting={isCompacting}
-              liveProgressLabel={liveProgressLabel}
-              sending={sending}
-              toolDisplayMode={toolDisplayMode}
-              clarifyCard={clarifyCard}
-              commandOutputs={commandOutputs}
-            />
+              <ChatMessageList
+                messages={finalDisplayMessages}
+                onRetryMessage={handleRetryMessage}
+                onReplyMessage={handleReplyMessage}
+                onRefresh={handleRefreshHistory}
+                loading={historyLoading}
+                empty={historyEmpty}
+                emptyState={emptyState}
+                notice={null}
+                noticePosition="end"
+                waitingForResponse={waitingForResponse}
+                sessionKey={activeCanonicalKey}
+                pinToTop={false}
+                pinGroupMinHeight={pinGroupMinHeight}
+                headerHeight={headerHeight}
+                contentStyle={stableContentStyle}
+                bottomOffset={
+                  isMobile ? mobileScrollBottomOffset : terminalPanelInset
+                }
+                isStreaming={derivedStreamingInfo.isStreaming}
+                streamingMessageId={derivedStreamingInfo.streamingMessageId}
+                hasStreamingText={Boolean(
+                  (
+                    stableActiveStreamingText ||
+                    completedStreamingText.current ||
+                    ''
+                  ).trim(),
+                )}
+                streamingThinking={
+                  realtimeStreamingThinking ||
+                  completedStreamingThinking.current ||
+                  undefined
+                }
+                lifecycleEvents={realtimeLifecycleEvents}
+                hideSystemMessages={hideSystemMessages}
+                activeToolCalls={activeToolCalls}
+                liveToolActivity={liveToolActivity}
+                isCompacting={isCompacting}
+                liveProgressLabel={liveProgressLabel}
+                sending={sending}
+                toolDisplayMode={toolDisplayMode}
+                clarifyCard={clarifyCard}
+                commandOutputs={commandOutputs}
+              />
             </StreamingTextContext.Provider>
           )}
           {showComposer ? (
@@ -1616,7 +1628,9 @@ export function ChatScreen({
                 onSubmit={send}
                 onAbort={handleAbortStreaming}
                 isLoading={isComposerLoading}
-                disabled={hideUi || (!!activeClarify && !activeClarify.resolved)}
+                disabled={
+                  hideUi || (!!activeClarify && !activeClarify.resolved)
+                }
                 sessionKey={activeQueueSessionKey || undefined}
                 wrapperRef={composerRef}
                 composerRef={composerHandleRef}
@@ -1626,6 +1640,9 @@ export function ChatScreen({
                 thinkingLevel={thinkingLevel}
                 replyTo={replyTo}
                 onClearReply={handleClearReply}
+                quotes={quotes}
+                onRemoveQuote={handleRemoveQuote}
+                onClearQuotes={handleClearQuotes}
                 systemMessagesHidden={hideSystemMessages}
                 onToggleSystemMessages={handleToggleSystemMessages}
                 toolDisplayMode={toolDisplayMode}
@@ -1635,9 +1652,13 @@ export function ChatScreen({
               {!compact && !hideUi && !isMobile && !isFocusMode ? (
                 <button
                   type="button"
-                  aria-label={agentsOpen ? 'Close agents' : `Show ${agentCount} agents`}
+                  aria-label={
+                    agentsOpen ? 'Close agents' : `Show ${agentCount} agents`
+                  }
                   aria-pressed={agentsOpen}
-                  title={agentsOpen ? 'Close agents' : `Show ${agentCount} agents`}
+                  title={
+                    agentsOpen ? 'Close agents' : `Show ${agentCount} agents`
+                  }
                   onClick={() => setAgentsOpen((open) => !open)}
                   className={cn(
                     'absolute right-4 sm:right-6 z-30 flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-[11px] shadow-md backdrop-blur-md transition-colors',

@@ -44,6 +44,7 @@ import {
   Reply,
   Square,
   SquarePen,
+  TextQuote,
   Trash2,
   Wrench,
   X,
@@ -51,6 +52,7 @@ import {
 } from 'lucide-react'
 
 import { useShallow } from 'zustand/react/shallow'
+import { formatOutgoingMessage } from '../quote-markers'
 import { ContextBar } from './context-bar'
 import {
   MAX_ATTACHMENT_FILE_SIZE,
@@ -66,6 +68,7 @@ import type {
   ThinkingLevel,
 } from './chat-composer-types'
 import type { ToolDisplayMode } from './message-item'
+import type { QuoteRef } from '../quote-markers'
 import type { Ref } from 'react'
 import type {
   MessageQueueActivity,
@@ -126,6 +129,9 @@ type ChatComposerShadcnProps = {
   embedded?: boolean
   replyTo?: { seq: number; role: string; preview: string } | null
   onClearReply?: () => void
+  quotes?: Array<QuoteRef>
+  onRemoveQuote?: (index: number) => void
+  onClearQuotes?: () => void
   systemMessagesHidden?: boolean
   onToggleSystemMessages?: () => void
   toolDisplayMode?: ToolDisplayMode
@@ -133,10 +139,10 @@ type ChatComposerShadcnProps = {
 }
 
 const MAX_TEXTAREA_HEIGHT = 240
-const REPLY_MARKER_SNIPPET_LIMIT = 140
 const REPLY_PREVIEW_SNIPPET_LIMIT = 80
 const QUEUE_ACTIVITY_VISIBLE_MS = 12_000
 const EMPTY_MESSAGE_QUEUE: Array<QueuedChatMessage> = []
+const EMPTY_QUOTES: Array<QuoteRef> = []
 
 function normalizeReplySnippet(value: string): string {
   return value.replace(/\s+/g, ' ').trim()
@@ -145,18 +151,6 @@ function normalizeReplySnippet(value: string): string {
 function truncateReplySnippet(value: string, maxLength: number): string {
   if (value.length <= maxLength) return value
   return `${value.slice(0, maxLength).trimEnd()}…`
-}
-
-function formatReplyMarker(replyTo: {
-  seq: number
-  role: string
-  preview: string
-}): string {
-  const snippet = truncateReplySnippet(
-    normalizeReplySnippet(replyTo.preview),
-    REPLY_MARKER_SNIPPET_LIMIT,
-  )
-  return `> [Re: #${replyTo.seq}] ${snippet}\n\n`
 }
 
 // ─── Attachment helpers (parity-correct ChatComposerAttachment shape) ──────
@@ -248,6 +242,9 @@ function ChatComposerShadcn({
   embedded = false,
   replyTo,
   onClearReply,
+  quotes = EMPTY_QUOTES,
+  onRemoveQuote,
+  onClearQuotes,
   systemMessagesHidden,
   onToggleSystemMessages,
   toolDisplayMode = 'collapsed',
@@ -589,7 +586,11 @@ function ChatComposerShadcn({
     if (rawBody.length === 0 && attachments.length === 0) return
     submittingRef.current = true
     const attachmentPayload = attachments.map((a) => ({ ...a }))
-    const body = replyTo ? `${formatReplyMarker(replyTo)}${rawBody}` : rawBody
+    const body = formatOutgoingMessage({
+      quotes,
+      replyTo: replyTo ?? null,
+      body: rawBody,
+    })
     try {
       // Fast mode is incompatible with extended thinking — disable if thinking
       // is on (mirrors the live composer's effectiveFastMode rule).
@@ -606,6 +607,7 @@ function ChatComposerShadcn({
       setAttachments((prev) => (prev === attachments ? [] : prev))
       setIsSlashMenuDismissed(false)
       onClearReply?.()
+      onClearQuotes?.()
       focusPrompt()
     } catch (err) {
       // `handleSubmit` is wired to onClick/onKeyDown, which ignore the promise
@@ -627,6 +629,8 @@ function ChatComposerShadcn({
     attachments,
     replyTo,
     onClearReply,
+    quotes,
+    onClearQuotes,
     onSubmit,
     helpers,
     focusPrompt,
@@ -639,12 +643,11 @@ function ChatComposerShadcn({
     const rawBody = value.trim()
     if (rawBody.length === 0 && attachments.length === 0) return
 
-    const replySnippet = replyTo
-      ? replyTo.preview.replace(/\s+/g, ' ').trim()
-      : ''
-    const body = replyTo
-      ? `> [Re: #${replyTo.seq}] ${replySnippet.length > 140 ? `${replySnippet.slice(0, 140)}…` : replySnippet}\n\n${rawBody}`
-      : rawBody
+    const body = formatOutgoingMessage({
+      quotes,
+      replyTo: replyTo ?? null,
+      body: rawBody,
+    })
 
     submittingRef.current = true
     enqueue(queueSessionKey, {
@@ -659,6 +662,7 @@ function ChatComposerShadcn({
     setAttachments([])
     setIsSlashMenuDismissed(false)
     onClearReply?.()
+    onClearQuotes?.()
     focusPrompt()
   }, [
     attachments,
@@ -666,7 +670,9 @@ function ChatComposerShadcn({
     enqueue,
     focusPrompt,
     onClearReply,
+    onClearQuotes,
     queueSessionKey,
+    quotes,
     replyTo,
     value,
   ])
@@ -747,6 +753,39 @@ function ChatComposerShadcn({
                   aria-label="Remove attachment"
                 >
                   <X className="size-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* quote chips — one per quoted passage, stacked above the reply chip */}
+        {quotes.length > 0 && (
+          <div className="flex max-h-48 flex-col gap-1.5 overflow-y-auto">
+            {quotes.map((quote, index) => (
+              <div
+                key={`${quote.seq}:${index}`}
+                className="flex items-start gap-2 rounded-lg border border-border/70 border-l-2 border-l-amber-500 bg-muted px-3 py-2 text-xs text-muted-foreground"
+              >
+                <TextQuote
+                  className="mt-0.5 size-3.5 shrink-0 text-amber-500"
+                  aria-hidden="true"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium text-foreground">
+                    Quote from #{quote.seq}
+                  </div>
+                  <div className="line-clamp-3 whitespace-pre-wrap break-words">
+                    {quote.text}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onRemoveQuote?.(index)}
+                  className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Remove quote"
+                >
+                  <X className="size-3.5" />
                 </button>
               </div>
             ))}
