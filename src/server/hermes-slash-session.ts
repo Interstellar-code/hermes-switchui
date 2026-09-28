@@ -67,7 +67,8 @@ let sweeper: ReturnType<typeof setInterval> | null = null
 
 function handleFrom(result: unknown): string {
   const value = (result ?? {}) as SessionRpcResult
-  const handle = typeof value.session_id === 'string' ? value.session_id.trim() : ''
+  const handle =
+    typeof value.session_id === 'string' ? value.session_id.trim() : ''
   if (!handle) {
     throw new Error('tui_gateway session response carried no session_id')
   }
@@ -76,9 +77,13 @@ function handleFrom(result: unknown): string {
 
 async function closeHandle(handle: string): Promise<void> {
   try {
-    await hermesRpc('session.close', { session_id: handle }, {
-      timeoutMs: LIFECYCLE_TIMEOUT_MS,
-    })
+    await hermesRpc(
+      'session.close',
+      { session_id: handle },
+      {
+        timeoutMs: LIFECYCLE_TIMEOUT_MS,
+      },
+    )
   } catch {
     // A binding we cannot close is a binding the dashboard has already lost
     // (restart, eviction). Dropping it locally is the whole remedy.
@@ -174,6 +179,21 @@ export async function acquireSlashSession(
   } finally {
     inflight.delete(key)
   }
+}
+
+/**
+ * Close and forget a chat's binding. A binding snapshots the transcript when it
+ * opens, so a mutating command (compress) must run on a fresh one — and the
+ * old handle is stale afterwards whichever way it went.
+ */
+export async function releaseSlashSession(
+  chatSessionId?: string | null,
+): Promise<void> {
+  const trimmed = typeof chatSessionId === 'string' ? chatSessionId.trim() : ''
+  const key = trimmed || SHARED_KEY
+  const binding = bindings.get(key)
+  bindings.delete(key)
+  if (binding) await closeHandle(binding.handle)
 }
 
 /** Forget a binding the agent no longer knows about (4001). Does not close. */

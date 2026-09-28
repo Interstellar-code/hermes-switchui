@@ -204,6 +204,7 @@ import { Route as ApiSessionsSessionKeyYoloRouteImport } from './routes/api/sess
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyForkRouteImport } from './routes/api/sessions/$sessionKey.fork'
 import { Route as ApiSessionsSessionKeyDelegationsRouteImport } from './routes/api/sessions/$sessionKey.delegations'
+import { Route as ApiSessionsSessionKeyCompressRouteImport } from './routes/api/sessions/$sessionKey.compress'
 import { Route as ApiSessionsSessionKeyClarifyRouteImport } from './routes/api/sessions/$sessionKey.clarify'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
 import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self-improve/scenarios.$id'
@@ -1237,6 +1238,12 @@ const ApiSessionsSessionKeyDelegationsRoute =
     path: '/$sessionKey/delegations',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiSessionsSessionKeyCompressRoute =
+  ApiSessionsSessionKeyCompressRouteImport.update({
+    id: '/$sessionKey/compress',
+    path: '/$sessionKey/compress',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 const ApiSessionsSessionKeyClarifyRoute =
   ApiSessionsSessionKeyClarifyRouteImport.update({
     id: '/$sessionKey/clarify',
@@ -1688,6 +1695,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
+  '/api/sessions/$sessionKey/compress': typeof ApiSessionsSessionKeyCompressRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
@@ -1924,6 +1932,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
+  '/api/sessions/$sessionKey/compress': typeof ApiSessionsSessionKeyCompressRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
@@ -2163,6 +2172,7 @@ export interface FileRoutesById {
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
+  '/api/sessions/$sessionKey/compress': typeof ApiSessionsSessionKeyCompressRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
@@ -2403,6 +2413,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
+    | '/api/sessions/$sessionKey/compress'
     | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
@@ -2639,6 +2650,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
+    | '/api/sessions/$sessionKey/compress'
     | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
@@ -2877,6 +2889,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
     | '/api/sessions/$sessionKey/clarify'
+    | '/api/sessions/$sessionKey/compress'
     | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
@@ -4432,6 +4445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyDelegationsRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/sessions/$sessionKey/compress': {
+      id: '/api/sessions/$sessionKey/compress'
+      path: '/$sessionKey/compress'
+      fullPath: '/api/sessions/$sessionKey/compress'
+      preLoaderRoute: typeof ApiSessionsSessionKeyCompressRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/sessions/$sessionKey/clarify': {
       id: '/api/sessions/$sessionKey/clarify'
       path: '/$sessionKey/clarify'
@@ -4901,6 +4921,7 @@ interface ApiSessionsRouteChildren {
   ApiSessionsSendRoute: typeof ApiSessionsSendRoute
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
   ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
+  ApiSessionsSessionKeyCompressRoute: typeof ApiSessionsSessionKeyCompressRoute
   ApiSessionsSessionKeyDelegationsRoute: typeof ApiSessionsSessionKeyDelegationsRoute
   ApiSessionsSessionKeyForkRoute: typeof ApiSessionsSessionKeyForkRoute
   ApiSessionsSessionKeyStatusRoute: typeof ApiSessionsSessionKeyStatusRoute
@@ -4912,6 +4933,7 @@ const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSendRoute: ApiSessionsSendRoute,
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
   ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,
+  ApiSessionsSessionKeyCompressRoute: ApiSessionsSessionKeyCompressRoute,
   ApiSessionsSessionKeyDelegationsRoute: ApiSessionsSessionKeyDelegationsRoute,
   ApiSessionsSessionKeyForkRoute: ApiSessionsSessionKeyForkRoute,
   ApiSessionsSessionKeyStatusRoute: ApiSessionsSessionKeyStatusRoute,

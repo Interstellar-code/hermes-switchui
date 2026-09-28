@@ -3,7 +3,6 @@
 import { memo, useState } from 'react'
 import { Dialog, DialogContent } from '@/components/shadcn/ui/dialog'
 import { cn } from '@/lib/utils'
-import { execAgentCommand } from '@/lib/hermes-commands-api'
 import { toast } from '@/components/ui/toast'
 
 type ContextAlertModalProps = {
@@ -15,6 +14,8 @@ type ContextAlertModalProps = {
   sessionKey?: string | null
   /** A reply is streaming — compressing mid-turn is not allowed. */
   busy?: boolean
+  /** After a successful compress; `continuationKey` is set if it rotated. */
+  onCompressed?: (continuationKey: string | null) => void
 }
 
 function ContextAlertModalComponent({
@@ -24,26 +25,49 @@ function ContextAlertModalComponent({
   contextPercent,
   sessionKey,
   busy = false,
+  onCompressed,
 }: ContextAlertModalProps) {
   const isCritical = threshold >= 90
   const isDanger = threshold >= 75
   const [compressing, setCompressing] = useState(false)
 
-  // Same path as typing `/compress`: the gateway summarizes older turns and
-  // rotates the session; the usage store resets the meter when it lands.
+  // Dedicated route: bare `/compress` is refused on the general slash path
+  // because it can rotate the session; this one reports the continuation.
   async function handleCompress() {
     if (!sessionKey || compressing) return
     setCompressing(true)
-    const outcome = await execAgentCommand({
-      command: '/compress',
-      sessionId: sessionKey,
-    })
-    setCompressing(false)
-    if (outcome.ok) {
-      toast('Context compressed', { type: 'success' })
-      onClose()
-    } else {
-      toast(`Compress failed\n${outcome.reason}`, { type: 'error' })
+    try {
+      const res = await fetch(
+        `/api/sessions/${encodeURIComponent(sessionKey)}/compress`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: '{}',
+        },
+      )
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean
+        error?: string
+        compressed?: boolean
+        message?: string
+        continuationKey?: string | null
+      }
+      if (!res.ok || !data.ok)
+        throw new Error(data.error || `HTTP ${res.status}`)
+      toast(data.message || 'Context compressed', {
+        type: data.compressed ? 'success' : 'info',
+      })
+      if (data.compressed) {
+        onCompressed?.(data.continuationKey ?? null)
+        onClose()
+      }
+    } catch (err) {
+      toast(
+        `Compress failed\n${err instanceof Error ? err.message : String(err)}`,
+        { type: 'error' },
+      )
+    } finally {
+      setCompressing(false)
     }
   }
 
