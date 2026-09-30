@@ -11,4 +11,6 @@ export type OfficeAnimationState = {
   smsBoothHoldByAgentId?: Record<string, boolean>
   qaHoldByAgentId?: Record<string, boolean>
   jukeboxHoldByAgentId?: Record<string, boolean>
+  /** Agents pinned to meeting-room seats in this order, whatever their status. */
+  fleetSeatAgentIds?: Array<string>
 }

@@ -88,6 +88,7 @@ export const AgentModel = memo(function AgentModelInner({
   speechBubbleColor,
   suppressSpeechBubble = false,
   progress,
+  badge = null,
 }: AgentModelProps) {
   const groupRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Group>(null);
@@ -1197,6 +1198,27 @@ export const AgentModel = memo(function AgentModelInner({
               {subtitleText}
             </Text>
           ) : null}
+        </Billboard>
+      ) : null}
+      {badge ? (
+        // Above the nameplate; drops into its slot while the speech bubble shows.
+        <Billboard position={[0, activeSpeechBubble ? 1.05 : 1.28, 0]}>
+          <mesh position={[0, 0, -0.001]}>
+            <planeGeometry
+              args={[Math.min(0.9, 0.12 + badge.length * 0.045), 0.15]}
+            />
+            <meshBasicMaterial color="#080c14" transparent opacity={0.88} />
+          </mesh>
+          <Text
+            position={[0, 0, 0.001]}
+            fontSize={0.075}
+            color={color}
+            anchorX="center"
+            anchorY="middle"
+            font={undefined}
+          >
+            {badge}
+          </Text>
         </Billboard>
       ) : null}
       <group ref={awayBubbleRef} visible={false}>

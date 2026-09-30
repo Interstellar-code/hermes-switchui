@@ -67,6 +67,43 @@ export type CrewStatusAgent = {
   activeSessionKey: string | null
   activeSessionTitle: string | null
   activeSessionLastActiveAt: number | null
+  /** What the profile's active (else most recent) session is doing, from its state.db. */
+  activity: CrewActivity | null
+  /** Un-ended sessions of this profile with a message in the last 180s. */
+  liveSessions: Array<{ id: string; source: string | null }>
+}
+
+export type CrewActivity = {
+  sessionKey: string
+  /** sessions.last_activity_description (gateway heartbeat, ≥60s cadence). */
+  description: string | null
+  /** ms */
+  at: number | null
+  /**
+   * Newest assistant message's tool call, if that message is a tool call.
+   * argsPreview is redacted server-side and may be empty; `at` is ms.
+   */
+  tool: { name: string; argsPreview: string; at: number | null } | null
+}
+
+function normalizeCrewActivity(value: unknown): CrewActivity | null {
+  const record = asRecord(value)
+  const sessionKey = asString(record?.sessionKey)
+  if (!record || !sessionKey) return null
+  const tool = asRecord(record.tool)
+  const toolName = asString(tool?.name)
+  return {
+    sessionKey,
+    description: asString(record.description),
+    at: typeof record.at === 'number' ? record.at : null,
+    tool: toolName
+      ? {
+          name: toolName,
+          argsPreview: asString(tool?.argsPreview) ?? '',
+          at: typeof tool?.at === 'number' ? tool.at : null,
+        }
+      : null,
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -221,6 +258,16 @@ function normalizeCrewStatusAgent(value: unknown): CrewStatusAgent | null {
       typeof record?.activeSessionLastActiveAt === 'number'
         ? record.activeSessionLastActiveAt
         : null,
+    activity: normalizeCrewActivity(record?.activity),
+    liveSessions: Array.isArray(record?.liveSessions)
+      ? record.liveSessions.flatMap((entry) => {
+          const session = asRecord(entry)
+          const sessionId = asString(session?.id)
+          return sessionId
+            ? [{ id: sessionId, source: asString(session?.source) }]
+            : []
+        })
+      : [],
   }
 }
 
@@ -297,10 +344,6 @@ function crewMemberToWorkspaceAgent(
     assigned_projects: [],
     skills: builtin?.tags ?? [],
   }
-}
-
-function extractCrewAgents(payload: unknown): Array<WorkspaceAgentDirectory> {
-  return extractCrewStatusAgents(payload).map(crewMemberToWorkspaceAgent)
 }
 
 export function extractCrewStatusAgents(

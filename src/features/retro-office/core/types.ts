@@ -9,6 +9,8 @@ export type OfficeAgent = {
   color: string;
   item: string;
   avatarProfile?: AgentAvatarProfile | null;
+  /** Small count badge shown by the character (e.g. "sub 2 · cron 1"). */
+  badge?: string | null;
 };
 
 export type JanitorTool = "broom" | "vacuum" | "floor_scrubber";

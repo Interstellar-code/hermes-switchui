@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm'
 import { Matrix3DCanvas } from './components/matrix3d-canvas'
 import { TYPE_LABELS, buildLogEntries } from './matrix3d-console-log'
 import { useMatrix3DOfficeData } from './use-matrix3d-office-data'
+import { A2A_PEER_ID_PREFIX } from './a2a-fleet-presence'
 import {
   a2aMessageKind,
   a2aMessageLabel,
@@ -14,6 +15,7 @@ import {
   modeLabel,
   normalizeMode,
 } from './a2a-modes'
+import type { Matrix3DFleetPeer } from './a2a-fleet-presence'
 import type { CSSProperties } from 'react'
 import type { A2AMessageKind } from './a2a-modes'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
@@ -40,6 +42,11 @@ type Matrix3DAgentCardModel = {
   bubble: string
   tier: 1 | 2
   meta: string
+  /** Live sub-session counts, e.g. "sub 2 · cron 1". */
+  badge: string | null
+  /** A2A fleet peer: status is inferred, not reported. */
+  fleet: boolean
+  title?: string
 }
 
 type Matrix3DSelectedAgent = {
@@ -120,9 +127,58 @@ function isGenericProfileRole(value: string | null | undefined): boolean {
 function cardBubbleLabel(
   agent: OfficeAgent,
   presence: Matrix3DAgentPresence | undefined,
+  liveBubble: string | null | undefined,
 ): string {
-  const bubble = normalizeLabel(presence?.lastActivity || agent.subtitle)
+  // Not working: a session title is history, so say so.
+  const lastTask = normalizeLabel(presence?.lastTaskTitle)
+  if (agent.status !== 'working' && lastTask) return `Last task: ${lastTask}`
+  const bubble = normalizeLabel(
+    liveBubble || presence?.lastActivity || agent.subtitle,
+  )
   return bubble || 'Hermes'
+}
+
+type Matrix3DActivityRow = { id: string; message: string; time: string }
+
+/** The profile's real activity from crew-status (tool, heartbeat, session), newest first. */
+function presenceActivityRows(
+  presence: Matrix3DAgentPresence | undefined,
+): Array<Matrix3DActivityRow> {
+  if (!presence) return []
+  const activity = presence.activity
+  const rows: Array<{ id: string; message: string; at: number | null }> = []
+  if (activity?.tool) {
+    const { name, argsPreview, at } = activity.tool
+    rows.push({
+      id: 'tool',
+      message: argsPreview ? `${name}: ${argsPreview}` : name,
+      at,
+    })
+  }
+  if (activity?.description) {
+    rows.push({
+      id: 'heartbeat',
+      message: activity.description,
+      at: activity.at,
+    })
+  }
+  const title = presence.activeSessionTitle ?? presence.lastTaskTitle
+  if (title) {
+    rows.push({
+      id: 'session',
+      message: presence.activeSessionTitle
+        ? `Session: ${title}`
+        : `Last session: ${title}`,
+      at: activity?.at ?? null,
+    })
+  }
+  return rows
+    .sort((a, b) => (b.at ?? 0) - (a.at ?? 0))
+    .map((row) => ({
+      id: row.id,
+      message: row.message,
+      time: row.at ? formatRelativeTimestamp(row.at) : '—',
+    }))
 }
 
 function cardRoleLabel(
@@ -293,10 +349,34 @@ function NetworkGlyph({ size = 13 }: { size?: number }) {
   )
 }
 
+function toFleetCard(
+  agent: OfficeAgent,
+  peer: Matrix3DFleetPeer,
+): Matrix3DAgentCardModel {
+  return {
+    id: agent.id,
+    name: peer.peer.slice(0, 18).toUpperCase(),
+    role: peer.repo
+      ? `${modeLabel(peer.mode)} · ${peer.repo}`
+      : modeLabel(peer.mode),
+    status: agent.status,
+    color: agent.color,
+    dark: darkenColor(agent.color),
+    bubble: peer.bubble ?? 'No pending A2A request',
+    tier: 2,
+    meta: peer.busy ? 'busy (inferred)' : 'idle (inferred)',
+    badge: null,
+    fleet: true,
+    title:
+      'A2A fleet peer — status inferred from its last conversation line (the fleet reports no busy state).',
+  }
+}
+
 function toCardAgent(
   agent: OfficeAgent,
   presence: Matrix3DAgentPresence | undefined,
   index: number,
+  liveBubble: string | null | undefined,
 ): Matrix3DAgentCardModel {
   const identityColor = agentIdentityColor(agent, index)
   return {
@@ -306,9 +386,11 @@ function toCardAgent(
     status: agent.status,
     color: identityColor,
     dark: darkenColor(identityColor),
-    bubble: cardBubbleLabel(agent, presence),
+    bubble: cardBubbleLabel(agent, presence, liveBubble),
     tier: index === 0 ? 1 : 2,
     meta: cardMetaLabel(presence),
+    badge: agent.badge ?? null,
+    fleet: false,
   }
 }
 
@@ -604,6 +686,7 @@ function Matrix3DAgentCard({
       onClick={onClick}
       aria-pressed={selected}
       aria-label={`${agent.name} — ${agent.role}`}
+      title={agent.title}
     >
       {agent.tier === 1 ? (
         <span
@@ -632,6 +715,15 @@ function Matrix3DAgentCard({
       </div>
       <div className="matrix3d-agent-role">{agent.role}</div>
       <div className="matrix3d-agent-meta">{agent.meta}</div>
+      {agent.badge ? (
+        <div
+          className="matrix3d-agent-meta"
+          style={{ color: agent.color }}
+          title="Live sub-sessions by source"
+        >
+          {agent.badge}
+        </div>
+      ) : null}
       <div className="matrix3d-agent-status">
         <div
           className="matrix3d-agent-status-dot"
@@ -1105,23 +1197,42 @@ export function Matrix3DScreen() {
     n: number
   } | null>(null)
   const handleSceneAgentSelect = useCallback((agentId: string) => {
+    if (agentId.startsWith(A2A_PEER_ID_PREFIX)) {
+      setBottomMode('a2a')
+      setSelectedAgentId(null)
+      setIsSidePanelOpen(false)
+      return
+    }
     setBottomMode('agents')
     setSelectedAgentId(agentId)
     setIsSidePanelOpen(true)
   }, [])
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [bottomMode, setBottomMode] = useState<Matrix3DBottomMode>('agents')
+  // Profile cards only; fleet peers are separate and never in the totals.
   const cardAgents = useMemo(
     () =>
-      officeData.agents.map((agent, index) =>
-        toCardAgent(
-          agent,
-          officeData.presence.find((presence) => presence.id === agent.id),
-          index,
+      officeData.agents
+        .filter((agent) => !agent.id.startsWith(A2A_PEER_ID_PREFIX))
+        .map((agent, index) =>
+          toCardAgent(
+            agent,
+            officeData.presence.find((presence) => presence.id === agent.id),
+            index,
+            officeData.streamingTextByAgentId[agent.id],
+          ),
         ),
-      ),
-    [officeData.agents, officeData.presence],
+    [officeData.agents, officeData.presence, officeData.streamingTextByAgentId],
   )
+  const fleetCards = useMemo(
+    () =>
+      officeData.fleet.flatMap((peer) => {
+        const agent = officeData.agents.find((a) => a.id === peer.id)
+        return agent ? [toFleetCard(agent, peer)] : []
+      }),
+    [officeData.agents, officeData.fleet],
+  )
+  const fleetBusy = officeData.fleet.filter((peer) => peer.busy).length
   useEffect(() => {
     if (
       selectedAgentId &&
@@ -1217,16 +1328,11 @@ export function Matrix3DScreen() {
       : officeData.agentSource === 'roster'
         ? `${pluralize(cardAgents.length, 'local profile')} · ${pluralize(liveSessionCount, 'live session')} · ${working} working`
         : '0 agents'
-  const selectedEntries = useMemo(
-    () =>
-      selectedAgent
-        ? entries
-            .filter((entry) => entry.agentKey === selectedAgent.card.id)
-            .slice(-5)
-            .reverse()
-        : [],
-    [entries, selectedAgent],
+  const selectedActivity = useMemo(
+    () => presenceActivityRows(selectedAgent?.presence),
+    [selectedAgent],
   )
+  const selectedIsWorking = selectedAgent?.card.status === 'working'
 
   return (
     <div className="matrix3d-office-page">
@@ -1256,6 +1362,14 @@ export function Matrix3DScreen() {
             <span>{idle} idle</span>
             <span className="matrix3d-sep">·</span>
             <span>{errors} error</span>
+            {officeData.fleet.length > 0 ? (
+              <>
+                <span className="matrix3d-sep">·</span>
+                <span title="A2A fleet peers; busy is inferred from their last conversation line">
+                  fleet {fleetBusy}/{officeData.fleet.length} busy (inferred)
+                </span>
+              </>
+            ) : null}
             <span style={{ marginLeft: 'auto', opacity: 0.4 }}>
               active · drag · scroll · space+drag · dbl-click
             </span>
@@ -1321,6 +1435,21 @@ export function Matrix3DScreen() {
                           id: agent.id,
                           n: (prev?.n ?? 0) + 1,
                         }))
+                      }}
+                    />
+                  ))}
+                  {fleetCards.map((agent) => (
+                    <Matrix3DAgentCard
+                      key={agent.id}
+                      agent={agent}
+                      onClick={() => {
+                        setFocusRequest((prev) => ({
+                          id: agent.id,
+                          n: (prev?.n ?? 0) + 1,
+                        }))
+                        setBottomMode('a2a')
+                        setSelectedAgentId(null)
+                        setIsSidePanelOpen(false)
                       }}
                     />
                   ))}
@@ -1391,9 +1520,6 @@ export function Matrix3DScreen() {
                       {selectedAgent.presence?.provider || 'Hermes'} ·{' '}
                       {selectedAgent.card.role}
                     </div>
-                    <div className="matrix3d-side-model">
-                      {formatPanelValue(selectedAgent.presence?.model)}
-                    </div>
                   </div>
                   <button
                     type="button"
@@ -1426,10 +1552,15 @@ export function Matrix3DScreen() {
                     ))}
                   </div>
                   <div className="matrix3d-side-sec">
-                    <div className="matrix3d-side-sec-lbl">Current Task</div>
+                    <div className="matrix3d-side-sec-lbl">
+                      {selectedIsWorking ? 'Current Task' : 'Last Task'}
+                    </div>
                     <div className="matrix3d-side-task">
-                      {selectedAgent.presence?.lastActivity ||
-                        selectedAgent.card.bubble}
+                      {selectedIsWorking
+                        ? selectedAgent.card.bubble
+                        : selectedAgent.presence?.lastTaskTitle ||
+                          selectedAgent.presence?.lastActivity ||
+                          '—'}
                     </div>
                     {selectedAgent.presence?.activeSessionKey ? (
                       <button
@@ -1457,14 +1588,14 @@ export function Matrix3DScreen() {
                   <div className="matrix3d-side-sec">
                     <div className="matrix3d-side-sec-lbl">Recent Activity</div>
                     <div className="matrix3d-side-tl">
-                      {selectedEntries.length > 0 ? (
-                        selectedEntries.map((entry) => (
+                      {selectedActivity.length > 0 ? (
+                        selectedActivity.map((entry) => (
                           <div key={entry.id} className="matrix3d-side-tl-row">
                             <div
                               className="matrix3d-side-tl-dot"
                               style={{
-                                background: entry.color,
-                                boxShadow: `0 0 5px ${entry.color}70`,
+                                background: selectedAgent.card.color,
+                                boxShadow: `0 0 5px ${selectedAgent.card.color}70`,
                               }}
                             />
                             <div className="matrix3d-side-tl-msg">
@@ -1477,7 +1608,7 @@ export function Matrix3DScreen() {
                         ))
                       ) : (
                         <div className="matrix3d-side-empty">
-                          No recent agent-specific activity.
+                          No recorded activity for this profile.
                         </div>
                       )}
                     </div>

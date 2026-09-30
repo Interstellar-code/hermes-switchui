@@ -240,6 +240,7 @@ type FeedEvent = {
 };
 
 const EMPTY_STRING_RECORD: Record<string, string> = {};
+const EMPTY_FLEET_SEATS: Array<string> = [];
 const EMPTY_BOOLEAN_RECORD: Record<string, boolean> = {};
 const EMPTY_NUMBER_RECORD: Record<string, number> = {};
 const EMPTY_MONITOR_MAP: OfficeDeskMonitorMap = {};
@@ -912,6 +913,7 @@ function useAgentTick(
   qaHoldByAgentId: Record<string, boolean> = {},
   githubReviewByAgentId: Record<string, boolean> = {},
   standupMeeting: StandupMeeting | null = null,
+  fleetSeatAgentIds: Array<string> = EMPTY_FLEET_SEATS,
 ) {
   const renderAgentsRef = useRef<Array<RenderAgent>>([]);
   const renderAgentLookupRef = useRef<Map<string, RenderAgent>>(new Map());
@@ -1029,6 +1031,19 @@ function useAgentTick(
     () =>
       new Set(standupActive ? standupMeeting.participantOrder : []),
     [standupActive, standupMeeting?.participantOrder],
+  );
+  // Fleet seats come after any standup attendees' seats; with no free seat
+  // left the agent gets none (roams normally) rather than sharing one.
+  const resolveFleetSeat = useCallback(
+    (index: number) => {
+      if (index < 0) return null;
+      const seats = [...meetingSeatLocations, ...MEETING_OVERFLOW_LOCATIONS];
+      const taken = standupActive
+        ? standupMeeting.participantOrder.length
+        : 0;
+      return seats[taken + index] ?? null;
+    },
+    [meetingSeatLocations, standupActive, standupMeeting?.participantOrder],
   );
   const resolveMeetingTarget = useCallback(
     (agentId: string) => {
@@ -1166,11 +1181,17 @@ function useAgentTick(
         ...QA_LAB_DEFAULT_TARGET,
         stationType: "console" as const,
       };
+      // Fleet seats pin an agent to a meeting-room seat without making it
+      // "working" — the seat is where it lives, busy or idle.
+      const fleetSeat = resolveFleetSeat(fleetSeatAgentIds.indexOf(agent.id));
+      const fleetSeatHold = fleetSeat !== null;
       const explicitMeetingHold =
-        standupActive && meetingParticipants.has(agent.id);
-      const meetingTarget = explicitMeetingHold
-        ? resolveMeetingTarget(agent.id)
-        : null;
+        fleetSeatHold || (standupActive && meetingParticipants.has(agent.id));
+      const meetingTarget = fleetSeatHold
+        ? fleetSeat
+        : explicitMeetingHold
+          ? resolveMeetingTarget(agent.id)
+          : null;
       const smsBoothItem =
         furnitureRef.current.find(
           (item) => item.type === "sms_booth",
@@ -1186,7 +1207,7 @@ function useAgentTick(
       const effectiveStatus: OfficeAgent["status"] =
         agent.status === "error"
           ? "error"
-          : explicitMeetingHold ||
+          : (explicitMeetingHold && !fleetSeatHold) ||
               explicitDeskHold ||
               explicitGymHold ||
               explicitSmsBoothHold ||
@@ -1709,7 +1730,10 @@ function useAgentTick(
           effectiveStatus === "idle" && assignedIdleLeisureArea
             ? pickIdleLeisureSpawnPoint(agent.id, assignedIdleLeisureArea)
             : null;
-        const { x: sx, y: sy } = idleLeisureSpawn ?? pickSpawnPoint(agent.id);
+        const { x: sx, y: sy } =
+          (fleetSeatHold ? meetingTarget : null) ??
+          idleLeisureSpawn ??
+          pickSpawnPoint(agent.id);
         const serverRoomRoute = resolveServerRoomRoute(sx, sy);
         const smsBoothRoute = resolveSmsBoothRoute(smsBoothItem, sx, sy);
         const phoneBoothRoute = resolvePhoneBoothRoute(phoneBoothItem, sx, sy);
@@ -1861,6 +1885,8 @@ function useAgentTick(
     resolveMeetingTarget,
     standupActive,
     standupMeeting,
+    fleetSeatAgentIds,
+    resolveFleetSeat,
   ]);
 
   // Tick called each frame — follows A* waypoints, no React state.
@@ -2180,6 +2206,12 @@ function useAgentTick(
             }
           } else if (agent.status === "error") {
             ns = "standing";
+          } else if (
+            agent.interactionTarget === "meeting_room" &&
+            fleetSeatAgentIds.includes(agent.id)
+          ) {
+            // Idle fleet peers stay seated; no roaming out of the room.
+            ns = "sitting";
           } else {
             // New Idea 9: away state — if idle for > AWAY_THRESHOLD_MS, send to nearest couch.
             const lastSeen = lastSeenByAgentId[agent.id] ?? 0;
@@ -2322,62 +2354,6 @@ const estimatePhoneSpeechDurationMs = (
   if (!normalized) return 5_000;
   const wordCount = normalized.split(/\s+/).filter(Boolean).length;
   return Math.max(5_000, Math.min(12_000, 1_800 + wordCount * 380));
-};
-
-const IDLE_MATRIX_QUIPS: Record<string, Array<string>> = {
-  "hermes-switch": [
-    "Operator online. Console snacks accepted.",
-    "I know kung fu... and gateway logs.",
-    "Blue pill: nap. Green pill: ship.",
-  ],
-  hermes: [
-    "Operator online. Console snacks accepted.",
-    "I know kung fu... and gateway logs.",
-    "Blue pill: nap. Green pill: ship.",
-  ],
-  morpheus: [
-    "I can only show you the way. You assign the ticket.",
-    "Give me work, or I offer the red pill.",
-    "Free your mind. Then run lint.",
-  ],
-  neo: [
-    "There is no spoon. Only TODOs.",
-    "I see green text. Must be Tuesday.",
-    "Send task. I dodge bugs.",
-  ],
-  trinity: [
-    "Need a miracle? Open an issue.",
-    "Dodge bullets? Easy. Flaky tests? Rude.",
-    "Idle, but still extremely cinematic.",
-  ],
-  default: [
-    "The Matrix is quiet. Suspicious.",
-    "Assign me something before I become lore.",
-    "Standing by in bullet-time.",
-  ],
-};
-const IDLE_MATRIX_QUIP_INTERVAL_MS = 180_000;
-const IDLE_MATRIX_QUIP_VISIBLE_MS = 12_000;
-
-const hashText = (value: string): number => {
-  let hash = 0;
-  for (let i = 0; i < value.length; i += 1) {
-    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-};
-
-const idleMatrixQuipForAgent = (
-  agent: OfficeAgent,
-  cycle: number,
-): string => {
-  const identity = `${agent.id} ${agent.name}`.toLowerCase();
-  const key =
-    Object.keys(IDLE_MATRIX_QUIPS).find(
-      (candidate) => candidate !== "default" && identity.includes(candidate),
-    ) ?? "default";
-  const quips = IDLE_MATRIX_QUIPS[key];
-  return quips[(hashText(agent.id) + cycle) % quips.length] ?? "";
 };
 
 const getAgentInitials = (name: string | null | undefined): string => {
@@ -2534,6 +2510,7 @@ export function RetroOffice3D({
     | "smsBoothHoldByAgentId"
     | "qaHoldByAgentId"
     | "jukeboxHoldByAgentId"
+    | "fleetSeatAgentIds"
   > | null;
   readOnly?: boolean;
   storageNamespace?: string;
@@ -2681,6 +2658,8 @@ export function RetroOffice3D({
     animationState?.jukeboxHoldByAgentId ?? EMPTY_BOOLEAN_RECORD;
   const resolvedIdleLeisureByAgentId =
     animationState?.idleLeisureByAgentId ?? EMPTY_IDLE_LEISURE_RECORD;
+  const resolvedFleetSeatAgentIds =
+    animationState?.fleetSeatAgentIds ?? EMPTY_FLEET_SEATS;
   const isJukeboxActive = Object.values(resolvedJukeboxHoldByAgentId).some(
     Boolean,
   );
@@ -2759,13 +2738,6 @@ export function RetroOffice3D({
   const [deskAssignPickerOpen, setDeskAssignPickerOpen] = useState(false);
   // New Idea 3: speech bubble agent IDs.
   const [speechAgentIds, setSpeechAgentIds] = useState<Set<string>>(new Set());
-  const [idleQuipNow, setIdleQuipNow] = useState(() => Date.now());
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setIdleQuipNow(Date.now());
-    }, 5_000);
-    return () => window.clearInterval(intervalId);
-  }, []);
   const statusFeedEvents = useMemo(
     () => feedEvents.filter((event) => event.kind !== "reply"),
     [feedEvents],
@@ -2791,21 +2763,6 @@ export function RetroOffice3D({
     if (!currentCard) return {};
     return { [currentCard.agentId]: currentCard.speech };
   }, [standupMeeting]);
-  const idleMatrixQuipByAgentId = useMemo(() => {
-    const next: Record<string, string> = {};
-    for (const agent of agents) {
-      if (agent.status !== "idle") continue;
-      const offset = hashText(agent.id) % IDLE_MATRIX_QUIP_INTERVAL_MS;
-      const shiftedNow = idleQuipNow + offset;
-      const phase = shiftedNow % IDLE_MATRIX_QUIP_INTERVAL_MS;
-      if (phase > IDLE_MATRIX_QUIP_VISIBLE_MS) continue;
-      next[agent.id] = idleMatrixQuipForAgent(
-        agent,
-        Math.floor(shiftedNow / IDLE_MATRIX_QUIP_INTERVAL_MS),
-      );
-    }
-    return next;
-  }, [agents, idleQuipNow]);
   const suppressSceneSpeechBubbles =
     standupMeeting?.phase === "gathering" ||
     standupMeeting?.phase === "in_progress";
@@ -2982,11 +2939,14 @@ export function RetroOffice3D({
   const assignedDeskIndexByAgentId = useMemo(
     () =>
       assignDeskIndexByAgentId(
-        agents.map((agent) => agent.id),
+        // Fleet-seated agents never take (or shift) a desk.
+        agents
+          .map((agent) => agent.id)
+          .filter((id) => !resolvedFleetSeatAgentIds.includes(id)),
         deskItems.map((item) => item._uid),
         deskAssignmentByDeskUid,
       ),
-    [agents, deskAssignmentByDeskUid, deskItems],
+    [agents, deskAssignmentByDeskUid, deskItems, resolvedFleetSeatAgentIds],
   );
   const janitorCleaningStops = useMemo(
     () => getJanitorCleaningStops(furniture),
@@ -3076,6 +3036,7 @@ export function RetroOffice3D({
     resolvedQaHoldByAgentId,
     resolvedGithubReviewByAgentId,
     standupMeeting,
+    resolvedFleetSeatAgentIds,
   );
   useEffect(() => {
     const syncRenderAgentUi = () => {
@@ -5960,8 +5921,7 @@ export function RetroOffice3D({
                       : standupMeeting?.phase === "in_progress"
                         ? Boolean(standupSpeechTextByAgentId[agent.id])
                         : speechAgentIds.has(agent.id) ||
-                          Boolean(streamingTextByAgentId[agent.id]) ||
-                          Boolean(idleMatrixQuipByAgentId[agent.id])
+                          Boolean(streamingTextByAgentId[agent.id])
                   }
                   speechText={
                     isJanitor
@@ -5970,7 +5930,6 @@ export function RetroOffice3D({
                         ? (standupSpeechTextByAgentId[agent.id] ?? null)
                         : (speechTextByAgentId[agent.id] ||
                             streamingTextByAgentId[agent.id] ||
-                            idleMatrixQuipByAgentId[agent.id] ||
                             "")
                   }
                   speechBubbleColor={agentColorMap.get(agent.id) ?? "#00ff41"}
@@ -5979,6 +5938,7 @@ export function RetroOffice3D({
                     standupMeeting.currentSpeakerAgentId !== agent.id
                   }
                   progress={progressByAgentId[agent.id]}
+                  badge={"badge" in agent ? (agent.badge ?? null) : null}
                 />
               );
             })}

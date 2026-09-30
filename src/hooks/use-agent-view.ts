@@ -24,6 +24,8 @@ export type ActiveAgent = {
   isLive: boolean
   profile?: string
   parentSessionId?: string
+  /** Session origin (subagent, cron, kanban, a2a_fleet, telegram, …). */
+  source?: string
 }
 
 export type QueuePriority = 'high' | 'normal' | 'low'
@@ -149,7 +151,10 @@ export function isWorkspaceChatSession(session: GatewaySession): boolean {
 }
 
 export function isChildWorkerSession(session: GatewaySession): boolean {
-  return Boolean(session.parentSessionId) && readString(session.kind).toLowerCase() === 'chat'
+  return (
+    Boolean(session.parentSessionId) &&
+    readString(session.kind).toLowerCase() === 'chat'
+  )
 }
 
 const CHILD_SESSION_FRESH_MS = 5 * 60_000
@@ -293,7 +298,11 @@ function readStatus(
     if (isChildWorkerSession(session) && normalized === 'idle') {
       return isFreshChildSession(session) ? 'running' : 'idle'
     }
-    if (normalized === 'idle' && session.is_active === true && readString(session.kind).toLowerCase() === 'chat') {
+    if (
+      normalized === 'idle' &&
+      session.is_active === true &&
+      readString(session.kind).toLowerCase() === 'chat'
+    ) {
       return 'running'
     }
     if (isWorkspaceChatSession(session)) {
@@ -383,6 +392,7 @@ export function mapSessionToActiveAgent(
   const tokenCount = readTokenCount(session, status)
   const profile = readString(session.profile)
   const parentSessionId = readString(session.parentSessionId)
+  const source = readString(session.source)
   return {
     id: readSessionKey(session) || crypto.randomUUID(),
     name: readSessionName(session),
@@ -396,6 +406,7 @@ export function mapSessionToActiveAgent(
     isLive: true,
     ...(profile ? { profile } : {}),
     ...(parentSessionId ? { parentSessionId } : {}),
+    ...(source ? { source } : {}),
   }
 }
 

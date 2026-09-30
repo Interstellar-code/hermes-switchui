@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { resolveCrewEffectiveStatus } from './matrix3d-presence-status'
+import { buildFleetPresence } from './a2a-fleet-presence'
+import type { Matrix3DFleetPeer } from './a2a-fleet-presence'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
 import type {
   OfficeAnimationState,
@@ -8,6 +10,7 @@ import type {
 } from '@/lib/office/eventTriggers'
 import type { StudioGatewayAdapterType } from '@/lib/studio/settings'
 import type {
+  CrewActivity,
   CrewStatusAgent,
   WorkspaceAgentDirectory,
 } from '@/lib/workspace-agents'
@@ -20,7 +23,8 @@ import { useAgentView } from '@/hooks/use-agent-view'
 import { createDefaultAgentAvatarProfile } from '@/lib/avatars/profile'
 import {
   gatewayStatus as fetchGatewayStatus,
-  getLogs,
+  getA2AFleetConversations,
+  getA2AFleetPeers,
 } from '@/lib/hermes-client'
 import { useChatStore } from '@/stores/chat-store'
 import { activeScopeKey } from '@/lib/session-scope'
@@ -74,20 +78,29 @@ type Matrix3DRoom = 'desk' | 'github' | 'qa' | 'phone' | 'sms' | 'server'
  *
  * Signals (priority order):
  *   1. Most recent in-flight or recently-completed tool call in StreamingState
- *      for this agent's session — name pattern routes to a specific room.
- *   2. `skill.loaded` events (StreamingState toolCalls with phase 'skill.loaded')
- *      → desk (research / context loading).
+ *      for this agent's session (runs SwitchUI itself streams — exact).
+ *   2. Otherwise the newest tool call crew-status read from the profile's
+ *      state.db (`fallbackToolName`) — covers Telegram/cron/CLI/other runs.
  *   3. Working but no tool signal → desk (default).
  *
  * Rest rooms (gym, jukebox) are NOT auto-routed: they should fire only via
  * explicit intentional signals, not heuristics, otherwise figures wander
  * during normal work.
  */
-function inferActiveRoom(streaming: StreamingState | undefined): {
+export function inferActiveRoom(
+  streaming: StreamingState | undefined,
+  fallbackToolName: string | null = null,
+): {
   room: Matrix3DRoom
   signal: string
 } {
   if (!streaming || streaming.toolCalls.length === 0) {
+    if (fallbackToolName) {
+      return {
+        room: roomForToolName(fallbackToolName),
+        signal: `db-tool:${fallbackToolName}`,
+      }
+    }
     return { room: 'desk', signal: 'no-tool-calls' }
   }
 
@@ -97,7 +110,11 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
     (a, b) => (b.firstSeenAt ?? 0) - (a.firstSeenAt ?? 0),
   )
   const recent = sorted.find((tc) => tc.phase !== 'error') ?? sorted[0]
-  const name = recent.name.toLowerCase()
+  return { room: roomForToolName(recent.name), signal: `tool:${recent.name}` }
+}
+
+export function roomForToolName(toolName: string): Matrix3DRoom {
+  const name = toolName.toLowerCase()
 
   // GitHub family (GitHub MCP tools, gh CLI, etc.)
   if (
@@ -107,7 +124,7 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
     name.includes('pull_request') ||
     name.includes('issue')
   ) {
-    return { room: 'github', signal: `tool:${recent.name}` }
+    return 'github'
   }
 
   // Shell / terminal / exec → server room (where the racks live)
@@ -118,7 +135,7 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
     name.includes('exec') ||
     name.includes('run_command')
   ) {
-    return { room: 'server', signal: `tool:${recent.name}` }
+    return 'server'
   }
 
   // Phone-style call tooling
@@ -127,7 +144,7 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
     name.includes('call_tool') ||
     name.includes('voice_')
   ) {
-    return { room: 'phone', signal: `tool:${recent.name}` }
+    return 'phone'
   }
 
   // SMS / text send
@@ -136,7 +153,7 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
     name.includes('text_send') ||
     name.includes('twilio')
   ) {
-    return { room: 'sms', signal: `tool:${recent.name}` }
+    return 'sms'
   }
 
   // QA / test runs
@@ -147,13 +164,13 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
     name.includes('lint') ||
     name.includes('typecheck')
   ) {
-    return { room: 'qa', signal: `tool:${recent.name}` }
+    return 'qa'
   }
 
   // Everything else (web_search, browser, gmail/mcp_gmail, vision_analyze,
   // load_mcp_server, view_skill / load_skill / skill.loaded, delegate_task,
   // spawn_agent, file edits, read, glob, grep, etc.) → desk.
-  return { room: 'desk', signal: `tool:${recent.name}` }
+  return 'desk'
 }
 
 const ACTIVE_BUBBLE_MAX_LENGTH = 96
@@ -229,12 +246,45 @@ function toolActionPhrase(tool: StreamingState['toolCalls'][number]): string {
   return compactBubbleText(`Using ${name}${detail ? `: ${detail}` : ''}`)
 }
 
+const TOOL_FRESH_MS = 60_000
+
+function isFreshTool(
+  tool: NonNullable<CrewActivity['tool']>,
+  nowMs: number,
+): boolean {
+  return tool.at !== null && nowMs - tool.at <= TOOL_FRESH_MS
+}
+
+/** Newest db tool name for this agent's session, if it ran in the last minute. */
+export function freshToolName(
+  presence: Pick<Matrix3DAgentPresence, 'activeSessionKey' | 'activity'>,
+  nowMs: number,
+): string | null {
+  const tool = sessionActivity(presence)?.tool
+  return tool && isFreshTool(tool, nowMs) ? tool.name : null
+}
+
+/** crew-status activity, only when it describes the session this agent is running. */
+function sessionActivity(
+  presence: Pick<Matrix3DAgentPresence, 'activeSessionKey' | 'activity'>,
+): CrewActivity | null {
+  const activity = presence.activity
+  if (!activity || activity.sessionKey !== presence.activeSessionKey)
+    return null
+  return activity
+}
+
 export function activeBubbleTextForPresence(
   presence: Pick<
     Matrix3DAgentPresence,
-    'effectiveStatus' | 'activeSessionTitle' | 'isDelegating'
+    | 'effectiveStatus'
+    | 'activeSessionTitle'
+    | 'isDelegating'
+    | 'activeSessionKey'
+    | 'activity'
   >,
   streaming: StreamingState | undefined,
+  nowMs = Date.now(),
 ): string | null {
   if (presence.effectiveStatus !== 'working') return null
 
@@ -253,6 +303,16 @@ export function activeBubbleTextForPresence(
   if (streaming?.text) {
     return compactBubbleText(`Writing: ${streaming.text}`)
   }
+
+  // Not streamed by SwitchUI (Telegram, cron, CLI, other clients): what the
+  // profile's state.db says the active session is doing right now.
+  const activity = sessionActivity(presence)
+  // A tool call older than a minute is history, not what it is doing now.
+  if (activity?.tool && isFreshTool(activity.tool, nowMs)) {
+    const { name, argsPreview } = activity.tool
+    return compactBubbleText(argsPreview ? `${name}: ${argsPreview}` : name)
+  }
+  if (activity?.description) return compactBubbleText(activity.description)
 
   const title = presence.activeSessionTitle
     ? compactBubbleText(presence.activeSessionTitle, SESSION_TITLE_MAX_LENGTH)
@@ -280,6 +340,8 @@ export type Matrix3DAgentPresence = {
   rosterStatus: 'online' | 'away' | 'offline' | 'unknown'
   effectiveStatus: OfficeAgent['status']
   lastActivity: string | null
+  /** Title of the profile's most recent session (shown as "Last task" when not working). */
+  lastTaskTitle: string | null
   sessionCount: number
   assignedTaskCount: number
   activeSessionKey: string | null
@@ -294,7 +356,46 @@ export type Matrix3DAgentPresence = {
    * null = the active gateway profile.
    */
   activeSessionProfile: string | null
-  activityScore: number
+  /** state.db activity of the profile's active/most recent session (crew only). */
+  activity: CrewActivity | null
+  /** Live sub-session counts on this agent, grouped by source. */
+  badges: SessionBadges
+}
+
+export type SessionBadgeKind = 'sub' | 'a2a' | 'kanban' | 'cron'
+export type SessionBadges = Partial<Record<SessionBadgeKind, number>>
+
+const BADGE_KIND_BY_SOURCE: Partial<Record<string, SessionBadgeKind>> = {
+  subagent: 'sub',
+  delegate: 'sub',
+  delegation: 'sub',
+  a2a_fleet: 'a2a',
+  a2a: 'a2a',
+  kanban: 'kanban',
+  cron: 'cron',
+}
+
+/** Count live sessions by kind; primary chats (telegram, cli, api_server…) are not badges. */
+export function groupSessionBadges(
+  sessions: Array<{ id: string; source: string | null }>,
+): SessionBadges {
+  const seen = new Set<string>()
+  const badges: SessionBadges = {}
+  for (const session of sessions) {
+    if (seen.has(session.id)) continue
+    seen.add(session.id)
+    const kind = BADGE_KIND_BY_SOURCE[(session.source ?? '').toLowerCase()]
+    if (kind) badges[kind] = (badges[kind] ?? 0) + 1
+  }
+  return badges
+}
+
+export function formatSessionBadges(badges: SessionBadges): string | null {
+  const order: Array<SessionBadgeKind> = ['sub', 'a2a', 'kanban', 'cron']
+  const parts = order
+    .filter((kind) => (badges[kind] ?? 0) > 0)
+    .map((kind) => `${kind} ${badges[kind]}`)
+  return parts.length > 0 ? parts.join(' · ') : null
 }
 
 function normalizeText(value: string): string {
@@ -363,12 +464,6 @@ function toLiveOfficeStatus(status: string): OfficeAgent['status'] {
   if (status === 'paused' || status === 'idle' || status === 'away')
     return 'idle'
   return 'error'
-}
-
-export function shouldRouteWorkingAgentToConsole(
-  presence: Pick<Matrix3DAgentPresence, 'id'>,
-): boolean {
-  return presence.id === 'hermes-switch'
 }
 
 function toOfficeColor(agent: AgentLike): string {
@@ -559,6 +654,36 @@ function toOfficeAgent(presence: Matrix3DAgentPresence): OfficeAgent {
     color: toOfficeColor(mapped),
     item: toOfficeItem(mapped),
     avatarProfile: createDefaultAgentAvatarProfile(presence.id),
+    badge: formatSessionBadges(presence.badges),
+  }
+}
+
+// Distinct from the profile identity colours (green/violet/sky/amber).
+const FLEET_COLORS = [
+  '#f472b6',
+  '#2dd4bf',
+  '#fb923c',
+  '#e879f9',
+  '#a3e635',
+  '#fda4af',
+]
+
+function fleetToOfficeAgent(peer: Matrix3DFleetPeer): OfficeAgent {
+  const color = FLEET_COLORS[stableHash(peer.peer) % FLEET_COLORS.length]
+  const avatar = createDefaultAgentAvatarProfile(peer.id)
+  return {
+    id: peer.id,
+    name: peer.name,
+    subtitle: peer.busy ? 'busy (inferred)' : 'idle (inferred)',
+    status: peer.busy ? 'working' : 'idle',
+    color,
+    item: 'globe',
+    // Headset + cap + fleet-coloured top: visibly not a Hermes profile.
+    avatarProfile: {
+      ...avatar,
+      clothing: { ...avatar.clothing, topColor: color },
+      accessories: { ...avatar.accessories, headset: true, hatStyle: 'cap' },
+    },
   }
 }
 
@@ -566,7 +691,6 @@ export function mergePresence(
   crewAgents: Array<CrewStatusAgent>,
   fallbackAgents: Array<WorkspaceAgentDirectory>,
   activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
-  activityBoosts: Record<string, number>,
   nowMs = Date.now(),
 ): Array<Matrix3DAgentPresence> {
   if (crewAgents.length > 0) {
@@ -583,11 +707,8 @@ export function mergePresence(
       if (live) matchedSessionIds.add(live.id)
 
       const rosterStatus = crewRosterStatus(agent)
-      const boost = activityBoosts[agent.id] ?? 0
-      // Deterministic own-db / delegated-session signals take precedence over
-      // the heuristic. A profile whose own db reports an active session, or one
-      // that has been assigned a fresh delegated child session, is working —
-      // regardless of whether a live session matched by name.
+      // Working = own db active session, a fresh delegated child, or a live
+      // running gateway session. No log-text / counter-delta heuristics.
       const ownLive = agent.isActive
       const delegatedLive = hasFreshDelegation(agent, nowMs)
       const effectiveStatus: OfficeAgent['status'] =
@@ -596,10 +717,6 @@ export function mergePresence(
           : resolveCrewEffectiveStatus({
               liveStatus: live?.status ?? null,
               rosterStatus,
-              activityBoost: boost,
-              processAlive: agent.processAlive,
-              gatewayState: agent.gatewayState,
-              assignedTaskCount: agent.assignedTaskCount,
             })
       const activeSessionTitle =
         (ownLive ? agent.activeSessionTitle : null) ??
@@ -634,6 +751,7 @@ export function mergePresence(
             ? buildLiveOfficeSubtitle(live)
             : agent.lastSessionTitle ||
               buildRosterOfficeSubtitle(agent, rosterStatus)),
+        lastTaskTitle: agent.lastSessionTitle,
         sessionCount: agent.sessionCount,
         assignedTaskCount: agent.assignedTaskCount,
         activeSessionKey,
@@ -643,14 +761,16 @@ export function mergePresence(
         ),
         subSessionKeys: [],
         activeSessionProfile,
-        activityScore: ownLive || delegatedLive ? Math.max(boost, 5) : boost,
+        activity: agent.activity,
+        badges: {},
       } satisfies Matrix3DAgentPresence
     })
 
-    return attachUnmatchedSessions(
+    attachUnmatchedSessions(
       merged,
       activeAgents.filter((agent) => !matchedSessionIds.has(agent.id)),
     )
+    return withSessionBadges(merged, activeAgents, crewAgents)
   }
 
   const matchedSessionIds = new Set<string>()
@@ -674,6 +794,7 @@ export function mergePresence(
       lastActivity: live
         ? buildLiveOfficeSubtitle(live)
         : buildRosterOfficeSubtitle(agent, agent.status),
+      lastTaskTitle: null,
       sessionCount: live ? 1 : 0,
       assignedTaskCount: 0,
       activeSessionKey: live?.id ?? null,
@@ -681,88 +802,45 @@ export function mergePresence(
       isDelegating: false,
       subSessionKeys: [],
       activeSessionProfile: live?.profile ?? null,
-      activityScore: live ? 5 : 0,
+      activity: null,
+      badges: {},
     } satisfies Matrix3DAgentPresence
   })
 
-  return attachUnmatchedSessions(
+  attachUnmatchedSessions(
     rosterPresence,
     activeAgents.filter((agent) => !matchedSessionIds.has(agent.id)),
   )
+  return withSessionBadges(rosterPresence, activeAgents, [])
 }
 
-type CrewActivitySnapshot = {
-  totalTokens: number
-  toolCallCount: number
-  messageCount: number
-  sessionCount: number
-  lastSessionAt: number | null
-  assignedTaskCount: number
-}
-
-function snapshotCrewActivity(agent: CrewStatusAgent): CrewActivitySnapshot {
-  return {
-    totalTokens: agent.totalTokens,
-    toolCallCount: agent.toolCallCount,
-    messageCount: agent.messageCount,
-    sessionCount: agent.sessionCount,
-    lastSessionAt: agent.lastSessionAt,
-    assignedTaskCount: agent.assignedTaskCount,
+/**
+ * Badge counts per agent: its gateway sub-sessions (subSessionKeys) plus the
+ * profile's own live db sessions, grouped by source. Children without a
+ * source are delegations.
+ */
+function withSessionBadges(
+  presences: Array<Matrix3DAgentPresence>,
+  activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
+  crewAgents: Array<CrewStatusAgent>,
+): Array<Matrix3DAgentPresence> {
+  const byId = new Map(activeAgents.map((agent) => [agent.id, agent]))
+  for (const presence of presences) {
+    const sessions = presence.subSessionKeys.map((id) => {
+      const session = byId.get(id)
+      return {
+        id,
+        source:
+          session?.source ?? (session?.parentSessionId ? 'subagent' : null),
+      }
+    })
+    const crew = crewAgents.find((agent) => agent.id === presence.id)
+    presence.badges = groupSessionBadges([
+      ...sessions,
+      ...(crew?.liveSessions ?? []),
+    ])
   }
-}
-
-function parseLogText(raw: unknown): string {
-  if (!raw || typeof raw !== 'object') return ''
-  const rec = raw as Record<string, unknown>
-  const lines = Array.isArray(rec.lines)
-    ? rec.lines.filter((x): x is string => typeof x === 'string')
-    : []
-  return lines.join('\n').toLowerCase()
-}
-
-function computeActivityScore(
-  agent: CrewStatusAgent,
-  previous: CrewActivitySnapshot | undefined,
-  logText: string,
-  nowMs: number,
-): number {
-  let score = 0
-  const current = snapshotCrewActivity(agent)
-  if (previous) {
-    if (current.totalTokens > previous.totalTokens) score += 3
-    if (current.toolCallCount > previous.toolCallCount) score += 3
-    if (current.messageCount > previous.messageCount) score += 2
-    if (current.sessionCount > previous.sessionCount) score += 2
-    if ((current.lastSessionAt ?? 0) > (previous.lastSessionAt ?? 0)) score += 2
-    if (current.assignedTaskCount > previous.assignedTaskCount) score += 1
-  }
-
-  const recentSessionAge = current.lastSessionAt
-    ? nowMs - current.lastSessionAt * 1000
-    : Number.POSITIVE_INFINITY
-  if (recentSessionAge < 120_000) score += 2
-  if (current.assignedTaskCount > 0) score += 1
-
-  const id = agent.id.toLowerCase()
-  const display = agent.displayName.toLowerCase()
-  if (
-    logText.includes(`[${id}]`) ||
-    logText.includes(` ${id} `) ||
-    logText.includes(display)
-  )
-    score += 1
-  if (
-    logText.includes(`delegate to ${display}`) ||
-    logText.includes(`delegated to ${display}`)
-  )
-    score += 3
-  if (
-    logText.includes(`handover to ${display}`) ||
-    logText.includes(`assign ${display}`)
-  )
-    score += 2
-
-  return score
+  return presences
 }
 
 function formatGatewayStatus(
@@ -812,6 +890,8 @@ export type Matrix3DOfficeData = {
   activeAdapterType: StudioGatewayAdapterType
   agentSource: 'live' | 'roster' | 'none'
   presence: Array<Matrix3DAgentPresence>
+  /** A2A fleet peers (inferred busy/idle); never counted as profiles. */
+  fleet: Array<Matrix3DFleetPeer>
   /** #81/#85 — drives sit-at-desk + room-routing animations */
   animationState: Pick<
     OfficeAnimationState,
@@ -825,6 +905,7 @@ export type Matrix3DOfficeData = {
     | 'smsBoothHoldByAgentId'
     | 'qaHoldByAgentId'
     | 'jukeboxHoldByAgentId'
+    | 'fleetSeatAgentIds'
   >
   /** #82 — live streaming text bubbles per agent (truncated) */
   streamingTextByAgentId: Record<string, string | null>
@@ -850,10 +931,32 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
   const crewStatusQuery = useQuery({
     queryKey: ['matrix3d', 'crew-status'],
     queryFn: listCrewStatusAgents,
-    // Matrix3D uses crew-status for live delegated child sessions. Poll near
-    // the dashboard active-session window so short sub-agent runs animate.
-    staleTime: 4_000,
-    refetchInterval: 4_000,
+    // Near-live: poll every 3s while the tab is visible. There is no upstream
+    // stream to fan in instead — gateway run SSE (/v1/runs/{id}/events) only
+    // covers runs this API caller created, and Telegram/cron/CLI runs never
+    // appear there — so state.db via crew-status is the cross-source signal.
+    // Runs SwitchUI starts itself still win via the chat store streamingState.
+    staleTime: 2_000,
+    refetchInterval: 3_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  })
+
+  // Shared keys with the A2A Fleet tab so both views reuse one poll.
+  const fleetPeersQuery = useQuery({
+    queryKey: ['matrix3d', 'a2a-fleet', 'peers'],
+    queryFn: getA2AFleetPeers,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+    retry: false,
+  })
+
+  const fleetConversationsQuery = useQuery({
+    queryKey: ['matrix3d', 'a2a-fleet', 'conversations'],
+    queryFn: getA2AFleetConversations,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchIntervalInBackground: false,
     retry: false,
   })
 
@@ -873,65 +976,63 @@ export function useMatrix3DOfficeData(): Matrix3DOfficeData {
     retry: false,
   })
 
-  const logsQuery = useQuery({
-    queryKey: ['matrix3d', 'presence-logs'],
-    queryFn: () => getLogs({ lines: 200, file: 'agent' }),
-    staleTime: 5_000,
-    refetchInterval: 5_000,
-    retry: false,
-  })
-
-  const gatewayLogsQuery = useQuery({
-    queryKey: ['matrix3d', 'presence-gateway-logs'],
-    queryFn: () => getLogs({ lines: 200, file: 'gateway' }),
-    staleTime: 5_000,
-    refetchInterval: 5_000,
-    retry: false,
-  })
-
-  const previousCrewRef = useRef<Record<string, CrewActivitySnapshot>>({})
-  const [activityBoosts, setActivityBoosts] = useState<Record<string, number>>(
-    {},
-  )
-
   const crewAgents = crewStatusQuery.data ?? []
   const rosterAgents = workspaceAgentsQuery.data ?? []
   const hasLiveAgents = agentView.activeAgents.length > 0
   const hasRosterAgents = crewAgents.length > 0 || rosterAgents.length > 0
   const hasHermesData = hasLiveAgents || hasRosterAgents
 
-  useEffect(() => {
-    if (crewAgents.length === 0) return
-    const logText = `${parseLogText(logsQuery.data)}
-${parseLogText(gatewayLogsQuery.data)}`
-    const nowMs = Date.now()
-    const nextSnapshots: Record<string, CrewActivitySnapshot> = {}
-    const nextBoosts: Record<string, number> = {}
-
-    for (const agent of crewAgents) {
-      const previous = previousCrewRef.current[agent.id]
-      const snapshot = snapshotCrewActivity(agent)
-      nextSnapshots[agent.id] = snapshot
-      const score = computeActivityScore(agent, previous, logText, nowMs)
-      if (score > 0) nextBoosts[agent.id] = score
-    }
-
-    previousCrewRef.current = nextSnapshots
-    setActivityBoosts(nextBoosts)
-  }, [crewAgents, gatewayLogsQuery.data, logsQuery.data])
-
   const presence = useMemo(
     () =>
-      mergePresence(
-        crewAgents,
-        rosterAgents,
-        agentView.activeAgents,
-        activityBoosts,
-      ).filter(shouldShowMatrix3DAgent),
-    [activityBoosts, agentView.activeAgents, crewAgents, rosterAgents],
+      mergePresence(crewAgents, rosterAgents, agentView.activeAgents).filter(
+        shouldShowMatrix3DAgent,
+      ),
+    [agentView.activeAgents, crewAgents, rosterAgents],
   )
 
-  const agents = useMemo(() => presence.map(toOfficeAgent), [presence])
+  // Pull streaming state up here so animationState can derive holds from real
+  // tool-call signals rather than keyword-matching the status subtitle.
+  const streamingState = useChatStore((s) => s.streamingState)
+  const [idleLeisureRotationBucket, setIdleLeisureRotationBucket] = useState(
+    () => Math.floor(Date.now() / 120_000),
+  )
+  // 30s clock: time-windowed signals (fleet busy, tool freshness) must expire
+  // even when polls return structurally identical data (same refs, no rerun).
+  const [clockMs, setClockMs] = useState(() => Date.now())
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setIdleLeisureRotationBucket(Math.floor(Date.now() / 120_000))
+      setClockMs(Date.now())
+    }, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
+
+  // Recomputed per conversations poll and per clock tick (busy has a 10 min window).
+  const fleet = useMemo(
+    () =>
+      buildFleetPresence(
+        fleetPeersQuery.data?.peers ?? [],
+        fleetConversationsQuery.data?.conversations ?? [],
+        Math.max(clockMs, fleetConversationsQuery.dataUpdatedAt),
+      ),
+    [
+      clockMs,
+      fleetConversationsQuery.data,
+      fleetConversationsQuery.dataUpdatedAt,
+      fleetPeersQuery.data,
+    ],
+  )
+  const fleetIdsKey = fleet.map((peer) => peer.id).join('\n')
+  const fleetSeatAgentIds = useMemo(
+    () => (fleetIdsKey ? fleetIdsKey.split('\n') : []),
+    [fleetIdsKey],
+  )
+
+  const agents = useMemo(
+    () => [...presence.map(toOfficeAgent), ...fleet.map(fleetToOfficeAgent)],
+    [fleet, presence],
+  )
 
   const selectedAdapterType = useMemo<StudioGatewayAdapterType>(
     () => pickAdapterType(hasLiveAgents, rosterAgents),
@@ -942,20 +1043,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     () => pickAdapterType(hasLiveAgents, rosterAgents),
     [hasLiveAgents, rosterAgents],
   )
-
-  // Pull streaming state up here so animationState can derive holds from real
-  // tool-call signals rather than keyword-matching the status subtitle.
-  const streamingState = useChatStore((s) => s.streamingState)
-  const [idleLeisureRotationBucket, setIdleLeisureRotationBucket] = useState(
-    () => Math.floor(Date.now() / 120_000),
-  )
-
-  useEffect(() => {
-    const timer = window.setInterval(() => {
-      setIdleLeisureRotationBucket(Math.floor(Date.now() / 120_000))
-    }, 30_000)
-    return () => window.clearInterval(timer)
-  }, [])
 
   // #81/#85 — animationState: derive room holds from each agent's most recent
   // tool call. See `inferActiveRoom` above for the routing table and rationale.
@@ -988,19 +1075,14 @@ ${parseLogText(gatewayLogsQuery.data)}`
 
       if (p.effectiveStatus !== 'working') continue
 
-      // The Hermes/Switch orchestrator should visibly operate from the
-      // console computer whenever active. The RetroOffice server-room route is
-      // currently driven by githubHoldByAgentId, so use that hold map for this
-      // dedicated Matrix3D console placement. Other profiles keep normal
-      // room/tool routing and default to desks.
-      if (shouldRouteWorkingAgentToConsole(p)) {
-        githubHoldByAgentId[p.id] = true
-        continue
-      }
-
+      // Local streaming (runs SwitchUI started) wins; otherwise the newest
+      // tool call from the profile's state.db routes any agent the same way.
       const sessionKey = p.activeSessionKey ?? p.id
       const streaming = streamingState.get(activeScopeKey(sessionKey))
-      const { room } = inferActiveRoom(streaming)
+      const { room } = inferActiveRoom(
+        streaming,
+        freshToolName(p, Math.max(clockMs, crewStatusQuery.dataUpdatedAt)),
+      )
 
       switch (room) {
         case 'github':
@@ -1039,8 +1121,17 @@ ${parseLogText(gatewayLogsQuery.data)}`
       qaHoldByAgentId,
       githubHoldByAgentId,
       jukeboxHoldByAgentId,
+      // A2A peers keep fixed seats in the meeting room, busy or idle.
+      fleetSeatAgentIds,
     }
-  }, [idleLeisureRotationBucket, presence, streamingState])
+  }, [
+    clockMs,
+    crewStatusQuery.dataUpdatedAt,
+    fleetSeatAgentIds,
+    idleLeisureRotationBucket,
+    presence,
+    streamingState,
+  ])
 
   // #82 — streaming speech bubbles: current streaming text per active session (≤80 chars)
   const streamingTextByAgentId = useMemo(() => {
@@ -1048,10 +1139,15 @@ ${parseLogText(gatewayLogsQuery.data)}`
     for (const p of presence) {
       const sessionKey = p.activeSessionKey ?? p.id
       const state = streamingState.get(activeScopeKey(sessionKey))
-      result[p.id] = activeBubbleTextForPresence(p, state)
+      result[p.id] = activeBubbleTextForPresence(
+        p,
+        state,
+        Math.max(clockMs, crewStatusQuery.dataUpdatedAt),
+      )
     }
+    for (const peer of fleet) result[peer.id] = peer.bubble
     return result
-  }, [presence, streamingState])
+  }, [clockMs, crewStatusQuery.dataUpdatedAt, fleet, presence, streamingState])
 
   // #83 — monitor screens: last activity as monitor content
   const monitorByAgentId = useMemo(() => {
@@ -1082,9 +1178,9 @@ ${parseLogText(gatewayLogsQuery.data)}`
     for (const p of presence) {
       if (p.effectiveStatus === 'working') {
         result[p.id] = now
-      } else if (p.activityScore > 0) {
-        // Approximate: activity score implies recent activity within last 5min
-        result[p.id] = now - (5 - Math.min(p.activityScore, 5)) * 60_000
+      } else if (p.activity?.at && now - p.activity.at <= 5 * 60_000) {
+        // Real db activity only; older idle agents stay unset (no couch "away").
+        result[p.id] = p.activity.at
       }
     }
     return result
@@ -1093,14 +1189,12 @@ ${parseLogText(gatewayLogsQuery.data)}`
   // #84 — feed events: one event per presence entry with recent activity
   const feedEvents = useMemo((): Array<Matrix3DFeedEvent> => {
     return presence
-      .filter((p) => p.lastActivity && p.activityScore > 0)
+      .filter((p) => p.lastActivity && p.effectiveStatus === 'working')
       .slice(0, 20)
       .map((p) => ({
         id: p.id,
         name: p.name,
         text: p.lastActivity ?? '',
-        // Use lastSeenByAgentId (derived from activityScore) so the timestamp
-        // doesn't freeze at memo-creation time.
         ts: lastSeenByAgentId[p.id] ?? Date.now() - 5 * 60_000,
         kind: 'status' as const,
       }))
@@ -1137,6 +1231,7 @@ ${parseLogText(gatewayLogsQuery.data)}`
     agentSource:
       presence.length === 0 ? 'none' : hasLiveAgents ? 'live' : 'roster',
     presence,
+    fleet,
     animationState,
     streamingTextByAgentId,
     monitorByAgentId,

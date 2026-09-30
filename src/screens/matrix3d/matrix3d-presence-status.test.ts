@@ -2,68 +2,27 @@ import { describe, expect, it } from 'vitest'
 import { resolveCrewEffectiveStatus } from './matrix3d-presence-status'
 
 describe('resolveCrewEffectiveStatus', () => {
-  it('keeps stopped stub profiles idle even with stale heuristic boost', () => {
+  it('is idle without a live session (no heuristic boost exists any more)', () => {
     expect(
-      resolveCrewEffectiveStatus({
-        liveStatus: null,
-        rosterStatus: 'away',
-        activityBoost: 6,
-        processAlive: false,
-        gatewayState: 'stopped',
-        assignedTaskCount: 0,
-      }),
+      resolveCrewEffectiveStatus({ liveStatus: null, rosterStatus: 'online' }),
+    ).toBe('idle')
+    expect(
+      resolveCrewEffectiveStatus({ liveStatus: null, rosterStatus: 'away' }),
     ).toBe('idle')
   })
 
-  it('allows running processes to surface as working when activity is rising', () => {
-    expect(
-      resolveCrewEffectiveStatus({
-        liveStatus: null,
-        rosterStatus: 'online',
-        activityBoost: 4,
-        processAlive: true,
-        gatewayState: 'running',
-        assignedTaskCount: 0,
-      }),
-    ).toBe('working')
-  })
-
-  it('trusts live session status over roster heuristics', () => {
+  it('trusts live session status over roster status', () => {
     expect(
       resolveCrewEffectiveStatus({
         liveStatus: 'running',
         rosterStatus: 'away',
-        activityBoost: 0,
-        processAlive: false,
-        gatewayState: 'stopped',
-        assignedTaskCount: 0,
       }),
     ).toBe('working')
   })
 
   it('keeps offline profiles in error when no live session exists', () => {
     expect(
-      resolveCrewEffectiveStatus({
-        liveStatus: null,
-        rosterStatus: 'offline',
-        activityBoost: 10,
-        processAlive: false,
-        gatewayState: 'stopped',
-        assignedTaskCount: 4,
-      }),
+      resolveCrewEffectiveStatus({ liveStatus: null, rosterStatus: 'offline' }),
     ).toBe('error')
-  })
-
-  it('lets delegated agents surface as working when the task queue is active', () => {
-    expect(
-      resolveCrewEffectiveStatus({
-        liveStatus: null,
-        rosterStatus: 'away',
-        activityBoost: 2,
-        processAlive: false,
-        gatewayState: 'stopped',
-        assignedTaskCount: 1,
-      }),
-    ).toBe('working')
   })
 })

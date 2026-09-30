@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   activeBubbleTextForPresence,
+  formatSessionBadges,
+  groupSessionBadges,
   idleLeisureAreaForAgent,
+  inferActiveRoom,
   inferLiveMatch,
   mergePresence,
   scoreLiveMatch,
-  shouldRouteWorkingAgentToConsole,
 } from './use-matrix3d-office-data'
 import type { ActiveAgent } from '@/hooks/use-agent-view'
 import type { CrewStatusAgent } from '@/lib/workspace-agents'
@@ -39,6 +41,8 @@ function crew(overrides: Partial<CrewStatusAgent>): CrewStatusAgent {
     activeSessionKey: null,
     activeSessionTitle: null,
     activeSessionLastActiveAt: null,
+    activity: null,
+    liveSessions: [],
     ...overrides,
   }
 }
@@ -136,22 +140,94 @@ describe('scoreLiveMatch', () => {
       ],
       [],
       [],
-      {},
     )
 
     expect(presence[0]).toMatchObject({
       id: 'neo',
       effectiveStatus: 'working',
       activeSessionKey: '20260528_223630_d0344c',
-      activityScore: 5,
     })
   })
 
-  it('routes only the hermes-switch profile to the console computer override', () => {
-    expect(shouldRouteWorkingAgentToConsole({ id: 'hermes-switch' })).toBe(true)
-    expect(shouldRouteWorkingAgentToConsole({ id: 'neo' })).toBe(false)
-    expect(shouldRouteWorkingAgentToConsole({ id: 'trinity' })).toBe(false)
-    expect(shouldRouteWorkingAgentToConsole({ id: 'morpheus' })).toBe(false)
+  it('routes any agent by its state.db tool; local streaming still wins', () => {
+    expect(inferActiveRoom(undefined, 'terminal').room).toBe('server')
+    expect(
+      inferActiveRoom(undefined, 'mcp_github_create_pull_request').room,
+    ).toBe('github')
+    expect(inferActiveRoom(undefined, 'web_search').room).toBe('desk')
+    // No tool signal at all → desk (no hermes-switch console hardcode).
+    expect(inferActiveRoom(undefined, null)).toEqual({
+      room: 'desk',
+      signal: 'no-tool-calls',
+    })
+    const streaming = {
+      runId: 'r',
+      text: '',
+      thinking: '',
+      lifecycleEvents: [],
+      toolCalls: [
+        { id: 't', name: 'run_vitest', phase: 'running', firstSeenAt: 1 },
+      ],
+    } as unknown as StreamingState
+    expect(inferActiveRoom(streaming, 'terminal').room).toBe('qa')
+  })
+
+  it('groups live sub-sessions into badges by source', () => {
+    const badges = groupSessionBadges([
+      { id: 'a', source: 'subagent' },
+      { id: 'b', source: 'delegate' },
+      { id: 'a', source: 'subagent' },
+      { id: 'c', source: 'a2a_fleet' },
+      { id: 'd', source: 'kanban' },
+      { id: 'e', source: 'cron' },
+      { id: 'f', source: 'telegram' },
+      { id: 'g', source: null },
+    ])
+    expect(badges).toEqual({ sub: 2, a2a: 1, kanban: 1, cron: 1 })
+    expect(formatSessionBadges(badges)).toBe(
+      'sub 2 · a2a 1 · kanban 1 · cron 1',
+    )
+    expect(formatSessionBadges({})).toBeNull()
+  })
+
+  it('puts gateway child sessions and live db sessions on the owner badge', () => {
+    const [hermes] = mergePresence(
+      [
+        crew({
+          id: 'hermes-switch',
+          displayName: 'Hermes',
+          isActive: true,
+          activeSessionKey: 'parent-1',
+          liveSessions: [
+            { id: 'parent-1', source: 'telegram' },
+            { id: 'cron-1', source: 'cron' },
+            { id: 'child-1', source: 'subagent' },
+          ],
+        }),
+      ],
+      [],
+      [
+        activeAgent({ id: 'child-1', parentSessionId: 'parent-1' }),
+        activeAgent({ id: 'child-2', parentSessionId: 'parent-1' }),
+      ],
+    )
+    expect(hermes.badges).toEqual({ sub: 2, cron: 1 })
+  })
+
+  it('does not mark an agent working from counters or logs alone', () => {
+    const [neo] = mergePresence(
+      [
+        crew({
+          processAlive: true,
+          gatewayState: 'running',
+          assignedTaskCount: 3,
+          lastSessionAt: Date.now() / 1000,
+        }),
+      ],
+      [],
+      [],
+    )
+    expect(neo.effectiveStatus).toBe('idle')
   })
 
   it('rotates idle agents through the four leisure areas', () => {
@@ -170,6 +246,13 @@ describe('scoreLiveMatch', () => {
         effectiveStatus: 'working',
         activeSessionTitle: 'Investigate gateway health',
         isDelegating: false,
+        activeSessionKey: 's1',
+        activity: {
+          sessionKey: 's1',
+          description: 'terminal command running (111s elapsed)',
+          at: null,
+          tool: { name: 'terminal', argsPreview: 'pnpm test', at: Date.now() },
+        },
       },
       {
         runId: 'run-1',
@@ -185,7 +268,7 @@ describe('scoreLiveMatch', () => {
             firstSeenAt: 100,
           },
         ],
-      } satisfies StreamingState,
+      } as unknown as StreamingState,
     )
 
     expect(text).toBe('Running bash: pnpm vitest run matrix3d')
@@ -197,6 +280,8 @@ describe('scoreLiveMatch', () => {
         effectiveStatus: 'working',
         activeSessionTitle: `  Run backend audit ${'x'.repeat(80)}`,
         isDelegating: false,
+        activeSessionKey: null,
+        activity: null,
       },
       undefined,
     )
@@ -218,7 +303,6 @@ describe('scoreLiveMatch', () => {
       ],
       [],
       [],
-      {},
     )
     expect(activeBubbleTextForPresence(hermes, undefined)).toBe(
       'Plan the release',
@@ -242,7 +326,6 @@ describe('scoreLiveMatch', () => {
       ],
       [],
       [],
-      {},
     )
     expect(activeBubbleTextForPresence(withChild[0], undefined)).toBe(
       'Delegating: Plan the release',
@@ -261,7 +344,6 @@ describe('scoreLiveMatch', () => {
       ],
       [],
       [],
-      {},
     )
     expect(neo.effectiveStatus).not.toBe('working')
     expect(neo.activeSessionKey).toBeNull()
@@ -297,7 +379,6 @@ describe('scoreLiveMatch', () => {
       ],
       [],
       [child, byProfile, orphan],
-      {},
     )
 
     expect(presence.map((p) => p.id)).toEqual(['hermes-switch', 'trinity'])
@@ -306,6 +387,66 @@ describe('scoreLiveMatch', () => {
     expect(hermes.subSessionKeys).toContain('child-9')
     expect(hermes.isDelegating).toBe(true)
     expect(trinity.subSessionKeys).toEqual(['sess-42'])
+  })
+
+  it('bubble for non-local agents: db tool, then heartbeat, then title', () => {
+    const base = {
+      effectiveStatus: 'working' as const,
+      activeSessionTitle: 'Nightly audit',
+      isDelegating: false,
+      activeSessionKey: 's1',
+    }
+    const activity = {
+      sessionKey: 's1',
+      description: 'terminal command running (111s elapsed)',
+      at: null,
+      tool: { name: 'terminal', argsPreview: 'pnpm test', at: 1_000_000 },
+    }
+    const now = 1_000_000 + 30_000
+    expect(
+      activeBubbleTextForPresence({ ...base, activity }, undefined, now),
+    ).toBe('terminal: pnpm test')
+    // A tool call older than ~60s is not current: fall back to the heartbeat.
+    expect(
+      activeBubbleTextForPresence(
+        { ...base, activity },
+        undefined,
+        now + 60_000,
+      ),
+    ).toBe('terminal command running (111s elapsed)')
+    // Empty (redacted/unsupported) args: tool name only.
+    expect(
+      activeBubbleTextForPresence(
+        {
+          ...base,
+          activity: {
+            ...activity,
+            tool: { ...activity.tool, argsPreview: '' },
+          },
+        },
+        undefined,
+        now,
+      ),
+    ).toBe('terminal')
+    expect(
+      activeBubbleTextForPresence(
+        { ...base, activity: { ...activity, tool: null } },
+        undefined,
+      ),
+    ).toBe('terminal command running (111s elapsed)')
+    expect(
+      activeBubbleTextForPresence(
+        { ...base, activity: { ...activity, tool: null, description: null } },
+        undefined,
+      ),
+    ).toBe('Nightly audit')
+    // Activity for a different (older) session is ignored.
+    expect(
+      activeBubbleTextForPresence(
+        { ...base, activity: { ...activity, sessionKey: 'other' } },
+        undefined,
+      ),
+    ).toBe('Nightly audit')
   })
 
   it('does not put the model or guessed progress in activity text', () => {
@@ -321,7 +462,6 @@ describe('scoreLiveMatch', () => {
           progress: 0,
         }),
       ],
-      {},
     )
     expect(neo.lastActivity).not.toMatch(/auto|%/)
   })
