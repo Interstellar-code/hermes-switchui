@@ -5,7 +5,10 @@ import {
   CHAT_PENDING_COMMAND_STORAGE_KEY,
   CHAT_RUN_COMMAND_EVENT,
 } from '../chat-events'
-import { CHAT_OPEN_MODEL_PICKER_EVENT, switchModel } from '../components/chat-composer-services'
+import {
+  CHAT_OPEN_MODEL_PICKER_EVENT,
+  switchModel,
+} from '../components/chat-composer-services'
 import { textFromMessage } from '../utils'
 import type {
   ChatComposerAttachment,
@@ -310,7 +313,6 @@ export type UseSlashCommandsParams = {
     | ((
         body: string,
         attachments: Array<ChatComposerAttachment>,
-        fastMode: boolean,
         helpers: ChatComposerHelpers,
       ) => Promise<void>)
     | null
@@ -428,10 +430,12 @@ export function useSlashCommands(
           const notice = 'notice' in result ? result.notice : undefined
           if (notice) toast(notice, { type: 'info' })
           if (!result.message.trim()) {
-            toast(`${outcome.command} returned nothing to send`, { type: 'info' })
+            toast(`${outcome.command} returned nothing to send`, {
+              type: 'info',
+            })
             return
           }
-          void sendRef.current?.(result.message, [], false, commandHelpers)
+          void sendRef.current?.(result.message, [], commandHelpers)
           return
         }
 
@@ -451,9 +455,12 @@ export function useSlashCommands(
 
         case 'alias': {
           if (depth >= 1) {
-            toast(`${outcome.command} points at another alias — not following`, {
-              type: 'error',
-            })
+            toast(
+              `${outcome.command} points at another alias — not following`,
+              {
+                type: 'error',
+              },
+            )
             return
           }
           const target = result.target.startsWith('/')
@@ -464,7 +471,13 @@ export function useSlashCommands(
         }
       }
     },
-    [addCommandOutput, commandHelpers, sendRef, sessionKeyForCommands, setComposerValue],
+    [
+      addCommandOutput,
+      commandHelpers,
+      sendRef,
+      sessionKeyForCommands,
+      setComposerValue,
+    ],
   )
 
   const handleUiSlashCommand = useCallback(
@@ -566,7 +579,9 @@ export function useSlashCommands(
           activeSessionKey ||
           activeFriendlyId
         if (!sessionKey) {
-          toast('Nothing to branch yet — send a message first', { type: 'info' })
+          toast('Nothing to branch yet — send a message first', {
+            type: 'info',
+          })
           return true
         }
         void forkSession(sessionKey)
@@ -652,24 +667,11 @@ export function useSlashCommands(
         return true
       }
 
-      // NO `/reasoning` handler. It used to call handleThinkingLevelChange and
-      // toast "Reasoning: low" — a success message for a change that cannot
-      // reach a turn. The level it set travels as `body.thinking`, which
-      // `routes/api/send-stream.ts` deliberately drops because api_server has no
-      // per-request effort parameter (`grep -c reasoning_effort` in the
-      // installed api_server.py = 0); its only other consumer is the composer's
-      // `effectiveFastMode = fastMode && thinkingLevel === 'off'` gate, and
-      // `fastMode` is dropped on the same grounds. So both of its downstream
-      // paths end in a value the gateway never reads.
-      //
-      // What actually applies is `agent.reasoning_effort` from config.yaml, and
-      // the agent's bare `/reasoning` is the only truthful readout of it —
-      // there is no Settings control either. Shadowing that readout with a
-      // control that reports success and changes nothing is the defect, not the
-      // fix, so the handler is gone and `/reasoning` reaches the exec route.
-      // The composer's reasoning picker is untouched; if the gateway ever grows
-      // a per-request parameter, wire it there (send-stream.ts says how) rather
-      // than reinstating a slash command that duplicates a visible affordance.
+      // NO `/reasoning` handler. It used to toast "Reasoning: low" without
+      // changing anything. The composer's reasoning picker is the one control:
+      // its level rides every send as `body.thinking` and send-stream.ts
+      // forwards it as the per-request `reasoning_effort`. Bare `/reasoning`
+      // reaches the exec route and reports the configured default.
 
       // ── Catalog-known commands ─────────────────────────────────────────
       // Everything the agent advertises but SwitchUI does not handle locally
@@ -733,7 +735,7 @@ export function useSlashCommands(
       const trimmedCommand = command.trim()
       if (!trimmedCommand.startsWith('/')) return
       if (handleUiSlashCommand(trimmedCommand)) return
-      sendRef.current?.(trimmedCommand, [], false, commandHelpers)
+      sendRef.current?.(trimmedCommand, [], commandHelpers)
     },
     [commandHelpers, handleUiSlashCommand, sendRef],
   )

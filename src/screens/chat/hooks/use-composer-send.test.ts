@@ -140,7 +140,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('   ', [], false, helpers)
+      await result.current.send('   ', [], helpers)
     })
 
     expect(params.sendMessage).not.toHaveBeenCalled()
@@ -155,7 +155,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('/clear', [], false, helpers)
+      await result.current.send('/clear', [], helpers)
     })
 
     expect(params.handleUiSlashCommand).toHaveBeenCalledWith('/clear')
@@ -169,20 +169,20 @@ describe('useComposerSend', () => {
 
     // First send succeeds
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
     expect(params.sendMessage).toHaveBeenCalledTimes(1)
 
     // Immediate second send with same content should be blocked
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
     expect(params.sendMessage).toHaveBeenCalledTimes(1)
 
     // After 500ms the dedup window expires
     vi.advanceTimersByTime(501)
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
     expect(params.sendMessage).toHaveBeenCalledTimes(2)
   })
@@ -196,7 +196,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
@@ -217,7 +217,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello world', [], true, helpers)
+      await result.current.send('hello world', [], helpers)
     })
 
     expect(enqueueMock).not.toHaveBeenCalled()
@@ -226,7 +226,6 @@ describe('useComposerSend', () => {
       params.activeFriendlyId,
       'hello world',
       [],
-      true,
     )
   })
 
@@ -238,7 +237,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('first message', [], false, helpers)
+      await result.current.send('first message', [], helpers)
     })
 
     expect(resolveNewChatBootstrapSession).toHaveBeenCalledWith(
@@ -266,7 +265,6 @@ describe('useComposerSend', () => {
       'friendly-1',
       'first message',
       [],
-      false,
       true,
       'client-test-1',
     )
@@ -300,7 +298,7 @@ describe('useComposerSend', () => {
       await act(async () => {
         // No .rejects — an unhandled rejection here IS the bug.
         await expect(
-          result.current.send('hello there', [], false, helpers),
+          result.current.send('hello there', [], helpers),
         ).resolves.toBeUndefined()
       })
 
@@ -320,7 +318,7 @@ describe('useComposerSend', () => {
       const attachment = makeAttachment()
 
       await act(async () => {
-        await result.current.send('hello there', [attachment], false, helpers)
+        await result.current.send('hello there', [attachment], helpers)
       })
 
       // `helpers.reset()` already emptied the composer on the assumption the
@@ -338,10 +336,10 @@ describe('useComposerSend', () => {
       const helpers = makeHelpers()
 
       await act(async () => {
-        await result.current.send('hello there', [], false, helpers)
+        await result.current.send('hello there', [], helpers)
       })
       await act(async () => {
-        await result.current.send('hello there', [], false, helpers)
+        await result.current.send('hello there', [], helpers)
       })
 
       // Second attempt actually ran: bootstrap was called twice (and this time
@@ -360,7 +358,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('first message', [], false, helpers)
+      await result.current.send('first message', [], helpers)
     })
 
     expect(params.navigate).not.toHaveBeenCalled()
@@ -374,7 +372,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
     expect(hapticTap).toHaveBeenCalled()
@@ -388,7 +386,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
     expect(hapticTap).not.toHaveBeenCalled()
@@ -405,7 +403,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
     expect(isSessionWaitingMock).toHaveBeenCalledWith('session-waiting')
@@ -428,7 +426,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
     expect(enqueueMock).toHaveBeenCalled()
@@ -445,7 +443,7 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
     expect(enqueueMock).toHaveBeenCalled()
@@ -462,15 +460,9 @@ describe('useComposerSend', () => {
     const helpers = makeHelpers()
 
     await act(async () => {
-      await result.current.send('hello', [], false, helpers)
+      await result.current.send('hello', [], helpers)
     })
 
-    expect(params.sendMessage).toHaveBeenCalledWith(
-      'main',
-      'main',
-      'hello',
-      [],
-      false,
-    )
+    expect(params.sendMessage).toHaveBeenCalledWith('main', 'main', 'hello', [])
   })
 })

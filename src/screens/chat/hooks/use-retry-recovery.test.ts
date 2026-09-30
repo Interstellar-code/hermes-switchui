@@ -11,10 +11,7 @@ function makeSetRef(): RefObject<Set<string>> {
   return { current: new Set<string>() }
 }
 
-function makeUserErrorMessage(
-  text: string,
-  clientId?: string,
-): ChatMessage {
+function makeUserErrorMessage(text: string, clientId?: string): ChatMessage {
   const base: Record<string, unknown> = {
     role: 'user',
     status: 'error',
@@ -88,7 +85,6 @@ describe('useRetryRecovery', () => {
       'main',
       'hello',
       [],
-      false,
       true,
       'client-1',
     )
@@ -129,7 +125,10 @@ describe('useRetryRecovery', () => {
       makeAssistantMessage('reply'),
       makeUserErrorMessage('second', 'c2'),
       // Non-error user message — should be skipped
-      { role: 'user', content: [{ type: 'text', text: 'fine' }] } as unknown as ChatMessage,
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'fine' }],
+      } as unknown as ChatMessage,
     ]
 
     const { result } = renderHook(() =>
@@ -178,12 +177,13 @@ describe('useRetryRecovery', () => {
       'main',
       'retry-me',
       [],
-      false,
       true,
       'client-manual',
     )
     // The dedup key was deleted before retrying
-    expect(retriedQueuedMessageKeysRef.current.has('client:client-manual')).toBe(false)
+    expect(
+      retriedQueuedMessageKeysRef.current.has('client:client-manual'),
+    ).toBe(false)
   })
 
   // --- health-restored effect ---

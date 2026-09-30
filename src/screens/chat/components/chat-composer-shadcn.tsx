@@ -19,13 +19,11 @@
 // relocated out of this toolbar into the top meta bar (see
 // `./v2/session-selectors-v2.tsx`). This composer's bottom toolbar now owns
 // only icon controls + the context ring + send/stop:
-//  - Attach / voice / fast-mode / system-messages / new-chat icons
+//  - Attach / voice / system-messages / new-chat icons
 //  - Live ContextBar (context ring)
 //  - Send / Stop
 //
-// Thinking level is owned entirely by the meta-bar selectors; fast mode no
-// longer depends on it (Anthropic's `speed` and OpenAI's `service_tier` both
-// coexist with reasoning).
+// Thinking level is owned entirely by the meta-bar selectors.
 //
 import * as React from 'react'
 import {
@@ -107,7 +105,6 @@ type ChatComposerShadcnProps = {
   onSubmit: (
     value: string,
     attachments: Array<ChatComposerAttachment>,
-    fastMode: boolean,
     helpers: ChatComposerHelpers,
   ) => void | Promise<void>
   isLoading: boolean
@@ -246,7 +243,6 @@ function ChatComposerShadcn({
   const [isSlashMenuDismissed, setIsSlashMenuDismissed] = React.useState(false)
   const [modelNotice, setModelNotice] =
     React.useState<ModelSwitchNotice | null>(null)
-  const [fastMode, setFastMode] = React.useState(false)
 
   /**
    * The skill the composer is currently invoking, if any.
@@ -349,14 +345,6 @@ function ChatComposerShadcn({
 
   const handleSelectSlashCommand = React.useCallback(
     (command: SlashCommandDefinition) => {
-      // `/fast` toggles fast mode (live parity) instead of inserting text.
-      if (command.command === '/fast') {
-        setIsSlashMenuDismissed(false)
-        setFastMode((previous) => !previous)
-        setValue('')
-        focusPrompt()
-        return
-      }
       // Insert the selected command + a trailing space. Commands that take
       // subcommands keep the menu open so the next token can be completed
       // straight away; everything else dismisses it.
@@ -565,9 +553,7 @@ function ChatComposerShadcn({
       body: rawBody,
     })
     try {
-      await Promise.resolve(
-        onSubmit(body, attachmentPayload, fastMode, helpers),
-      )
+      await Promise.resolve(onSubmit(body, attachmentPayload, helpers))
       // `onSubmit` may have deliberately put content BACK (a refused send
       // restoring the message it could not deliver, via `helpers`). Clearing
       // unconditionally here would throw that away one tick later, so only
@@ -603,7 +589,6 @@ function ChatComposerShadcn({
     onSubmit,
     helpers,
     focusPrompt,
-    fastMode,
   ])
 
   const handleQueueSubmit = React.useCallback(() => {
@@ -1032,30 +1017,6 @@ function ChatComposerShadcn({
                   </TooltipContent>
                 </Tooltip>
               )}
-
-              {/* fast-mode toggle — forwarded as `model_options.fast`; the
-                    gateway ignores it on models without a fast tier. */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    onClick={() => setFastMode((prev) => !prev)}
-                    aria-label="Fast mode"
-                    aria-pressed={fastMode}
-                    className={cn(fastMode && 'text-primary')}
-                  >
-                    <Zap className={cn('size-4', fastMode && 'fill-current')} />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {fastMode
-                    ? 'Fast mode on (supported models only)'
-                    : 'Fast mode'}
-                </TooltipContent>
-              </Tooltip>
 
               {/* system-messages toggle — Eye/EyeOff based on systemMessagesHidden */}
               {onToggleSystemMessages && (

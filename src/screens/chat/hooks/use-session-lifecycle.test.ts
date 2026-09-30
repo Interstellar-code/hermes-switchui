@@ -25,7 +25,8 @@ vi.mock('../pending-send', () => ({
 
 const appendHistoryMessageMock = vi.fn()
 vi.mock('../chat-queries', () => ({
-  appendHistoryMessage: (...args: Array<unknown>) => appendHistoryMessageMock(...args),
+  appendHistoryMessage: (...args: Array<unknown>) =>
+    appendHistoryMessageMock(...args),
   chatQueryKeys: {
     sessions: ['chat', 'sessions'] as const,
     history: (friendlyId: string, sessionKey: string) =>
@@ -102,7 +103,6 @@ function renderLifecycle(opts: RenderOpts = {}) {
         friendlyId: string,
         body: string,
         attachments?: Array<ChatAttachment>,
-        fastMode?: boolean,
         skipOptimistic?: boolean,
         existingClientId?: string,
       ) => void,
@@ -232,7 +232,6 @@ describe('useSessionLifecycle', () => {
         pending.friendlyId,
         pending.message,
         pending.attachments,
-        false,
         true,
         pending.optimisticMessage.clientId,
       )

@@ -32,7 +32,8 @@ export function shouldResolveStreamSession({
   // No change → nothing to resolve
   if (resolvedSessionKey === currentSessionKey) return false
   // Bootstrap keys (new, main) should resolve once to a concrete session
-  if (requestedSessionKey === 'new' || requestedSessionKey === 'main') return true
+  if (requestedSessionKey === 'new' || requestedSessionKey === 'main')
+    return true
   // Concrete session → never promote a different backend ID
   return false
 }
@@ -219,13 +220,16 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   const dismissUnresolvedClarify = useChatStore(
     (s) => s.dismissUnresolvedClarify,
   )
-  const finishClarifyRun = useCallback((sessionKey: string) => {
-    // Hermes can emit `done` while it is blocked waiting for a clarify answer.
-    // Keep that unanswered card mounted; `started` clears it when the answer
-    // resumes the run.
-    if (useChatStore.getState().getPendingClarify(sessionKey)) return
-    dismissUnresolvedClarify(sessionKey)
-  }, [dismissUnresolvedClarify])
+  const finishClarifyRun = useCallback(
+    (sessionKey: string) => {
+      // Hermes can emit `done` while it is blocked waiting for a clarify answer.
+      // Keep that unanswered card mounted; `started` clears it when the answer
+      // resumes the run.
+      if (useChatStore.getState().getPendingClarify(sessionKey)) return
+      dismissUnresolvedClarify(sessionKey)
+    },
+    [dismissUnresolvedClarify],
+  )
   // An approval clarify blocks the run server-side (the gateway is still
   // waiting on `POST /v1/runs/{runId}/approval`), and it has its own ~180s
   // gateway-side timeout. A dead client stream — a `started` on resume, a
@@ -278,7 +282,9 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   }, [])
 
   const recordCompaction = useContextUsageStore((s) => s.recordCompaction)
-  const updateContextPercent = useContextUsageStore((s) => s.updateContextPercent)
+  const updateContextPercent = useContextUsageStore(
+    (s) => s.updateContextPercent,
+  )
   const addGoalStatus = useGoalProgressStore((s) => s.addGoalStatus)
   const clearGoalProgress = useGoalProgressStore((s) => s.clearGoalProgress)
 
@@ -636,7 +642,12 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
 
       // hb_signal/keepalive events from server: just mark activity, never let them
       // surface as user-visible thinking or tool rows.
-      if (event === 'hb_signal' || event === 'heartbeat' || event === 'keepalive' || event === 'ping') {
+      if (
+        event === 'hb_signal' ||
+        event === 'heartbeat' ||
+        event === 'keepalive' ||
+        event === 'ping'
+      ) {
         markActivity()
         return
       }
@@ -838,20 +849,42 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             kind: typeof payload.kind === 'string' ? payload.kind : 'progress',
             subagentId:
               typeof payload.subagentId === 'string' ? payload.subagentId : '',
-            parentId: typeof payload.parentId === 'string' ? payload.parentId : undefined,
+            parentId:
+              typeof payload.parentId === 'string'
+                ? payload.parentId
+                : undefined,
             childSessionId:
-              typeof payload.childSessionId === 'string' ? payload.childSessionId : undefined,
-            agentId: typeof payload.agentId === 'string' ? payload.agentId : undefined,
-            depth: typeof payload.depth === 'number' ? payload.depth : undefined,
+              typeof payload.childSessionId === 'string'
+                ? payload.childSessionId
+                : undefined,
+            agentId:
+              typeof payload.agentId === 'string' ? payload.agentId : undefined,
+            depth:
+              typeof payload.depth === 'number' ? payload.depth : undefined,
             goal: typeof payload.goal === 'string' ? payload.goal : undefined,
-            model: typeof payload.model === 'string' ? payload.model : undefined,
-            status: typeof payload.status === 'string' ? payload.status : undefined,
-            toolName: typeof payload.toolName === 'string' ? payload.toolName : undefined,
+            model:
+              typeof payload.model === 'string' ? payload.model : undefined,
+            status:
+              typeof payload.status === 'string' ? payload.status : undefined,
+            toolName:
+              typeof payload.toolName === 'string'
+                ? payload.toolName
+                : undefined,
             text: typeof payload.text === 'string' ? payload.text : undefined,
-            summary: typeof payload.summary === 'string' ? payload.summary : undefined,
-            toolCount: typeof payload.toolCount === 'number' ? payload.toolCount : undefined,
-            tokenCount: typeof payload.tokenCount === 'number' ? payload.tokenCount : undefined,
-            durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : undefined,
+            summary:
+              typeof payload.summary === 'string' ? payload.summary : undefined,
+            toolCount:
+              typeof payload.toolCount === 'number'
+                ? payload.toolCount
+                : undefined,
+            tokenCount:
+              typeof payload.tokenCount === 'number'
+                ? payload.tokenCount
+                : undefined,
+            durationMs:
+              typeof payload.durationMs === 'number'
+                ? payload.durationMs
+                : undefined,
             runId: activeRunIdRef.current ?? undefined,
             sessionKey: activeSessionKeyRef.current,
             transport: 'send-stream',
@@ -917,7 +950,10 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           }
           stepUsageRef.current = nextUsage
           if (typeof payload.contextPercent === 'number') {
-            updateContextPercent(activeSessionKeyRef.current, payload.contextPercent)
+            updateContextPercent(
+              activeSessionKeyRef.current,
+              payload.contextPercent,
+            )
           }
           break
         }
@@ -1128,7 +1164,8 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
         case 'clarify_resolved':
         case 'interaction':
         case 'interaction_resolved': {
-          const isResolved = event === 'clarify_resolved' || event === 'interaction_resolved'
+          const isResolved =
+            event === 'clarify_resolved' || event === 'interaction_resolved'
           processStoreEvent({
             type: isResolved ? 'interaction_resolved' : 'interaction',
             // Same dedup-guard reason as the clarify case above.
@@ -1149,7 +1186,9 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
               (payload.messageId as string | undefined) ||
               (payload.message_id as string | undefined) ||
               undefined,
-            kind: (payload.kind as 'choice' | 'text' | 'approval' | undefined) || undefined,
+            kind:
+              (payload.kind as 'choice' | 'text' | 'approval' | undefined) ||
+              undefined,
             toolName:
               (payload.toolName as string | undefined) ||
               (payload.tool_name as string | undefined) ||
@@ -1201,7 +1240,6 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       message: string
       history?: Array<PortableHistoryMessage>
       thinking?: string
-      fastMode?: boolean
       attachments?: Array<ChatAttachment>
       idempotencyKey?: string
       model?: string
@@ -1277,7 +1315,6 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
             message: params.message,
             history: params.history,
             thinking: params.thinking,
-            fastMode: params.fastMode,
             attachments: params.attachments,
             idempotencyKey: params.idempotencyKey ?? crypto.randomUUID(),
             model: params.model || undefined,

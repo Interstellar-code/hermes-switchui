@@ -28,8 +28,6 @@ import {
  *     final message's thinking block, and handed to the gateway as
  *     `system_message` — which the agent applies as the turn's ephemeral
  *     system prompt. Those regressions are still guarded below.
- *   * `fastMode` — forwarded as `model_options.fast` (hermes-agent 0.21+),
- *     only when on, so config's own service tier applies otherwise.
  */
 describe('send-stream reasoning/effort wiring', () => {
   const source = readFileSync(
@@ -67,11 +65,8 @@ describe('send-stream reasoning/effort wiring', () => {
     expect(source).not.toMatch(/reasoning_effort:\s*body\.thinking/)
   })
 
-  it('forwards fastMode as model_options.fast, only when on', () => {
-    expect(source).toContain('const fastMode = body.fastMode === true')
-    expect(source).toContain(
-      'model_options: fastMode ? { fast: true } : undefined,',
-    )
+  it('does not forward a fast-mode flag', () => {
+    expect(source).not.toMatch(/model_options|service_tier|fastMode/)
   })
 })
 

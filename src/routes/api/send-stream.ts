@@ -387,9 +387,7 @@ export const Route = createFileRoute('/api/send-stream')({
         const requestedFriendlyId =
           typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
         const message = String(body.message ?? '')
-        // `body.thinking` (the composer's reasoning-effort label) and
-        // `body.fastMode` are both forwarded on the enhanced session-chat
-        // transport.
+        // `body.thinking` is the composer's reasoning-effort label.
         //
         //   * Reasoning effort — FORWARDED, as of hermes-agent 0.19.15.
         //     `POST /api/sessions/{id}/chat/stream` now reads a per-request
@@ -415,16 +413,7 @@ export const Route = createFileRoute('/api/send-stream')({
         //     `reasoning_effort` is a separate field from all of those; the
         //     label still never appears in a prompt or in a rendered message.
         //
-        //   * Fast mode — FORWARDED, as of hermes-agent 0.21. The session
-        //     chat stream reads `model_options` (api_server.py
-        //     `_session_runtime_request_from_body`); `_request_service_tier`
-        //     maps `{fast: true}` to `service_tier: "priority"`, and
-        //     `resolve_fast_mode_overrides` (hermes_cli/models.py) turns that
-        //     into Anthropic `speed: "fast"` or OpenAI priority tier — or
-        //     drops it for models without a fast tier. Not sticky: sent every
-        //     turn, omitted when off so config's own tier still applies.
         const reasoningEffort = toReasoningEffort(body.thinking)
-        const fastMode = body.fastMode === true
         const attachments = normalizeAttachments(body.attachments)
         const history = normalizePortableHistory(body.history)
         if (!message.trim() && (!attachments || attachments.length === 0)) {
@@ -1214,7 +1203,6 @@ export const Route = createFileRoute('/api/send-stream')({
                     // sticky, so it rides along on every send — see the note
                     // at the body parse above.
                     reasoning_effort: reasoningEffort,
-                    model_options: fastMode ? { fast: true } : undefined,
                     // No `system_message`: this used to carry the reasoning
                     // *effort label*, which the gateway applies verbatim as
                     // the turn's ephemeral system prompt. See the note at the

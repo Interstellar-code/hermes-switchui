@@ -66,7 +66,10 @@ describe('useMessageRetry', () => {
     const send = vi.fn().mockResolvedValue(undefined)
     const messages: Array<ChatMessage> = [
       makeUserMessage('first'),
-      { role: 'assistant', content: [{ type: 'text', text: 'reply' }] } as unknown as ChatMessage,
+      {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'reply' }],
+      } as unknown as ChatMessage,
       makeUserMessage('second'),
     ]
 
@@ -84,7 +87,7 @@ describe('useMessageRetry', () => {
     })
 
     expect(send).toHaveBeenCalledTimes(1)
-    expect(send).toHaveBeenCalledWith('second', [], false, commandHelpers)
+    expect(send).toHaveBeenCalledWith('second', [], commandHelpers)
   })
 
   it('handleResendInterrupted: clears the interrupted flag in the store', () => {
@@ -132,7 +135,9 @@ describe('useMessageRetry', () => {
     useChatStore.getState().enqueue(SESSION, {
       id: 'q1',
       text: 'queued text',
-      attachments: [{ id: 'a1', name: 'f.txt', contentType: 'text/plain', size: 1 }],
+      attachments: [
+        { id: 'a1', name: 'f.txt', contentType: 'text/plain', size: 1 },
+      ],
     })
 
     renderHook(() =>
@@ -148,7 +153,6 @@ describe('useMessageRetry', () => {
     expect(send).toHaveBeenCalledWith(
       'queued text',
       [{ id: 'a1', name: 'f.txt', contentType: 'text/plain', size: 1 }],
-      false,
       commandHelpers,
     )
   })
@@ -176,7 +180,9 @@ describe('useMessageRetry', () => {
   // --- isCurrentSessionInterrupted ---
 
   it('isCurrentSessionInterrupted: reflects the store state', () => {
-    const { result, rerender } = renderHook(() => useMessageRetry(defaultParams()))
+    const { result, rerender } = renderHook(() =>
+      useMessageRetry(defaultParams()),
+    )
 
     expect(result.current.isCurrentSessionInterrupted).toBe(false)
 

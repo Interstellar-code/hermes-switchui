@@ -47,7 +47,6 @@ export function useMessageRetry({
   send: (
     body: string,
     attachments: Array<ChatComposerAttachment>,
-    fastMode: boolean,
     helpers: ChatComposerHelpers,
   ) => Promise<void>
   refetchHistory: () => void
@@ -71,7 +70,7 @@ export function useMessageRetry({
     if (lastUser && typeof lastUser.content !== 'undefined') {
       const text = readMessageText(lastUser)
       if (text.trim()) {
-        send(text, [], false, commandHelpers)
+        send(text, [], commandHelpers)
       }
     } else {
       // No user message found — still clear the flag and let the user
@@ -95,7 +94,7 @@ export function useMessageRetry({
     const nextQueued = useChatStore.getState().dequeue(sessionKey)
     if (!nextQueued) return
 
-    send(nextQueued.text, nextQueued.attachments, false, commandHelpers)
+    send(nextQueued.text, nextQueued.attachments, commandHelpers)
   }, [activeQueueSessionKey, isComposerLoading, send])
 
   return { isCurrentSessionInterrupted, handleResendInterrupted }

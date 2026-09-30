@@ -40,8 +40,9 @@ vi.mock('@/components/ui/toast', () => ({ toast: vi.fn() }))
 // than stubbing `fetch` so the assertions are about routing, not transport —
 // the transport itself is covered by `-hermes-commands-exec.test.ts`.
 vi.mock('@/lib/hermes-commands-api', async () => {
-  const actual =
-    await vi.importActual<HermesCommandsApi>('@/lib/hermes-commands-api')
+  const actual = await vi.importActual<HermesCommandsApi>(
+    '@/lib/hermes-commands-api',
+  )
   return { ...actual, execAgentCommand: vi.fn() }
 })
 
@@ -335,7 +336,7 @@ describe('useSlashCommands', () => {
     // HTTP, which has no slash interpreter (#348 task 6). It is now
     // tokenized and routed through the same per-session switch as the
     // picker (switchModel, from chat-composer-services.ts).
-    it('/model <id> switches this session\'s model instead of sending chat text', () => {
+    it("/model <id> switches this session's model instead of sending chat text", () => {
       const send = vi.fn().mockResolvedValue(undefined) as unknown as SendFn
       const { result } = renderHook(() =>
         useSlashCommands(
@@ -541,16 +542,9 @@ describe('useSlashCommands', () => {
     })
 
     it('/reasoning is not handled locally at all any more', () => {
-      // The handler used to set a thinking level and toast "Reasoning: low".
-      // The level travelled as `body.thinking`, which `send-stream.ts`
-      // deliberately drops (api_server has no per-request effort parameter),
-      // and its only other consumer is the composer's
-      // `effectiveFastMode = fastMode && thinkingLevel === 'off'` gate, whose
-      // own output is dropped on the same grounds. So it reported success and
-      // could not change a turn — while shadowing the agent's `/reasoning`,
-      // the only truthful readout of `agent.reasoning_effort` (there is no
-      // Settings control either). Deleted rather than merely unshadowed:
-      // "reports success, changes nothing" is the defect this project removes.
+      // The handler used to set a thinking level and toast "Reasoning: low"
+      // without changing a turn, while shadowing the agent's `/reasoning`
+      // readout. Deleted: the composer's reasoning picker is the one control.
       //
       // The composer's reasoning picker is untouched. If the gateway ever
       // grows a per-request parameter, wire it there — send-stream.ts records
@@ -667,7 +661,9 @@ describe('useSlashCommands', () => {
       const send = vi.fn().mockResolvedValue(undefined) as unknown as SendFn
       const navigate = vi.fn()
       const { result } = renderHook(() =>
-        useSlashCommands(defaultParams({ navigate, sendRef: { current: send } })),
+        useSlashCommands(
+          defaultParams({ navigate, sendRef: { current: send } }),
+        ),
       )
 
       act(() => {
@@ -840,7 +836,6 @@ describe('useSlashCommands', () => {
       expect(send).not.toHaveBeenCalled()
     })
 
-
     it('an excluded-tier command is refused, never dispatched', () => {
       const { result, send } = renderWithCatalog()
       vi.mocked(toast).mockClear()
@@ -918,7 +913,6 @@ describe('useSlashCommands', () => {
       expect(send).toHaveBeenCalledWith(
         '/definitely-not-a-command',
         [],
-        false,
         commandHelpers,
       )
     })
@@ -935,7 +929,7 @@ describe('useSlashCommands', () => {
         result.current.runPaletteSlashCommand('/compress')
       })
 
-      expect(send).toHaveBeenCalledWith('/compress', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('/compress', [], commandHelpers)
     })
 
     it('local handlers still win over the catalog', () => {
@@ -963,9 +957,7 @@ describe('useSlashCommands', () => {
   // --- Phase 3: the exec route ---
 
   describe('agent command execution', () => {
-    function renderRunnable(
-      overrides: Partial<UseSlashCommandsParams> = {},
-    ) {
+    function renderRunnable(overrides: Partial<UseSlashCommandsParams> = {}) {
       const send = vi.fn().mockResolvedValue(undefined)
       const rendered = renderHook(() =>
         useSlashCommands(
@@ -1035,12 +1027,11 @@ describe('useSlashCommands', () => {
       expect(send).toHaveBeenCalledWith(
         'Bundle: Research Stack',
         [],
-        false,
         commandHelpers,
       )
     })
 
-    it('runs a runnable command against the caller\'s own session', async () => {
+    it("runs a runnable command against the caller's own session", async () => {
       vi.mocked(execAgentCommand).mockResolvedValue({
         ok: true,
         command: '/history',
@@ -1092,7 +1083,11 @@ describe('useSlashCommands', () => {
       vi.mocked(execAgentCommand).mockResolvedValue({
         ok: true,
         command: '/history',
-        result: { type: 'exec', output: 'Conversation History', warning: 'busy' },
+        result: {
+          type: 'exec',
+          output: 'Conversation History',
+          warning: 'busy',
+        },
       })
       const { result, send } = renderRunnable()
 
@@ -1140,8 +1135,10 @@ describe('useSlashCommands', () => {
       })
       await flush()
 
-      expect(send).toHaveBeenCalledWith('skill body', [], false, commandHelpers)
-      expect(useCommandOutputStore.getState().bySession[SESSION]).toBeUndefined()
+      expect(send).toHaveBeenCalledWith('skill body', [], commandHelpers)
+      expect(
+        useCommandOutputStore.getState().bySession[SESSION],
+      ).toBeUndefined()
     })
 
     it('routes a send result down the send path, with its notice', async () => {
@@ -1158,7 +1155,7 @@ describe('useSlashCommands', () => {
       })
       await flush()
 
-      expect(send).toHaveBeenCalledWith('do the thing', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('do the thing', [], commandHelpers)
       expect(toast).toHaveBeenCalledWith(
         'heads up',
         expect.objectContaining({ type: 'info' }),
@@ -1183,7 +1180,11 @@ describe('useSlashCommands', () => {
       vi.mocked(execAgentCommand).mockResolvedValue({
         ok: true,
         command: '/history',
-        result: { type: 'prefill', message: 'redo this', notice: 'edit then send' },
+        result: {
+          type: 'prefill',
+          message: 'redo this',
+          notice: 'edit then send',
+        },
       })
       const setComposerValue = vi.fn()
       const { result, send } = renderRunnable({ setComposerValue })
@@ -1425,7 +1426,7 @@ describe('useSlashCommands', () => {
         result.current.runPaletteSlashCommand('/unknown')
       })
 
-      expect(send).toHaveBeenCalledWith('/unknown', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('/unknown', [], commandHelpers)
     })
 
     it('trims command before processing', () => {
@@ -1442,7 +1443,7 @@ describe('useSlashCommands', () => {
         result.current.runPaletteSlashCommand('  /unknown  ')
       })
 
-      expect(send).toHaveBeenCalledWith('/unknown', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('/unknown', [], commandHelpers)
     })
   })
 
@@ -1467,7 +1468,7 @@ describe('useSlashCommands', () => {
         )
       })
 
-      expect(send).toHaveBeenCalledWith('/unknown', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('/unknown', [], commandHelpers)
     })
 
     it('does not send when run-command event has no command', () => {
@@ -1525,7 +1526,7 @@ describe('useSlashCommands', () => {
       )
 
       // The effect runs synchronously after render in jsdom
-      expect(send).toHaveBeenCalledWith('/unknown', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('/unknown', [], commandHelpers)
     })
 
     it('waits for userCommandsPending before draining', () => {
@@ -1553,7 +1554,7 @@ describe('useSlashCommands', () => {
 
       rerender({ pending: false })
 
-      expect(send).toHaveBeenCalledWith('/unknown', [], false, commandHelpers)
+      expect(send).toHaveBeenCalledWith('/unknown', [], commandHelpers)
       expect(
         window.sessionStorage.getItem(CHAT_PENDING_COMMAND_STORAGE_KEY),
       ).toBeNull()

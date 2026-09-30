@@ -1,8 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import {
-  appendHistoryMessage,
-  chatQueryKeys,
-} from '../chat-queries'
+import { appendHistoryMessage, chatQueryKeys } from '../chat-queries'
 import {
   consumePendingSend,
   hasPendingGeneration,
@@ -27,7 +24,6 @@ export function useSessionLifecycle(params: {
     friendlyId: string,
     body: string,
     attachments?: Array<ChatAttachment>,
-    fastMode?: boolean,
     skipOptimistic?: boolean,
     existingClientId?: string,
   ) => void
@@ -117,7 +113,6 @@ export function useSessionLifecycle(params: {
       pending.friendlyId,
       pending.message,
       pending.attachments,
-      false,
       true,
       typeof pending.optimisticMessage.clientId === 'string'
         ? pending.optimisticMessage.clientId

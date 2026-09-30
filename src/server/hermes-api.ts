@@ -704,12 +704,6 @@ export async function streamChat(
      * a thrown `Hermes chat stream: 400 …`. See `@/lib/reasoning-effort`.
      */
     reasoning_effort?: string
-    /**
-     * Per-request model options (hermes-agent 0.21+). `fast: true` maps to
-     * `service_tier: "priority"` (Anthropic: `speed: "fast"`) and is silently
-     * dropped for models without a fast tier (`model_supports_fast_mode`).
-     */
-    model_options?: { fast?: boolean }
     system_message?: string
     attachments?: Array<Record<string, unknown>>
   },

@@ -36,7 +36,6 @@ export type ChatComposerProps = {
   onSubmit: (
     value: string,
     attachments: Array<ChatComposerAttachment>,
-    fastMode: boolean,
     helpers: ChatComposerHelpers,
   ) => void | Promise<void>
   isLoading: boolean

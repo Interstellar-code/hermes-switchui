@@ -409,13 +409,7 @@ describe('useSendMessageState', () => {
       result.current.sessionKeyForWaiting.current = 'sess-1'
 
       act(() => {
-        result.current.sendMessage(
-          'sess-key-1',
-          'sess-1',
-          'new message',
-          [],
-          true, // fastMode
-        )
+        result.current.sendMessage('sess-key-1', 'sess-1', 'new message', [])
       })
 
       expect(startStreamingMock).toHaveBeenCalledTimes(1)
@@ -423,7 +417,6 @@ describe('useSendMessageState', () => {
       expect(callArgs.sessionKey).toBe('sess-key-1')
       expect(callArgs.friendlyId).toBe('sess-1')
       expect(callArgs.message).toBe('new message')
-      expect(callArgs.fastMode).toBe(true)
       expect(callArgs.thinking).toBe('high')
       expect(callArgs.model).toBe('claude-4.6')
       expect(callArgs.history).toEqual([
@@ -450,7 +443,6 @@ describe('useSendMessageState', () => {
           'sess-1',
           'hello',
           [],
-          false,
           true, // skipOptimistic
         )
       })

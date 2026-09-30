@@ -382,7 +382,6 @@ export function ChatScreen({
         content: string
       }>
       thinking?: string
-      fastMode?: boolean
       attachments?: Array<ChatAttachment>
       idempotencyKey?: string
       model?: string
@@ -1130,7 +1129,6 @@ export function ChatScreen({
     | ((
         body: string,
         attachments: Array<ChatComposerAttachment>,
-        fastMode: boolean,
         helpers: ChatComposerHelpers,
       ) => Promise<void>)
     | null

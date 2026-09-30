@@ -15,11 +15,11 @@ describe('ChatComposerShadcn submit contract', () => {
   it('awaits async onSubmit handlers before clearing composer state', () => {
     const src = source()
 
-    expect(src).toContain('const handleSubmit = React.useCallback(async () => {')
-    expect(src).toContain('await Promise.resolve(')
     expect(src).toContain(
-      'onSubmit(body, attachmentPayload, fastMode, helpers)',
+      'const handleSubmit = React.useCallback(async () => {',
     )
+    expect(src).toContain('await Promise.resolve(')
+    expect(src).toContain('onSubmit(body, attachmentPayload, helpers)')
     expect(src).toContain("setValue('')")
     expect(src).toContain('focusPrompt()')
   })
@@ -36,7 +36,9 @@ describe('ChatComposerShadcn submit contract', () => {
     )
     expect(handleSubmit).toContain('} catch (err) {')
     expect(handleSubmit).toContain('showErrorToast(')
-    expect(src).toContain("import { showErrorToast } from '@/components/error-toast'")
+    expect(src).toContain(
+      "import { showErrorToast } from '@/components/error-toast'",
+    )
   })
 
   it('does not clobber content that onSubmit put back after a refusal', () => {

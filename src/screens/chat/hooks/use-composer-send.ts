@@ -3,10 +3,7 @@ import { useCallback } from 'react'
 import { resolveNewChatBootstrapSession } from '../new-chat-bootstrap'
 import { createOptimisticMessage } from '../chat-screen-utils'
 import { appendHistoryMessage } from '../chat-queries'
-import {
-  hasPendingGeneration,
-  setPendingGeneration,
-} from '../pending-send'
+import { hasPendingGeneration, setPendingGeneration } from '../pending-send'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import type {
@@ -68,7 +65,6 @@ export function useComposerSend(params: {
     friendlyId: string,
     body: string,
     attachments?: Array<ChatAttachment>,
-    fastMode?: boolean,
     skipOptimistic?: boolean,
     existingClientId?: string,
   ) => void
@@ -107,7 +103,6 @@ export function useComposerSend(params: {
   send: (
     body: string,
     attachments: Array<ChatComposerAttachment>,
-    fastMode: boolean,
     helpers: ChatComposerHelpers,
   ) => Promise<void>
 } {
@@ -144,13 +139,11 @@ export function useComposerSend(params: {
     async (
       body: string,
       attachments: Array<ChatComposerAttachment>,
-      fastMode: boolean,
       helpers: ChatComposerHelpers,
     ) => {
       const trimmedBody = body.trim()
       if (trimmedBody.length === 0 && attachments.length === 0) return
-      if (attachments.length === 0 && handleUiSlashCommand(trimmedBody))
-        return
+      if (attachments.length === 0 && handleUiSlashCommand(trimmedBody)) return
       const messageBody = expandCustomSlashCommand(trimmedBody) ?? trimmedBody
 
       // Deduplicate sends with identical content within a 500ms window.
@@ -266,7 +259,6 @@ export function useComposerSend(params: {
           routeFriendlyId,
           messageBody,
           attachmentPayload,
-          fastMode,
           true,
           typeof optimisticMessage.clientId === 'string'
             ? optimisticMessage.clientId
@@ -291,7 +283,6 @@ export function useComposerSend(params: {
         isPortableMode ? 'main' : activeFriendlyId,
         messageBody,
         attachmentPayload,
-        fastMode,
       )
     },
     [

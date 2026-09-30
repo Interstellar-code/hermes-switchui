@@ -80,7 +80,6 @@ export type SendMessageFn = (
   friendlyId: string,
   body: string,
   attachments?: Array<ChatAttachment>,
-  fastMode?: boolean,
   skipOptimistic?: boolean,
   existingClientId?: string,
 ) => void
@@ -191,7 +190,6 @@ export function useRetryRecovery(params: {
         portableChatFriendlyId,
         body,
         attachments,
-        false,
         true,
         existingClientId,
       )
@@ -209,14 +207,11 @@ export function useRetryRecovery(params: {
     ],
   )
 
-  const flushRetryableMessages = useCallback(
-    () => {
-      for (const message of finalDisplayMessages) {
-        retryQueuedMessage(message, 'auto')
-      }
-    },
-    [finalDisplayMessages, retryQueuedMessage],
-  )
+  const flushRetryableMessages = useCallback(() => {
+    for (const message of finalDisplayMessages) {
+      retryQueuedMessage(message, 'auto')
+    }
+  }, [finalDisplayMessages, retryQueuedMessage])
 
   const handleRetryMessage = useCallback(
     (message: ChatMessage) => {

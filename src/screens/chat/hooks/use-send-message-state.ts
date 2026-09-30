@@ -142,7 +142,6 @@ export function useSendMessageState(params: {
       message: string
       history?: Array<PortableHistoryMessage>
       thinking?: string
-      fastMode?: boolean
       attachments?: Array<ChatAttachment>
       idempotencyKey?: string
       model?: string
@@ -195,7 +194,6 @@ export function useSendMessageState(params: {
     friendlyId: string,
     body: string,
     attachments?: Array<ChatAttachment>,
-    fastMode?: boolean,
     skipOptimistic?: boolean,
     existingClientId?: string,
   ) => void
@@ -370,7 +368,6 @@ export function useSendMessageState(params: {
       friendlyId: string,
       body: string,
       attachments: Array<ChatAttachment> = [],
-      fastMode = false,
       skipOptimistic = false,
       existingClientId = '',
     ) {
@@ -506,7 +503,6 @@ export function useSendMessageState(params: {
           // agent.reasoning_effort says"; it maps to the gateway's `none`
           // disable alias instead.
           thinking: currentThinkingLevel,
-          fastMode,
           model: currentModel || undefined,
           idempotencyKey: optimisticClientId || crypto.randomUUID(),
         })
