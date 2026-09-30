@@ -1637,7 +1637,6 @@ export function ChatScreen({
                 embedded={embedded}
                 // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime safety
                 focusKey={`${isNewChat ? 'new' : activeFriendlyId}:${activeCanonicalKey ?? ''}`}
-                thinkingLevel={thinkingLevel}
                 replyTo={replyTo}
                 onClearReply={handleClearReply}
                 quotes={quotes}

@@ -388,8 +388,8 @@ export const Route = createFileRoute('/api/send-stream')({
           typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
         const message = String(body.message ?? '')
         // `body.thinking` (the composer's reasoning-effort label) and
-        // `body.fastMode` are both accepted on the wire, but only ONE of them
-        // has a gateway parameter to land in.
+        // `body.fastMode` are both forwarded on the enhanced session-chat
+        // transport.
         //
         //   * Reasoning effort — FORWARDED, as of hermes-agent 0.19.15.
         //     `POST /api/sessions/{id}/chat/stream` now reads a per-request
@@ -415,21 +415,16 @@ export const Route = createFileRoute('/api/send-stream')({
         //     `reasoning_effort` is a separate field from all of those; the
         //     label still never appears in a prompt or in a rendered message.
         //
-        //   * Fast mode — still NOT forwarded, because there is still nothing
-        //     to forward it to. `/fast` maps to `agent.service_tier`, resolved
-        //     from config plus a session-scoped override held in the *TUI*
-        //     gateway (gateway/run.py `_resolve_session_service_tier`, driven
-        //     by gateway/slash_commands.py). `api_server.py` contains no
-        //     `service_tier` reference at all (verified by grep against the
-        //     installed 0.19.16 source) and never passes one when it builds
-        //     the agent — so on this transport fast mode is not merely
-        //     un-overridable per request, it is unreachable entirely. Passing
-        //     it through would also have to survive
-        //     `resolve_fast_mode_overrides` (hermes_cli/models.py), which
-        //     returns None for every model outside gpt-*/o1/o3/o4 (no codex)
-        //     and claude-*opus-4-6. Inventing a parameter name here would put
-        //     back exactly the dead control this change removed.
+        //   * Fast mode — FORWARDED, as of hermes-agent 0.21. The session
+        //     chat stream reads `model_options` (api_server.py
+        //     `_session_runtime_request_from_body`); `_request_service_tier`
+        //     maps `{fast: true}` to `service_tier: "priority"`, and
+        //     `resolve_fast_mode_overrides` (hermes_cli/models.py) turns that
+        //     into Anthropic `speed: "fast"` or OpenAI priority tier — or
+        //     drops it for models without a fast tier. Not sticky: sent every
+        //     turn, omitted when off so config's own tier still applies.
         const reasoningEffort = toReasoningEffort(body.thinking)
+        const fastMode = body.fastMode === true
         const attachments = normalizeAttachments(body.attachments)
         const history = normalizePortableHistory(body.history)
         if (!message.trim() && (!attachments || attachments.length === 0)) {
@@ -1219,6 +1214,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     // sticky, so it rides along on every send — see the note
                     // at the body parse above.
                     reasoning_effort: reasoningEffort,
+                    model_options: fastMode ? { fast: true } : undefined,
                     // No `system_message`: this used to carry the reasoning
                     // *effort label*, which the gateway applies verbatim as
                     // the turn's ephemeral system prompt. See the note at the
@@ -1691,8 +1687,10 @@ export const Route = createFileRoute('/api/send-stream')({
                         // and must not be mistaken for a decision request.
                         const approval =
                           kind === 'approval'
-                            ? (parseApprovalDetail({ ...d, run_id: readString(d.run_id) || runId }) ??
-                              undefined)
+                            ? (parseApprovalDetail({
+                                ...d,
+                                run_id: readString(d.run_id) || runId,
+                              }) ?? undefined)
                             : undefined
                         const clarifyPayload = {
                           type:
@@ -1716,7 +1714,9 @@ export const Route = createFileRoute('/api/send-stream')({
                             (approval ? approvalQuestion(approval) : ''),
                           choices:
                             normalizeClarifyChoices(d.choices) ??
-                            (approval ? fallbackApprovalChoices(approval) : null),
+                            (approval
+                              ? fallbackApprovalChoices(approval)
+                              : null),
                           approval,
                           sessionKey: sessionKeyFromEvent,
                           runId,

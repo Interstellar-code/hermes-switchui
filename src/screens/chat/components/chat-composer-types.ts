@@ -46,8 +46,6 @@ export type ChatComposerProps = {
   composerRef?: Ref<ChatComposerHandle>
   focusKey?: string
   onNewSession?: () => void
-  onToggleWebSearch?: (enabled: boolean) => void
-  webSearchEnabled?: boolean
   thinkingLevel?: ThinkingLevel
   onThinkingLevelChange?: (level: ThinkingLevel) => void
   onAbort?: () => void

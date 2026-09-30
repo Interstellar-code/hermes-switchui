@@ -19,14 +19,13 @@
 // relocated out of this toolbar into the top meta bar (see
 // `./v2/session-selectors-v2.tsx`). This composer's bottom toolbar now owns
 // only icon controls + the context ring + send/stop:
-//  - Attach / voice / fast-mode / web-search / system-messages / new-chat icons
+//  - Attach / voice / fast-mode / system-messages / new-chat icons
 //  - Live ContextBar (context ring)
 //  - Send / Stop
 //
-// The composer still receives `thinkingLevel` (READ-ONLY) so the fast-mode gate
-// `effectiveFastMode = fastMode && thinkingLevel === 'off'` keeps working; it no
-// longer owns the thinking-level setter (`onThinkingLevelChange` lives on the
-// meta-bar selectors now).
+// Thinking level is owned entirely by the meta-bar selectors; fast mode no
+// longer depends on it (Anthropic's `speed` and OpenAI's `service_tier` both
+// coexist with reasoning).
 //
 import * as React from 'react'
 import {
@@ -35,7 +34,6 @@ import {
   Clock,
   Eye,
   EyeOff,
-  Globe,
   ListCollapse,
   ListPlus,
   ListTree,
@@ -65,7 +63,6 @@ import type {
   ChatComposerHandle,
   ChatComposerHelpers,
   ModelSwitchNotice,
-  ThinkingLevel,
 } from './chat-composer-types'
 import type { ToolDisplayMode } from './message-item'
 import type { QuoteRef } from '../quote-markers'
@@ -120,11 +117,6 @@ type ChatComposerShadcnProps = {
   composerRef?: Ref<ChatComposerHandle>
   focusKey?: string
   onNewSession?: () => void
-  onToggleWebSearch?: (enabled: boolean) => void
-  webSearchEnabled?: boolean
-  /** Read-only — used only to gate fast mode. The thinking-level selector
-   *  lives in the meta bar now (see `./v2/session-selectors-v2.tsx`). */
-  thinkingLevel?: ThinkingLevel
   onAbort?: () => void
   embedded?: boolean
   replyTo?: { seq: number; role: string; preview: string } | null
@@ -235,10 +227,7 @@ function ChatComposerShadcn({
   composerRef,
   focusKey,
   onAbort,
-  thinkingLevel: externalThinkingLevel,
   onNewSession,
-  onToggleWebSearch,
-  webSearchEnabled,
   embedded = false,
   replyTo,
   onClearReply,
@@ -258,12 +247,6 @@ function ChatComposerShadcn({
   const [modelNotice, setModelNotice] =
     React.useState<ModelSwitchNotice | null>(null)
   const [fastMode, setFastMode] = React.useState(false)
-  const [isWebSearchMode, setIsWebSearchMode] = React.useState(false)
-
-  // Thinking level is read-only here — owned by chat-screen / meta-bar
-  // selectors. The composer only needs it to gate fast mode.
-  const thinkingLevel = externalThinkingLevel ?? 'low'
-  const isWebSearchActive = webSearchEnabled ?? isWebSearchMode
 
   /**
    * The skill the composer is currently invoking, if any.
@@ -334,16 +317,6 @@ function ChatComposerShadcn({
 
     return () => window.clearTimeout(timeout)
   }, [queueActivity])
-
-  // ─── web-search toggle (honor external controller, else internal) ────────
-  const toggleWebSearch = React.useCallback(() => {
-    const next = !isWebSearchActive
-    if (onToggleWebSearch) {
-      onToggleWebSearch(next)
-    } else {
-      setIsWebSearchMode(next)
-    }
-  }, [isWebSearchActive, onToggleWebSearch])
 
   // ─── focus management ────────────────────────────────────────────────────
   const focusPrompt = React.useCallback(() => {
@@ -592,12 +565,8 @@ function ChatComposerShadcn({
       body: rawBody,
     })
     try {
-      // Fast mode is incompatible with extended thinking — disable if thinking
-      // is on (mirrors the live composer's effectiveFastMode rule).
-      const effectiveFastMode =
-        fastMode && thinkingLevel === 'off' ? true : false
       await Promise.resolve(
-        onSubmit(body, attachmentPayload, effectiveFastMode, helpers),
+        onSubmit(body, attachmentPayload, fastMode, helpers),
       )
       // `onSubmit` may have deliberately put content BACK (a refused send
       // restoring the message it could not deliver, via `helpers`). Clearing
@@ -635,7 +604,6 @@ function ChatComposerShadcn({
     helpers,
     focusPrompt,
     fastMode,
-    thinkingLevel,
   ])
 
   const handleQueueSubmit = React.useCallback(() => {
@@ -1065,8 +1033,8 @@ function ChatComposerShadcn({
                 </Tooltip>
               )}
 
-              {/* fast-mode toggle — submits fastMode into onSubmit; the
-                    effective value is gated by thinkingLevel === 'off'. */}
+              {/* fast-mode toggle — forwarded as `model_options.fast`; the
+                    gateway ignores it on models without a fast tier. */}
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -1084,32 +1052,8 @@ function ChatComposerShadcn({
                 </TooltipTrigger>
                 <TooltipContent>
                   {fastMode
-                    ? thinkingLevel === 'off'
-                      ? 'Fast mode on'
-                      : 'Fast mode (disabled while thinking is on)'
+                    ? 'Fast mode on (supported models only)'
                     : 'Fast mode'}
-                </TooltipContent>
-              </Tooltip>
-
-              {/* web-search toggle — honors webSearchEnabled prop +
-                    onToggleWebSearch, else falls back to local state. */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    onClick={toggleWebSearch}
-                    aria-label="Web search"
-                    aria-pressed={isWebSearchActive}
-                    className={cn(isWebSearchActive && 'text-primary')}
-                  >
-                    <Globe className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {isWebSearchActive ? 'Web search on' : 'Web search'}
                 </TooltipContent>
               </Tooltip>
 

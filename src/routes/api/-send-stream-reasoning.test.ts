@@ -28,8 +28,8 @@ import {
  *     final message's thinking block, and handed to the gateway as
  *     `system_message` — which the agent applies as the turn's ephemeral
  *     system prompt. Those regressions are still guarded below.
- *   * `fastMode` — still has no consumer, because `api_server.py` still has no
- *     `service_tier` on any surface.
+ *   * `fastMode` — forwarded as `model_options.fast` (hermes-agent 0.21+),
+ *     only when on, so config's own service tier applies otherwise.
  */
 describe('send-stream reasoning/effort wiring', () => {
   const source = readFileSync(
@@ -67,14 +67,11 @@ describe('send-stream reasoning/effort wiring', () => {
     expect(source).not.toMatch(/reasoning_effort:\s*body\.thinking/)
   })
 
-  it('documents that fastMode has no gateway parameter to forward to', () => {
-    // Matched as object keys, not as prose, so the explanatory comment in the
-    // route does not satisfy its own assertion. If a consumer is ever added it
-    // must be a deliberate change made against a gateway that accepts one.
-    expect(source).not.toMatch(
-      /^\s*(service_tier|serviceTier|fastMode)\s*[,:]/m,
+  it('forwards fastMode as model_options.fast, only when on', () => {
+    expect(source).toContain('const fastMode = body.fastMode === true')
+    expect(source).toContain(
+      'model_options: fastMode ? { fast: true } : undefined,',
     )
-    expect(source).toContain('* Fast mode')
   })
 })
 

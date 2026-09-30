@@ -18,7 +18,7 @@ describe('ChatComposerShadcn submit contract', () => {
     expect(src).toContain('const handleSubmit = React.useCallback(async () => {')
     expect(src).toContain('await Promise.resolve(')
     expect(src).toContain(
-      'onSubmit(body, attachmentPayload, effectiveFastMode, helpers)',
+      'onSubmit(body, attachmentPayload, fastMode, helpers)',
     )
     expect(src).toContain("setValue('')")
     expect(src).toContain('focusPrompt()')
