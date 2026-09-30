@@ -7,6 +7,44 @@ export const IMAGE_QUALITY = 0.85
 /** Safe image attachment limit after processing (1MB). */
 export const MAX_TRANSPORT_IMAGE_SIZE = 1 * 1024 * 1024
 
+const TEXT_MIME_RE =
+  /^(text\/|application\/(json|xml|x-yaml|yaml|javascript|typescript|x-sh|sql|toml|x-ndjson)|[^;]*\+(json|xml))/i
+const TEXT_EXTENSIONS =
+  '.txt,.md,.markdown,.csv,.tsv,.json,.jsonl,.yaml,.yml,.toml,.xml,.html,.css,.js,.jsx,.mjs,.cjs,.ts,.tsx,.py,.rb,.go,.rs,.java,.kt,.swift,.c,.h,.cpp,.hpp,.cs,.php,.sh,.zsh,.bash,.sql,.ini,.cfg,.conf,.env,.log,.diff,.patch,.vue,.svelte,.svg'
+const TEXT_EXTENSION_SET = new Set(TEXT_EXTENSIONS.split(','))
+const TEXT_BASENAMES = new Set(['dockerfile', 'makefile', 'license', 'readme'])
+
+/** `accept` value for the composer file picker: images plus text-like files. */
+export const ATTACHMENT_ACCEPT = `image/*,text/*,application/json,application/xml,application/x-yaml,${TEXT_EXTENSIONS}`
+
+/**
+ * True when a file can be inlined into the prompt as text. A known text
+ * extension wins over the MIME, which browsers get wrong for source files
+ * (`.ts` → video/mp2t, `.csv` → application/vnd.ms-excel on Windows).
+ */
+export function isTextLikeFile(name: string, mime: string): boolean {
+  const type = mime.trim().toLowerCase()
+  if (type.startsWith('image/')) return false
+  if (TEXT_MIME_RE.test(type)) return true
+  const lower = name.toLowerCase()
+  const base = lower.slice(lower.lastIndexOf('/') + 1)
+  if (TEXT_BASENAMES.has(base)) return true
+  const dot = base.lastIndexOf('.')
+  return dot >= 0 && TEXT_EXTENSION_SET.has(base.slice(dot))
+}
+
+/** Decode a data URL payload (base64 or percent-encoded) as UTF-8 text. */
+export function decodeDataUrlText(dataUrl: string): string {
+  const comma = dataUrl.indexOf(',')
+  const payload = dataUrl.slice(comma + 1)
+  if (!/;base64$/i.test(dataUrl.slice(0, comma))) {
+    return decodeURIComponent(payload)
+  }
+  return new TextDecoder().decode(
+    Uint8Array.from(atob(payload), (c) => c.charCodeAt(0)),
+  )
+}
+
 export function formatFileSize(size: number): string {
   if (!Number.isFinite(size) || size <= 0) return ''
   const units = ['B', 'KB', 'MB', 'GB'] as const

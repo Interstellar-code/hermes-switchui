@@ -8,6 +8,10 @@ import {
   updateHistoryMessageByClientIdEverywhere,
   updateSessionLastMessage,
 } from '../chat-queries'
+import {
+  decodeDataUrlText,
+  isTextLikeFile,
+} from '../components/chat-composer-attachments'
 import type { Dispatch, RefObject, SetStateAction } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 
@@ -383,18 +387,27 @@ export function useSendMessageState(params: {
       // Servers reliably forward text in the message body; file attachments
       // may be silently dropped for non-image types.
       const textBlocks = normalizedAttachments
-        .filter((a) => {
-          const mime =
-            normalizeMimeType(a.contentType ?? '') ||
-            readDataUrlMimeType(a.dataUrl ?? '')
-          return !isImageMimeType(mime) && (a.dataUrl ?? '').length > 0
-        })
-        .map((a) => {
+        .flatMap((a) => {
           const raw = a.dataUrl ?? ''
-          const content = raw.startsWith('data:')
-            ? atob(raw.split(',')[1] ?? '')
-            : raw
-          return `\n\n<attachment name="${a.name ?? 'file'}">\n${content}\n</attachment>`
+          if (!raw) return []
+          let content = raw
+          // A non-data: value is already raw text; data URLs are inlined only
+          // when text-like, since binaries would be garbage.
+          if (raw.startsWith('data:')) {
+            const mime =
+              normalizeMimeType(a.contentType ?? '') ||
+              readDataUrlMimeType(raw)
+            if (isImageMimeType(mime) || !isTextLikeFile(a.name ?? '', mime))
+              return []
+            try {
+              content = decodeDataUrlText(raw)
+            } catch {
+              return []
+            }
+          }
+          return [
+            `\n\n<attachment name="${a.name ?? 'file'}">\n${content}\n</attachment>`,
+          ]
         })
       const enrichedBody = body + textBlocks.join('')
 

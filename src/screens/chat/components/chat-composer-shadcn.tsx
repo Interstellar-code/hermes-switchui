@@ -51,10 +51,12 @@ import { useShallow } from 'zustand/react/shallow'
 import { formatOutgoingMessage } from '../quote-markers'
 import { ContextBar } from './context-bar'
 import {
+  ATTACHMENT_ACCEPT,
   MAX_ATTACHMENT_FILE_SIZE,
   compressImageToDataUrl,
   formatFileSize,
   isCanvasSupported,
+  isTextLikeFile,
 } from './chat-composer-attachments'
 import type {
   ChatComposerAttachment,
@@ -97,7 +99,6 @@ import {
 } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
-import { useVoiceRecorder } from '@/hooks/use-voice-recorder'
 
 // Mirror of the shared ChatComposerProps contract. Imported types keep the
 // payload shapes identical while this shadcn implementation owns the UI.
@@ -154,17 +155,25 @@ function readFileAsDataUrl(file: File): Promise<string | null> {
 
 async function buildAttachment(
   file: File,
-  onOversize?: (message: string) => void,
+  onReject?: (message: string) => void,
 ): Promise<ChatComposerAttachment | null> {
   // Reject files that exceed the input cap before any processing.
   if (file.size > MAX_ATTACHMENT_FILE_SIZE) {
-    onOversize?.(
+    onReject?.(
       `"${file.name || 'file'}" is ${formatFileSize(file.size)}. Max upload input size is ${formatFileSize(MAX_ATTACHMENT_FILE_SIZE)}.`,
     )
     return null
   }
 
   const isImage = file.type.startsWith('image/')
+  // Non-image files are inlined into the prompt as text, so binaries
+  // (PDF, zip, audio, ...) would arrive as garbage.
+  if (!isImage && !isTextLikeFile(file.name, file.type)) {
+    onReject?.(
+      `"${file.name || 'file'}" isn't supported — attach images or text files.`,
+    )
+    return null
+  }
 
   let dataUrl: string | null
   if (isImage && isCanvasSupported()) {
@@ -397,10 +406,10 @@ function ChatComposerShadcn({
   const addFiles = React.useCallback(
     async (files: Array<File>) => {
       if (disabled || files.length === 0) return
-      const onOversize = (message: string) =>
+      const onReject = (message: string) =>
         setModelNotice({ tone: 'error', message })
       const built = await Promise.all(
-        files.map((f) => buildAttachment(f, onOversize)),
+        files.map((f) => buildAttachment(f, onReject)),
       )
       const valid = built.filter((a): a is ChatComposerAttachment => a !== null)
       if (valid.length === 0) return
@@ -491,41 +500,19 @@ function ChatComposerShadcn({
       if (!text.trim()) return
       setValue((prev) => (prev.trim().length > 0 ? `${prev} ${text}` : text))
     }, []),
-  })
-  const voiceRecorder = useVoiceRecorder({
-    onRecorded: React.useCallback((blob: Blob, _durationMs: number) => {
-      const ext = blob.type.includes('webm') ? 'webm' : 'mp4'
-      const file = new File([blob], `voice-note-${Date.now()}.${ext}`, {
-        type: blob.type || 'audio/webm',
-      })
-      void readFileAsDataUrl(file).then((dataUrl) => {
-        if (!dataUrl) return
-        setAttachments((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            name: file.name,
-            contentType: file.type,
-            size: file.size,
-            dataUrl,
-            kind: 'audio',
-          },
-        ])
-      })
+    onError: React.useCallback((code: string) => {
+      showErrorToast(
+        code === 'not-allowed'
+          ? 'Microphone permission denied'
+          : code === 'network'
+            ? 'Speech recognition needs a network connection (not available in this browser/app)'
+            : code === 'audio-capture'
+              ? 'No microphone found'
+              : `Voice input failed: ${code}`,
+      )
     }, []),
   })
-  const voiceSupported = voiceInput.isSupported || voiceRecorder.isSupported
-  const toggleVoice = () => {
-    if (voiceInput.isSupported) {
-      voiceInput.toggle()
-    } else if (voiceRecorder.isSupported) {
-      if (voiceRecorder.isRecording) {
-        voiceRecorder.stop()
-      } else {
-        voiceRecorder.start()
-      }
-    }
-  }
+  const toggleVoice = () => voiceInput.toggle()
 
   // ─── submit ──────────────────────────────────────────────────────────────
   const canSend =
@@ -966,6 +953,7 @@ function ChatComposerShadcn({
                 type="file"
                 multiple
                 hidden
+                accept={ATTACHMENT_ACCEPT}
                 onChange={handleFilePick}
               />
               <Tooltip>
@@ -990,7 +978,7 @@ function ChatComposerShadcn({
               />
 
               {/* voice (mic) — preserves switchui voice parity */}
-              {voiceSupported && (
+              {voiceInput.isSupported && (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -1001,19 +989,14 @@ function ChatComposerShadcn({
                       onClick={toggleVoice}
                       aria-label="Voice input"
                       className={cn(
-                        (voiceInput.isListening || voiceRecorder.isRecording) &&
-                          'text-destructive',
+                        voiceInput.isListening && 'text-destructive',
                       )}
                     >
                       <Mic className="size-4" />
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    {voiceRecorder.isRecording
-                      ? `Recording… ${Math.round(voiceRecorder.durationMs / 1000)}s`
-                      : voiceInput.isListening
-                        ? 'Listening…'
-                        : 'Voice input'}
+                    {voiceInput.isListening ? 'Listening…' : 'Voice input'}
                   </TooltipContent>
                 </Tooltip>
               )}

@@ -545,6 +545,61 @@ describe('useSendMessageState', () => {
 
       vi.restoreAllMocks()
     })
+
+    it('decodes UTF-8 text attachments and skips binary ones', () => {
+      vi.spyOn(useChatStore, 'getState').mockReturnValue({
+        setSessionWaiting: vi.fn(),
+        clearSessionWaiting: vi.fn(),
+      } as unknown as ReturnType<typeof useChatStore.getState>)
+
+      const startStreamingMock = vi.fn(
+        async (_params: Record<string, unknown>) => {},
+      )
+      const utf8Base64 = Buffer.from('héllo ✓', 'utf8').toString('base64')
+      const attachments: Array<ChatAttachment> = [
+        {
+          id: 'att-1',
+          name: 'notes.txt',
+          contentType: 'text/plain',
+          dataUrl: `data:text/plain;base64,${utf8Base64}`,
+          size: 10,
+        },
+        {
+          id: 'att-2',
+          name: 'report.pdf',
+          contentType: 'application/pdf',
+          dataUrl: 'data:application/pdf;base64,JVBERi0xLjQK',
+          size: 9,
+        },
+      ]
+      const { result } = renderHook(() =>
+        useSendMessageState(
+          makeParams({
+            startStreamingRef: { current: startStreamingMock },
+          }),
+        ),
+      )
+
+      result.current.sessionKeyForWaiting.current = 'sess-1'
+
+      act(() => {
+        result.current.sendMessage(
+          'sess-key-1',
+          'sess-1',
+          'body text',
+          attachments,
+        )
+      })
+
+      const callArgs = startStreamingMock.mock.calls[0][0]
+      expect(callArgs.message).toContain(
+        '<attachment name="notes.txt">\nhéllo ✓\n</attachment>',
+      )
+      expect(callArgs.message).not.toContain('report.pdf')
+      expect(callArgs.message).not.toContain('%PDF')
+
+      vi.restoreAllMocks()
+    })
   })
 
   // --- SSE callback tests (PR 3 — Group D) ---

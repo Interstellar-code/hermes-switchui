@@ -8,7 +8,7 @@ export type ChatComposerAttachment = {
   size: number
   dataUrl?: string
   previewUrl?: string
-  kind?: 'image' | 'file' | 'audio'
+  kind?: 'image' | 'file'
 }
 
 /**
