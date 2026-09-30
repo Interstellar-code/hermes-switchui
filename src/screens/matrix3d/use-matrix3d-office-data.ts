@@ -1,8 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from '@tanstack/react-router'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { resolveCrewEffectiveStatus } from './matrix3d-presence-status'
-import { useMatrix3DStore } from './matrix3d-store'
 import type { OfficeAgent } from '@/features/retro-office/core/types'
 import type {
   OfficeAnimationState,
@@ -160,14 +158,19 @@ function inferActiveRoom(streaming: StreamingState | undefined): {
 
 const ACTIVE_BUBBLE_MAX_LENGTH = 96
 
-function compactBubbleText(value: string): string {
+const SESSION_TITLE_MAX_LENGTH = 60
+
+function compactBubbleText(
+  value: string,
+  maxLength = ACTIVE_BUBBLE_MAX_LENGTH,
+): string {
   const normalized = value
     .replace(/```[\s\S]*?```/g, ' code ')
     .replace(/`([^`]+)`/g, '$1')
     .replace(/\s+/g, ' ')
     .trim()
-  if (normalized.length <= ACTIVE_BUBBLE_MAX_LENGTH) return normalized
-  return `${normalized.slice(0, ACTIVE_BUBBLE_MAX_LENGTH - 1).trimEnd()}…`
+  if (normalized.length <= maxLength) return normalized
+  return `${normalized.slice(0, maxLength - 1).trimEnd()}…`
 }
 
 function readableToolName(name: string): string {
@@ -201,9 +204,7 @@ function latestStreamingTool(
   )[0]
 }
 
-function toolActionPhrase(
-  tool: StreamingState['toolCalls'][number],
-): string {
+function toolActionPhrase(tool: StreamingState['toolCalls'][number]): string {
   const name = readableToolName(tool.name)
   const detail =
     summarizeUnknown(tool.preview) ??
@@ -212,7 +213,9 @@ function toolActionPhrase(
   const phase = tool.phase.toLowerCase()
 
   if (phase.includes('error')) {
-    return compactBubbleText(`Checking ${name} error${detail ? `: ${detail}` : ''}`)
+    return compactBubbleText(
+      `Checking ${name} error${detail ? `: ${detail}` : ''}`,
+    )
   }
   if (phase.includes('complete') || phase.includes('done')) {
     return compactBubbleText(`Finished ${name}${detail ? `: ${detail}` : ''}`)
@@ -229,7 +232,7 @@ function toolActionPhrase(
 export function activeBubbleTextForPresence(
   presence: Pick<
     Matrix3DAgentPresence,
-    'id' | 'effectiveStatus' | 'lastActivity' | 'activeSessionKey'
+    'effectiveStatus' | 'activeSessionTitle' | 'isDelegating'
   >,
   streaming: StreamingState | undefined,
 ): string | null {
@@ -251,16 +254,12 @@ export function activeBubbleTextForPresence(
     return compactBubbleText(`Writing: ${streaming.text}`)
   }
 
-  if (presence.lastActivity) {
-    const prefix = shouldRouteWorkingAgentToConsole(presence)
-      ? 'Delegating'
-      : presence.activeSessionKey
-        ? 'Handling'
-        : 'Active'
-    return compactBubbleText(`${prefix}: ${presence.lastActivity}`)
-  }
-
-  return 'Active now'
+  const title = presence.activeSessionTitle
+    ? compactBubbleText(presence.activeSessionTitle, SESSION_TITLE_MAX_LENGTH)
+    : ''
+  if (presence.isDelegating)
+    return title ? `Delegating: ${title}` : 'Delegating'
+  return title || 'Active now'
 }
 
 type AgentLike = {
@@ -277,13 +276,24 @@ export type Matrix3DAgentPresence = {
   role: string
   model: string
   provider: string
-  source: 'crew' | 'live-unmatched' | 'workspace'
+  source: 'crew' | 'workspace'
   rosterStatus: 'online' | 'away' | 'offline' | 'unknown'
   effectiveStatus: OfficeAgent['status']
   lastActivity: string | null
   sessionCount: number
   assignedTaskCount: number
   activeSessionKey: string | null
+  /** Title of the session this agent is actually running (never a model / status string). */
+  activeSessionTitle: string | null
+  /** True only while a fresh delegated child session's parent is this agent's session. */
+  isDelegating: boolean
+  /** Live sessions (children / same profile) folded into this agent instead of their own card. */
+  subSessionKeys: Array<string>
+  /**
+   * Profile whose state.db holds `activeSessionKey` (for `/chat/$key?profile=`);
+   * null = the active gateway profile.
+   */
+  activeSessionProfile: string | null
   activityScore: number
 }
 
@@ -383,17 +393,46 @@ function toOfficeItem(agent: AgentLike): OfficeAgent['item'] {
   return 'laptop'
 }
 
-function formatProgress(progress: number | undefined): string | null {
-  if (typeof progress !== 'number' || !Number.isFinite(progress)) return null
-  return `${Math.round(progress)}%`
+// Status only: the model ("auto") and guessed progress are not activities.
+function buildLiveOfficeSubtitle(agent: Pick<AgentLike, 'status'>): string {
+  return agent.status
 }
 
-function buildLiveOfficeSubtitle(
-  agent: AgentLike & { progress?: number },
-): string {
-  const parts = [agent.model, agent.status, formatProgress(agent.progress)]
+const DELEGATION_FRESH_MS = 5 * 60_000
 
-  return parts.filter(Boolean).join(' • ')
+function hasFreshDelegation(agent: CrewStatusAgent, nowMs: number): boolean {
+  if (!agent.activeDelegatedSessionKey) return false
+  const lastActiveAt = agent.activeDelegatedLastActiveAt
+  // crew-status sends lastActiveAt in ms.
+  return lastActiveAt === null || nowMs - lastActiveAt <= DELEGATION_FRESH_MS
+}
+
+/**
+ * Fold live sessions that matched no agent into the owning agent (by
+ * parentSessionId, then profile). Anything unowned is dropped — a session
+ * never becomes its own card, and its title is never an agent name.
+ */
+function attachUnmatchedSessions(
+  presences: Array<Matrix3DAgentPresence>,
+  unmatched: ReturnType<typeof useAgentView>['activeAgents'],
+): Array<Matrix3DAgentPresence> {
+  for (const session of unmatched) {
+    const parent = session.parentSessionId
+      ? presences.find((p) => p.activeSessionKey === session.parentSessionId)
+      : undefined
+    const owner =
+      parent ??
+      (session.profile
+        ? presences.find(
+            (p) => normalizeText(p.id) === normalizeText(session.profile ?? ''),
+          )
+        : undefined)
+    if (!owner) continue
+    owner.subSessionKeys.push(session.id)
+    // A running child of this agent's session is a real delegation.
+    if (parent && session.status === 'running') owner.isDelegating = true
+  }
+  return presences
 }
 
 function buildRosterOfficeSubtitle(
@@ -427,6 +466,10 @@ export function inferLiveMatch(
   let bestScore = 0
 
   for (const agent of activeAgents) {
+    // Child sessions and other profiles' sessions are attached to their owner
+    // later (attachUnmatchedSessions); they never *are* this agent.
+    if (agent.parentSessionId) continue
+    if (agent.profile && normalizeText(agent.profile) !== id) continue
     const key = normalizeText(agent.id)
     const name = normalizeText(agent.name)
     const task = normalizeText(agent.task)
@@ -519,41 +562,22 @@ function toOfficeAgent(presence: Matrix3DAgentPresence): OfficeAgent {
   }
 }
 
-function toLivePresence(
-  agent: ReturnType<typeof useAgentView>['activeAgents'][number],
-): Matrix3DAgentPresence {
-  return {
-    id: agent.id,
-    name: agent.name,
-    role: agent.task,
-    model: agent.model,
-    provider: 'Hermes',
-    source: 'live-unmatched',
-    rosterStatus: 'unknown',
-    effectiveStatus: toLiveOfficeStatus(agent.status),
-    lastActivity: buildLiveOfficeSubtitle({
-      id: agent.id,
-      name: agent.name,
-      task: agent.task,
-      model: agent.model,
-      status: agent.status,
-      progress: agent.progress,
-    }),
-    sessionCount: 0,
-    assignedTaskCount: 0,
-    activeSessionKey: agent.id,
-    activityScore: 5,
-  }
-}
-
 export function mergePresence(
   crewAgents: Array<CrewStatusAgent>,
   fallbackAgents: Array<WorkspaceAgentDirectory>,
   activeAgents: ReturnType<typeof useAgentView>['activeAgents'],
   activityBoosts: Record<string, number>,
+  nowMs = Date.now(),
 ): Array<Matrix3DAgentPresence> {
   if (crewAgents.length > 0) {
     const matchedSessionIds = new Set<string>()
+    // Parent session keys that currently have a fresh delegated child running.
+    const delegatingParentKeys = new Set(
+      crewAgents
+        .filter((agent) => hasFreshDelegation(agent, nowMs))
+        .map((agent) => agent.activeDelegatedParentSessionKey)
+        .filter((key): key is string => Boolean(key)),
+    )
     const merged = crewAgents.map((agent) => {
       const live = inferLiveMatch(agent, activeAgents)
       if (live) matchedSessionIds.add(live.id)
@@ -562,10 +586,10 @@ export function mergePresence(
       const boost = activityBoosts[agent.id] ?? 0
       // Deterministic own-db / delegated-session signals take precedence over
       // the heuristic. A profile whose own db reports an active session, or one
-      // that has been assigned a live delegated child session, is unambiguously
-      // working — regardless of whether a live session matched by name.
+      // that has been assigned a fresh delegated child session, is working —
+      // regardless of whether a live session matched by name.
       const ownLive = agent.isActive
-      const delegatedLive = Boolean(agent.activeDelegatedSessionKey)
+      const delegatedLive = hasFreshDelegation(agent, nowMs)
       const effectiveStatus: OfficeAgent['status'] =
         ownLive || delegatedLive
           ? 'working'
@@ -577,6 +601,23 @@ export function mergePresence(
               gatewayState: agent.gatewayState,
               assignedTaskCount: agent.assignedTaskCount,
             })
+      const activeSessionTitle =
+        (ownLive ? agent.activeSessionTitle : null) ??
+        (delegatedLive ? agent.activeDelegatedTitle : null)
+      // The profile's own db is deterministic; the live match is a heuristic.
+      const activeSessionKey =
+        agent.activeSessionKey ??
+        live?.id ??
+        (delegatedLive ? agent.activeDelegatedSessionKey : null)
+      // Own sessions live in this profile's db; delegated children are read
+      // from the hermes-switch db (crew-status readDelegatedChildSessions).
+      const activeSessionProfile = agent.activeSessionKey
+        ? agent.id
+        : live
+          ? (live.profile ?? null)
+          : activeSessionKey
+            ? 'hermes-switch'
+            : null
 
       return {
         id: agent.id,
@@ -587,52 +628,35 @@ export function mergePresence(
         source: 'crew',
         rosterStatus,
         effectiveStatus,
-        lastActivity: live
-          ? buildLiveOfficeSubtitle({
-              id: live.id,
-              name: live.name,
-              task: live.task,
-              model: live.model,
-              status: live.status,
-              progress: live.progress,
-            })
-          : ownLive && agent.activeSessionTitle
-            ? agent.activeSessionTitle
-            : delegatedLive && agent.activeDelegatedTitle
-              ? agent.activeDelegatedTitle
-              : agent.lastSessionTitle ||
-                buildRosterOfficeSubtitle(agent, rosterStatus),
+        lastActivity:
+          activeSessionTitle ??
+          (live
+            ? buildLiveOfficeSubtitle(live)
+            : agent.lastSessionTitle ||
+              buildRosterOfficeSubtitle(agent, rosterStatus)),
         sessionCount: agent.sessionCount,
         assignedTaskCount: agent.assignedTaskCount,
-        activeSessionKey:
-          live?.id ??
-          agent.activeSessionKey ??
-          agent.activeDelegatedSessionKey ??
-          null,
+        activeSessionKey,
+        activeSessionTitle,
+        isDelegating: [activeSessionKey, agent.activeSessionKey].some(
+          (key) => key !== null && delegatingParentKeys.has(key),
+        ),
+        subSessionKeys: [],
+        activeSessionProfile,
         activityScore: ownLive || delegatedLive ? Math.max(boost, 5) : boost,
       } satisfies Matrix3DAgentPresence
     })
 
-    const unmatched = activeAgents
-      .filter((agent) => !matchedSessionIds.has(agent.id))
-      .map(toLivePresence)
-
-    return [...merged, ...unmatched]
-  }
-
-  // When roster/crew are empty but live active agents exist (the common case
-  // for a single Hermes chat session without a crew roster), inject each
-  // unmatched active agent directly as a live-unmatched presence entry.
-  if (fallbackAgents.length === 0 && activeAgents.length > 0) {
-    return activeAgents.map(toLivePresence)
+    return attachUnmatchedSessions(
+      merged,
+      activeAgents.filter((agent) => !matchedSessionIds.has(agent.id)),
+    )
   }
 
   const matchedSessionIds = new Set<string>()
   const rosterPresence = fallbackAgents.map((agent) => {
     const live = inferWorkspaceLiveMatch(agent, activeAgents)
     if (live) matchedSessionIds.add(live.id)
-    const isDefaultWorkspace =
-      agent.id === 'default' || agent.id === 'workspace'
     const effectiveStatus = live
       ? toLiveOfficeStatus(live.status)
       : agent.status === 'offline'
@@ -642,34 +666,29 @@ export function mergePresence(
       id: agent.id,
       name: agent.name,
       role: agent.role,
-      model: agent.model ?? (isDefaultWorkspace ? 'auto' : 'unknown'),
+      model: agent.model ?? 'unknown',
       provider: agent.provider,
       source: 'workspace',
       rosterStatus: live ? 'online' : agent.status,
       effectiveStatus,
       lastActivity: live
-        ? buildLiveOfficeSubtitle({
-            id: live.id,
-            name: live.name,
-            task: live.task,
-            model: live.model,
-            status: live.status,
-            progress: live.progress,
-          })
+        ? buildLiveOfficeSubtitle(live)
         : buildRosterOfficeSubtitle(agent, agent.status),
       sessionCount: live ? 1 : 0,
       assignedTaskCount: 0,
       activeSessionKey: live?.id ?? null,
+      activeSessionTitle: null,
+      isDelegating: false,
+      subSessionKeys: [],
+      activeSessionProfile: live?.profile ?? null,
       activityScore: live ? 5 : 0,
     } satisfies Matrix3DAgentPresence
   })
 
-  // Add unmatched live agents that didn't correspond to any roster entry
-  const unmatched = activeAgents
-    .filter((agent) => !matchedSessionIds.has(agent.id))
-    .map(toLivePresence)
-
-  return [...rosterPresence, ...unmatched]
+  return attachUnmatchedSessions(
+    rosterPresence,
+    activeAgents.filter((agent) => !matchedSessionIds.has(agent.id)),
+  )
 }
 
 type CrewActivitySnapshot = {
@@ -793,7 +812,6 @@ export type Matrix3DOfficeData = {
   activeAdapterType: StudioGatewayAdapterType
   agentSource: 'live' | 'roster' | 'none'
   presence: Array<Matrix3DAgentPresence>
-  onAgentChatSelect: (agentId: string) => void
   /** #81/#85 — drives sit-at-desk + room-routing animations */
   animationState: Pick<
     OfficeAnimationState,
@@ -814,16 +832,12 @@ export type Matrix3DOfficeData = {
   monitorByAgentId: Record<string, Matrix3DMonitorEntry>
   /** #84 — activity feed events */
   feedEvents: Array<Matrix3DFeedEvent>
-  /** #86 — deterministic desk→agent assignment */
-  deskAssignmentByDeskUid: Record<string, string>
   /** #87 — run counts per agent */
   runCountByAgentId: Record<string, number>
   /** #87 — last-seen timestamps per agent (ms) */
   lastSeenByAgentId: Record<string, number>
   /** #88 — progress 0-100 per working agent */
   progressByAgentId: Record<string, number>
-  /** #89 — selected agent id from store → spotlight / follow-cam */
-  selectedAgentId: string | null
 }
 
 function shouldShowMatrix3DAgent(presence: Matrix3DAgentPresence): boolean {
@@ -831,7 +845,6 @@ function shouldShowMatrix3DAgent(presence: Matrix3DAgentPresence): boolean {
 }
 
 export function useMatrix3DOfficeData(): Matrix3DOfficeData {
-  const navigate = useNavigate()
   const agentView = useAgentView()
 
   const crewStatusQuery = useQuery({
@@ -929,26 +942,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     () => pickAdapterType(hasLiveAgents, rosterAgents),
     [hasLiveAgents, rosterAgents],
   )
-
-  const liveSessionIds = useMemo(
-    () => new Set(agentView.activeAgents.map((agent) => agent.id)),
-    [agentView.activeAgents],
-  )
-
-  const handleAgentChatSelect = useCallback(
-    (agentId: string) => {
-      if (!liveSessionIds.has(agentId)) return
-
-      void navigate({
-        to: '/chat/$sessionKey',
-        params: { sessionKey: agentId },
-      })
-    },
-    [liveSessionIds, navigate],
-  )
-
-  // #89 — store-selected agent for spotlight / follow-cam
-  const selectedAgentId = useMatrix3DStore((s) => s.selectedAgentId)
 
   // Pull streaming state up here so animationState can derive holds from real
   // tool-call signals rather than keyword-matching the status subtitle.
@@ -1074,24 +1067,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
     return result
   }, [presence])
 
-  // #86 — deterministic desk assignment: hash agentId to a desk slot
-  const deskAssignmentByDeskUid = useMemo(() => {
-    const result: Record<string, string> = {}
-    for (let i = 0; i < presence.length; i++) {
-      const p = presence[i]
-      // Use a simple hash of the agent id to pick a consistent desk index
-      let hash = 0
-      for (let j = 0; j < p.id.length; j++) {
-        hash = (hash * 31 + p.id.charCodeAt(j)) >>> 0
-      }
-      const deskUid = `desk-${(hash % 20) + 1}`
-      // Avoid collision: if taken, use positional fallback
-      const key = result[deskUid] ? `desk-pos-${i + 1}` : deskUid
-      result[key] = p.id
-    }
-    return result
-  }, [presence])
-
   // #87 — run counts and last-seen
   const runCountByAgentId = useMemo(() => {
     const result: Record<string, number> = {}
@@ -1131,11 +1106,10 @@ ${parseLogText(gatewayLogsQuery.data)}`
       }))
   }, [presence, lastSeenByAgentId])
 
-  // #88 — progress per agent: from activeAgents.progress or lastActivity parse
+  // #88 — progress per agent: only real gateway-reported progress, never guessed
   const progressByAgentId = useMemo(() => {
     const result: Record<string, number> = {}
     for (const p of presence) {
-      // Try live agent progress first
       const liveAgent = agentView.activeAgents.find(
         (a) => a.id === (p.activeSessionKey ?? p.id),
       )
@@ -1145,14 +1119,6 @@ ${parseLogText(gatewayLogsQuery.data)}`
         liveAgent.progress > 0
       ) {
         result[p.id] = Math.min(100, Math.max(0, liveAgent.progress))
-        continue
-      }
-      // Fall back to parsing "NN%" from lastActivity text
-      if (p.lastActivity) {
-        const match = /(\d{1,3})%/.exec(p.lastActivity)
-        if (match) {
-          result[p.id] = Math.min(100, Math.max(0, Number(match[1])))
-        }
       }
     }
     return result
@@ -1168,17 +1134,15 @@ ${parseLogText(gatewayLogsQuery.data)}`
     gatewayStatus: formatGatewayStatus(gatewayStatusQuery.data, hasHermesData),
     selectedAdapterType,
     activeAdapterType,
-    agentSource: hasLiveAgents ? 'live' : hasRosterAgents ? 'roster' : 'none',
+    agentSource:
+      presence.length === 0 ? 'none' : hasLiveAgents ? 'live' : 'roster',
     presence,
-    onAgentChatSelect: handleAgentChatSelect,
     animationState,
     streamingTextByAgentId,
     monitorByAgentId,
     feedEvents,
-    deskAssignmentByDeskUid,
     runCountByAgentId,
     lastSeenByAgentId,
     progressByAgentId,
-    selectedAgentId,
   }
 }

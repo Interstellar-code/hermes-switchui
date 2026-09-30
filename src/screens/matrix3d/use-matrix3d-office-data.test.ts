@@ -131,7 +131,7 @@ describe('scoreLiveMatch', () => {
           activeDelegatedParentSessionKey: '20260528_222204_9ec629da',
           activeDelegatedTitle:
             'Go through the Hermes gateway/logs from the last 24 hours',
-          activeDelegatedLastActiveAt: Date.now() / 1000,
+          activeDelegatedLastActiveAt: Date.now(),
         }),
       ],
       [],
@@ -167,10 +167,9 @@ describe('scoreLiveMatch', () => {
   it('uses live tool activity for active Matrix3D speech bubbles', () => {
     const text = activeBubbleTextForPresence(
       {
-        id: 'neo',
         effectiveStatus: 'working',
-        lastActivity: 'Investigate gateway health',
-        activeSessionKey: 'session-neo',
+        activeSessionTitle: 'Investigate gateway health',
+        isDelegating: false,
       },
       {
         runId: 'run-1',
@@ -192,17 +191,138 @@ describe('scoreLiveMatch', () => {
     expect(text).toBe('Running bash: pnpm vitest run matrix3d')
   })
 
-  it('describes Hermes active fallback as delegation instead of static working text', () => {
+  it('falls back to the active session title, not a model/status string', () => {
     const text = activeBubbleTextForPresence(
       {
-        id: 'hermes-switch',
         effectiveStatus: 'working',
-        lastActivity: 'Run backend audit with three delegated agents',
-        activeSessionKey: 'session-hermes',
+        activeSessionTitle: `  Run backend audit ${'x'.repeat(80)}`,
+        isDelegating: false,
       },
       undefined,
     )
 
-    expect(text).toBe('Delegating: Run backend audit with three delegated agents')
+    expect(text?.startsWith('Run backend audit')).toBe(true)
+    expect(text?.length).toBeLessThanOrEqual(60)
+  })
+
+  it('only says Delegating for a real running delegation (no hermes-switch hardcode)', () => {
+    const [hermes] = mergePresence(
+      [
+        crew({
+          id: 'hermes-switch',
+          displayName: 'Hermes',
+          isActive: true,
+          activeSessionKey: 'parent-1',
+          activeSessionTitle: 'Plan the release',
+        }),
+      ],
+      [],
+      [],
+      {},
+    )
+    expect(activeBubbleTextForPresence(hermes, undefined)).toBe(
+      'Plan the release',
+    )
+
+    const withChild = mergePresence(
+      [
+        crew({
+          id: 'hermes-switch',
+          displayName: 'Hermes',
+          isActive: true,
+          activeSessionKey: 'parent-1',
+          activeSessionTitle: 'Plan the release',
+        }),
+        crew({
+          activeDelegatedSessionKey: 'child-1',
+          activeDelegatedParentSessionKey: 'parent-1',
+          activeDelegatedTitle: 'Check gateway',
+          activeDelegatedLastActiveAt: Date.now(),
+        }),
+      ],
+      [],
+      [],
+      {},
+    )
+    expect(activeBubbleTextForPresence(withChild[0], undefined)).toBe(
+      'Delegating: Plan the release',
+    )
+  })
+
+  it('treats a stale delegated session as idle, not working', () => {
+    const [neo] = mergePresence(
+      [
+        crew({
+          activeDelegatedSessionKey: 'child-old',
+          activeDelegatedParentSessionKey: 'parent-1',
+          activeDelegatedTitle: 'Old work',
+          activeDelegatedLastActiveAt: Date.now() - 3_600_000,
+        }),
+      ],
+      [],
+      [],
+      {},
+    )
+    expect(neo.effectiveStatus).not.toBe('working')
+    expect(neo.activeSessionKey).toBeNull()
+  })
+
+  it('never turns an unmatched live session into its own agent', () => {
+    const child = activeAgent({
+      id: 'child-9',
+      name: '🎨 Roger — Frontend Developer',
+      task: 'Something unrelated',
+      parentSessionId: 'parent-1',
+    })
+    const byProfile = activeAgent({
+      id: 'sess-42',
+      name: 'Some session title',
+      task: 'Something else',
+      profile: 'trinity',
+    })
+    const orphan = activeAgent({
+      id: 'orphan',
+      name: 'Orphan session title',
+      task: 'Nothing matches',
+    })
+    const presence = mergePresence(
+      [
+        crew({
+          id: 'hermes-switch',
+          displayName: 'Hermes',
+          isActive: true,
+          activeSessionKey: 'parent-1',
+        }),
+        crew({ id: 'trinity', displayName: 'Trinity' }),
+      ],
+      [],
+      [child, byProfile, orphan],
+      {},
+    )
+
+    expect(presence.map((p) => p.id)).toEqual(['hermes-switch', 'trinity'])
+    expect(presence.map((p) => p.name)).toEqual(['Hermes', 'Trinity'])
+    const [hermes, trinity] = presence
+    expect(hermes.subSessionKeys).toContain('child-9')
+    expect(hermes.isDelegating).toBe(true)
+    expect(trinity.subSessionKeys).toEqual(['sess-42'])
+  })
+
+  it('does not put the model or guessed progress in activity text', () => {
+    const [neo] = mergePresence(
+      [crew({ role: 'Infra health' })],
+      [],
+      [
+        activeAgent({
+          id: 'neo-session',
+          name: 'Neo',
+          task: 'Infra health checks for neo',
+          model: 'auto',
+          progress: 0,
+        }),
+      ],
+      {},
+    )
+    expect(neo.lastActivity).not.toMatch(/auto|%/)
   })
 })

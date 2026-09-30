@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { materializeDefaults } from '@/features/retro-office/core/furnitureDefaults'
 import {
   ROAM_POINTS,
+  assignDeskIndexByAgentId,
   astar,
   buildNavGrid,
   getDeskLocations,
@@ -18,7 +19,14 @@ describe('retro office navigation', () => {
     const gymWorkoutLocations = getGymWorkoutLocations(furniture)
 
     expect(gymWorkoutLocations.map((spot) => spot.workoutStyle)).toEqual([
-      'run', 'lift', 'lift', 'row', 'lift', 'bike', 'box', 'stretch',
+      'run',
+      'lift',
+      'lift',
+      'row',
+      'lift',
+      'bike',
+      'box',
+      'stretch',
     ])
 
     for (const gymSpot of gymWorkoutLocations) {
@@ -49,5 +57,46 @@ describe('retro office navigation', () => {
       x: gymDoorRoute.targetX,
       y: gymDoorRoute.targetY,
     })
+  })
+})
+
+describe('assignDeskIndexByAgentId', () => {
+  const deskUids = materializeDefaults('office')
+    .filter((item) => item.type === 'desk_cubicle')
+    .map((item) => item._uid)
+
+  it('gives each agent the same desk regardless of roster order', () => {
+    const a = assignDeskIndexByAgentId(
+      ['trinity', 'hermes-switch', 'neo', 'morpheus'],
+      deskUids,
+      {},
+    )
+    const b = assignDeskIndexByAgentId(
+      ['neo', 'morpheus', 'trinity', 'hermes-switch'],
+      deskUids,
+      {},
+    )
+    expect(a).toEqual(b)
+    expect(new Set(Object.values(a)).size).toBe(4)
+  })
+
+  it('wraps deterministically when there are more agents than desks', () => {
+    const ids = Array.from({ length: deskUids.length + 3 }, (_, i) => `a${i}`)
+    const a = assignDeskIndexByAgentId(ids, deskUids, {})
+    const b = assignDeskIndexByAgentId([...ids].reverse(), deskUids, {})
+    expect(a).toEqual(b)
+    expect(Object.keys(a)).toHaveLength(ids.length)
+    for (const index of Object.values(a)) {
+      expect(index).toBeGreaterThanOrEqual(0)
+      expect(index).toBeLessThan(deskUids.length)
+    }
+  })
+
+  it('honours explicit desk uid assignments', () => {
+    const result = assignDeskIndexByAgentId(['neo', 'trinity'], deskUids, {
+      [deskUids[2]]: 'neo',
+    })
+    expect(result.neo).toBe(2)
+    expect(result.trinity).not.toBe(2)
   })
 })

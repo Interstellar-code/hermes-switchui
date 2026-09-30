@@ -306,6 +306,34 @@ export const getDeskLocations = (items: Array<FurnitureItem>) =>
     .filter((item) => item.type === "desk_cubicle")
     .map((item) => ({ x: item.x + 40, y: item.y - 5 }));
 
+/**
+ * Desk index per agent. Explicit desk-uid assignments win; everyone else fills
+ * the open desks in agent-id order, so an agent keeps the same desk across
+ * reloads regardless of roster order.
+ */
+export const assignDeskIndexByAgentId = (
+  agentIds: Array<string>,
+  deskUids: Array<string>,
+  deskAssignmentByDeskUid: Record<string, string>,
+): Record<string, number> => {
+  const next: Record<string, number> = {};
+  deskUids.forEach((uid, index) => {
+    const agentId = deskAssignmentByDeskUid[uid];
+    if (agentId) next[agentId] = index;
+  });
+  const openDeskIndexes = deskUids
+    .map((_, index) => index)
+    .filter((index) => !deskAssignmentByDeskUid[deskUids[index]]);
+  if (openDeskIndexes.length === 0) return next;
+  const unassigned = agentIds
+    .filter((id) => !(id in next))
+    .sort((a, b) => a.localeCompare(b));
+  unassigned.forEach((id, cursor) => {
+    next[id] = openDeskIndexes[cursor % openDeskIndexes.length];
+  });
+  return next;
+};
+
 export const getMeetingSeatLocations = (items: Array<FurnitureItem>) => {
   // Meeting seats are inferred from chair placement in the conference area so standup
   // gathering follows the authored layout instead of a hardcoded attendee list.

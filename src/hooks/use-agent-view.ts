@@ -22,6 +22,8 @@ export type ActiveAgent = {
   tokenCount: number
   estimatedCost: number
   isLive: boolean
+  profile?: string
+  parentSessionId?: string
 }
 
 export type QueuePriority = 'high' | 'normal' | 'low'
@@ -150,6 +152,18 @@ export function isChildWorkerSession(session: GatewaySession): boolean {
   return Boolean(session.parentSessionId) && readString(session.kind).toLowerCase() === 'chat'
 }
 
+const CHILD_SESSION_FRESH_MS = 5 * 60_000
+
+/** A child/delegated session is live only while the gateway says so or it was touched recently. */
+export function isFreshChildSession(
+  session: GatewaySession,
+  nowMs = Date.now(),
+): boolean {
+  if (session.is_active === true) return true
+  const updatedAt = readTimestamp(session.updatedAt)
+  return updatedAt !== null && nowMs - updatedAt <= CHILD_SESSION_FRESH_MS
+}
+
 function isAgentSession(session: GatewaySession): boolean {
   const key = readSessionKey(session).toLowerCase()
   const friendlyId = readString(session.friendlyId).toLowerCase()
@@ -257,23 +271,13 @@ function readEstimatedCost(
   return Number((tokenCount * 0.000004).toFixed(3))
 }
 
+/** Real progress reported by the gateway, or 0 when none is known (never guessed). */
 function readProgress(
   session: GatewaySession,
   status: GatewaySessionStatusResponse | null,
 ): number {
-  const statusProgress = readNumber(status?.progress)
-  if (statusProgress > 0)
-    return Math.max(1, Math.min(99, Math.round(statusProgress)))
-
-  const sessionProgress = readNumber(session.progress)
-  if (sessionProgress > 0)
-    return Math.max(1, Math.min(99, Math.round(sessionProgress)))
-
-  const sessionStatus = readStatus(session, status)
-  if (isQueuedStatus(sessionStatus)) return 5
-  if (isFailedStatus(sessionStatus)) return 100
-  if (isCompletedStatus(sessionStatus)) return 100
-  return 35
+  const progress = readNumber(status?.progress) || readNumber(session.progress)
+  return progress > 0 ? Math.min(100, Math.round(progress)) : 0
 }
 
 function readStatus(
@@ -287,7 +291,7 @@ function readStatus(
   if (sessionStatus.length > 0) {
     const normalized = sessionStatus.toLowerCase()
     if (isChildWorkerSession(session) && normalized === 'idle') {
-      return 'running'
+      return isFreshChildSession(session) ? 'running' : 'idle'
     }
     if (normalized === 'idle' && session.is_active === true && readString(session.kind).toLowerCase() === 'chat') {
       return 'running'
@@ -372,23 +376,26 @@ function isFailedStatus(status: string): boolean {
   return ['failed', 'error', 'cancelled', 'canceled', 'killed'].includes(status)
 }
 
-function mapSessionToActiveAgent(
+export function mapSessionToActiveAgent(
   session: GatewaySession,
   status: GatewaySessionStatusResponse | null,
 ): ActiveAgent {
   const tokenCount = readTokenCount(session, status)
-  const childWorker = isChildWorkerSession(session)
+  const profile = readString(session.profile)
+  const parentSessionId = readString(session.parentSessionId)
   return {
     id: readSessionKey(session) || crypto.randomUUID(),
     name: readSessionName(session),
     task: readTaskText(session),
     model: readModel(session, status),
-    status: childWorker ? 'running' : readStatus(session, status),
+    status: readStatus(session, status),
     progress: readProgress(session, status),
     startedAtMs: readStartTimeMs(session),
     tokenCount,
     estimatedCost: readEstimatedCost(session, status, tokenCount),
     isLive: true,
+    ...(profile ? { profile } : {}),
+    ...(parentSessionId ? { parentSessionId } : {}),
   }
 }
 

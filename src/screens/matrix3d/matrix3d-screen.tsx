@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
@@ -116,18 +117,10 @@ function isGenericProfileRole(value: string | null | undefined): boolean {
   return normalizeLabel(value).toLowerCase() === 'profile'
 }
 
-function readableModel(value: string | null | undefined): string {
-  const model = normalizeLabel(value)
-  if (!model || model.toLowerCase() === 'unknown') return ''
-  return model
-}
-
 function cardBubbleLabel(
   agent: OfficeAgent,
   presence: Matrix3DAgentPresence | undefined,
 ): string {
-  const model = readableModel(presence?.model)
-  if (model) return model
   const bubble = normalizeLabel(presence?.lastActivity || agent.subtitle)
   return bubble || 'Hermes'
 }
@@ -146,7 +139,6 @@ function cardRoleLabel(
 function cardMetaLabel(presence: Matrix3DAgentPresence | undefined): string {
   if (!presence) return 'profile ready'
   const details = [
-    readableModel(presence.model),
     presence.assignedTaskCount > 0
       ? pluralize(presence.assignedTaskCount, 'task')
       : null,
@@ -1105,7 +1097,18 @@ function A2AFleetTab() {
 
 export function Matrix3DScreen() {
   const officeData = useMatrix3DOfficeData()
+  const navigate = useNavigate()
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  // Bumped on every card click so re-clicking the selected card re-centers.
+  const [focusRequest, setFocusRequest] = useState<{
+    id: string
+    n: number
+  } | null>(null)
+  const handleSceneAgentSelect = useCallback((agentId: string) => {
+    setBottomMode('agents')
+    setSelectedAgentId(agentId)
+    setIsSidePanelOpen(true)
+  }, [])
   const [isSidePanelOpen, setIsSidePanelOpen] = useState(false)
   const [bottomMode, setBottomMode] = useState<Matrix3DBottomMode>('agents')
   const cardAgents = useMemo(
@@ -1234,7 +1237,11 @@ export function Matrix3DScreen() {
         >
           <div className="matrix3d-canvas-grid" />
           <div className="matrix3d-canvas-glow" />
-          <Matrix3DCanvas officeData={officeData} />
+          <Matrix3DCanvas
+            officeData={officeData}
+            focusRequest={focusRequest}
+            onAgentSelect={handleSceneAgentSelect}
+          />
           <div className="matrix3d-canvas-title-bar">
             <div className="matrix3d-canvas-title-line" />
             <span className="matrix3d-canvas-title">Matrix3D Office</span>
@@ -1310,6 +1317,10 @@ export function Matrix3DScreen() {
                         setBottomMode('agents')
                         setSelectedAgentId(agent.id)
                         setIsSidePanelOpen(true)
+                        setFocusRequest((prev) => ({
+                          id: agent.id,
+                          n: (prev?.n ?? 0) + 1,
+                        }))
                       }}
                     />
                   ))}
@@ -1420,6 +1431,28 @@ export function Matrix3DScreen() {
                       {selectedAgent.presence?.lastActivity ||
                         selectedAgent.card.bubble}
                     </div>
+                    {selectedAgent.presence?.activeSessionKey ? (
+                      <button
+                        type="button"
+                        className="matrix3d-roster-tab is-on"
+                        onClick={() => {
+                          const sessionKey =
+                            selectedAgent.presence?.activeSessionKey
+                          if (!sessionKey) return
+                          void navigate({
+                            to: '/chat/$sessionKey',
+                            params: { sessionKey },
+                            search: {
+                              profile:
+                                selectedAgent.presence?.activeSessionProfile ??
+                                undefined,
+                            },
+                          })
+                        }}
+                      >
+                        Open chat
+                      </button>
+                    ) : null}
                   </div>
                   <div className="matrix3d-side-sec">
                     <div className="matrix3d-side-sec-lbl">Recent Activity</div>

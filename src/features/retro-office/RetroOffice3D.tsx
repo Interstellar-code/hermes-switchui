@@ -134,6 +134,7 @@ import {
   QA_LAB_DEFAULT_TARGET,
   ROAM_POINTS,
   SERVER_ROOM_TARGET,
+  assignDeskIndexByAgentId,
   astar,
   buildNavGrid,
   getDeskLocations,
@@ -2480,6 +2481,7 @@ export function RetroOffice3D({
   streamingTextByAgentId = {},
   progressByAgentId = EMPTY_NUMBER_RECORD,
   selectedAgentId = null,
+  focusRequest = null,
   onStandupArrivalsChange,
   onStandupStartRequested,
   onMonitorSelect,
@@ -2601,6 +2603,8 @@ export function RetroOffice3D({
   progressByAgentId?: Record<string, number>;
   /** #89 — agent id from external selection (store); sets initial follow-cam target */
   selectedAgentId?: string | null;
+  /** Move the orbit camera onto `id`; bump `n` to re-center on the same agent. */
+  focusRequest?: { id: string; n: number } | null;
   onStandupArrivalsChange?: (arrivedAgentIds: Array<string>) => void;
   onStandupStartRequested?: () => void;
   onMonitorSelect?: (agentId: string | null) => void;
@@ -2975,29 +2979,15 @@ export function RetroOffice3D({
     [furniture],
   );
   const deskLocations = useMemo(() => getDeskLocations(furniture), [furniture]);
-  const assignedDeskIndexByAgentId = useMemo(() => {
-    const next: Record<string, number> = {};
-    const assignedAgentIds = new Set<string>();
-    const assignedDeskIndexes = new Set<number>();
-    deskItems.forEach((item, index) => {
-      const agentId = deskAssignmentByDeskUid[item._uid];
-      if (!agentId) return;
-      next[agentId] = index;
-      assignedAgentIds.add(agentId);
-      assignedDeskIndexes.add(index);
-    });
-    const openDeskIndexes = deskItems
-      .map((_, index) => index)
-      .filter((index) => !assignedDeskIndexes.has(index));
-    if (openDeskIndexes.length === 0) return next;
-    let openDeskCursor = 0;
-    for (const agent of agents) {
-      if (assignedAgentIds.has(agent.id)) continue;
-      next[agent.id] = openDeskIndexes[openDeskCursor % openDeskIndexes.length];
-      openDeskCursor += 1;
-    }
-    return next;
-  }, [agents, deskAssignmentByDeskUid, deskItems]);
+  const assignedDeskIndexByAgentId = useMemo(
+    () =>
+      assignDeskIndexByAgentId(
+        agents.map((agent) => agent.id),
+        deskItems.map((item) => item._uid),
+        deskAssignmentByDeskUid,
+      ),
+    [agents, deskAssignmentByDeskUid, deskItems],
+  );
   const janitorCleaningStops = useMemo(
     () => getJanitorCleaningStops(furniture),
     [furniture],
@@ -3144,16 +3134,32 @@ export function RetroOffice3D({
   const handleAgentUnhover = useCallback(() => {
     setHoveredAgentId(null);
   }, []);
-  const handleAgentClick = useCallback(
-    (agentId: string) => {
+  const focusAgentOrbit = useCallback(
+    (agentId: string): boolean => {
       const agent = renderAgentLookupRef.current.get(agentId);
-      if (!agent || !orbitRef.current) return;
+      if (!agent || !orbitRef.current) return false;
       const [wx, , wz] = toWorld(agent.x, agent.y);
       orbitRef.current.target.set(wx, 0, wz);
       orbitRef.current.update();
+      return true;
+    },
+    [renderAgentLookupRef],
+  );
+  // Pending until the agent exists in the scene; retried on each agents update.
+  const pendingFocusRef = useRef<{ id: string; n: number } | null>(null);
+  useEffect(() => {
+    pendingFocusRef.current = focusRequest;
+  }, [focusRequest]);
+  useEffect(() => {
+    const pending = pendingFocusRef.current;
+    if (pending && focusAgentOrbit(pending.id)) pendingFocusRef.current = null;
+  }, [agents, focusRequest, focusAgentOrbit]);
+  const handleAgentClick = useCallback(
+    (agentId: string) => {
+      focusAgentOrbit(agentId);
       onAgentChatSelect?.(agentId);
     },
-    [onAgentChatSelect, renderAgentLookupRef],
+    [focusAgentOrbit, onAgentChatSelect],
   );
   const handleAgentContextMenu = useCallback(
     (agentId: string, x: number, y: number) => {

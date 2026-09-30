@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isChildWorkerSession, isWorkspaceChatSession } from './use-agent-view'
+import {
+  isChildWorkerSession,
+  isWorkspaceChatSession,
+  mapSessionToActiveAgent,
+} from './use-agent-view'
 import type { GatewaySession } from '@/lib/gateway-api'
 
 describe('useAgentView session payload regression', () => {
@@ -34,5 +38,52 @@ describe('useAgentView session payload regression', () => {
 
     expect(isChildWorkerSession(childSession)).toBe(true)
     expect(isWorkspaceChatSession(childSession)).toBe(false)
+  })
+})
+
+describe('mapSessionToActiveAgent', () => {
+  const now = Date.now()
+
+  it('reports no progress when the gateway gives none (no fake 35%)', () => {
+    const agent = mapSessionToActiveAgent(
+      { key: 'k1', kind: 'chat', status: 'running', updatedAt: now },
+      null,
+    )
+    expect(agent.progress).toBe(0)
+  })
+
+  it('passes through real progress', () => {
+    const agent = mapSessionToActiveAgent(
+      { key: 'k1', kind: 'agent', status: 'running', progress: 62 },
+      null,
+    )
+    expect(agent.progress).toBe(62)
+  })
+
+  it('marks a stale child session idle and a fresh one running', () => {
+    const base: GatewaySession = {
+      key: 'child',
+      kind: 'chat',
+      status: 'idle',
+      is_active: false,
+      parentSessionId: 'parent',
+      profile: 'neo',
+    }
+    const stale = mapSessionToActiveAgent(
+      { ...base, updatedAt: now - 10 * 60_000 },
+      null,
+    )
+    const fresh = mapSessionToActiveAgent(
+      { ...base, updatedAt: now - 60_000 },
+      null,
+    )
+    const active = mapSessionToActiveAgent(
+      { ...base, is_active: true, updatedAt: now - 10 * 60_000 },
+      null,
+    )
+    expect(stale.status).toBe('idle')
+    expect(fresh.status).toBe('running')
+    expect(active.status).toBe('running')
+    expect(stale).toMatchObject({ profile: 'neo', parentSessionId: 'parent' })
   })
 })
