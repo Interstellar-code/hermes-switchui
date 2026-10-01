@@ -143,6 +143,7 @@ import { Route as ApiMemoryWriteRouteImport } from './routes/api/memory/write'
 import { Route as ApiMemoryStatsRouteImport } from './routes/api/memory/stats'
 import { Route as ApiMemorySearchRouteImport } from './routes/api/memory/search'
 import { Route as ApiMemoryReadRouteImport } from './routes/api/memory/read'
+import { Route as ApiMemoryProfilesRouteImport } from './routes/api/memory/profiles'
 import { Route as ApiMemoryMnemosyneSearchRouteImport } from './routes/api/memory/mnemosyne-search'
 import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
 import { Route as ApiMemoryGraphRouteImport } from './routes/api/memory/graph'
@@ -921,6 +922,11 @@ const ApiMemoryReadRoute = ApiMemoryReadRouteImport.update({
   path: '/read',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryProfilesRoute = ApiMemoryProfilesRouteImport.update({
+  id: '/profiles',
+  path: '/profiles',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMemoryMnemosyneSearchRoute =
   ApiMemoryMnemosyneSearchRouteImport.update({
     id: '/mnemosyne-search',
@@ -1642,6 +1648,7 @@ export interface FileRoutesByFullPath {
   '/api/memory/graph': typeof ApiMemoryGraphRouteWithChildren
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
+  '/api/memory/profiles': typeof ApiMemoryProfilesRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
   '/api/memory/stats': typeof ApiMemoryStatsRoute
@@ -1881,6 +1888,7 @@ export interface FileRoutesByTo {
   '/api/memory/graph': typeof ApiMemoryGraphRouteWithChildren
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
+  '/api/memory/profiles': typeof ApiMemoryProfilesRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
   '/api/memory/stats': typeof ApiMemoryStatsRoute
@@ -2123,6 +2131,7 @@ export interface FileRoutesById {
   '/api/memory/graph': typeof ApiMemoryGraphRouteWithChildren
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
+  '/api/memory/profiles': typeof ApiMemoryProfilesRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
   '/api/memory/search': typeof ApiMemorySearchRoute
   '/api/memory/stats': typeof ApiMemoryStatsRoute
@@ -2366,6 +2375,7 @@ export interface FileRouteTypes {
     | '/api/memory/graph'
     | '/api/memory/list'
     | '/api/memory/mnemosyne-search'
+    | '/api/memory/profiles'
     | '/api/memory/read'
     | '/api/memory/search'
     | '/api/memory/stats'
@@ -2605,6 +2615,7 @@ export interface FileRouteTypes {
     | '/api/memory/graph'
     | '/api/memory/list'
     | '/api/memory/mnemosyne-search'
+    | '/api/memory/profiles'
     | '/api/memory/read'
     | '/api/memory/search'
     | '/api/memory/stats'
@@ -2846,6 +2857,7 @@ export interface FileRouteTypes {
     | '/api/memory/graph'
     | '/api/memory/list'
     | '/api/memory/mnemosyne-search'
+    | '/api/memory/profiles'
     | '/api/memory/read'
     | '/api/memory/search'
     | '/api/memory/stats'
@@ -4042,6 +4054,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryReadRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/profiles': {
+      id: '/api/memory/profiles'
+      path: '/profiles'
+      fullPath: '/api/memory/profiles'
+      preLoaderRoute: typeof ApiMemoryProfilesRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/mnemosyne-search': {
       id: '/api/memory/mnemosyne-search'
       path: '/mnemosyne-search'
@@ -4945,6 +4964,7 @@ interface ApiMemoryRouteChildren {
   ApiMemoryGraphRoute: typeof ApiMemoryGraphRouteWithChildren
   ApiMemoryListRoute: typeof ApiMemoryListRoute
   ApiMemoryMnemosyneSearchRoute: typeof ApiMemoryMnemosyneSearchRoute
+  ApiMemoryProfilesRoute: typeof ApiMemoryProfilesRoute
   ApiMemoryReadRoute: typeof ApiMemoryReadRoute
   ApiMemorySearchRoute: typeof ApiMemorySearchRoute
   ApiMemoryStatsRoute: typeof ApiMemoryStatsRoute
@@ -4959,6 +4979,7 @@ const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
   ApiMemoryGraphRoute: ApiMemoryGraphRouteWithChildren,
   ApiMemoryListRoute: ApiMemoryListRoute,
   ApiMemoryMnemosyneSearchRoute: ApiMemoryMnemosyneSearchRoute,
+  ApiMemoryProfilesRoute: ApiMemoryProfilesRoute,
   ApiMemoryReadRoute: ApiMemoryReadRoute,
   ApiMemorySearchRoute: ApiMemorySearchRoute,
   ApiMemoryStatsRoute: ApiMemoryStatsRoute,

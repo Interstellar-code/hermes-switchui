@@ -18,20 +18,22 @@ afterEach(() => {
   fs.rmSync(tempRoot, { recursive: true, force: true })
 })
 
-function createDb(schema: { withFts?: boolean; withTriples?: boolean } = {}) {
+function createDb(
+  schema: { withFts?: boolean; withTriples?: boolean; stamped?: boolean } = {},
+) {
   const dbDir = path.join(tempRoot, 'mnemosyne', 'data')
   fs.mkdirSync(dbDir, { recursive: true })
   const dbPath = path.join(dbDir, 'default.db')
   const db = new Database(dbPath)
   db.exec(`
-    CREATE TABLE working_memory (id INTEGER PRIMARY KEY, content TEXT);
+    CREATE TABLE working_memory (id INTEGER PRIMARY KEY, content TEXT${schema.stamped === false ? '' : ', created_at TIMESTAMP'});
     CREATE TABLE episodic_memory (id INTEGER PRIMARY KEY, content TEXT);
     ${schema.withTriples === false ? '' : 'CREATE TABLE triples (id INTEGER PRIMARY KEY, subject TEXT);'}
     ${schema.withFts === false ? '' : 'CREATE TABLE fts_working (rowid INTEGER PRIMARY KEY, content TEXT);'}
     ${schema.withFts === false ? '' : 'CREATE TABLE fts_episodes (rowid INTEGER PRIMARY KEY, content TEXT);'}
   `)
   db.exec(`
-    INSERT INTO working_memory (content) VALUES ('a'), ('b');
+    ${schema.stamped === false ? "INSERT INTO working_memory (content) VALUES ('a'), ('b');" : "INSERT INTO working_memory (content, created_at) VALUES ('a', '2026-01-01 00:00:00'), ('b', '2026-02-03 04:05:06');"}
     INSERT INTO episodic_memory (content) VALUES ('c'), ('d'), ('e');
     ${schema.withTriples === false ? '' : "INSERT INTO triples (subject) VALUES ('x'), ('y');"}
     ${schema.withFts === false ? '' : "INSERT INTO fts_working (content) VALUES ('fw1'); INSERT INTO fts_episodes (content) VALUES ('fe1'), ('fe2');"}
@@ -94,14 +96,17 @@ describe('mnemosyne-browser', () => {
       total: 5,
     })
     expect(typeof stats.checkedAt).toBe('number')
+    // episodic_memory has no created_at here — it is skipped, not an error.
+    expect(stats.lastWriteAt).toBe('2026-02-03T04:05:06.000Z')
   })
 
   it('returns zero FTS rows when optional FTS tables are absent', async () => {
-    createDb({ withFts: false })
+    createDb({ withFts: false, stamped: false })
     const mod = await import('../mnemosyne-browser')
     const stats = mod.getMnemosyneStats()
 
     expect(stats.counts.fts).toBe(0)
+    expect(stats.lastWriteAt).toBeNull()
   })
 
   it('returns an explicit missing-db payload when the db is absent', async () => {

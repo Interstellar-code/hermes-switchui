@@ -1,6 +1,7 @@
 /**
  * memory-screen-store.ts — local UI state for the Memory screen (P3).
- * Active tab persisted to localStorage under `switchui-memory-screen`.
+ * Active tab + selected profile persisted to localStorage under
+ * `switchui-memory-screen`.
  * Selected agent is ephemeral (resets on nav).
  */
 
@@ -18,8 +19,13 @@ const VALID_TABS: ReadonlyArray<MemoryTab> = [
   'chat',
 ]
 
+/** Mirrors DEFAULT_MEMORY_PROFILE in src/server/memory-profile.ts. */
+export const DEFAULT_MEMORY_PROFILE = 'hermes-switch'
+
 type MemoryPersistedState = {
   activeTab: MemoryTab
+  /** Hermes profile the whole /memory page reads. */
+  profile: string
 }
 
 type MemoryEphemeralState = {
@@ -28,17 +34,20 @@ type MemoryEphemeralState = {
 
 type MemoryActions = {
   setActiveTab: (tab: MemoryTab) => void
+  setProfile: (profile: string) => void
   setSelectedAgentId: (id: string) => void
 }
 
 // Persisted slice — active tab survives navigation
 export const useMemoryScreenStore = create<
-  MemoryPersistedState & Pick<MemoryActions, 'setActiveTab'>
+  MemoryPersistedState & Pick<MemoryActions, 'setActiveTab' | 'setProfile'>
 >()(
   persist(
     (set) => ({
       activeTab: 'memory',
+      profile: DEFAULT_MEMORY_PROFILE,
       setActiveTab: (activeTab) => set({ activeTab }),
+      setProfile: (profile) => set({ profile }),
     }),
     {
       name: 'switchui-memory-screen',
@@ -52,7 +61,7 @@ export const useMemoryScreenStore = create<
         if (prev === 'graph') tab = 'map'
         else if (prev && VALID_TABS.includes(prev)) tab = prev
         else tab = 'memory'
-        return { activeTab: tab }
+        return { activeTab: tab, profile: DEFAULT_MEMORY_PROFILE }
       },
     },
   ),

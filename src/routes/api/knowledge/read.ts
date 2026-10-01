@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { readKnowledgePage } from '../../../server/knowledge-browser'
+import { isMemoryProfile } from '../../../server/memory-profile'
 
 export const Route = createFileRoute('/api/knowledge/read')({
   server: {
@@ -12,10 +13,17 @@ export const Route = createFileRoute('/api/knowledge/read')({
 
         const url = new URL(request.url)
         const pathParam = url.searchParams.get('path') || ''
+        const profile = url.searchParams.get('profile') ?? undefined
+        if (profile !== undefined && !isMemoryProfile(profile)) {
+          return Response.json({ error: 'unknown profile' }, { status: 400 })
+        }
 
         try {
-          const { meta, content, backlinks } = readKnowledgePage(pathParam)
-          return Response.json({ page: meta, content, backlinks })
+          const { meta, content, raw, backlinks, links } = readKnowledgePage(
+            pathParam,
+            profile,
+          )
+          return Response.json({ page: meta, content, raw, backlinks, links })
         } catch (error) {
           const message =
             error instanceof Error

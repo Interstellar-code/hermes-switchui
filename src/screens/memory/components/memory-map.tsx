@@ -258,8 +258,11 @@ function readPalette(el: HTMLElement): Palette {
   }
 }
 
-async function fetchGraph(): Promise<GraphResponse> {
-  const res = await fetch('/api/memory/graph', { credentials: 'same-origin' })
+async function fetchGraph(profile: string): Promise<GraphResponse> {
+  const res = await fetch(
+    `/api/memory/graph?profile=${encodeURIComponent(profile)}`,
+    { credentials: 'same-origin' },
+  )
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(payload.error ?? `Request failed (${res.status})`)
@@ -267,9 +270,12 @@ async function fetchGraph(): Promise<GraphResponse> {
   return res.json() as Promise<GraphResponse>
 }
 
-async function fetchNode(id: string): Promise<GraphNodeDetail> {
+async function fetchNode(
+  id: string,
+  profile: string,
+): Promise<GraphNodeDetail> {
   const res = await fetch(
-    `/api/memory/graph/node?id=${encodeURIComponent(id)}`,
+    `/api/memory/graph/node?id=${encodeURIComponent(id)}&profile=${encodeURIComponent(profile)}`,
     {
       credentials: 'same-origin',
     },
@@ -292,9 +298,10 @@ function prefersReducedMotion(): boolean {
 // ── component ────────────────────────────────────────────────────────────────
 
 export function MemoryMap() {
+  const profile = useMemoryScreenStore((s) => s.profile)
   const query = useQuery<GraphResponse>({
-    queryKey: ['memory', 'map', 'graph'],
-    queryFn: fetchGraph,
+    queryKey: ['memory', 'map', 'graph', profile],
+    queryFn: () => fetchGraph(profile),
     staleTime: 60_000,
   })
 
@@ -334,6 +341,9 @@ export function MemoryMap() {
 
   return (
     <MemoryMapCanvas
+      // Remount per profile: selection/filters belong to one dataset.
+      key={profile}
+      profile={profile}
       data={data}
       refreshing={query.isFetching}
       onRefresh={() => void query.refetch()}
@@ -350,10 +360,12 @@ type MapApi = {
 }
 
 function MemoryMapCanvas({
+  profile,
   data,
   refreshing,
   onRefresh,
 }: {
+  profile: string
   data: GraphResponse
   refreshing: boolean
   onRefresh: () => void
@@ -972,8 +984,8 @@ function MemoryMapCanvas({
 
   const selected = selectedId ? model.byId.get(selectedId) : undefined
   const detailQuery = useQuery({
-    queryKey: ['memory', 'map', 'node', selectedId],
-    queryFn: () => fetchNode(selectedId!),
+    queryKey: ['memory', 'map', 'node', profile, selectedId],
+    queryFn: () => fetchNode(selectedId!, profile),
     enabled: !!selectedId,
     staleTime: 60_000,
   })

@@ -43,4 +43,17 @@ describe('memory-screen-store migration (v1 → v2)', () => {
     const store = await loadStore()
     expect(store.getState().activeTab).toBe('memory')
   })
+
+  it('defaults the profile to hermes-switch and persists a change', async () => {
+    const store = await loadStore()
+    expect(store.getState().profile).toBe('hermes-switch')
+    store.getState().setProfile('neo')
+    expect(JSON.parse(localStorage.getItem(KEY)!).state.profile).toBe('neo')
+  })
+
+  it('gives migrated v1 state the default profile', async () => {
+    seed('wiki', 1)
+    const store = await loadStore()
+    expect(store.getState().profile).toBe('hermes-switch')
+  })
 })

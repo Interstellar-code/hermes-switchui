@@ -152,9 +152,12 @@ function entityDetail(
   }
 }
 
-function wikiDetail(id: string): MemoryGraphNodeDetail | null {
+function wikiDetail(
+  id: string,
+  profile?: string,
+): MemoryGraphNodeDetail | null {
   try {
-    const page = readKnowledgePage(id)
+    const page = readKnowledgePage(id, profile)
     return {
       id,
       kind: 'wiki',
@@ -171,12 +174,15 @@ function wikiDetail(id: string): MemoryGraphNodeDetail | null {
 }
 
 /** Resolve one graph node id to its full record; null when unknown. */
-export function getMemoryGraphNode(id: string): MemoryGraphNodeDetail | null {
+export function getMemoryGraphNode(
+  id: string,
+  profile?: string,
+): MemoryGraphNodeDetail | null {
   if (!id || id.length > NODE_ID_MAX || id.includes('\0')) return null
   const kind = classifyById(id)
-  if (kind === 'wiki') return wikiDetail(id)
+  if (kind === 'wiki') return wikiDetail(id, profile)
 
-  const db = openMemoryGraphDb()
+  const db = openMemoryGraphDb(profile)
   if (!db) return null
   try {
     if (kind === 'entity') return entityDetail(db, id)

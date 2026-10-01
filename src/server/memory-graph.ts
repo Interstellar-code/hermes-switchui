@@ -141,6 +141,8 @@ export type MemoryGraphParams = {
   limit?: number
   edgeType?: MemoryGraphEdgeType | null
   since?: string | null
+  /** Validated profile name; absent = legacy hermes-switch DB. */
+  profile?: string
 }
 
 function emptyGraph(dbMissing: boolean): MemoryGraph {
@@ -195,9 +197,9 @@ export function classifyById(id: string): MemoryGraphKind {
   return 'wiki'
 }
 
-/** Read-only handle on the active profile's mnemosyne DB; null if absent. */
-export function openMemoryGraphDb(): Database.Database | null {
-  const dbPath = getMnemosyneDbPath()
+/** Read-only handle on a profile's mnemosyne DB; null if absent. */
+export function openMemoryGraphDb(profile?: string): Database.Database | null {
+  const dbPath = getMnemosyneDbPath(undefined, profile)
   if (!fs.existsSync(dbPath)) return null
   return new Database(dbPath, { readonly: true, fileMustExist: true })
 }
@@ -210,7 +212,7 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
   const edgeType = params.edgeType ?? null
   const since = params.since ?? null
 
-  const db = openMemoryGraphDb()
+  const db = openMemoryGraphDb(params.profile)
   if (!db) return emptyGraph(true)
   try {
     // graph_edges is the minimum required table; without it there is no graph.
@@ -484,7 +486,7 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
     if (wantEdge('references')) {
       let pages: Array<{ path: string }> = []
       try {
-        pages = listKnowledgePages()
+        pages = listKnowledgePages(params.profile)
       } catch {
         // wiki dir unreadable → graph still renders from mnemosyne alone
       }

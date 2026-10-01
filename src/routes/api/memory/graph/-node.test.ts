@@ -44,8 +44,9 @@ const get = (
   Route as unknown as { options: { server: { handlers: { GET: GetHandler } } } }
 ).options.server.handlers.GET
 
-async function node(id: string | null) {
-  const qs = id === null ? '' : `?id=${encodeURIComponent(id)}`
+async function node(id: string | null, profile?: string) {
+  let qs = id === null ? '' : `?id=${encodeURIComponent(id)}`
+  if (profile !== undefined) qs += `&profile=${encodeURIComponent(profile)}`
   const res = get({
     request: new Request(`http://localhost/api/memory/graph/node${qs}`),
   })
@@ -97,10 +98,19 @@ beforeAll(() => {
   ).run('h1', 'mentions', 'SwitchUI')
   db.close()
   process.env.MNEMOSYNE_DB_PATH = dbPath
+  // Profiles: hermes-switch (legacy chain → MNEMOSYNE_DB_PATH) and neo (no DB).
+  for (const p of ['hermes-switch', 'neo'])
+    fs.mkdirSync(path.join(dir, 'profiles', p), { recursive: true })
+  prevHome = process.env.HERMES_HOME
+  process.env.HERMES_HOME = dir
 })
+
+let prevHome: string | undefined
 
 afterAll(() => {
   delete process.env.MNEMOSYNE_DB_PATH
+  if (prevHome === undefined) delete process.env.HERMES_HOME
+  else process.env.HERMES_HOME = prevHome
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
@@ -127,6 +137,17 @@ describe('GET /api/memory/graph/node', () => {
     ]) {
       expect((await node(id)).status, id).toBe(404)
     }
+  })
+
+  it('400s on unknown or traversal profiles', async () => {
+    for (const p of ['ghost', '../neo', '..', ''])
+      expect((await node('gist_h1', p)).status, p).toBe(400)
+  })
+
+  it('reads the selected profile DB', async () => {
+    expect((await node('gist_h1', 'hermes-switch')).status).toBe(200)
+    // neo exists but has no matrix-memory DB of its own.
+    expect((await node('gist_h1', 'neo')).status).toBe(404)
   })
 
   it('returns full gist text with newlines and dates', async () => {

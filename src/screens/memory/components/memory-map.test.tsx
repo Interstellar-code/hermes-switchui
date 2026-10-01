@@ -263,7 +263,7 @@ describe('MemoryMap', () => {
     expect(panel.textContent).toMatch(/2026-02-03 04:05/)
     expect(panel.textContent).toMatch(/confidence/)
     expect(fetchMock).toHaveBeenCalledWith(
-      '/api/memory/graph/node?id=fact_a_0',
+      '/api/memory/graph/node?id=fact_a_0&profile=hermes-switch',
       expect.anything(),
     )
   })

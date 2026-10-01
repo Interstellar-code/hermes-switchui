@@ -1,7 +1,11 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import { getHermesRoot, getProfileHermesHome } from './claude-paths'
+import { getHermesRoot } from './claude-paths'
+import {
+  DEFAULT_MEMORY_PROFILE,
+  getProfileMatrixMemoryDir,
+} from './memory-profile'
 
 export type MnemosyneStatsCounts = {
   working: number
@@ -26,7 +30,21 @@ function getDefaultBankId(): string {
   return 'default'
 }
 
-function getCandidateDbPaths(bankId = getDefaultBankId()): Array<string> {
+function getCandidateDbPaths(
+  bankId = getDefaultBankId(),
+  profile?: string,
+): Array<string> {
+  // A non-default profile reads only its own DB — env overrides and root
+  // fallbacks describe the legacy (hermes-switch) install.
+  if (profile && profile !== DEFAULT_MEMORY_PROFILE) {
+    const dataDir = path.join(getProfileMatrixMemoryDir(profile), 'data')
+    return [
+      bankId === 'default'
+        ? path.join(dataDir, 'mnemosyne.db')
+        : path.join(dataDir, 'banks', bankId, 'mnemosyne.db'),
+    ]
+  }
+
   const explicitDbPath = process.env.MNEMOSYNE_DB_PATH?.trim()
   if (explicitDbPath) return [path.resolve(explicitDbPath)]
 
@@ -40,8 +58,7 @@ function getCandidateDbPaths(bankId = getDefaultBankId()): Array<string> {
 
   const hermesRoot = getHermesRoot()
   const profileMnemosyneDataDir = path.join(
-    getProfileHermesHome('hermes-switch'),
-    'matrix-memory',
+    getProfileMatrixMemoryDir(DEFAULT_MEMORY_PROFILE),
     'data',
   )
   const rootMnemosyneDataDir = path.join(hermesRoot, 'mnemosyne', 'data')
@@ -61,8 +78,11 @@ function getCandidateDbPaths(bankId = getDefaultBankId()): Array<string> {
   ]
 }
 
-export function getMnemosyneDbPath(bankId = getDefaultBankId()): string {
-  const candidates = getCandidateDbPaths(bankId)
+export function getMnemosyneDbPath(
+  bankId = getDefaultBankId(),
+  profile?: string,
+): string {
+  const candidates = getCandidateDbPaths(bankId, profile)
   const existing = candidates.find((candidate) => fs.existsSync(candidate))
   return existing ?? candidates[0]
 }
@@ -96,6 +116,17 @@ function countRows(db: Database.Database, tableName: string): number {
   return row.count
 }
 
+function hasColumn(
+  db: Database.Database,
+  tableName: string,
+  column: string,
+): boolean {
+  const cols = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{
+    name: string
+  }>
+  return cols.some((c) => c.name === column)
+}
+
 function countOptionalRows(db: Database.Database, tableName: string): number {
   if (!tableExists(db, tableName)) return 0
   const row = db
@@ -107,8 +138,11 @@ function countOptionalRows(db: Database.Database, tableName: string): number {
   return row.count
 }
 
-export function getMnemosyneStats(bankId = getDefaultBankId()): MnemosyneStats {
-  const dbPath = getMnemosyneDbPath(bankId)
+export function getMnemosyneStats(
+  bankId = getDefaultBankId(),
+  profile?: string,
+): MnemosyneStats {
+  const dbPath = getMnemosyneDbPath(bankId, profile)
   if (!fs.existsSync(dbPath)) {
     return {
       checkedAt: Date.now(),
@@ -127,11 +161,19 @@ export function getMnemosyneStats(bankId = getDefaultBankId()): MnemosyneStats {
       countOptionalRows(db, 'fts_working') +
       countOptionalRows(db, 'fts_episodes')
 
-    const last = db
-      .prepare(
-        'SELECT MAX(ts) AS ts FROM (SELECT MAX(created_at) AS ts FROM working_memory UNION ALL SELECT MAX(created_at) FROM episodic_memory)',
-      )
-      .get() as { ts: string | null }
+    // Only tables that actually carry created_at (schemas vary across versions).
+    const stamped = ['working_memory', 'episodic_memory'].filter((t) =>
+      hasColumn(db, t, 'created_at'),
+    )
+    const last = stamped.length
+      ? (db
+          .prepare(
+            `SELECT MAX(ts) AS ts FROM (${stamped
+              .map((t) => `SELECT MAX(created_at) AS ts FROM ${t}`)
+              .join(' UNION ALL ')})`,
+          )
+          .get() as { ts: string | null })
+      : { ts: null }
 
     return {
       checkedAt: Date.now(),
@@ -183,11 +225,12 @@ export function searchMnemosyne(
   query: string,
   limit = 8,
   bankId = getDefaultBankId(),
+  profile?: string,
 ): Array<MnemosyneSearchMatch> {
   const terms = (query.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).slice(0, 12)
   if (terms.length === 0) return []
 
-  const dbPath = getMnemosyneDbPath(bankId)
+  const dbPath = getMnemosyneDbPath(bankId, profile)
   if (!fs.existsSync(dbPath)) return []
 
   const db = openReadonlyDb(dbPath)
@@ -268,6 +311,8 @@ export type MnemosyneBrowseOptions = {
   limit?: number
   /** `nextCursor` from the previous page. */
   cursor?: string | null
+  /** Validated profile name; absent = legacy hermes-switch paths. */
+  profile?: string
 }
 
 /** Searchable words in free text (letters/digits/_), capped at 12. */
@@ -388,7 +433,7 @@ export function browseMnemosyne(
   if (opts.q?.trim() && words.length === 0) return empty
   const cursor = opts.cursor ? decodeCursor(opts.cursor) : null
 
-  const dbPath = getMnemosyneDbPath(bankId)
+  const dbPath = getMnemosyneDbPath(bankId, opts.profile)
   if (!fs.existsSync(dbPath)) return empty
 
   const db = openReadonlyDb(dbPath)

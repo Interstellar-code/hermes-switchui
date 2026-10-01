@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { searchMnemosyne } from '../../../server/mnemosyne-browser'
+import { isMemoryProfile } from '../../../server/memory-profile'
 
 // Read-only keyword search over the profile's mnemosyne memory (gists, facts,
 // episodic). Grounds the Memory chat. Missing DB → empty results (not a 500).
@@ -22,9 +23,20 @@ export const Route = createFileRoute('/api/memory/mnemosyne-search')({
           }
           limit = Math.min(n, 25)
         }
+        const profile = url.searchParams.get('profile')
+        if (profile !== null && !isMemoryProfile(profile)) {
+          return Response.json({ error: 'unknown profile' }, { status: 400 })
+        }
         try {
           return Response.json(
-            { results: searchMnemosyne(query, limit) },
+            {
+              results: searchMnemosyne(
+                query,
+                limit,
+                undefined,
+                profile ?? undefined,
+              ),
+            },
             { headers: { 'Cache-Control': 'private, no-store' } },
           )
         } catch (error) {

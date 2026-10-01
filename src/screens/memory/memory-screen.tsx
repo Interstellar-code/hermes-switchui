@@ -12,7 +12,10 @@ import { useQuery } from '@tanstack/react-query'
 import type { MemoryTab } from '@/stores/memory-screen-store'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
-import { useMemoryScreenStore } from '@/stores/memory-screen-store'
+import {
+  DEFAULT_MEMORY_PROFILE,
+  useMemoryScreenStore,
+} from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory.css'
 import '@/styles/matrix-profiles.css'
 
@@ -25,10 +28,24 @@ type MnemosyneAvailability = {
   lastWriteAt?: string | null
 }
 
-async function fetchMnemosyneAvailability(): Promise<MnemosyneAvailability> {
-  const res = await fetch('/api/memory/stats')
+async function fetchMnemosyneAvailability(
+  profile: string,
+): Promise<MnemosyneAvailability> {
+  const res = await fetch(
+    `/api/memory/stats?profile=${encodeURIComponent(profile)}`,
+  )
   if (!res.ok) throw new Error(`Request failed (${res.status})`)
   return res.json() as Promise<MnemosyneAvailability>
+}
+
+type MemoryProfiles = {
+  profiles?: Array<{ name: string; hasMatrixMemory: boolean }>
+}
+
+async function fetchMemoryProfiles(): Promise<MemoryProfiles> {
+  const res = await fetch('/api/memory/profiles')
+  if (!res.ok) throw new Error(`Request failed (${res.status})`)
+  return res.json() as Promise<MemoryProfiles>
 }
 
 const AgentMemoryTab = lazy(async () => {
@@ -229,7 +246,8 @@ const fmt = (n: number) => new Intl.NumberFormat().format(n)
 // ── MemoryScreen ──────────────────────────────────────────────────────────
 
 export function MemoryScreen() {
-  const { activeTab, setActiveTab } = useMemoryScreenStore()
+  const { activeTab, setActiveTab, profile, setProfile } =
+    useMemoryScreenStore()
   const [chatOpen, setChatOpen] = useState(false)
   // Mount the chat once opened and keep it (hidden) so the conversation
   // survives closing the drawer, e.g. after a source-link click.
@@ -249,10 +267,25 @@ export function MemoryScreen() {
   // Matrix-memory is "configured + activated" when its mnemosyne DB exists AND
   // actually holds memories. The Map and Browse tabs both depend on it.
   const { data: mnemo } = useQuery({
-    queryKey: ['memory', 'availability'],
-    queryFn: fetchMnemosyneAvailability,
+    queryKey: ['memory', 'availability', profile],
+    queryFn: () => fetchMnemosyneAvailability(profile),
     staleTime: 60_000,
   })
+  const { data: profileData } = useQuery({
+    queryKey: ['memory', 'profiles'],
+    queryFn: fetchMemoryProfiles,
+    staleTime: 60_000,
+  })
+  const profiles = profileData?.profiles ?? []
+  // A persisted profile that no longer exists falls back to the default.
+  useEffect(() => {
+    if (profiles.length > 0 && !profiles.some((p) => p.name === profile))
+      setProfile(
+        profiles.some((p) => p.name === DEFAULT_MEMORY_PROFILE)
+          ? DEFAULT_MEMORY_PROFILE
+          : profiles[0].name,
+      )
+  }, [profiles, profile, setProfile])
   const matrixMemoryActive = mnemo?.db.exists === true && mnemo.counts.total > 0
   const isGatedTab = (t: MemoryTab) => t === 'map' || t === 'browse'
   const isDisabled = (t: MemoryTab) => isGatedTab(t) && !matrixMemoryActive
@@ -317,6 +350,23 @@ export function MemoryScreen() {
         </div>
         <div className="mem-header-spacer" />
         <div className="mem-header-actions">
+          <select
+            className="mem-btn"
+            aria-label="Memory profile"
+            title="Profile this page reads"
+            value={profile}
+            onChange={(e) => setProfile(e.target.value)}
+          >
+            {(profiles.some((p) => p.name === profile)
+              ? profiles
+              : [{ name: profile, hasMatrixMemory: true }, ...profiles]
+            ).map((p) => (
+              <option key={p.name} value={p.name}>
+                {p.name}
+                {p.hasMatrixMemory ? '' : ' (no matrix-memory)'}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             className="mem-btn"

@@ -5,6 +5,7 @@ import {
   MAX_LIMIT,
   buildMemoryGraph,
 } from '../../../server/memory-graph'
+import { isMemoryProfile } from '../../../server/memory-profile'
 import type { MemoryGraphEdgeType } from '../../../server/memory-graph'
 
 // Strict-ish ISO-8601: date, optional time, optional zone. Rejects garbage
@@ -54,8 +55,18 @@ export const Route = createFileRoute('/api/memory/graph')({
           since = rawSince
         }
 
+        const profile = url.searchParams.get('profile')
+        if (profile !== null && !isMemoryProfile(profile)) {
+          return bad('unknown profile')
+        }
+
         try {
-          const graph = buildMemoryGraph({ limit, edgeType, since })
+          const graph = buildMemoryGraph({
+            limit,
+            edgeType,
+            since,
+            profile: profile ?? undefined,
+          })
           return Response.json(graph, {
             headers: { 'Cache-Control': 'private, no-store' },
           })

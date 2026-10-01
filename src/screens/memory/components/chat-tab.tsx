@@ -61,13 +61,14 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 
 async function buildMemoryContext(
   query: string,
+  profile: string,
 ): Promise<{ context: string; sources: Array<string> }> {
   const [files, mnemo] = await Promise.all([
     fetchJson<{ results: Array<FileMatch> }>(
       `/api/memory/search?q=${encodeURIComponent(query)}`,
     ),
     fetchJson<{ results: Array<MnemoMatch> }>(
-      `/api/memory/mnemosyne-search?q=${encodeURIComponent(query)}&limit=${TOP_K_MNEMO}`,
+      `/api/memory/mnemosyne-search?q=${encodeURIComponent(query)}&limit=${TOP_K_MNEMO}&profile=${encodeURIComponent(profile)}`,
     ),
   ])
 
@@ -221,6 +222,7 @@ function ChatBubble({ msg, onNavigate }: { msg: Message; onNavigate?: () => void
 
 /** `onNavigate` fires after a source link switches tabs (e.g. to close the chat drawer). */
 export function ChatTab({ onNavigate }: { onNavigate?: () => void } = {}) {
+  const profile = useMemoryScreenStore((st) => st.profile)
   const [messages, setMessages] = useState<Array<Message>>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -248,7 +250,7 @@ export function ChatTab({ onNavigate }: { onNavigate?: () => void } = {}) {
     ])
 
     try {
-      const { context, sources } = await buildMemoryContext(text)
+      const { context, sources } = await buildMemoryContext(text, profile)
 
       // Deterministic gate: nothing relevant in memory → don't call the model.
       if (!context) {

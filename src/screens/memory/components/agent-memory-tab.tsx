@@ -15,7 +15,10 @@ import type { AgentFileReadResponse, AgentFilesListResponse } from '@/routes/api
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast as showToast } from '@/components/ui/toast'
-import { useMemoryAgentStore } from '@/stores/memory-screen-store'
+import {
+  useMemoryAgentStore,
+  useMemoryScreenStore,
+} from '@/stores/memory-screen-store'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +102,9 @@ function AddFileModal({ agentId, onClose, onSaved }: AddFileModalProps) {
     }
   }
 
+  // Portaled outside the screen: re-enter the [data-screen='memory'] CSS scope.
   return createPortal(
+    <div data-screen="memory">
     <div className="mem-modal-backdrop" onClick={onClose}>
       <div className="mem-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <h3>Add Memory File</h3>
@@ -134,6 +139,7 @@ function AddFileModal({ agentId, onClose, onSaved }: AddFileModalProps) {
           </button>
         </div>
       </div>
+    </div>
     </div>,
     document.body,
   )
@@ -419,7 +425,28 @@ function FilePane({ agentId, agentName, agentGlyph, agentRole, agentTier }: File
 // ── AgentMemoryTab ────────────────────────────────────────────────────────────
 
 export function AgentMemoryTab() {
-  const { selectedAgentId, setSelectedAgentId } = useMemoryAgentStore()
+  const { selectedAgentId, setSelectedAgentId: selectAgent } =
+    useMemoryAgentStore()
+  // The header profile picker drives the rail; picking an agent here switches
+  // the page profile (each built-in agent is a profile). Non-agent profiles
+  // (e.g. `default`) keep the last agent selected.
+  const profile = useMemoryScreenStore((s) => s.profile)
+  const setProfile = useMemoryScreenStore((s) => s.setProfile)
+  useEffect(() => {
+    if (BUILTIN_AGENTS.some((a) => a.id === profile)) selectAgent(profile)
+  }, [profile, selectAgent])
+  // Only switch the page profile when the agent's profile actually exists.
+  const { data: profileList } = useQuery<{
+    profiles?: Array<{ name: string }>
+  }>({
+    queryKey: ['memory', 'profiles'],
+    queryFn: () => apiFetch('/api/memory/profiles'),
+    staleTime: 60_000,
+  })
+  const setSelectedAgentId = (id: string) => {
+    selectAgent(id)
+    if (profileList?.profiles?.some((p) => p.name === id)) setProfile(id)
+  }
 
   const t1 = BUILTIN_AGENTS.filter((a) => a.tier === 1)
   const t2 = BUILTIN_AGENTS.filter((a) => a.tier === 2)

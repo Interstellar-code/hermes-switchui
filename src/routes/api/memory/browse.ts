@@ -5,6 +5,7 @@ import {
   decodeCursor,
   isMnemosyneBrowseType,
 } from '../../../server/mnemosyne-browser'
+import { isMemoryProfile } from '../../../server/memory-profile'
 
 // Read-only, paginated, recent-first list of mnemosyne rows for the Browse tab.
 // ?type=gist|fact|entity|episodic|working &q= &since=ISO &limit= &cursor=<nextCursor>
@@ -39,6 +40,10 @@ export const Route = createFileRoute('/api/memory/browse')({
             { status: 400 },
           )
         }
+        const profile = url.searchParams.get('profile')
+        if (profile !== null && !isMemoryProfile(profile)) {
+          return Response.json({ error: 'unknown profile' }, { status: 400 })
+        }
         try {
           return Response.json(
             browseMnemosyne({
@@ -47,6 +52,7 @@ export const Route = createFileRoute('/api/memory/browse')({
               since,
               limit,
               cursor,
+              profile: profile ?? undefined,
             }),
             { headers: { 'Cache-Control': 'private, no-store' } },
           )

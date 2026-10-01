@@ -5,7 +5,10 @@ import type {
   MnemosyneBrowseType,
   MnemosyneStats,
 } from '@/server/mnemosyne-browser'
-import { useBrowseFocusStore } from '@/stores/memory-screen-store'
+import {
+  useBrowseFocusStore,
+  useMemoryScreenStore,
+} from '@/stores/memory-screen-store'
 
 const PAGE_SIZE = 50
 
@@ -56,6 +59,7 @@ function SkeletonRows() {
 }
 
 export function BrowseTab() {
+  const profile = useMemoryScreenStore((st) => st.profile)
   const [type, setType] = useState<MnemosyneBrowseType | null>(null)
   const [search, setSearch] = useState('')
   const [q, setQ] = useState('')
@@ -77,16 +81,17 @@ export function BrowseTab() {
   }, [search])
 
   const stats = useQuery<MnemosyneStats>({
-    queryKey: ['memory', 'availability'],
-    queryFn: () => apiFetch('/api/memory/stats'),
+    queryKey: ['memory', 'availability', profile],
+    queryFn: () =>
+      apiFetch(`/api/memory/stats?profile=${encodeURIComponent(profile)}`),
     staleTime: 60_000,
   })
 
   const list = useInfiniteQuery({
-    queryKey: ['memory', 'browse', type, q],
+    queryKey: ['memory', 'browse', profile, type, q],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ limit: String(PAGE_SIZE) })
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE), profile })
       if (pageParam) params.set('cursor', pageParam)
       if (type) params.set('type', type)
       if (q) params.set('q', q)

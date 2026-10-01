@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
+import { DEFAULT_MEMORY_PROFILE, getMemoryProfileHome } from './memory-profile'
 import { isWithinRealRoot } from './path-containment'
 
 export type KnowledgeBaseSource =
@@ -69,15 +70,11 @@ function firstExistingPath(candidates: Array<string>): string | null {
   return null
 }
 
-function getMatrixMemoryWikiRoot(): string | null {
+function getMatrixMemoryWikiRoot(
+  profile = DEFAULT_MEMORY_PROFILE,
+): string | null {
   return firstExistingPath([
-    path.join(
-      getHermesHome(),
-      'profiles',
-      'hermes-switch',
-      'matrix-memory',
-      'wiki',
-    ),
+    path.join(getMemoryProfileHome(profile), 'matrix-memory', 'wiki'),
   ])
 }
 
@@ -144,13 +141,51 @@ export function writeKnowledgeBaseConfig(config: KnowledgeBaseConfig): void {
   fs.writeFileSync(configPath, JSON.stringify(config, null, 2), 'utf-8')
 }
 
-export function getKnowledgeBaseEffectiveRoot(): string {
+/** A non-default profile's own wiki; null when the configured/legacy root applies. */
+export function getExplicitProfileWikiRoot(profile?: string): string | null {
+  if (!profile || profile === DEFAULT_MEMORY_PROFILE) return null
+  return path.join(getMemoryProfileHome(profile), 'matrix-memory', 'wiki')
+}
+
+/**
+ * True when `dir` (or, if missing, its nearest existing ancestor) resolves to
+ * exactly the same place as its lexical path under realpath(home) — i.e. no
+ * symlink anywhere between `home` and `dir`.
+ */
+export function isSymlinkFreeBelow(home: string, dir: string): boolean {
+  let realHome: string
+  try {
+    realHome = fs.realpathSync(home)
+  } catch {
+    return false
+  }
+  const lexicalHome = path.resolve(home)
+  let probe = path.resolve(dir)
+  for (;;) {
+    const rel = path.relative(lexicalHome, probe)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) return false
+    try {
+      return fs.realpathSync(probe) === path.join(realHome, rel)
+    } catch {
+      const parent = path.dirname(probe)
+      if (parent === probe) return false
+      probe = parent
+    }
+  }
+}
+
+/** `profile` must already be validated (isMemoryProfile). The configured
+ *  wiki path applies only to the default (hermes-switch / absent) profile;
+ *  any other profile always reads its own matrix-memory wiki. */
+export function getKnowledgeBaseEffectiveRoot(profile?: string): string {
+  const profileWiki = getExplicitProfileWikiRoot(profile)
+  if (profileWiki) return profileWiki
   const config = readKnowledgeBaseConfig()
   if (config.source.type === 'local') {
     const p = config.source.path.trim()
     if (p) return resolveLocalPath(p)
   }
-  return getDefaultKnowledgeRoot()
+  return getDefaultKnowledgeRoot(profile)
 }
 
 /**
@@ -172,7 +207,8 @@ export function isAllowedLocalKnowledgePath(input: string): boolean {
     profile !== '..' &&
     mm === 'matrix-memory' &&
     wiki === 'wiki' &&
-    isWithinRealRoot(path.join(home, top, profile, mm, wiki), resolved)
+    isWithinRealRoot(path.join(home, top, profile, mm, wiki), resolved) &&
+    isSymlinkFreeBelow(home, resolved)
   )
     return true
   // Anything else that lands in HERMES_HOME (skills/, memory/, SOUL.md, …) is
@@ -181,7 +217,7 @@ export function isAllowedLocalKnowledgePath(input: string): boolean {
   return isWithinRealRoot(getDefaultKnowledgeRoot(), resolved)
 }
 
-function getDefaultKnowledgeRoot(): string {
+function getDefaultKnowledgeRoot(profile?: string): string {
   // Canonical Hermes/LLM Wiki discovery order. `knowledge-config.json` remains
   // the explicit UI override, but the UI should also honor the same paths the
   // agent-side llm-wiki skill uses.
@@ -189,7 +225,7 @@ function getDefaultKnowledgeRoot(): string {
   if (process.env.KNOWLEDGE_DIR)
     return resolveLocalPath(process.env.KNOWLEDGE_DIR)
 
-  const matrixMemoryWikiRoot = getMatrixMemoryWikiRoot()
+  const matrixMemoryWikiRoot = getMatrixMemoryWikiRoot(profile)
   if (matrixMemoryWikiRoot) return matrixMemoryWikiRoot
 
   const configuredWikiPath = readHermesConfigValue([

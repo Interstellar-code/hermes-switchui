@@ -3,10 +3,14 @@ import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
 import {
+  getExplicitProfileWikiRoot,
   getKnowledgeBaseEffectiveRoot,
   isAllowedLocalKnowledgePath,
+  isSymlinkFreeBelow,
   readKnowledgeBaseConfig,
 } from './knowledge-config'
+import { getHermesRoot } from './claude-paths'
+import { getProfileMatrixMemoryDir } from './memory-profile'
 import { isWithinRealRoot } from './path-containment'
 import type { KnowledgeBaseSource } from './knowledge-config'
 
@@ -177,8 +181,8 @@ export function validateKnowledgePathSegment(
 
 // ─── Legacy env-var fallback ──────────────────────────────────────────────────
 
-function getLegacyKnowledgeRoot(): string {
-  return getKnowledgeBaseEffectiveRoot()
+function getLegacyKnowledgeRoot(profile?: string): string {
+  return getKnowledgeBaseEffectiveRoot(profile)
 }
 
 // ─── GitHub Knowledge Provider ─────────────────────────────────────────────────
@@ -235,7 +239,9 @@ class GitHubKnowledgeProvider {
   /** Check whether the local cache is present and non-empty. */
   isCached(): boolean {
     try {
-      return fs.existsSync(this.cacheDir) && fs.readdirSync(this.cacheDir).length > 0
+      return (
+        fs.existsSync(this.cacheDir) && fs.readdirSync(this.cacheDir).length > 0
+      )
     } catch {
       return false
     }
@@ -259,7 +265,10 @@ class GitHubKnowledgeProvider {
       throw new Error(`Repo nesting exceeds ${GITHUB_SYNC_MAX_DEPTH} levels`)
     }
     const res = await fetch(this.apiUrl(dirPath), {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-switchui' },
+      headers: {
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'hermes-switchui',
+      },
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
@@ -285,7 +294,9 @@ class GitHubKnowledgeProvider {
         segments.length <= base.length ||
         base.some((seg, i) => segments[i] !== seg) ||
         segments.at(-1) !== entry.name ||
-        segments.some((seg) => seg === '.' || seg === '..' || /[\\\0]/.test(seg))
+        segments.some(
+          (seg) => seg === '.' || seg === '..' || /[\\\0]/.test(seg),
+        )
       )
         continue
       const fullPath = path.join(this.cacheDir, ...segments.slice(base.length))
@@ -311,17 +322,26 @@ class GitHubKnowledgeProvider {
     }
   }
 
-  private async fetchFile(entry: { path: string; sha: string }): Promise<string> {
+  private async fetchFile(entry: {
+    path: string
+    sha: string
+  }): Promise<string> {
     const res = await fetch(this.apiUrl(entry.path), {
-      headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-switchui' },
+      headers: {
+        Accept: 'application/vnd.github.v3+json',
+        'User-Agent': 'hermes-switchui',
+      },
     })
     if (!res.ok) {
       throw new Error(`GitHub API ${res.status} for ${entry.path}`)
     }
     const data = (await res.json()) as { content?: string; encoding?: string }
-    if (!data.content) throw new Error(`No content in GitHub response for ${entry.path}`)
+    if (!data.content)
+      throw new Error(`No content in GitHub response for ${entry.path}`)
     if (data.encoding === 'base64') {
-      return Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString('utf-8')
+      return Buffer.from(data.content.replace(/\n/g, ''), 'base64').toString(
+        'utf-8',
+      )
     }
     return data.content.replace(/\n/g, '')
   }
@@ -329,26 +349,33 @@ class GitHubKnowledgeProvider {
 
 // ─── Config-aware root resolution ──────────────────────────────────────────────
 
-function getKnowledgeRoot(): string {
+/** `profile` must be pre-validated (isMemoryProfile). GitHub sources ignore it. */
+function getKnowledgeRoot(profile?: string): string {
   const config = readKnowledgeBaseConfig()
   const source = config.source
 
   if (source.type === 'github') {
-    const provider = new GitHubKnowledgeProvider(source.repo, source.branch, source.path)
+    const provider = new GitHubKnowledgeProvider(
+      source.repo,
+      source.branch,
+      source.path,
+    )
     return provider.root
   }
 
-  // local
+  // local — a non-default profile never uses the configured path.
+  const profileWiki = getExplicitProfileWikiRoot(profile)
+  if (profileWiki) return profileWiki
   const p = source.path.trim()
   if (p) {
     return path.resolve(p.replace(/^~\//, `${os.homedir()}/`))
   }
-  return getLegacyKnowledgeRoot()
+  return getLegacyKnowledgeRoot(profile)
 }
 
-export function knowledgeRootExists(): boolean {
+export function knowledgeRootExists(profile?: string): boolean {
   try {
-    const root = getKnowledgeRoot()
+    const root = getKnowledgeRoot(profile)
     if (!root) return false
     // For GitHub, check cache; for local, check filesystem
     const config = readKnowledgeBaseConfig()
@@ -380,7 +407,11 @@ export async function syncKnowledgeSource(): Promise<{
     return { source, success: true }
   }
   try {
-    const provider = new GitHubKnowledgeProvider(source.repo, source.branch, source.path)
+    const provider = new GitHubKnowledgeProvider(
+      source.repo,
+      source.branch,
+      source.path,
+    )
     await provider.sync()
     return { source, success: true }
   } catch (err) {
@@ -409,19 +440,35 @@ function normalizeRelativeKnowledgePath(input: string): string {
 // Re-checked on every read/write: knowledge-config.json may have been
 // hand-edited to point outside the allowed wiki roots since it was validated.
 // GitHub sources live in the validated knowledge-cache dir instead.
-function assertAllowedLocalRoot(): void {
+function assertAllowedLocalRoot(profile?: string): void {
   if (readKnowledgeBaseConfig().source.type !== 'local') return
-  if (!isAllowedLocalKnowledgePath(getKnowledgeRoot())) {
+  const root = getKnowledgeRoot(profile)
+  // A profile's own matrix-memory wiki is a dedicated wiki dir; `default`'s
+  // ($HERMES_HOME/matrix-memory/wiki) is not on isAllowedLocalKnowledgePath's list.
+  // A symlink anywhere below HERMES_HOME (e.g. matrix-memory/wiki → skills/)
+  // voids the bypass.
+  const profileWiki =
+    profile && path.join(getProfileMatrixMemoryDir(profile), 'wiki')
+  if (
+    profileWiki &&
+    path.resolve(root) === path.resolve(profileWiki) &&
+    isSymlinkFreeBelow(getHermesRoot(), profileWiki)
+  )
+    return
+  if (!isAllowedLocalKnowledgePath(root)) {
     throw new Error('Knowledge root is not allowed: not a wiki directory')
   }
 }
 
-function resolveKnowledgeFilePath(relativePath: string): {
+function resolveKnowledgeFilePath(
+  relativePath: string,
+  profile?: string,
+): {
   fullPath: string
   relativePath: string
 } {
   const safeRelativePath = normalizeRelativeKnowledgePath(relativePath)
-  const knowledgeRoot = path.resolve(getKnowledgeRoot())
+  const knowledgeRoot = path.resolve(getKnowledgeRoot(profile))
   const fullPath = path.resolve(knowledgeRoot, safeRelativePath)
   const relativeFromRoot = path.relative(knowledgeRoot, fullPath)
   if (
@@ -502,6 +549,8 @@ function walkKnowledgeDir(
     } catch {
       continue
     }
+    // A symlink planted in the wiki must not pull outside files into list/search.
+    if (!isWithinRealRoot(knowledgeRoot, fullPath)) continue
 
     if (stats.isDirectory()) {
       if (shouldSkipDirectory(name)) continue
@@ -526,8 +575,8 @@ function walkKnowledgeDir(
   }
 }
 
-function getParsedKnowledgePages(): Array<ParsedKnowledgePage> {
-  const knowledgeRoot = path.resolve(getKnowledgeRoot())
+function getParsedKnowledgePages(profile?: string): Array<ParsedKnowledgePage> {
+  const knowledgeRoot = path.resolve(getKnowledgeRoot(profile))
   if (!fs.existsSync(knowledgeRoot)) return []
 
   const results: Array<ParsedKnowledgePage> = []
@@ -547,16 +596,15 @@ function createWikilinkResolver(
 ): (linkText: string) => string | null {
   const byPath = new Map<string, string>()
   const byName = new Map<string, string>()
+  // Basename collisions (a/x.md vs b/x.md): shortest path wins, then alphabetical.
+  const ordered = pages
+    .map((page) => page.meta.path)
+    .sort((a, b) => a.length - b.length || a.localeCompare(b))
 
-  for (const page of pages) {
-    byPath.set(
-      page.meta.path.replace(/\.md$/i, '').toLowerCase(),
-      page.meta.path,
-    )
-    byName.set(
-      path.basename(page.meta.path, '.md').toLowerCase(),
-      page.meta.path,
-    )
+  for (const pagePath of ordered) {
+    byPath.set(pagePath.replace(/\.md$/i, '').toLowerCase(), pagePath)
+    const name = path.basename(pagePath, '.md').toLowerCase()
+    if (!byName.has(name)) byName.set(name, pagePath)
   }
 
   return (linkText: string) => {
@@ -580,30 +628,44 @@ function isCuratedPage(p: string): boolean {
   return !p.startsWith('raw/') && !p.startsWith('raw\\')
 }
 
-export function listKnowledgePages(): Array<WikiPageMeta> {
-  return getParsedKnowledgePages()
+export function listKnowledgePages(profile?: string): Array<WikiPageMeta> {
+  assertAllowedLocalRoot(profile)
+  return getParsedKnowledgePages(profile)
     .filter((page) => isCuratedPage(page.meta.path))
     .map((page) => page.meta)
 }
 
-export function resolveWikilink(linkText: string): string | null {
-  return createWikilinkResolver(getParsedKnowledgePages())(linkText)
+export function resolveWikilink(
+  linkText: string,
+  profile?: string,
+): string | null {
+  return createWikilinkResolver(getParsedKnowledgePages(profile))(linkText)
 }
 
-export function readKnowledgePage(relativePath: string): {
+export function readKnowledgePage(
+  relativePath: string,
+  profile?: string,
+): {
   meta: WikiPageMeta
+  /** Body with frontmatter stripped — for rendering. */
   content: string
+  /** Full file incl. frontmatter — what an editor must load and save back. */
+  raw: string
   backlinks: Array<string>
+  /** Each of this page's wikilink targets → resolved page path, or null if missing. */
+  links: Record<string, string | null>
 } {
-  assertAllowedLocalRoot()
-  const { fullPath, relativePath: safeRelativePath } =
-    resolveKnowledgeFilePath(relativePath)
+  assertAllowedLocalRoot(profile)
+  const { fullPath, relativePath: safeRelativePath } = resolveKnowledgeFilePath(
+    relativePath,
+    profile,
+  )
   const parsed = readParsedKnowledgeFile(fullPath, safeRelativePath)
   if (!parsed) {
     throw new Error(`ENOENT: Knowledge page not found: ${safeRelativePath}`)
   }
 
-  const pages = getParsedKnowledgePages()
+  const pages = getParsedKnowledgePages(profile)
   const resolveLink = createWikilinkResolver(pages)
   const backlinks = pages
     .filter((page) => page.meta.path !== safeRelativePath)
@@ -617,78 +679,133 @@ export function readKnowledgePage(relativePath: string): {
   return {
     meta: parsed.meta,
     content: parsed.content,
+    raw: parsed.raw,
     backlinks,
+    links: Object.fromEntries(
+      parsed.meta.wikilinks.map((link) => [link, resolveLink(link)]),
+    ),
   }
 }
 
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export type KnowledgeSearchHit = {
+  path: string
+  title: string
+  line: number
+  text: string
 }
 
+// ponytail: linear substring scan over every curated page per query — fine at
+// ~10-500 pages; build an inverted index / SQLite FTS if the wiki grows past that.
 export function searchKnowledgePages(
   query: string,
-): Array<{ path: string; title: string; line: number; text: string }> {
-  const needle = query.trim()
-  if (!needle) return []
+  profile?: string,
+): Array<KnowledgeSearchHit> {
+  const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
+  if (terms.length === 0) return []
+  assertAllowedLocalRoot(profile)
 
-  const regex = new RegExp(`\\b${escapeRegex(needle)}`, 'i')
-  const matches: Array<{
-    path: string
-    title: string
-    line: number
-    text: string
-  }> = []
-  const pages = getParsedKnowledgePages()
+  const titleHits: Array<KnowledgeSearchHit> = []
+  const bodyHits: Array<KnowledgeSearchHit> = []
+  for (const page of getParsedKnowledgePages(profile)) {
+    if (!isCuratedPage(page.meta.path)) continue
+    const title = page.meta.title.toLowerCase()
+    const haystack = `${title}\n${page.meta.path.toLowerCase()}\n${page.raw.toLowerCase()}`
+    if (!terms.every((t) => haystack.includes(t))) continue
 
-  for (const page of pages) {
     const lines = page.raw.split(/\r?\n/)
-    for (let index = 0; index < lines.length; index += 1) {
-      const text = lines[index] || ''
-      if (!regex.test(text)) continue
-      matches.push({
-        path: page.meta.path,
-        title: page.meta.title,
-        line: index + 1,
-        text,
-      })
-      if (matches.length >= 200) return matches
+    const index = lines.findIndex((l) => l.toLowerCase().includes(terms[0]))
+    const hit = {
+      path: page.meta.path,
+      title: page.meta.title,
+      line: index + 1,
+      text: index >= 0 ? (lines[index] || '').trim().slice(0, 200) : '',
     }
+    if (terms.every((t) => title.includes(t))) titleHits.push(hit)
+    else bodyHits.push(hit)
   }
+  return [...titleHits, ...bodyHits].slice(0, 50)
+}
 
-  return matches
+export class KnowledgeConflictError extends Error {
+  constructor(
+    readonly current: WikiPageMeta,
+    message = 'Page changed on disk since it was loaded',
+  ) {
+    super(message)
+    this.name = 'KnowledgeConflictError'
+  }
 }
 
 export function writeKnowledgePage(
   relativePath: string,
   content: string,
+  options: {
+    /** `modified` (mtime ISO) the editor loaded; mismatch → KnowledgeConflictError. */
+    expectedModified?: string
+    /** New-page create: KnowledgeConflictError if the path already exists. */
+    createOnly?: boolean
+    profile?: string
+  } = {},
 ): WikiPageMeta {
+  const { expectedModified, createOnly, profile } = options
   const config = readKnowledgeBaseConfig()
   if (config.source.type === 'github') {
     throw new Error('GitHub-backed wiki is read-only; edit upstream')
   }
-  assertAllowedLocalRoot()
-  const { fullPath, relativePath: safeRelativePath } =
-    resolveKnowledgeFilePath(relativePath)
+  assertAllowedLocalRoot(profile)
+  const { fullPath, relativePath: safeRelativePath } = resolveKnowledgeFilePath(
+    relativePath,
+    profile,
+  )
   if (!isCuratedPage(safeRelativePath)) {
     throw new Error('Writes to raw/ are not allowed')
+  }
+  if (expectedModified && !createOnly) {
+    const current = readParsedKnowledgeFile(fullPath, safeRelativePath)
+    if (current && current.meta.modified !== expectedModified) {
+      throw new KnowledgeConflictError(current.meta)
+    }
   }
   const dir = path.dirname(fullPath)
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true })
   }
-  fs.writeFileSync(fullPath, content, 'utf-8')
+  try {
+    // 'wx' makes create-only atomic: no exists-check/write race.
+    fs.writeFileSync(fullPath, content, {
+      encoding: 'utf-8',
+      flag: createOnly ? 'wx' : 'w',
+    })
+  } catch (err) {
+    if (createOnly && (err as NodeJS.ErrnoException).code === 'EEXIST') {
+      const current = readParsedKnowledgeFile(fullPath, safeRelativePath)
+      if (current) {
+        throw new KnowledgeConflictError(
+          current.meta,
+          `A page already exists at ${safeRelativePath}`,
+        )
+      }
+    }
+    throw err
+  }
   const stats = fs.statSync(fullPath)
   const parsed = buildPageMeta(safeRelativePath, stats, content)
   return parsed.meta
 }
 
-export function deleteKnowledgePage(relativePath: string): void {
+export function deleteKnowledgePage(
+  relativePath: string,
+  profile?: string,
+): void {
   const config = readKnowledgeBaseConfig()
   if (config.source.type === 'github') {
     throw new Error('GitHub-backed wiki is read-only; edit upstream')
   }
-  assertAllowedLocalRoot()
-  const { fullPath, relativePath: safeRelativePath } = resolveKnowledgeFilePath(relativePath)
+  assertAllowedLocalRoot(profile)
+  const { fullPath, relativePath: safeRelativePath } = resolveKnowledgeFilePath(
+    relativePath,
+    profile,
+  )
   if (!isCuratedPage(safeRelativePath)) {
     throw new Error('Writes to raw/ are not allowed')
   }

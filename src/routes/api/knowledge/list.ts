@@ -5,6 +5,7 @@ import {
   listKnowledgePages,
 } from '../../../server/knowledge-browser'
 import { readKnowledgeBaseConfig } from '../../../server/knowledge-config'
+import { isMemoryProfile } from '../../../server/memory-profile'
 
 export const Route = createFileRoute('/api/knowledge/list')({
   server: {
@@ -14,12 +15,18 @@ export const Route = createFileRoute('/api/knowledge/list')({
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
 
+        const profile =
+          new URL(request.url).searchParams.get('profile') ?? undefined
+        if (profile !== undefined && !isMemoryProfile(profile)) {
+          return Response.json({ error: 'unknown profile' }, { status: 400 })
+        }
+
         try {
           const config = readKnowledgeBaseConfig()
           const source = config.source
-          const exists = knowledgeRootExists()
+          const exists = knowledgeRootExists(profile)
           return Response.json({
-            pages: exists ? listKnowledgePages() : [],
+            pages: exists ? listKnowledgePages(profile) : [],
             exists,
             source,
           })

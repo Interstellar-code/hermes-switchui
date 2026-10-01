@@ -43,34 +43,71 @@ describe('/api/memory/mnemosyne-search', () => {
     })
     expect(res.status).toBe(200)
     expect(res.headers.get('Cache-Control')).toBe('private, no-store')
-    expect(await res.json()).toEqual({ results: [{ kind: 'gist', text: 'x', score: 2 }] })
+    expect(await res.json()).toEqual({
+      results: [{ kind: 'gist', text: 'x', score: 2 }],
+    })
   })
 
   it('passes q + limit through to searchMnemosyne', async () => {
     const handler = await getHandler()
     await handler({
-      request: new Request('http://localhost/api/memory/mnemosyne-search?q=thailand&limit=5'),
+      request: new Request(
+        'http://localhost/api/memory/mnemosyne-search?q=thailand&limit=5',
+      ),
     })
-    expect(searchMnemosyne).toHaveBeenCalledWith('thailand', 5)
+    expect(searchMnemosyne).toHaveBeenCalledWith(
+      'thailand',
+      5,
+      undefined,
+      undefined,
+    )
+  })
+
+  it('passes ?profile= through to searchMnemosyne', async () => {
+    const handler = await getHandler()
+    await handler({
+      request: new Request(
+        'http://localhost/api/memory/mnemosyne-search?q=x&profile=default',
+      ),
+    })
+    expect(searchMnemosyne).toHaveBeenCalledWith('x', 8, undefined, 'default')
+  })
+
+  it('400s on an unknown profile', async () => {
+    const handler = await getHandler()
+    const res = await handler({
+      request: new Request(
+        'http://localhost/api/memory/mnemosyne-search?profile=../neo',
+      ),
+    })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: 'unknown profile' })
+    expect(searchMnemosyne).not.toHaveBeenCalled()
   })
 
   it('clamps an over-max limit to 25', async () => {
     const handler = await getHandler()
     const res = await handler({
-      request: new Request('http://localhost/api/memory/mnemosyne-search?limit=999'),
+      request: new Request(
+        'http://localhost/api/memory/mnemosyne-search?limit=999',
+      ),
     })
     expect(res.status).toBe(200)
-    expect(searchMnemosyne).toHaveBeenCalledWith('', 25)
+    expect(searchMnemosyne).toHaveBeenCalledWith('', 25, undefined, undefined)
   })
 
   it('400s on non-integer / non-positive limit', async () => {
     const handler = await getHandler()
     for (const q of ['limit=abc', 'limit=0', 'limit=-1']) {
       const res = await handler({
-        request: new Request(`http://localhost/api/memory/mnemosyne-search?${q}`),
+        request: new Request(
+          `http://localhost/api/memory/mnemosyne-search?${q}`,
+        ),
       })
       expect(res.status, q).toBe(400)
-      expect(await res.json()).toEqual({ error: 'limit must be a positive integer' })
+      expect(await res.json()).toEqual({
+        error: 'limit must be a positive integer',
+      })
     }
     expect(searchMnemosyne).not.toHaveBeenCalled()
   })
