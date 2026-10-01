@@ -3,6 +3,23 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.5.43] — 2026-10-01
+
+### Fixed
+
+- **Long Chats Opened On Their Oldest Messages**: Chat history asked the gateway for the first 150 messages, so a chat past that length showed days-old messages and new replies never appeared. History now loads the newest messages.
+- **Attaching A PDF Or Zip Pasted Raw Bytes Into The Prompt**: Every non-image attachment was decoded and inlined into the message, so binary files turned into token-eating garbage and non-ASCII text came out garbled. The composer now accepts images and text files only (with a clear notice for anything else), trusts the file extension when the browser reports a wrong type (`.ts` as video, `.csv` as Excel), and decodes text as UTF-8.
+- **Voice Input Failed Silently**: Permission, missing-microphone and network errors now show a toast. The audio-recorder fallback is gone — the gateway cannot take audio, so it only produced garbage.
+
+### Changed
+
+- **Matrix3D Office Now Shows What Agents Are Really Doing**: The office used to mix real status with made-up values. Gone: the fixed 35% progress, the model name `auto` in bubbles, canned idle quips, access-log lines as "recent activity", and stale sub-sessions showing up as extra agents named after a chat title. Each profile now keeps its own desk; bubbles show its latest tool call (secrets redacted), heartbeat or chat title; characters walk to the room that matches their tool; sub-agent, fleet, kanban and cron sessions appear as badges; and clicking a character selects its card while clicking a card focuses the camera. Status refreshes every 3 seconds from a cached, non-blocking `/api/crew-status`.
+- **A2A Fleet Peers Join The Office**: The six A2A peers sit in the meeting room, marked busy or idle from their last transcript line (labelled as inferred), and are counted separately from profiles.
+
+### Removed
+
+- **Fast Mode And Web Search Buttons**: Neither did anything in practice — web search was never wired to a send path, and fast mode had no effect on the configured `auto` model.
+
 ## [2.5.42] — 2026-09-28
 
 ### Fixed
