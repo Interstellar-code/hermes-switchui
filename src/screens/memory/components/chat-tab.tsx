@@ -18,6 +18,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast as showToast } from '@/components/ui/toast'
+import { useBrowseFocusStore, useMemoryScreenStore } from '@/stores/memory-screen-store'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -164,19 +165,37 @@ async function streamChat(
 
 // ── Sources panel ──────────────────────────────────────────────────────────────
 
-function Sources({ sources }: { sources: Array<string> }) {
+function Sources({ sources, onNavigate }: { sources: Array<string>; onNavigate?: () => void }) {
+  const setActiveTab = useMemoryScreenStore((st) => st.setActiveTab)
   if (sources.length === 0) return null
+  // matrix-memory:<kind> → Browse filtered by kind; memory files → Agent Memory.
+  function open(source: string) {
+    const kind = source.startsWith('matrix-memory:') ? source.slice(14) : null
+    if (kind) {
+      useBrowseFocusStore.getState().setFocus({ type: kind, q: '' })
+      setActiveTab('browse')
+    } else {
+      setActiveTab('memory')
+    }
+    onNavigate?.()
+  }
   return (
     <div className="chat-cited">
       <div className="chat-cited-title">From memory</div>
       {sources.map((s) => (
-        <div key={s} className="chat-cited-item">
+        <button
+          key={s}
+          type="button"
+          className="chat-cited-item"
+          title={s.startsWith('matrix-memory:') ? 'Open in Browse' : 'Open Agent Memory'}
+          onClick={() => open(s)}
+        >
           <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
             <path d="M3 2h6l4 4v9H3V2z" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M9 2v4h4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           {s}
-        </div>
+        </button>
       ))}
     </div>
   )
@@ -184,7 +203,7 @@ function Sources({ sources }: { sources: Array<string> }) {
 
 // ── ChatBubble ────────────────────────────────────────────────────────────────
 
-function ChatBubble({ msg }: { msg: Message }) {
+function ChatBubble({ msg, onNavigate }: { msg: Message; onNavigate?: () => void }) {
   return (
     <div className={`chat-bubble chat-bubble--${msg.role}`}>
       <div className="chat-bubble-role">{msg.role === 'user' ? 'You' : 'Memory'}</div>
@@ -192,7 +211,7 @@ function ChatBubble({ msg }: { msg: Message }) {
         {msg.content || <span className="chat-typing">▍</span>}
       </div>
       {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-        <Sources sources={msg.sources} />
+        <Sources sources={msg.sources} onNavigate={onNavigate} />
       )}
     </div>
   )
@@ -200,7 +219,8 @@ function ChatBubble({ msg }: { msg: Message }) {
 
 // ── ChatTab ───────────────────────────────────────────────────────────────────
 
-export function ChatTab() {
+/** `onNavigate` fires after a source link switches tabs (e.g. to close the chat drawer). */
+export function ChatTab({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [messages, setMessages] = useState<Array<Message>>([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -306,7 +326,7 @@ export function ChatTab() {
           </div>
         )}
         {messages.map((m) => (
-          <ChatBubble key={m.id} msg={m} />
+          <ChatBubble key={m.id} msg={m} onNavigate={onNavigate} />
         ))}
         <div ref={bottomRef} />
       </div>

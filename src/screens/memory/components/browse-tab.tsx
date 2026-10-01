@@ -1,17 +1,22 @@
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import type {
+  MnemosyneBrowsePage,
+  MnemosyneBrowseType,
+  MnemosyneStats,
+} from '@/server/mnemosyne-browser'
+import { useBrowseFocusStore } from '@/stores/memory-screen-store'
 
-type MnemosyneStatsResponse = {
-  checkedAt: number
-  db: { exists: boolean }
-  counts: {
-    working: number
-    episodic: number
-    triples: number
-    fts: number
-    total: number
-  }
-  missingReason?: string
-}
+const PAGE_SIZE = 50
+
+const TYPE_FILTERS: Array<{ id: MnemosyneBrowseType | null; label: string }> = [
+  { id: null, label: 'All' },
+  { id: 'gist', label: 'Gists' },
+  { id: 'fact', label: 'Facts' },
+  { id: 'entity', label: 'Entities' },
+  { id: 'episodic', label: 'Episodic' },
+  { id: 'working', label: 'Working' },
+]
 
 async function apiFetch<T>(url: string): Promise<T> {
   const res = await fetch(url)
@@ -26,174 +31,188 @@ function formatCount(value: number): string {
   return new Intl.NumberFormat().format(value)
 }
 
-function formatCheckedAt(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString([], {
+function formatDate(iso: string | null): string {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
   })
 }
 
+function SkeletonRows() {
+  return (
+    <div
+      className="mbrowse-list"
+      aria-busy="true"
+      aria-label="Loading memories"
+    >
+      {Array.from({ length: 6 }, (_, i) => (
+        <div key={i} className="mbrowse-item mem-skeleton" />
+      ))}
+    </div>
+  )
+}
+
 export function BrowseTab() {
-  const { data, isLoading, isError, error, refetch, isFetching } =
-    useQuery<MnemosyneStatsResponse>({
-      queryKey: ['memory', 'browse', 'stats'],
-      queryFn: () => apiFetch('/api/memory/stats'),
-      staleTime: 30_000,
-    })
+  const [type, setType] = useState<MnemosyneBrowseType | null>(null)
+  const [search, setSearch] = useState('')
+  const [q, setQ] = useState('')
 
-  if (isLoading) {
-    return <div className="mem-loading">Loading matrix memory stats…</div>
-  }
+  // Chat source → Browse hand-off: apply whenever set (mounted or not), then
+  // clear so it never re-applies stale. Unknown types are ignored.
+  const focus = useBrowseFocusStore((st) => st.focus)
+  useEffect(() => {
+    if (!focus) return
+    const known = TYPE_FILTERS.find((f) => f.id === focus.type)
+    setType(known ? known.id : null)
+    setSearch(focus.q)
+    setQ(focus.q.trim())
+    useBrowseFocusStore.getState().setFocus(null)
+  }, [focus])
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 250)
+    return () => clearTimeout(t)
+  }, [search])
 
-  if (isError) {
-    const message = error instanceof Error ? error.message : 'Failed to load matrix memory stats'
-    return (
-      <section className="mbrowse-shell">
-        <div className="mbrowse-hero mbrowse-panel">
-          <div className="mbrowse-kicker">Browse</div>
-          <h2>Could not load memory stats</h2>
-          <p>{message}</p>
-          <div className="mbrowse-actions">
-            <button type="button" className="mem-btn" onClick={() => void refetch()}>
-              Retry
-            </button>
-          </div>
-        </div>
-      </section>
-    )
-  }
+  const stats = useQuery<MnemosyneStats>({
+    queryKey: ['memory', 'availability'],
+    queryFn: () => apiFetch('/api/memory/stats'),
+    staleTime: 60_000,
+  })
 
-  if (!data) return null
+  const list = useInfiniteQuery({
+    queryKey: ['memory', 'browse', type, q],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) })
+      if (pageParam) params.set('cursor', pageParam)
+      if (type) params.set('type', type)
+      if (q) params.set('q', q)
+      return apiFetch<MnemosyneBrowsePage>(`/api/memory/browse?${params}`)
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  })
 
-  if (!data.db.exists) {
-    return (
-      <section className="mbrowse-shell">
-        <div className="mbrowse-hero mbrowse-panel">
-          <div className="mbrowse-kicker">Browse</div>
-          <h2>Mnemosyne database unavailable</h2>
-          <p>
-            {data.missingReason}
-          </p>
-          <div className="mbrowse-actions">
-            <button type="button" className="mem-btn" onClick={() => void refetch()}>
-              Retry
-            </button>
-          </div>
-        </div>
-      </section>
-    )
-  }
-
-  const cards = [
-    {
-      label: 'Working Memory',
-      value: data.counts.working,
-      detail: 'Active working-memory rows',
-    },
-    {
-      label: 'Episodic Memory',
-      value: data.counts.episodic,
-      detail: 'Long-term archived rows',
-    },
-    {
-      label: 'Triples',
-      value: data.counts.triples,
-      detail: 'Extracted knowledge graph triples',
-    },
-    {
-      label: 'FTS Rows',
-      value: data.counts.fts,
-      detail: 'Full-text search index rows',
-    },
-    {
-      label: 'Total Tracked',
-      value: data.counts.total,
-      detail: 'Working + episodic combined',
-    },
-  ]
+  // Keyset paging can't duplicate, but dedupe anyway (belt-and-braces).
+  const seen = new Set<string>()
+  const items = (list.data?.pages.flatMap((p) => p.items) ?? []).filter((i) => {
+    const key = `${i.type}:${i.id}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  const filtered = type !== null || q !== ''
 
   return (
     <section className="mbrowse-shell">
-      <div className="mbrowse-hero-grid">
-        <article className="mbrowse-panel mbrowse-hero">
-          <div className="mbrowse-kicker">Matrix DB Overview</div>
-          <h2>Live Mnemosyne stats at a glance</h2>
-          <p>
-            A read-only operational view of the default local Matrix memory bank.
-            This is the first Browse release: safe stats now, richer search and
-            detail browsing next.
-          </p>
-          <div className="mbrowse-pills">
-            <span className="mbrowse-pill">Default bank connected</span>
-            <span className="mbrowse-pill">SQLite read-only</span>
-            <span className="mbrowse-pill is-muted">
-              Last refresh: {formatCheckedAt(data.checkedAt)}
-              {isFetching ? ' · refreshing…' : ''}
-            </span>
-          </div>
-        </article>
+      {stats.data?.db.exists && (
+        <div className="mbrowse-strip" aria-label="Memory stats">
+          <span>
+            <b>{formatCount(stats.data.counts.working)}</b> working
+          </span>
+          <span>
+            <b>{formatCount(stats.data.counts.episodic)}</b> episodic
+          </span>
+          <span>
+            <b>{formatCount(stats.data.counts.triples)}</b> triples
+          </span>
+          <span>
+            <b>{formatCount(stats.data.counts.fts)}</b> indexed
+          </span>
+          {stats.data.lastWriteAt && (
+            <span>last write {formatDate(stats.data.lastWriteAt)}</span>
+          )}
+        </div>
+      )}
 
-        <aside className="mbrowse-panel mbrowse-summary">
-          <div className="mbrowse-kicker">Operational Summary</div>
-          <h3>What this answers fast</h3>
-          <div className="mbrowse-summary-list">
-            <div className="mbrowse-summary-item">
-              <span>Is memory ingestion alive?</span>
-              <strong>{data.counts.total > 0 ? 'Yes' : 'No data yet'}</strong>
-            </div>
-            <div className="mbrowse-summary-item">
-              <span>How large is the bank?</span>
-              <strong>{formatCount(data.counts.total)} rows</strong>
-            </div>
-            <div className="mbrowse-summary-item">
-              <span>Is graph extraction active?</span>
-              <strong>{formatCount(data.counts.triples)} triples</strong>
-            </div>
-            <div className="mbrowse-summary-item">
-              <span>Is full-text search populated?</span>
-              <strong>{formatCount(data.counts.fts)} FTS rows</strong>
-            </div>
-          </div>
-        </aside>
+      <div className="mbrowse-toolbar">
+        <input
+          type="search"
+          className="mem-input mbrowse-search"
+          placeholder="Search memory…"
+          aria-label="Search memory"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <div className="mbrowse-chips" role="group" aria-label="Filter by type">
+          {TYPE_FILTERS.map((f) => (
+            <button
+              key={f.label}
+              type="button"
+              className={`mbrowse-pill mbrowse-chip ${type === f.id ? 'is-active' : ''}`}
+              aria-pressed={type === f.id}
+              onClick={() => setType(f.id)}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="mbrowse-stats-grid">
-        {cards.map((card) => (
-          <article key={card.label} className="mbrowse-stat-card">
-            <div className="mbrowse-stat-label">{card.label}</div>
-            <div className="mbrowse-stat-value">{formatCount(card.value)}</div>
-            <div className="mbrowse-stat-detail">{card.detail}</div>
-          </article>
-        ))}
-      </div>
-
-      <div className="mbrowse-bottom-grid">
-        <article className="mbrowse-panel">
-          <div className="mbrowse-kicker">Why this tab exists</div>
-          <h3>Stats first, browse depth next</h3>
-          <p>
-            This keeps the initial implementation small and stable while opening
-            a clean seam for search, filters, cards, and memory-detail surfaces.
-          </p>
-          <div className="mbrowse-callout">
-            Next phase: search input, tier/source filters, recent-vs-importance
-            sorting, paginated result cards, and a full-row detail drawer.
-          </div>
-        </article>
-
-        <article className="mbrowse-panel">
-          <div className="mbrowse-kicker">State handling</div>
-          <h3>Read-only and failure-aware</h3>
-          <p>
-            The tab should stay explicit and calm in loading, missing-database,
-            and unexpected error states without affecting the existing Memory,
-            Wiki, Graph, Settings, or Chat tabs.
-          </p>
-          <div className="mbrowse-callout is-soft">
-            Current DB detected: <strong>yes</strong>
-          </div>
-        </article>
-      </div>
+      {list.isLoading ? (
+        <SkeletonRows />
+      ) : list.isError ? (
+        <div className="mem-empty">
+          <span>
+            {list.error instanceof Error
+              ? list.error.message
+              : 'Failed to load memories'}
+          </span>
+          <button
+            type="button"
+            className="mem-btn"
+            onClick={() => void list.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : items.length === 0 ? (
+        <div className="mem-empty">
+          <span>
+            {filtered ? 'No memories match these filters' : 'No memories yet'}
+          </span>
+          {filtered && (
+            <button
+              type="button"
+              className="mem-btn"
+              onClick={() => {
+                setType(null)
+                setSearch('')
+              }}
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          <ul className="mbrowse-list">
+            {items.map((item) => (
+              <li key={`${item.type}:${item.id}`} className="mbrowse-item">
+                <div className="mbrowse-item-meta">
+                  <span className="mbrowse-type">{item.type}</span>
+                  <time dateTime={item.createdAt ?? undefined}>
+                    {formatDate(item.createdAt)}
+                  </time>
+                </div>
+                <p className="mbrowse-item-text">{item.text}</p>
+              </li>
+            ))}
+          </ul>
+          {list.hasNextPage && (
+            <button
+              type="button"
+              className="mem-btn mbrowse-more"
+              disabled={list.isFetchingNextPage}
+              onClick={() => void list.fetchNextPage()}
+            >
+              {list.isFetchingNextPage ? 'Loading…' : 'Load more'}
+            </button>
+          )}
+        </>
+      )}
     </section>
   )
 }

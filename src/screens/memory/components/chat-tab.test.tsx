@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatTab } from './chat-tab'
+import { useBrowseFocusStore, useMemoryScreenStore } from '@/stores/memory-screen-store'
 
 vi.mock('@/components/ui/toast', () => ({ toast: vi.fn() }))
 
@@ -88,5 +89,20 @@ describe('ChatTab', () => {
     expect(
       fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/memory/chat')),
     ).toBe(true)
+  })
+
+  it('source links open Browse filtered by kind and notify the drawer', async () => {
+    const SSE_TEXT = 'event: chunk\ndata: {"text":"ok"}\n\n'
+    vi.stubGlobal(
+      'fetch',
+      mockFetch([], [{ kind: 'fact', text: 'Rohit likes fox', score: 2 }], SSE_TEXT),
+    )
+    const onNavigate = vi.fn()
+    render(<ChatTab onNavigate={onNavigate} />)
+    send('fox?')
+    fireEvent.click(await screen.findByRole('button', { name: 'matrix-memory:fact' }))
+    expect(useMemoryScreenStore.getState().activeTab).toBe('browse')
+    expect(useBrowseFocusStore.getState().focus).toEqual({ type: 'fact', q: '' })
+    expect(onNavigate).toHaveBeenCalled()
   })
 })

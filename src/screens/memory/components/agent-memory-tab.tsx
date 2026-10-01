@@ -372,7 +372,7 @@ function FilePane({ agentId, agentName, agentGlyph, agentRole, agentTier }: File
             />
           ) : fileQuery.data ? (
             <div className="mem-viewer" onClick={handleEdit} title="Click to edit">
-              {fileQuery.data.content || <span style={{ opacity: 0.4 }}>(empty file)</span>}
+              {fileQuery.data.content || <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>(empty file)</span>}
             </div>
           ) : activeEntry ? (
             <div className="mem-loading">Loading file…</div>

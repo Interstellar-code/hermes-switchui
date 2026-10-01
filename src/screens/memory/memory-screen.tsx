@@ -1,14 +1,17 @@
 /**
  * MemoryScreen — Matrix-themed Memory & Matrix Wiki shell (MEM-01).
  *
- * Tabs: Agent Memory (P3) | Wiki (P4) | Map (P4) | Settings (P5) | Chat (P5)
- * Active tab persisted to localStorage via useMemoryScreenStore.
+ * Tabs: Agent Memory | Browse | Wiki | Map. Settings is a gear-opened view;
+ * Chat is a side drawer reachable from every tab. Browse/Map need
+ * matrix-memory and show disabled (with the reason) when it is unavailable.
+ * Active view persisted to localStorage via useMemoryScreenStore.
  */
 
-import { Suspense, lazy, useEffect } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { MemoryTab } from '@/stores/memory-screen-store'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useMemoryScreenStore } from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory.css'
 import '@/styles/matrix-profiles.css'
@@ -16,7 +19,11 @@ import '@/styles/matrix-profiles.css'
 // Matrix Memory (mnemosyne) backs the Map tab. `/api/memory/stats` reports
 // whether the profile's mnemosyne DB exists — i.e. matrix-memory is
 // configured and activated.
-type MnemosyneAvailability = { db: { exists: boolean }; counts: { total: number } }
+type MnemosyneAvailability = {
+  db: { exists: boolean }
+  counts: { total: number; triples: number }
+  lastWriteAt?: string | null
+}
 
 async function fetchMnemosyneAvailability(): Promise<MnemosyneAvailability> {
   const res = await fetch('/api/memory/stats')
@@ -167,8 +174,10 @@ function IconChat() {
 
 // ── tab definitions ───────────────────────────────────────────────────────
 
+type TabId = 'memory' | 'browse' | 'wiki' | 'map'
+
 type TabDef = {
-  id: MemoryTab
+  id: TabId
   label: string
   icon: React.ReactNode
 }
@@ -178,14 +187,62 @@ const TABS: Array<TabDef> = [
   { id: 'browse', label: 'Browse', icon: <IconBrowse /> },
   { id: 'wiki', label: 'Wiki', icon: <IconBook /> },
   { id: 'map', label: 'Map', icon: <IconMap /> },
-  { id: 'settings', label: 'Settings', icon: <IconCog /> },
-  { id: 'chat', label: 'Chat', icon: <IconChat /> },
 ]
+
+const GATED_REASON = 'Needs matrix-memory: no memories in the Mnemosyne DB yet'
+
+/**
+ * WAI-ARIA tabs keyboard model: Arrow keys wrap over enabled tabs, Home/End
+ * jump to the ends. Returns null for keys it does not handle.
+ */
+export function nextTabId<T>(
+  enabled: Array<T>,
+  current: T,
+  key: string,
+): T | null {
+  if (enabled.length === 0) return null
+  const i = Math.max(0, enabled.indexOf(current))
+  switch (key) {
+    case 'ArrowRight':
+      return enabled[(i + 1) % enabled.length]
+    case 'ArrowLeft':
+      return enabled[(i - 1 + enabled.length) % enabled.length]
+    case 'Home':
+      return enabled[0]
+    case 'End':
+      return enabled[enabled.length - 1]
+    default:
+      return null
+  }
+}
+
+function formatRelative(iso: string): string {
+  const mins = Math.round((Date.now() - Date.parse(iso)) / 60_000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  if (mins < 60 * 24) return `${Math.round(mins / 60)}h ago`
+  return `${Math.round(mins / (60 * 24))}d ago`
+}
+
+const fmt = (n: number) => new Intl.NumberFormat().format(n)
 
 // ── MemoryScreen ──────────────────────────────────────────────────────────
 
 export function MemoryScreen() {
   const { activeTab, setActiveTab } = useMemoryScreenStore()
+  const [chatOpen, setChatOpen] = useState(false)
+  // Mount the chat once opened and keep it (hidden) so the conversation
+  // survives closing the drawer, e.g. after a source-link click.
+  const [chatMounted, setChatMounted] = useState(false)
+  const openChat = () => {
+    setChatMounted(true)
+    setChatOpen(true)
+  }
+  // Where the settings gear returns to.
+  const lastTabRef = useRef<MemoryTab>('memory')
+  if (activeTab !== 'settings' && activeTab !== 'chat')
+    lastTabRef.current = activeTab
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({})
 
   const agentCount = BUILTIN_AGENTS.length
 
@@ -196,90 +253,212 @@ export function MemoryScreen() {
     queryFn: fetchMnemosyneAvailability,
     staleTime: 60_000,
   })
-  const matrixMemoryActive =
-    mnemo?.db.exists === true && mnemo.counts.total > 0
+  const matrixMemoryActive = mnemo?.db.exists === true && mnemo.counts.total > 0
   const isGatedTab = (t: MemoryTab) => t === 'map' || t === 'browse'
-  const tabs = TABS.filter((t) => !isGatedTab(t.id) || matrixMemoryActive)
+  const isDisabled = (t: MemoryTab) => isGatedTab(t) && !matrixMemoryActive
+  const enabledTabs = TABS.map((t) => t.id).filter((t) => !isDisabled(t))
+
+  // Chat used to be a tab; a persisted 'chat' opens the drawer instead.
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      setChatMounted(true)
+      setChatOpen(true)
+      setActiveTab('memory')
+    }
+  }, [activeTab, setActiveTab])
 
   // If a matrix-memory tab is persisted-active but it's unavailable, fall back.
   useEffect(() => {
-    if (mnemo && !matrixMemoryActive && (activeTab === 'map' || activeTab === 'browse')) {
-      setActiveTab('memory')
-    }
+    if (mnemo && isDisabled(activeTab)) setActiveTab('memory')
   }, [activeTab, mnemo, matrixMemoryActive, setActiveTab])
+
+  const chatRef = useRef<HTMLElement>(null)
+  useFocusTrap(chatOpen, chatRef, () => setChatOpen(false))
+
+  function onTabKeyDown(e: React.KeyboardEvent, current: TabId) {
+    const next = nextTabId(enabledTabs, current, e.key)
+    if (!next) return
+    e.preventDefault()
+    setActiveTab(next)
+    tabRefs.current[next]?.focus()
+  }
+
+  const showSettings = activeTab === 'settings'
+  const selectedTab = TABS.some((t) => t.id === activeTab) ? activeTab : null
+  const fallback = <div className="mem-loading">Loading…</div>
 
   return (
     <div data-screen="memory" className="mem-shell">
       {/* Header */}
       <div className="mem-header">
-        <h1>
-          <span className="crumb">Hermes</span>
-          <span className="sep">/</span>
-          <span className="crumb">Matrix Memory</span>
-          <span className="sep">/</span>
-          <span className="cur">Memory &amp; Wiki</span>
-        </h1>
+        <h1>Memory</h1>
         <div className="mem-header-stats">
-          <span>
-            <b>{agentCount}</b> agents
-          </span>
-          <div className="sep" />
-          <span>Agent Memory</span>
+          {matrixMemoryActive ? (
+            <>
+              <span>
+                <b>{fmt(mnemo.counts.total)}</b> memories
+              </span>
+              <div className="sep" />
+              <span>
+                <b>{fmt(mnemo.counts.triples)}</b> triples
+              </span>
+              {mnemo.lastWriteAt && (
+                <>
+                  <div className="sep" />
+                  <span>last write {formatRelative(mnemo.lastWriteAt)}</span>
+                </>
+              )}
+            </>
+          ) : (
+            <span>
+              <b>{agentCount}</b> agents
+            </span>
+          )}
         </div>
         <div className="mem-header-spacer" />
+        <div className="mem-header-actions">
+          <button
+            type="button"
+            className="mem-btn"
+            aria-expanded={chatOpen}
+            aria-controls={chatOpen ? 'mem-chat-drawer' : undefined}
+            onClick={openChat}
+          >
+            <IconChat />
+            Chat
+          </button>
+          <button
+            type="button"
+            className={`mem-btn ${showSettings ? 'is-primary' : ''}`}
+            aria-label="Memory settings"
+            title="Memory settings"
+            aria-pressed={showSettings}
+            onClick={() =>
+              setActiveTab(showSettings ? lastTabRef.current : 'settings')
+            }
+          >
+            <IconCog />
+          </button>
+        </div>
       </div>
 
       {/* Tab bar */}
-      <div className="mem-tabbar" role="tablist">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            role="tab"
-            aria-selected={activeTab === t.id}
-            className={`mem-tab ${activeTab === t.id ? 'is-active' : ''}`}
-            onClick={() => setActiveTab(t.id)}
-          >
-            {t.icon}
-            {t.label}
-          </button>
-        ))}
+      <div className="mem-tabbar" role="tablist" aria-label="Memory views">
+        {TABS.map((t) => {
+          const disabled = isDisabled(t.id)
+          const selected = selectedTab === t.id
+          const focusable =
+            selected || (!selectedTab && t.id === enabledTabs[0])
+          return (
+            <button
+              key={t.id}
+              ref={(el) => {
+                tabRefs.current[t.id] = el
+              }}
+              id={`mem-tab-${t.id}`}
+              type="button"
+              role="tab"
+              aria-selected={selected}
+              aria-controls="mem-panel"
+              aria-disabled={disabled || undefined}
+              tabIndex={focusable ? 0 : -1}
+              title={disabled ? GATED_REASON : undefined}
+              aria-describedby={disabled ? 'mem-gated-reason' : undefined}
+              className={`mem-tab ${selected ? 'is-active' : ''} ${disabled ? 'is-disabled' : ''}`}
+              onClick={() => {
+                if (!disabled) setActiveTab(t.id)
+              }}
+              onKeyDown={(e) => onTabKeyDown(e, t.id)}
+            >
+              {t.icon}
+              {t.label}
+            </button>
+          )
+        })}
         <div className="mem-tabbar-spacer" />
+        <span id="mem-gated-reason" className="sr-only">
+          {GATED_REASON}
+        </span>
       </div>
 
       {/* Body */}
-      <div className="mem-body" role="tabpanel">
+      <div
+        id="mem-panel"
+        className="mem-body"
+        role={selectedTab ? 'tabpanel' : 'region'}
+        aria-labelledby={selectedTab ? `mem-tab-${selectedTab}` : undefined}
+        aria-label={showSettings ? 'Memory settings' : undefined}
+      >
         {activeTab === 'memory' && (
-          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+          <Suspense fallback={fallback}>
             <AgentMemoryTab />
           </Suspense>
         )}
         {activeTab === 'browse' && matrixMemoryActive && (
-          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+          <Suspense fallback={fallback}>
             <BrowseTab />
           </Suspense>
         )}
         {activeTab === 'wiki' && (
-          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+          <Suspense fallback={fallback}>
             <WikiTab />
           </Suspense>
         )}
         {activeTab === 'map' && matrixMemoryActive && (
-          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+          <Suspense fallback={fallback}>
             <MemoryMap />
           </Suspense>
         )}
-        {activeTab === 'settings' && (
-          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
+        {showSettings && (
+          <Suspense fallback={fallback}>
             <SettingsTab />
           </Suspense>
         )}
-        {activeTab === 'chat' && (
-          <Suspense fallback={<div className="mem-loading">Loading…</div>}>
-            <ChatTab />
-          </Suspense>
-        )}
       </div>
+
+      {/* Chat drawer — reachable from every tab */}
+      {chatMounted && (
+        <>
+          {chatOpen && (
+            <div
+              className="pf-drawer-backdrop"
+              onClick={() => setChatOpen(false)}
+            />
+          )}
+          <aside
+            hidden={!chatOpen}
+            id="mem-chat-drawer"
+            ref={chatRef}
+            className="pf-drawer is-open mem-chat-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Chat with your memory"
+          >
+            <div className="pf-drawer-header">
+              <div className="pf-drawer-name">Chat with memory</div>
+              <button
+                type="button"
+                className="pf-drawer-close"
+                onClick={() => setChatOpen(false)}
+                aria-label="Close chat"
+              >
+                <svg
+                  viewBox="0 0 14 14"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M2 2l10 10M12 2L2 12" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+            <Suspense fallback={fallback}>
+              <ChatTab onNavigate={() => setChatOpen(false)} />
+            </Suspense>
+          </aside>
+        </>
+      )}
     </div>
   )
 }

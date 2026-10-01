@@ -65,3 +65,15 @@ export const useMemoryAgentStore = create<
   selectedAgentId: 'hermes-switch',
   setSelectedAgentId: (selectedAgentId) => set({ selectedAgentId }),
 }))
+
+// One-shot hand-off of a Browse filter (e.g. a chat source "matrix-memory:gist")
+// to the Browse tab, which reads it as its initial filter. Mirrors wiki-focus-store.
+export type BrowseFocus = { type: string | null; q: string }
+
+export const useBrowseFocusStore = create<{
+  focus: BrowseFocus | null
+  setFocus: (focus: BrowseFocus | null) => void
+}>()((set) => ({
+  focus: null,
+  setFocus: (focus) => set({ focus }),
+}))
