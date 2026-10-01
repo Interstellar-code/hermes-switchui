@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { MemoryDetailDrawer } from './memory-detail-drawer'
+import { useWikiFocusStore } from './wiki-focus-store'
 import type { WikiPageMeta } from '@/server/knowledge-browser'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 import { toast as showToast } from '@/components/ui/toast'
@@ -239,7 +240,13 @@ type ReadResponse = {
 export function WikiTab() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
-  const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  // Map → "Open in Wiki" hands off a page path; consume it once on mount.
+  const [selectedPath, setSelectedPath] = useState<string | null>(
+    () => useWikiFocusStore.getState().path,
+  )
+  useEffect(() => {
+    useWikiFocusStore.getState().setPath(null)
+  }, [])
   const [groupOpen, setGroupOpen] = useState<Record<string, boolean>>({})
   const [showAdd, setShowAdd] = useState(false)
   const [editTarget, setEditTarget] = useState<{

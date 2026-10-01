@@ -161,7 +161,7 @@ function emptyGraph(dbMissing: boolean): MemoryGraph {
   }
 }
 
-function tableExists(db: Database.Database, name: string): boolean {
+export function tableExists(db: Database.Database, name: string): boolean {
   return Boolean(
     db
       .prepare(
@@ -171,7 +171,7 @@ function tableExists(db: Database.Database, name: string): boolean {
   )
 }
 
-function truncateLabel(text: unknown): string {
+export function truncateLabel(text: unknown): string {
   const collapsed = String(text ?? '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -180,19 +180,26 @@ function truncateLabel(text: unknown): string {
     : collapsed
 }
 
-function wikiLabel(id: string): string {
+export function wikiLabel(id: string): string {
   const base = id.split('/').pop() ?? id
   return base.replace(/\.md$/i, '')
 }
 
 /** Classify a bare edge-endpoint id when no node was pre-registered for it. */
-function classifyById(id: string): MemoryGraphKind {
+export function classifyById(id: string): MemoryGraphKind {
   if (id.startsWith('gist_')) return 'gist'
   if (id.startsWith('wm_')) return 'working'
   if (id.startsWith('fact_')) return 'fact'
   if (id.startsWith('ep_')) return 'episodic'
   if (id.startsWith('entity:')) return 'entity'
   return 'wiki'
+}
+
+/** Read-only handle on the active profile's mnemosyne DB; null if absent. */
+export function openMemoryGraphDb(): Database.Database | null {
+  const dbPath = getMnemosyneDbPath()
+  if (!fs.existsSync(dbPath)) return null
+  return new Database(dbPath, { readonly: true, fileMustExist: true })
 }
 
 export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
@@ -203,10 +210,8 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
   const edgeType = params.edgeType ?? null
   const since = params.since ?? null
 
-  const dbPath = getMnemosyneDbPath()
-  if (!fs.existsSync(dbPath)) return emptyGraph(true)
-
-  const db = new Database(dbPath, { readonly: true, fileMustExist: true })
+  const db = openMemoryGraphDb()
+  if (!db) return emptyGraph(true)
   try {
     // graph_edges is the minimum required table; without it there is no graph.
     if (!tableExists(db, 'graph_edges')) return emptyGraph(true)

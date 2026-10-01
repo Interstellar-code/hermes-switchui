@@ -148,6 +148,7 @@ import { Route as ApiMemoryListRouteImport } from './routes/api/memory/list'
 import { Route as ApiMemoryGraphRouteImport } from './routes/api/memory/graph'
 import { Route as ApiMemoryGetRouteImport } from './routes/api/memory/get'
 import { Route as ApiMemoryChatRouteImport } from './routes/api/memory/chat'
+import { Route as ApiMemoryBrowseRouteImport } from './routes/api/memory/browse'
 import { Route as ApiMemoryAgentFilesRouteImport } from './routes/api/memory/agent-files'
 import { Route as ApiMcpTestRouteImport } from './routes/api/mcp/test'
 import { Route as ApiMcpPresetsRouteImport } from './routes/api/mcp/presets'
@@ -216,6 +217,7 @@ import { Route as ApiRunsRunIdStatusRouteImport } from './routes/api/runs.$runId
 import { Route as ApiRunsRunIdApprovalRouteImport } from './routes/api/runs.$runId.approval'
 import { Route as ApiOperationsDispatchPreviewRouteImport } from './routes/api/operations/dispatch.preview'
 import { Route as ApiOperationsAgentsIdRouteImport } from './routes/api/operations/agents.$id'
+import { Route as ApiMemoryGraphNodeRouteImport } from './routes/api/memory/graph/node'
 import { Route as ApiMcpHubSourcesIdRouteImport } from './routes/api/mcp/hub-sources.$id'
 import { Route as ApiMcpNameLogsRouteImport } from './routes/api/mcp/$name.logs'
 import { Route as ApiHermesProjectsIdRestoreRouteImport } from './routes/api/hermes-projects/$id.restore'
@@ -945,6 +947,11 @@ const ApiMemoryChatRoute = ApiMemoryChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryBrowseRoute = ApiMemoryBrowseRouteImport.update({
+  id: '/browse',
+  path: '/browse',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMemoryAgentFilesRoute = ApiMemoryAgentFilesRouteImport.update({
   id: '/agent-files',
   path: '/agent-files',
@@ -1306,6 +1313,11 @@ const ApiOperationsAgentsIdRoute = ApiOperationsAgentsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiOperationsAgentsRoute,
 } as any)
+const ApiMemoryGraphNodeRoute = ApiMemoryGraphNodeRouteImport.update({
+  id: '/node',
+  path: '/node',
+  getParentRoute: () => ApiMemoryGraphRoute,
+} as any)
 const ApiMcpHubSourcesIdRoute = ApiMcpHubSourcesIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -1624,9 +1636,10 @@ export interface FileRoutesByFullPath {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/browse': typeof ApiMemoryBrowseRoute
   '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
-  '/api/memory/graph': typeof ApiMemoryGraphRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRouteWithChildren
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
@@ -1684,6 +1697,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-projects/$id/restore': typeof ApiHermesProjectsIdRestoreRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+  '/api/memory/graph/node': typeof ApiMemoryGraphNodeRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
@@ -1861,9 +1875,10 @@ export interface FileRoutesByTo {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/browse': typeof ApiMemoryBrowseRoute
   '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
-  '/api/memory/graph': typeof ApiMemoryGraphRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRouteWithChildren
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
@@ -1921,6 +1936,7 @@ export interface FileRoutesByTo {
   '/api/hermes-projects/$id/restore': typeof ApiHermesProjectsIdRestoreRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+  '/api/memory/graph/node': typeof ApiMemoryGraphNodeRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
@@ -2101,9 +2117,10 @@ export interface FileRoutesById {
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
+  '/api/memory/browse': typeof ApiMemoryBrowseRoute
   '/api/memory/chat': typeof ApiMemoryChatRoute
   '/api/memory/get': typeof ApiMemoryGetRoute
-  '/api/memory/graph': typeof ApiMemoryGraphRoute
+  '/api/memory/graph': typeof ApiMemoryGraphRouteWithChildren
   '/api/memory/list': typeof ApiMemoryListRoute
   '/api/memory/mnemosyne-search': typeof ApiMemoryMnemosyneSearchRoute
   '/api/memory/read': typeof ApiMemoryReadRoute
@@ -2161,6 +2178,7 @@ export interface FileRoutesById {
   '/api/hermes-projects/$id/restore': typeof ApiHermesProjectsIdRestoreRoute
   '/api/mcp/$name/logs': typeof ApiMcpNameLogsRoute
   '/api/mcp/hub-sources/$id': typeof ApiMcpHubSourcesIdRoute
+  '/api/memory/graph/node': typeof ApiMemoryGraphNodeRoute
   '/api/operations/agents/$id': typeof ApiOperationsAgentsIdRouteWithChildren
   '/api/operations/dispatch/preview': typeof ApiOperationsDispatchPreviewRoute
   '/api/runs/$runId/approval': typeof ApiRunsRunIdApprovalRoute
@@ -2342,6 +2360,7 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/browse'
     | '/api/memory/chat'
     | '/api/memory/get'
     | '/api/memory/graph'
@@ -2402,6 +2421,7 @@ export interface FileRouteTypes {
     | '/api/hermes-projects/$id/restore'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
+    | '/api/memory/graph/node'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
     | '/api/runs/$runId/approval'
@@ -2579,6 +2599,7 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/browse'
     | '/api/memory/chat'
     | '/api/memory/get'
     | '/api/memory/graph'
@@ -2639,6 +2660,7 @@ export interface FileRouteTypes {
     | '/api/hermes-projects/$id/restore'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
+    | '/api/memory/graph/node'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
     | '/api/runs/$runId/approval'
@@ -2818,6 +2840,7 @@ export interface FileRouteTypes {
     | '/api/mcp/presets'
     | '/api/mcp/test'
     | '/api/memory/agent-files'
+    | '/api/memory/browse'
     | '/api/memory/chat'
     | '/api/memory/get'
     | '/api/memory/graph'
@@ -2878,6 +2901,7 @@ export interface FileRouteTypes {
     | '/api/hermes-projects/$id/restore'
     | '/api/mcp/$name/logs'
     | '/api/mcp/hub-sources/$id'
+    | '/api/memory/graph/node'
     | '/api/operations/agents/$id'
     | '/api/operations/dispatch/preview'
     | '/api/runs/$runId/approval'
@@ -4053,6 +4077,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryChatRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/browse': {
+      id: '/api/memory/browse'
+      path: '/browse'
+      fullPath: '/api/memory/browse'
+      preLoaderRoute: typeof ApiMemoryBrowseRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/memory/agent-files': {
       id: '/api/memory/agent-files'
       path: '/agent-files'
@@ -4529,6 +4560,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOperationsAgentsIdRouteImport
       parentRoute: typeof ApiOperationsAgentsRoute
     }
+    '/api/memory/graph/node': {
+      id: '/api/memory/graph/node'
+      path: '/node'
+      fullPath: '/api/memory/graph/node'
+      preLoaderRoute: typeof ApiMemoryGraphNodeRouteImport
+      parentRoute: typeof ApiMemoryGraphRoute
+    }
     '/api/mcp/hub-sources/$id': {
       id: '/api/mcp/hub-sources/$id'
       path: '/$id'
@@ -4887,11 +4925,24 @@ const ApiMcpRouteChildren: ApiMcpRouteChildren = {
 const ApiMcpRouteWithChildren =
   ApiMcpRoute._addFileChildren(ApiMcpRouteChildren)
 
+interface ApiMemoryGraphRouteChildren {
+  ApiMemoryGraphNodeRoute: typeof ApiMemoryGraphNodeRoute
+}
+
+const ApiMemoryGraphRouteChildren: ApiMemoryGraphRouteChildren = {
+  ApiMemoryGraphNodeRoute: ApiMemoryGraphNodeRoute,
+}
+
+const ApiMemoryGraphRouteWithChildren = ApiMemoryGraphRoute._addFileChildren(
+  ApiMemoryGraphRouteChildren,
+)
+
 interface ApiMemoryRouteChildren {
   ApiMemoryAgentFilesRoute: typeof ApiMemoryAgentFilesRoute
+  ApiMemoryBrowseRoute: typeof ApiMemoryBrowseRoute
   ApiMemoryChatRoute: typeof ApiMemoryChatRoute
   ApiMemoryGetRoute: typeof ApiMemoryGetRoute
-  ApiMemoryGraphRoute: typeof ApiMemoryGraphRoute
+  ApiMemoryGraphRoute: typeof ApiMemoryGraphRouteWithChildren
   ApiMemoryListRoute: typeof ApiMemoryListRoute
   ApiMemoryMnemosyneSearchRoute: typeof ApiMemoryMnemosyneSearchRoute
   ApiMemoryReadRoute: typeof ApiMemoryReadRoute
@@ -4902,9 +4953,10 @@ interface ApiMemoryRouteChildren {
 
 const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
   ApiMemoryAgentFilesRoute: ApiMemoryAgentFilesRoute,
+  ApiMemoryBrowseRoute: ApiMemoryBrowseRoute,
   ApiMemoryChatRoute: ApiMemoryChatRoute,
   ApiMemoryGetRoute: ApiMemoryGetRoute,
-  ApiMemoryGraphRoute: ApiMemoryGraphRoute,
+  ApiMemoryGraphRoute: ApiMemoryGraphRouteWithChildren,
   ApiMemoryListRoute: ApiMemoryListRoute,
   ApiMemoryMnemosyneSearchRoute: ApiMemoryMnemosyneSearchRoute,
   ApiMemoryReadRoute: ApiMemoryReadRoute,
