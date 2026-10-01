@@ -200,8 +200,13 @@ export type MnemosyneSearchMatch = {
 
 const SEARCH_SNIPPET_MAX = 400
 
+/** Lowercase + strip diacritics, matching FTS5 unicode61's default folding. */
+function fold(text: string): string {
+  return text.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+}
+
 function scoreText(text: string, terms: Array<string>): number {
-  const haystack = text.toLowerCase()
+  const haystack = fold(text)
   let score = 0
   for (const term of terms) if (haystack.includes(term)) score++
   return score
@@ -214,12 +219,35 @@ function snippet(text: unknown): string {
     : collapsed
 }
 
+type SearchSource = {
+  kind: MnemosyneSearchMatch['kind']
+  table: string
+  /** Row text expression over alias `t`. */
+  text: string
+  /** FTS5 index whose rowid joins `t.rowid`; absent → LIKE only. */
+  fts?: string
+}
+
+const SEARCH_SOURCES: Array<SearchSource> = [
+  { kind: 'gist', table: 'gists', text: 't.text' },
+  {
+    kind: 'fact',
+    table: 'facts',
+    text: "COALESCE(t.subject, '') || ' ' || COALESCE(t.predicate, '') || ' ' || COALESCE(t.object, '')",
+    fts: 'fts_facts',
+  },
+  { kind: 'episodic', table: 'episodic_memory', text: 't.content', fts: 'fts_episodes' },
+]
+
 /**
  * Read-only keyword search over the profile's mnemosyne memory (gists, facts,
- * episodic summaries). Scores each row by how many distinct query terms it
- * contains and returns the top matches with truncated snippets. Used to ground
- * the Memory chat — never returns full raw memory beyond SEARCH_SNIPPET_MAX.
- * Returns [] when the DB or a table is absent (never throws for a fresh profile).
+ * episodic summaries). Uses the FTS5 indexes (any term, bm25-ranked) where they
+ * exist; gists have none → escaped per-word LIKE on accent/case-folded text,
+ * ranked by words matched. unicode61 doesn't split unspaced scripts (CJK/Thai),
+ * so non-Latin words also run through LIKE on FTS tables. Each source reads at
+ * most `limit * 5` candidates per method,
+ * re-scored by distinct terms matched; snippets capped at SEARCH_SNIPPET_MAX.
+ * Grounds the Memory chat. Returns [] when the DB or a table is absent.
  */
 export function searchMnemosyne(
   query: string,
@@ -227,44 +255,62 @@ export function searchMnemosyne(
   bankId = getDefaultBankId(),
   profile?: string,
 ): Array<MnemosyneSearchMatch> {
-  const terms = (query.toLowerCase().match(/[a-z0-9]{3,}/g) ?? []).slice(0, 12)
-  if (terms.length === 0) return []
+  // Latin words < 3 chars are noise ("a", "to"); one CJK char is a word.
+  const words = searchWords(query).filter(
+    (w) => w.length >= 3 || /[^\p{ASCII}]/u.test(w),
+  )
+  if (words.length === 0) return []
+  const terms = [...new Set(words.map(fold))]
 
   const dbPath = getMnemosyneDbPath(bankId, profile)
   if (!fs.existsSync(dbPath)) return []
 
-  const db = openReadonlyDb(dbPath)
-  try {
-    const matches: Array<MnemosyneSearchMatch> = []
-    const consider = (kind: MnemosyneSearchMatch['kind'], text: string) => {
-      if (!text) return
-      const score = scoreText(text, terms)
-      if (score > 0) matches.push({ kind, text: snippet(text), score })
-    }
+  const cap = Math.max(1, limit) * 5
+  // Any word matches; only the last is prefix-matched (as in browse).
+  const ftsQuery = words
+    .map((w, i) => (i === words.length - 1 ? toFtsQuery(w) : `"${w}"`))
+    .join(' OR ')
+  // unicode61 can't split unspaced scripts (CJK/Thai): those words also go
+  // through LIKE, even when FTS found rows for the others.
+  const nonLatinWords = words.filter((w) => /[^\p{Script=Latin}\p{N}_]/u.test(w))
 
-    if (tableExists(db, 'gists')) {
-      for (const row of db.prepare('SELECT text FROM gists').iterate() as Iterable<{
-        text: string
-      }>) {
-        consider('gist', row.text)
+  const db = openReadonlyDb(dbPath)
+  /** Rows whose folded text contains any of `ws`, most words matched first. */
+  const likeRows = (s: SearchSource, ws: Array<string>) => {
+    const params = Object.fromEntries(ws.map((w, i) => [`w${i}`, toLikePattern(fold(w))]))
+    const hits = ws.map((_, i) => `(f LIKE @w${i} ESCAPE '\\')`)
+    return db
+      .prepare(
+        `SELECT text FROM (SELECT ${s.text} AS text, fold(${s.text}) AS f FROM ${s.table} t)
+         WHERE ${hits.join(' OR ')} ORDER BY ${hits.join(' + ')} DESC LIMIT @cap`,
+      )
+      .all({ ...params, cap }) as Array<{ text: string | null }>
+  }
+  try {
+    db.function('fold', { deterministic: true }, (v: unknown) => fold(String(v ?? '')))
+    const matches: Array<MnemosyneSearchMatch> = []
+    for (const s of SEARCH_SOURCES) {
+      if (!tableExists(db, s.table)) continue
+      let rows: Array<{ text: string | null }> = []
+      if (s.fts && tableExists(db, s.fts)) {
+        rows = db
+          .prepare(
+            `SELECT ${s.text} AS text FROM ${s.fts} JOIN ${s.table} t ON t.rowid = ${s.fts}.rowid
+             WHERE ${s.fts} MATCH @q ORDER BY ${s.fts}.rank LIMIT @cap`,
+          )
+          .all({ q: ftsQuery, cap }) as typeof rows
+        if (nonLatinWords.length > 0) {
+          const seen = new Set(rows.map((r) => r.text))
+          rows.push(...likeRows(s, nonLatinWords).filter((r) => !seen.has(r.text)))
+        }
+      } else {
+        rows = likeRows(s, words)
       }
-    }
-    if (tableExists(db, 'facts')) {
-      for (const row of db
-        .prepare('SELECT subject, predicate, object FROM facts')
-        .iterate() as Iterable<{
-        subject: string | null
-        predicate: string | null
-        object: string | null
-      }>) {
-        consider('fact', `${row.subject ?? ''} ${row.predicate ?? ''} ${row.object ?? ''}`)
-      }
-    }
-    if (tableExists(db, 'episodic_memory')) {
-      for (const row of db
-        .prepare('SELECT content FROM episodic_memory')
-        .iterate() as Iterable<{ content: string }>) {
-        consider('episodic', row.content)
+      for (const r of rows) {
+        if (!r.text) continue
+        // FTS hits always match ≥1 term even when folding/prefixing differs.
+        const score = Math.max(1, scoreText(r.text, terms))
+        matches.push({ kind: s.kind, text: snippet(r.text), score })
       }
     }
 

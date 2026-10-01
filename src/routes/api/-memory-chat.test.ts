@@ -87,4 +87,27 @@ describe('/api/memory/chat', () => {
     expect(text).toContain('event: error')
     expect(text).toContain('upstream boom')
   })
+
+  it('clips history to the last 40 entries and 8000 chars each', async () => {
+    openaiChat.mockResolvedValue(gen([]))
+    const history = Array.from({ length: 50 }, (_, i) => ({
+      role: i % 2 ? 'assistant' : 'user',
+      content: i === 49 ? 'x'.repeat(9000) : `m${i}`,
+    }))
+    const handler = await getHandler()
+    const res = await handler({ request: post({ message: 'q', history }) })
+    expect(res.status).toBe(200)
+    const sent = openaiChat.mock.calls[0][0] as Array<{ role: string; content: string }>
+    const prior = sent.slice(1, -1)
+    expect(prior).toHaveLength(40)
+    expect(prior[0].content).toBe('m10')
+    expect(prior[39].content).toHaveLength(8000)
+  })
+
+  it('400 when the message is over 8000 chars', async () => {
+    const handler = await getHandler()
+    const res = await handler({ request: post({ message: 'x'.repeat(8001) }) })
+    expect(res.status).toBe(400)
+    expect(openaiChat).not.toHaveBeenCalled()
+  })
 })

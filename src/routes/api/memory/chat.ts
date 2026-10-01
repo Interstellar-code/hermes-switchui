@@ -12,6 +12,8 @@ import type { OpenAICompatMessage } from '../../../server/openai-compat-api'
 // for why routing memory Q&A through the agent's own recall is unreliable.
 
 const NOT_IN_MEMORY = "I don't have that in my memory."
+const MAX_HISTORY = 40
+const MAX_MESSAGE_CHARS = 8000
 
 function buildSystemPrompt(context: string): string {
   if (!context) {
@@ -49,6 +51,12 @@ export const Route = createFileRoute('/api/memory/chat')({
         if (!message) {
           return Response.json({ error: 'message is required' }, { status: 400 })
         }
+        if (message.length > MAX_MESSAGE_CHARS) {
+          return Response.json(
+            { error: `message too long (max ${MAX_MESSAGE_CHARS})` },
+            { status: 400 },
+          )
+        }
         const context = typeof body.context === 'string' ? body.context : ''
         const history: Array<OpenAICompatMessage> = Array.isArray(body.history)
           ? (body.history as Array<unknown>)
@@ -59,7 +67,11 @@ export const Route = createFileRoute('/api/memory/chat')({
                   typeof (m as { content?: unknown }).content === 'string',
               )
               .filter((m) => m.role === 'user' || m.role === 'assistant')
-              .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+              .slice(-MAX_HISTORY)
+              .map((m) => ({
+                role: m.role as 'user' | 'assistant',
+                content: m.content.slice(0, MAX_MESSAGE_CHARS),
+              }))
           : []
 
         const messages: Array<OpenAICompatMessage> = [

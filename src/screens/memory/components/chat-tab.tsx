@@ -97,6 +97,8 @@ async function buildMemoryContext(
   return { context: chunks.join('\n\n'), sources }
 }
 
+const MAX_HISTORY_TURNS = 20
+
 // ── Stream chat via /api/send-stream ─────────────────────────────────────────
 
 async function streamChat(
@@ -106,7 +108,8 @@ async function streamChat(
   signal: AbortSignal,
 ): Promise<void> {
   const lastMsg = messages[messages.length - 1]
-  const priorTurns = messages.slice(0, -1)
+  // Last MAX_HISTORY_TURNS user/assistant pairs; the server clips to 40 too.
+  const priorTurns = messages.slice(0, -1).slice(-MAX_HISTORY_TURNS * 2)
 
   // Non-agentic completion: /api/memory/chat calls the model directly and
   // grounds it on `context` server-side, so the answer is strictly gated to

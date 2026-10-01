@@ -9,6 +9,7 @@
 
 import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { UnifiedSearch } from './components/unified-search'
 import type { MemoryTab } from '@/stores/memory-screen-store'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
@@ -349,6 +350,7 @@ export function MemoryScreen() {
           )}
         </div>
         <div className="mem-header-spacer" />
+        <UnifiedSearch />
         <div className="mem-header-actions">
           <select
             className="mem-btn"

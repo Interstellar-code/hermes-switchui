@@ -286,13 +286,17 @@ export function WikiTab() {
   const [typeFilter, setTypeFilter] = useState('')
   const [tagFilter, setTagFilter] = useState('')
   const [showMeta, setShowMeta] = useState(false)
-  // Map → "Open in Wiki" hands off a page path; consume it once on mount.
+  // Map "Open in Wiki" / header search hand off a page path; apply whenever
+  // set (mounted or not), then clear so it never re-applies stale.
   const [selectedPath, setSelectedPath] = useState<string | null>(
     () => useWikiFocusStore.getState().path,
   )
+  const focusPath = useWikiFocusStore((st) => st.path)
   useEffect(() => {
+    if (!focusPath) return
+    setSelectedPath(focusPath)
     useWikiFocusStore.getState().setPath(null)
-  }, [])
+  }, [focusPath])
   // Switching profile switches wiki roots; the open page belongs to the old one.
   const profileRef = useRef(profile)
   useEffect(() => {
