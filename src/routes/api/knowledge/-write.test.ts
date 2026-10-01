@@ -15,7 +15,8 @@ let knowledgeRoot = ''
 
 beforeEach(() => {
   tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hermes-knowledge-write-'))
-  knowledgeRoot = path.join(tempRoot, 'wiki')
+  // Must be a dedicated wiki subtree — bare $HERMES_HOME/wiki is rejected.
+  knowledgeRoot = path.join(tempRoot, 'wikis', 'wiki')
   fs.mkdirSync(knowledgeRoot, { recursive: true })
 
   process.env = { ...originalEnv }

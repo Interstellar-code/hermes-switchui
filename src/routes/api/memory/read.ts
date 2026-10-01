@@ -20,11 +20,13 @@ export const Route = createFileRoute('/api/memory/read')({
             error instanceof Error
               ? error.message
               : 'Failed to read memory file'
-          const status = /not allowed|outside workspace|required/i.test(message)
-            ? 400
-            : /ENOENT/.test(message)
-              ? 404
-              : 500
+          const status = /not a memory file|outside workspace/i.test(message)
+            ? 403
+            : /not allowed|required|Only Markdown/i.test(message)
+              ? 400
+              : /ENOENT/.test(message)
+                ? 404
+                : 500
           return Response.json({ error: message }, { status })
         }
       },

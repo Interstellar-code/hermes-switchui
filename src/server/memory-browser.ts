@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { isWithinRealRoot } from './path-containment'
 
 export type MemoryFileMeta = {
   path: string
@@ -15,7 +16,7 @@ export type MemorySearchMatch = {
   text: string
 }
 
-function isBrowserMemoryPath(relativePath: string): boolean {
+export function isBrowserMemoryPath(relativePath: string): boolean {
   return (
     relativePath === 'MEMORY.md' ||
     relativePath.startsWith('memory/') ||
@@ -52,11 +53,31 @@ export function resolveMemoryFilePath(relativePath: string): {
   relativePath: string
 } {
   const safeRelativePath = normalizeRelativeMemoryPath(relativePath)
+  // Only the memory files the browser lists — never SOUL.md, skills, profiles/…
+  if (!isBrowserMemoryPath(safeRelativePath))
+    throw new Error('Path is not allowed: not a memory file')
   const workspaceRoot = getMemoryWorkspaceRoot()
   const fullPath = path.resolve(workspaceRoot, safeRelativePath)
-  if (!fullPath.startsWith(workspaceRoot)) {
+  // Symlink-aware: realpath of the deepest existing ancestor must stay under
+  // the real allowlisted subtree (memory/ or memories/; the root only for
+  // MEMORY.md) — so memories/x -> ../skills/… is refused, not just escapes
+  // out of HERMES_HOME. The file itself may not exist yet on write.
+  const subtree =
+    safeRelativePath === 'MEMORY.md'
+      ? workspaceRoot
+      : path.join(workspaceRoot, safeRelativePath.split('/')[0])
+  if (!isWithinRealRoot(subtree, fullPath)) {
     throw new Error('Resolved path is outside workspace')
   }
+  // The file itself must not be a symlink (realpath of a symlink to a sibling
+  // memory file would pass containment yet still be a redirect).
+  let isLink = false
+  try {
+    isLink = fs.lstatSync(fullPath).isSymbolicLink()
+  } catch {
+    // ENOENT — new file on write
+  }
+  if (isLink) throw new Error('Resolved path is outside workspace: symlink')
   return { fullPath, relativePath: safeRelativePath }
 }
 

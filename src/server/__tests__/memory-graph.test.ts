@@ -2,8 +2,24 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import Database from 'better-sqlite3'
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest'
 import { buildMemoryGraph } from '../memory-graph'
+
+// Keep the wiki source deterministic: the real one reads the user's config.
+const wikiPages = vi.hoisted(() => ({
+  list: [{ path: 'index.md' }, { path: 'orphan-page.md' }],
+}))
+vi.mock('../knowledge-browser', () => ({
+  listKnowledgePages: () => wikiPages.list,
+}))
 
 // buildMemoryGraph resolves its DB via getMnemosyneDbPath(), which honors
 // MNEMOSYNE_DB_PATH first. Point it at a temp fixture we control.
@@ -16,7 +32,10 @@ const created: Array<string> = []
 const origEnv = process.env.MNEMOSYNE_DB_PATH
 
 function newDbPath(prefix: string): string {
-  const p = path.join(os.tmpdir(), `${prefix}-${Math.random().toString(36).slice(2)}.db`)
+  const p = path.join(
+    os.tmpdir(),
+    `${prefix}-${Math.random().toString(36).slice(2)}.db`,
+  )
   created.push(p)
   return p
 }
@@ -33,31 +52,59 @@ function buildFullFixture(): string {
     CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, memory_id TEXT, kind TEXT, value TEXT, confidence REAL);
     CREATE TABLE memoria_kg (id INTEGER PRIMARY KEY AUTOINCREMENT, subject TEXT, object TEXT, confidence REAL);
   `)
-  db.prepare('INSERT INTO gists (id, text) VALUES (?,?)').run('gist_h1', LONG_GIST)
-  db.prepare('INSERT INTO gists (id, text) VALUES (?,?)').run('gist_h2', 'second gist')
+  db.prepare('INSERT INTO gists (id, text) VALUES (?,?)').run(
+    'gist_h1',
+    LONG_GIST,
+  )
+  db.prepare('INSERT INTO gists (id, text) VALUES (?,?)').run(
+    'gist_h2',
+    'second gist',
+  )
   // working_memory: h1 duplicates a gist (must NOT create a node); w1 is working-only
-  db.prepare('INSERT INTO working_memory (id, content) VALUES (?,?)').run('h1', 'dup of gist h1')
-  db.prepare('INSERT INTO working_memory (id, content) VALUES (?,?)').run('w1', 'working only item')
+  db.prepare('INSERT INTO working_memory (id, content) VALUES (?,?)').run(
+    'h1',
+    'dup of gist h1',
+  )
+  db.prepare('INSERT INTO working_memory (id, content) VALUES (?,?)').run(
+    'w1',
+    'working only item',
+  )
   db.prepare(
     'INSERT INTO facts (fact_id, subject, predicate, object, confidence, timestamp) VALUES (?,?,?,?,?,?)',
   ).run('fact_h1_0', 'Rohit', 'likes', 'SwitchUI', 0.9, '2026-01-01T00:00:00Z')
   // ctx (duplicated → occurrences 2) + references
-  const ge = db.prepare('INSERT INTO graph_edges (source, target, edge_type, weight, timestamp) VALUES (?,?,?,?,?)')
+  const ge = db.prepare(
+    'INSERT INTO graph_edges (source, target, edge_type, weight, timestamp) VALUES (?,?,?,?,?)',
+  )
   ge.run('gist_h1', 'fact_h1_0', 'ctx', 1.0, '2026-01-01T00:00:00Z')
   ge.run('gist_h1', 'fact_h1_0', 'ctx', 2.0, '2026-01-02T00:00:00Z')
   ge.run('index.md', 'entities/switchui.md', 'references', 1.0, null)
   // mentions (memory → entity); note a non-mentions kind that must be ignored
-  const an = db.prepare('INSERT INTO annotations (memory_id, kind, value, confidence) VALUES (?,?,?,?)')
+  const an = db.prepare(
+    'INSERT INTO annotations (memory_id, kind, value, confidence) VALUES (?,?,?,?)',
+  )
   an.run('h1', 'mentions', 'SwitchUI', 0.8)
   an.run('h1', 'mentions', 'React', 0.7)
   an.run('w1', 'mentions', 'React', 0.6)
   an.run('h1', 'occurred_on', '2026-01-01', 1.0) // must be ignored
+  an.run('h1', 'mentions', 'Re', 0.9) // stopword entity → dropped
+  an.run('h1', 'mentions', 'Users', 0.9) // stopword entity → dropped
+  an.run('h1', 'mentions', 'Go', 0.9) // < 3 chars → dropped
+  an.run('h1', 'mentions', 'ONLY', 0.9) // stopword, case-insensitive
+  an.run('h1', 'mentions', 'PR', 0.5) // acronym kept…
+  an.run('w1', 'mentions', 'PR', 0.5) // …seen twice
+  an.run('h1', 'mentions', 'Lonely', 0.5) // single mention → dropped
   // episodic summarizes memories h1 + h2
-  db.prepare('INSERT INTO episodic_memory (id, content, summary_of, timestamp) VALUES (?,?,?,?)').run(
-    'e1', 'episode content', 'h1,h2', '2026-02-01T00:00:00Z',
-  )
+  db.prepare(
+    'INSERT INTO episodic_memory (id, content, summary_of, timestamp) VALUES (?,?,?,?)',
+  ).run('e1', 'episode content', 'h1,h2', '2026-02-01T00:00:00Z')
   // relates (entity → entity)
-  db.prepare('INSERT INTO memoria_kg (subject, object, confidence) VALUES (?,?,?)').run('Rohit', 'SwitchUI', 0.9)
+  db.prepare(
+    'INSERT INTO memoria_kg (subject, object, confidence) VALUES (?,?,?)',
+  ).run('Rohit', 'SwitchUI', 0.9)
+  db.prepare(
+    'INSERT INTO memoria_kg (subject, object, confidence) VALUES (?,?,?)',
+  ).run('Done', 'Yes', 0.9)
   db.close()
   return p
 }
@@ -70,13 +117,16 @@ function buildMinimalFixture(): string {
     CREATE TABLE gists (id TEXT PRIMARY KEY, text TEXT);
     CREATE TABLE facts (fact_id TEXT PRIMARY KEY, subject TEXT, predicate TEXT, object TEXT, confidence REAL, timestamp TEXT);
   `)
-  db.prepare('INSERT INTO gists (id, text) VALUES (?,?)').run('gist_x', 'x gist')
-  db.prepare('INSERT INTO facts (fact_id, subject, predicate, object) VALUES (?,?,?,?)').run(
-    'fact_x_0', 'Alpha', 'is', 'Beta',
+  db.prepare('INSERT INTO gists (id, text) VALUES (?,?)').run(
+    'gist_x',
+    'x gist',
   )
-  db.prepare('INSERT INTO graph_edges (source, target, edge_type, weight) VALUES (?,?,?,?)').run(
-    'gist_x', 'fact_x_0', 'ctx', 1.0,
-  )
+  db.prepare(
+    'INSERT INTO facts (fact_id, subject, predicate, object) VALUES (?,?,?,?)',
+  ).run('fact_x_0', 'Alpha', 'is', 'Beta')
+  db.prepare(
+    'INSERT INTO graph_edges (source, target, edge_type, weight) VALUES (?,?,?,?)',
+  ).run('gist_x', 'fact_x_0', 'ctx', 1.0)
   db.close()
   return p
 }
@@ -100,7 +150,9 @@ afterAll(() => {
 describe('buildMemoryGraph — full census', () => {
   it('dedups ctx edges and aggregates occurrences + max weight', () => {
     const g = buildMemoryGraph({ edgeType: 'ctx' })
-    const e = g.edges.find((x) => x.source === 'gist_h1' && x.target === 'fact_h1_0')
+    const e = g.edges.find(
+      (x) => x.source === 'gist_h1' && x.target === 'fact_h1_0',
+    )
     expect(e?.occurrences).toBe(2)
     expect(e?.weight).toBe(2)
   })
@@ -108,27 +160,58 @@ describe('buildMemoryGraph — full census', () => {
   it('builds mentions edges memory→entity, resolving the memory hash to its gist', () => {
     const g = buildMemoryGraph({ edgeType: 'mentions' })
     // h1 has a gist → gist_h1; w1 has no gist → wm_w1
-    expect(g.edges).toContainEqual(expect.objectContaining({ source: 'gist_h1', target: 'entity:SwitchUI', edgeType: 'mentions' }))
-    expect(g.edges).toContainEqual(expect.objectContaining({ source: 'wm_w1', target: 'entity:React', edgeType: 'mentions' }))
+    expect(g.edges).toContainEqual(
+      expect.objectContaining({
+        source: 'gist_h1',
+        target: 'entity:SwitchUI',
+        edgeType: 'mentions',
+      }),
+    )
+    expect(g.edges).toContainEqual(
+      expect.objectContaining({
+        source: 'wm_w1',
+        target: 'entity:React',
+        edgeType: 'mentions',
+      }),
+    )
     // the non-mentions annotation kind is ignored
     expect(g.edges.every((e) => e.edgeType === 'mentions')).toBe(true)
   })
 
   it('builds about edges fact→entity for subject and object', () => {
     const about = edgeKey(buildMemoryGraph({ edgeType: 'about' }), 'about')
-    expect(about).toContainEqual(expect.objectContaining({ source: 'fact_h1_0', target: 'entity:Rohit' }))
-    expect(about).toContainEqual(expect.objectContaining({ source: 'fact_h1_0', target: 'entity:SwitchUI' }))
+    expect(about).toContainEqual(
+      expect.objectContaining({ source: 'fact_h1_0', target: 'entity:Rohit' }),
+    )
+    expect(about).toContainEqual(
+      expect.objectContaining({
+        source: 'fact_h1_0',
+        target: 'entity:SwitchUI',
+      }),
+    )
   })
 
   it('builds summarizes edges episodic→memory from summary_of hashes', () => {
-    const s = edgeKey(buildMemoryGraph({ edgeType: 'summarizes' }), 'summarizes')
-    expect(s).toContainEqual(expect.objectContaining({ source: 'ep_e1', target: 'gist_h1' }))
-    expect(s).toContainEqual(expect.objectContaining({ source: 'ep_e1', target: 'gist_h2' }))
+    const s = edgeKey(
+      buildMemoryGraph({ edgeType: 'summarizes' }),
+      'summarizes',
+    )
+    expect(s).toContainEqual(
+      expect.objectContaining({ source: 'ep_e1', target: 'gist_h1' }),
+    )
+    expect(s).toContainEqual(
+      expect.objectContaining({ source: 'ep_e1', target: 'gist_h2' }),
+    )
   })
 
   it('builds relates edges entity→entity from memoria_kg', () => {
     const r = edgeKey(buildMemoryGraph({ edgeType: 'relates' }), 'relates')
-    expect(r).toContainEqual(expect.objectContaining({ source: 'entity:Rohit', target: 'entity:SwitchUI' }))
+    expect(r).toContainEqual(
+      expect.objectContaining({
+        source: 'entity:Rohit',
+        target: 'entity:SwitchUI',
+      }),
+    )
   })
 
   it('dedups memory by hash: working row with a gist is NOT a separate node', () => {
@@ -158,14 +241,23 @@ describe('buildMemoryGraph — full census', () => {
   })
 
   it('filters by edgeType', () => {
-    for (const t of ['ctx', 'references', 'mentions', 'about', 'relates', 'summarizes'] as const) {
+    for (const t of [
+      'ctx',
+      'references',
+      'mentions',
+      'about',
+      'relates',
+      'summarizes',
+    ] as const) {
       const g = buildMemoryGraph({ edgeType: t })
       expect(g.edges.every((e) => e.edgeType === t)).toBe(true)
     }
   })
 
   it('returns edges in stable sorted order', () => {
-    const keys = buildMemoryGraph({}).edges.map((e) => `${e.edgeType}|${e.source}|${e.target}`)
+    const keys = buildMemoryGraph({}).edges.map(
+      (e) => `${e.edgeType}|${e.source}|${e.target}`,
+    )
     expect(keys).toEqual([...keys].sort())
   })
 
@@ -173,6 +265,103 @@ describe('buildMemoryGraph — full census', () => {
     const g = buildMemoryGraph({ limit: 1 })
     expect(g.edges).toHaveLength(1)
     expect(g.meta.truncated).toBe(true)
+  })
+})
+
+describe('buildMemoryGraph — fair truncation, pruning, wiki, stopwords', () => {
+  it('a tight limit keeps every edge type and reports byType/droppedByType', () => {
+    const full = buildMemoryGraph({})
+    const g = buildMemoryGraph({ limit: 6 })
+    const types = new Set(full.edges.map((e) => e.edgeType))
+    expect(types.size).toBe(6)
+    expect(new Set(g.edges.map((e) => e.edgeType))).toEqual(types)
+    for (const t of types) expect(g.meta.byType[t]).toBe(1)
+    const dropped = Object.values(g.meta.droppedByType).reduce(
+      (a, b) => a + b,
+      0,
+    )
+    expect(dropped).toBe(full.edges.length - 6)
+    expect(g.meta.truncated).toBe(true)
+    expect(full.meta.truncated).toBe(false)
+  })
+
+  it('within a type the cut keeps the highest-weight edges', () => {
+    const g = buildMemoryGraph({ edgeType: 'mentions', limit: 1 })
+    expect(g.edges).toEqual([
+      expect.objectContaining({ target: 'entity:SwitchUI' }),
+    ])
+  })
+
+  it('prunes nodes left without edges, except wiki pages', () => {
+    const g = buildMemoryGraph({ limit: 6 })
+    const linked = new Set(g.edges.flatMap((e) => [e.source, e.target]))
+    for (const n of g.nodes)
+      if (n.kind !== 'wiki') expect(linked.has(n.id)).toBe(true)
+    // gist_h2 is only reachable via summarizes; with mentions-only it is gone
+    const m = buildMemoryGraph({ edgeType: 'mentions' })
+    expect(m.nodes.some((n) => n.id === 'gist_h2')).toBe(false)
+  })
+
+  it('includes every wiki page as a node even without links, ids = wiki paths', () => {
+    const g = buildMemoryGraph({})
+    const wiki = g.nodes.filter((n) => n.kind === 'wiki').map((n) => n.id)
+    expect(wiki).toEqual(
+      expect.arrayContaining([
+        'index.md',
+        'orphan-page.md',
+        'entities/switchui.md',
+      ]),
+    )
+    expect(wiki.filter((id) => id === 'index.md')).toHaveLength(1) // no dup with edge node
+    expect(g.nodes.find((n) => n.id === 'orphan-page.md')?.label).toBe(
+      'orphan-page',
+    )
+  })
+
+  it('limit below type count still gives the rarest types one edge each', () => {
+    const g = buildMemoryGraph({ limit: 3 })
+    expect(g.edges).toHaveLength(3)
+    expect(new Set(g.edges.map((e) => e.edgeType)).size).toBe(3)
+  })
+
+  it('cut is deterministic across calls', () => {
+    const ids = (lim: number) =>
+      buildMemoryGraph({ limit: lim }).edges.map(
+        (e) => `${e.source}>${e.target}`,
+      )
+    expect(ids(7)).toEqual(ids(7))
+  })
+
+  it('keeps acronyms, drops single-mention entities, counts junk in meta', () => {
+    const g = buildMemoryGraph({})
+    const ids = new Set(g.nodes.map((n) => n.id))
+    expect(ids.has('entity:PR')).toBe(true)
+    expect(ids.has('entity:Lonely')).toBe(false)
+    expect(ids.has('entity:ONLY')).toBe(false)
+    // fact subject with degree 1 survives (Rohit only appears in relates)
+    expect(ids.has('entity:Rohit')).toBe(true)
+    expect(g.meta.junkDropped).toBe(6) // Re, Users, Go, ONLY, Done→Yes, Lonely
+    expect(g.meta.rawEdgeCount).toBeGreaterThanOrEqual(
+      g.edges.length + g.meta.junkDropped,
+    )
+  })
+
+  it('drops stopword / short entities and every edge touching them', () => {
+    const g = buildMemoryGraph({})
+    const ids = new Set(g.nodes.map((n) => n.id))
+    for (const junk of [
+      'entity:Re',
+      'entity:Users',
+      'entity:Go',
+      'entity:Done',
+      'entity:Yes',
+    ]) {
+      expect(ids.has(junk)).toBe(false)
+      expect(g.edges.some((e) => e.source === junk || e.target === junk)).toBe(
+        false,
+      )
+    }
+    expect(ids.has('entity:React')).toBe(true)
   })
 })
 

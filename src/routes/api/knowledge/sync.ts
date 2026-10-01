@@ -90,7 +90,16 @@ export const Route = createFileRoute('/api/knowledge/sync')({
           const { writeKnowledgeBaseConfig } = await import(
             '../../../server/knowledge-config'
           )
-          writeKnowledgeBaseConfig(config)
+          try {
+            writeKnowledgeBaseConfig(config)
+          } catch (err) {
+            const message =
+              err instanceof Error ? err.message : 'Invalid config'
+            return Response.json(
+              { error: message },
+              { status: /not allowed/i.test(message) ? 403 : 400 },
+            )
+          }
         }
 
         try {

@@ -43,15 +43,16 @@ export const Route = createFileRoute('/api/knowledge/config')({
           writeKnowledgeBaseConfig(next)
           return Response.json({ config: next })
         } catch (error) {
-          return Response.json(
-            {
-              error:
-                error instanceof Error
-                  ? error.message
-                  : 'Failed to save knowledge base config',
-            },
-            { status: 500 },
-          )
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Failed to save knowledge base config'
+          const status = /not allowed/i.test(message)
+            ? 403
+            : /invalid/i.test(message)
+              ? 400
+              : 500
+          return Response.json({ error: message }, { status })
         }
       },
     },

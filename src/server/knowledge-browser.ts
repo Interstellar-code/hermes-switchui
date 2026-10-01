@@ -2,7 +2,12 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
-import { getKnowledgeBaseEffectiveRoot, readKnowledgeBaseConfig } from './knowledge-config'
+import {
+  getKnowledgeBaseEffectiveRoot,
+  isAllowedLocalKnowledgePath,
+  readKnowledgeBaseConfig,
+} from './knowledge-config'
+import { isWithinRealRoot } from './path-containment'
 import type { KnowledgeBaseSource } from './knowledge-config'
 
 export type WikiPageMeta = {
@@ -182,9 +187,17 @@ type GitHubEntry =
   | { type: 'file'; name: string; path: string; sha: string; content?: string }
   | { type: 'dir'; name: string; path: string; sha: string }
 
+// Bounds on a GitHub sync so a huge or hostile repo can't fill the disk or
+// run unbounded API calls.
+const GITHUB_SYNC_MAX_DEPTH = 8
+const GITHUB_SYNC_MAX_ENTRIES = 2000 // .md files + directories
+const GITHUB_SYNC_MAX_BYTES = 50 * 1024 * 1024
+
 class GitHubKnowledgeProvider {
   private readonly cacheDir: string
   private readonly branch: string
+  private syncedEntries = 0
+  private syncedBytes = 0
 
   constructor(
     private readonly repo: string,
@@ -208,8 +221,10 @@ class GitHubKnowledgeProvider {
 
   /** Fetch + decode the GitHub repo into the local cache directory. */
   async sync(): Promise<void> {
+    this.syncedEntries = 0
+    this.syncedBytes = 0
     try {
-      await this.fetchDir(this.repoPath)
+      await this.fetchDir(this.repoPath, 0)
     } catch (err) {
       throw new Error(
         `GitHub sync failed for ${this.repo} (branch ${this.branch}): ${err instanceof Error ? err.message : String(err)}`,
@@ -230,9 +245,20 @@ class GitHubKnowledgeProvider {
     return this.cacheDir
   }
 
-  private async fetchDir(dirPath: string): Promise<void> {
-    const url = `https://api.github.com/repos/${this.repo}/contents/${dirPath}?ref=${this.branch}`
-    const res = await fetch(url, {
+  private apiUrl(repoPath: string): string {
+    const encodedPath = repoPath
+      .split('/')
+      .filter(Boolean)
+      .map(encodeURIComponent)
+      .join('/')
+    return `https://api.github.com/repos/${this.repo}/contents/${encodedPath}?ref=${encodeURIComponent(this.branch)}`
+  }
+
+  private async fetchDir(dirPath: string, depth: number): Promise<void> {
+    if (depth > GITHUB_SYNC_MAX_DEPTH) {
+      throw new Error(`Repo nesting exceeds ${GITHUB_SYNC_MAX_DEPTH} levels`)
+    }
+    const res = await fetch(this.apiUrl(dirPath), {
       headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-switchui' },
     })
     if (!res.ok) {
@@ -240,29 +266,53 @@ class GitHubKnowledgeProvider {
       throw new Error(`GitHub API ${res.status}: ${body}`)
     }
     const entries = (await res.json()) as Array<GitHubEntry>
+    const base = this.repoPath.split('/').filter(Boolean)
 
     for (const entry of entries) {
-      if (entry.name === '.git') continue
+      // Hostile/odd names never reach the filesystem.
+      if (
+        !entry.name ||
+        entry.name === '.' ||
+        entry.name === '..' ||
+        entry.name === '.git' ||
+        /[\\/\0]/.test(entry.name)
+      )
+        continue
+      // Mirror the repo layout under cacheDir (keeps nested dirs from
+      // flattening into each other) using entry.path relative to repoPath.
+      const segments = String(entry.path).split('/').filter(Boolean)
+      if (
+        segments.length <= base.length ||
+        base.some((seg, i) => segments[i] !== seg) ||
+        segments.at(-1) !== entry.name ||
+        segments.some((seg) => seg === '.' || seg === '..' || /[\\\0]/.test(seg))
+      )
+        continue
+      const fullPath = path.join(this.cacheDir, ...segments.slice(base.length))
+      if (!isWithinRealRoot(this.cacheDir, fullPath)) continue
 
-      const fullPath = path.join(this.cacheDir, entry.name)
-      const parentDir = path.dirname(fullPath)
-      if (!fs.existsSync(parentDir)) {
-        fs.mkdirSync(parentDir, { recursive: true })
+      const isDir = entry.type === 'dir'
+      if (!isDir && !entry.name.toLowerCase().endsWith('.md')) continue
+      if (++this.syncedEntries > GITHUB_SYNC_MAX_ENTRIES) {
+        throw new Error(`Repo exceeds ${GITHUB_SYNC_MAX_ENTRIES} files/dirs`)
       }
-
-      if (entry.type === 'dir') {
+      if (isDir) {
         fs.mkdirSync(fullPath, { recursive: true })
-        await this.fetchDir(entry.path)
-      } else if (entry.name.toLowerCase().endsWith('.md')) {
+        await this.fetchDir(entry.path, depth + 1)
+      } else {
         const content = await this.fetchFile(entry)
+        this.syncedBytes += Buffer.byteLength(content, 'utf-8')
+        if (this.syncedBytes > GITHUB_SYNC_MAX_BYTES) {
+          throw new Error('Repo exceeds 50 MB of markdown')
+        }
+        fs.mkdirSync(path.dirname(fullPath), { recursive: true })
         fs.writeFileSync(fullPath, content, 'utf-8')
       }
     }
   }
 
   private async fetchFile(entry: { path: string; sha: string }): Promise<string> {
-    const url = `https://api.github.com/repos/${this.repo}/contents/${entry.path}?ref=${this.branch}`
-    const res = await fetch(url, {
+    const res = await fetch(this.apiUrl(entry.path), {
       headers: { Accept: 'application/vnd.github.v3+json', 'User-Agent': 'hermes-switchui' },
     })
     if (!res.ok) {
@@ -345,7 +395,7 @@ export async function syncKnowledgeSource(): Promise<{
 // ─── Path helpers ─────────────────────────────────────────────────────────────
 
 function normalizeRelativeKnowledgePath(input: string): string {
-  const normalized = input.replace(/\\\\/g, '/').trim()
+  const normalized = input.replace(/\\/g, '/').trim()
   if (!normalized) throw new Error('Path is required')
   if (normalized.startsWith('/'))
     throw new Error('Absolute paths are not allowed')
@@ -356,6 +406,16 @@ function normalizeRelativeKnowledgePath(input: string): string {
   return normalized
 }
 
+// Re-checked on every read/write: knowledge-config.json may have been
+// hand-edited to point outside the allowed wiki roots since it was validated.
+// GitHub sources live in the validated knowledge-cache dir instead.
+function assertAllowedLocalRoot(): void {
+  if (readKnowledgeBaseConfig().source.type !== 'local') return
+  if (!isAllowedLocalKnowledgePath(getKnowledgeRoot())) {
+    throw new Error('Knowledge root is not allowed: not a wiki directory')
+  }
+}
+
 function resolveKnowledgeFilePath(relativePath: string): {
   fullPath: string
   relativePath: string
@@ -364,7 +424,11 @@ function resolveKnowledgeFilePath(relativePath: string): {
   const knowledgeRoot = path.resolve(getKnowledgeRoot())
   const fullPath = path.resolve(knowledgeRoot, safeRelativePath)
   const relativeFromRoot = path.relative(knowledgeRoot, fullPath)
-  if (relativeFromRoot.startsWith('..') || path.isAbsolute(relativeFromRoot)) {
+  if (
+    relativeFromRoot.startsWith('..') ||
+    path.isAbsolute(relativeFromRoot) ||
+    !isWithinRealRoot(knowledgeRoot, fullPath)
+  ) {
     throw new Error('Resolved path is outside knowledge root')
   }
   return { fullPath, relativePath: safeRelativePath }
@@ -531,6 +595,7 @@ export function readKnowledgePage(relativePath: string): {
   content: string
   backlinks: Array<string>
 } {
+  assertAllowedLocalRoot()
   const { fullPath, relativePath: safeRelativePath } =
     resolveKnowledgeFilePath(relativePath)
   const parsed = readParsedKnowledgeFile(fullPath, safeRelativePath)
@@ -599,8 +664,9 @@ export function writeKnowledgePage(
 ): WikiPageMeta {
   const config = readKnowledgeBaseConfig()
   if (config.source.type === 'github') {
-    throw new Error('Cannot write to GitHub-backed knowledge base')
+    throw new Error('GitHub-backed wiki is read-only; edit upstream')
   }
+  assertAllowedLocalRoot()
   const { fullPath, relativePath: safeRelativePath } =
     resolveKnowledgeFilePath(relativePath)
   if (!isCuratedPage(safeRelativePath)) {
@@ -619,8 +685,9 @@ export function writeKnowledgePage(
 export function deleteKnowledgePage(relativePath: string): void {
   const config = readKnowledgeBaseConfig()
   if (config.source.type === 'github') {
-    throw new Error('Cannot delete from GitHub-backed knowledge base')
+    throw new Error('GitHub-backed wiki is read-only; edit upstream')
   }
+  assertAllowedLocalRoot()
   const { fullPath, relativePath: safeRelativePath } = resolveKnowledgeFilePath(relativePath)
   if (!isCuratedPage(safeRelativePath)) {
     throw new Error('Writes to raw/ are not allowed')

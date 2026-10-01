@@ -3,7 +3,7 @@
  *
  * Sections:
  * 1. Matrix wiki source — local FS vs GitHub-backed (read + edit via /api/knowledge/config)
- * 2. Cache controls — clear knowledge cache via /api/knowledge/sync?action=clear
+ * 2. Cache controls — re-sync the wiki source via POST /api/knowledge/sync
  * 3. Provider config notice — per-agent memory providers live in Profile wizard step 6
  */
 
@@ -302,12 +302,27 @@ function CacheSection() {
   async function handleClear() {
     setClearing(true)
     try {
-      // Invalidate all TanStack Query knowledge caches so the next request
-      // fetches fresh data from the wiki source. The server holds no separate
-      // in-memory cache beyond what knowledge-browser.ts builds on each call,
-      // so client-side invalidation is sufficient.
-      await qc.invalidateQueries({ queryKey: ['knowledge'] })
-      showToast('Knowledge cache cleared')
+      // Re-sync the wiki source (re-downloads a GitHub-backed wiki into its
+      // local cache; no-op for a local folder), then drop the client query
+      // cache so every tab re-reads. Empty body = sync the saved source.
+      const res = await fetch('/api/knowledge/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string
+      }
+      if (!res.ok || payload.error)
+        throw new Error(payload.error ?? `Request failed (${res.status})`)
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['knowledge'] }),
+        qc.invalidateQueries({ queryKey: ['memory', 'map'] }),
+      ])
+      showToast('Knowledge re-synced')
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Re-sync failed', {
+        type: 'error',
+      })
     } finally {
       setClearing(false)
     }
@@ -317,8 +332,8 @@ function CacheSection() {
     <section className="mset-section">
       <h2 className="mset-section-title">Cache Controls</h2>
       <p className="mset-section-desc">
-        Clears the in-memory knowledge cache so the next request fetches fresh
-        data from the matrix wiki source. Useful after manual edits to the
+        Re-syncs the wiki source (re-downloads a GitHub-backed wiki) and
+        refreshes every knowledge view. Useful after manual edits to the
         underlying files.
       </p>
       <div className="mset-actions">
@@ -328,7 +343,7 @@ function CacheSection() {
           onClick={() => void handleClear()}
           disabled={clearing}
         >
-          {clearing ? 'Clearing…' : 'Clear Knowledge Cache'}
+          {clearing ? 'Syncing…' : 'Re-sync Knowledge'}
         </button>
       </div>
     </section>

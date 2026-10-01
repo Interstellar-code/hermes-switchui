@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import YAML from 'yaml'
+import { isWithinRealRoot } from './path-containment'
 
 export type KnowledgeBaseSource =
   | { type: 'local'; path: string }
@@ -126,6 +127,15 @@ export function readKnowledgeBaseConfig(): KnowledgeBaseConfig {
 }
 
 export function writeKnowledgeBaseConfig(config: KnowledgeBaseConfig): void {
+  const source = config.source as { type?: unknown; path?: unknown } | undefined
+  if (source?.type === 'local') {
+    if (typeof source.path !== 'string')
+      throw new Error('Invalid config: source.path must be a string')
+    if (source.path.trim() && !isAllowedLocalKnowledgePath(source.path))
+      throw new Error(
+        'Wiki path not allowed: use $HERMES_HOME/wikis, a profile matrix-memory/wiki, or the default wiki root',
+      )
+  }
   const configPath = getConfigPath()
   const dir = path.dirname(configPath)
   if (!fs.existsSync(dir)) {
@@ -140,7 +150,38 @@ export function getKnowledgeBaseEffectiveRoot(): string {
     const p = config.source.path.trim()
     if (p) return resolveLocalPath(p)
   }
+  return getDefaultKnowledgeRoot()
+}
 
+/**
+ * A user-configured local wiki path must resolve (symlinks followed on the
+ * deepest existing ancestor) into a dedicated wiki subtree — otherwise
+ * `/api/knowledge/write` could write `.md` anywhere, e.g. skills/x/SKILL.md or
+ * profiles/<p>/SOUL.md. Inside $HERMES_HOME only `wikis/` and
+ * `profiles/<p>/matrix-memory/wiki` qualify (never HERMES_HOME itself);
+ * outside it, only the auto-discovered default wiki root.
+ */
+export function isAllowedLocalKnowledgePath(input: string): boolean {
+  const resolved = resolveLocalPath(input)
+  const home = getHermesHome()
+  if (isWithinRealRoot(path.join(home, 'wikis'), resolved)) return true
+  const [top, profile, mm, wiki] = path.relative(home, resolved).split(path.sep)
+  if (
+    top === 'profiles' &&
+    profile &&
+    profile !== '..' &&
+    mm === 'matrix-memory' &&
+    wiki === 'wiki' &&
+    isWithinRealRoot(path.join(home, top, profile, mm, wiki), resolved)
+  )
+    return true
+  // Anything else that lands in HERMES_HOME (skills/, memory/, SOUL.md, …) is
+  // off-limits even if the default root happens to point there.
+  if (isWithinRealRoot(home, resolved)) return false
+  return isWithinRealRoot(getDefaultKnowledgeRoot(), resolved)
+}
+
+function getDefaultKnowledgeRoot(): string {
   // Canonical Hermes/LLM Wiki discovery order. `knowledge-config.json` remains
   // the explicit UI override, but the UI should also honor the same paths the
   // agent-side llm-wiki skill uses.

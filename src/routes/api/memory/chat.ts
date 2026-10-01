@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
 import { openaiChat } from '../../../server/openai-compat-api'
+import { requireJsonContentType } from '../../../server/rate-limit'
 import type { OpenAICompatMessage } from '../../../server/openai-compat-api'
 
 // Memory chat — a NON-agentic completion grounded strictly in the caller's
@@ -30,6 +31,8 @@ export const Route = createFileRoute('/api/memory/chat')({
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
+        const csrfCheck = requireJsonContentType(request)
+        if (csrfCheck) return csrfCheck
 
         let body: {
           message?: unknown

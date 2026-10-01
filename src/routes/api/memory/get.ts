@@ -30,7 +30,7 @@ export const Route = createFileRoute('/api/memory/get')({
           //   - no absolute paths
           //   - no path traversal (..)
           //   - only .md files
-          //   - path must be within workspace root (MEMORY.md | memory/ | memories/)
+          //   - path must be MEMORY.md | memory/ | memories/ and realpath-contained
           const { fullPath } = resolveMemoryFilePath(relativePath)
           const content = readMemoryFile(relativePath)
           const stat = fs.statSync(fullPath)
@@ -42,12 +42,14 @@ export const Route = createFileRoute('/api/memory/get')({
           })
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Failed to read memory file'
-          // Path validation errors should be 400; filesystem errors 500
+          // Outside the memory allowlist → 403; malformed → 400; fs errors 500
+          if (/not a memory file|outside workspace/i.test(message)) {
+            return Response.json({ error: message }, { status: 403 })
+          }
           const isValidationError =
             message.includes('not allowed') ||
             message.includes('traversal') ||
             message.includes('required') ||
-            message.includes('outside workspace') ||
             message.includes('Only Markdown')
           return Response.json({ error: message }, { status: isValidationError ? 400 : 500 })
         }

@@ -75,3 +75,38 @@ export function resolveContainedPath(root: string, relative: string): string {
 
   return real
 }
+
+/**
+ * Write-side variant: `candidate` (absolute) may not exist yet. Realpath its
+ * deepest existing ancestor — found with lstat so a dangling symlink still
+ * counts (a write would follow it, so it is rejected) — and require that to
+ * sit inside the real `root`. Trailing separator so `/x/memory-evil` never
+ * matches root `/x/memory`. A missing root has nothing under it to follow,
+ * so the lexical comparison is sufficient there.
+ */
+export function isWithinRealRoot(root: string, candidate: string): boolean {
+  const contains = (base: string, p: string) =>
+    p === base || p.startsWith(base.endsWith(path.sep) ? base : base + path.sep)
+  let realRoot: string
+  try {
+    realRoot = fs.realpathSync(root)
+  } catch {
+    return contains(path.resolve(root), path.resolve(candidate))
+  }
+  let probe = path.resolve(candidate)
+  for (;;) {
+    try {
+      fs.lstatSync(probe)
+      break
+    } catch {
+      const parent = path.dirname(probe)
+      if (parent === probe) break
+      probe = parent
+    }
+  }
+  try {
+    return contains(realRoot, fs.realpathSync(probe))
+  } catch {
+    return false // dangling symlink
+  }
+}
