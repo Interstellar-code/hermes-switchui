@@ -239,7 +239,7 @@ def has_table(cur, name):
 
 REDACTIONS = [
     (re.compile(r"(?i)\\b(bearer|basic)\\s+[A-Za-z0-9._~+/=-]+"), r"\\1 [redacted]"),
-    (re.compile(r"\\b(sk-[A-Za-z0-9_-]{6,}|ghp_[A-Za-z0-9]+|gho_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|xox[bp]-[A-Za-z0-9-]+)"), "[redacted]"),
+    (re.compile(r"\\b(sk-[A-Za-z0-9_-]{6,}|ghp_[A-Za-z0-9]+|gho_[A-Za-z0-9]+|github_pat_[A-Za-z0-9_]+|xox[bp]-[A-Za-z0-9-]+)"), "[redacted]"),  # pragma: allowlist secret
     (re.compile(r"(?i)(\\"?[A-Za-z_]*(?:key|token|secret|password|passwd)\\"?\\s*:\\s*\\")[^\\"]*(\\")"), r"\\1[redacted]\\2"),
     (re.compile(r"(?i)\\b([A-Za-z_]*(?:key|token|secret|password|passwd|api_key))=\\S+"), r"\\1=[redacted]"),
     (re.compile(r"://[^/\\s:@]+:[^/\\s@]+@"), "://[redacted]@"),
