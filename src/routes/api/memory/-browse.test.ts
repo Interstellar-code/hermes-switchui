@@ -62,7 +62,7 @@ beforeAll(() => {
     CREATE TABLE episodic_memory (rowid INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP);
     CREATE VIRTUAL TABLE fts_episodes USING fts5(content, content='episodic_memory', content_rowid='rowid');
     CREATE TABLE gists (id TEXT PRIMARY KEY, text TEXT NOT NULL, created_at TIMESTAMP);
-    CREATE TABLE facts (fact_id TEXT PRIMARY KEY, subject TEXT, predicate TEXT, object TEXT, created_at TIMESTAMP);
+    CREATE TABLE facts (fact_id TEXT PRIMARY KEY, subject TEXT, predicate TEXT, object TEXT, timestamp TEXT, created_at TIMESTAMP);
     CREATE VIRTUAL TABLE fts_facts USING fts5(subject, predicate, object, content='facts');
     CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, memory_id TEXT, kind TEXT, value TEXT, created_at TIMESTAMP);
   `)
@@ -84,12 +84,33 @@ beforeAll(() => {
     'gist with 100% fox',
     '2026-03-01 10:00:00',
   )
-  db.prepare('INSERT INTO facts VALUES (?, ?, ?, ?, ?)').run(
+  const fact = db.prepare('INSERT INTO facts VALUES (?, ?, ?, ?, ?, ?)')
+  // f0 is first by (timestamp, fact_id) → canonical id/text; the row's date
+  // is the group's newest created_at (f1's)
+  fact.run(
     'f1',
     'Rohit',
     'likes',
     'fox',
+    '2026-01-15T12:00:00',
     '2026-01-15 10:00:00',
+  )
+  fact.run(
+    'f0',
+    'rohit ',
+    'likes',
+    ' Fox',
+    '2026-01-09T12:00:00',
+    '2026-01-10 10:00:00',
+  )
+  // junk fragment → hidden, like on the Map
+  fact.run(
+    'j1',
+    'If there',
+    'is',
+    'genuinely',
+    '2026-01-16T12:00:00',
+    '2026-01-16 10:00:00',
   )
   db.exec(
     `INSERT INTO fts_facts (rowid, subject, predicate, object) SELECT rowid, subject, predicate, object FROM facts`,
@@ -126,7 +147,7 @@ describe('GET /api/memory/browse', () => {
       'g1',
       'e1',
       'entity:Fox',
-      'f1',
+      'f0',
       'w4',
       'w3',
       'w2',
@@ -135,6 +156,18 @@ describe('GET /api/memory/browse', () => {
     ])
     expect(body.items[0].createdAt).toBe('2026-03-01T10:00:00.000Z')
     expect(body.nextCursor).toBeNull()
+  })
+
+  it('collapses identical facts into their first row and hides junk', async () => {
+    const { body } = await browse('type=fact')
+    expect(body.items).toEqual([
+      {
+        id: 'f0',
+        type: 'fact',
+        text: 'rohit likes Fox', // f0's own text (whitespace collapsed)
+        createdAt: '2026-01-15T10:00:00.000Z',
+      },
+    ])
   })
 
   it('paginates with an opaque keyset cursor', async () => {
@@ -189,7 +222,7 @@ describe('GET /api/memory/browse', () => {
   it('searches via FTS (prefix) and LIKE fallbacks', async () => {
     const { body } = await browse('q=fox')
     expect(body.items.map((i) => i.id).sort()).toEqual(
-      ['e1', 'entity:Fox', 'f1', 'g1', 'w2'].sort(),
+      ['e1', 'entity:Fox', 'f0', 'g1', 'w2'].sort(),
     )
   })
 

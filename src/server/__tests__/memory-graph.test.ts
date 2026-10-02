@@ -11,7 +11,8 @@ import {
   it,
   vi,
 } from 'vitest'
-import { buildMemoryGraph } from '../memory-graph'
+import { buildMemoryGraph, isJunkFact } from '../memory-graph'
+import { getMemoryGraphNode } from '../memory-graph-node'
 
 // Keep the wiki source deterministic: the real one reads the user's config.
 const wikiPages = vi.hoisted(() => ({
@@ -382,5 +383,133 @@ describe('buildMemoryGraph — resilience', () => {
     expect(g.edges.some((e) => e.edgeType === 'ctx')).toBe(true)
     expect(g.edges.some((e) => e.edgeType === 'about')).toBe(true)
     expect(g.edges.some((e) => e.edgeType === 'mentions')).toBe(false)
+  })
+})
+
+describe('isJunkFact', () => {
+  it.each([
+    ['If there', 'is', 'genuinely'],
+    ['So this', 'is', 'genuinely'],
+    ['Below', 'is', 'what'],
+    ['Discussion', 'is', 'not'],
+    ['How the runner', 'uses', 'this'],
+    ['The build', 'is', 'lready'],
+    ['Why this', 'is', 'important'],
+    ['Okay so', 'is', 'fine'],
+    ['The router', 'is', 'multi'],
+    ['It', 'runs', 'quickly'],
+  ])('junk: %s | %s | %s', (s, p, o) => {
+    expect(isJunkFact(s, p, o)).toBe(true)
+  })
+  it.each([
+    ['Rohit', 'works_at', 'Interstellar Code'],
+    ['Circuit breaker', 'uses', 'native'],
+    ['Each signal file', 'has', 'YAML'],
+    ['Sreeharsha Hanumanthu', 'is', 'Trainee'],
+    ['Therapist', 'is', 'helpful'], // "the…" prefix is not the filler "the"
+    ['Task', 'is', 'done'], // stopword, but allowlisted
+    ['Rohit', 'has', 'family'], // -ly noun, allowlisted
+    ['Trip', 'is', 'Italy'],
+  ])('keep: %s | %s | %s', (s, p, o) => {
+    expect(isJunkFact(s, p, o)).toBe(false)
+  })
+})
+
+describe('fact dedupe + junk filter', () => {
+  function dupFixture(): string {
+    const p = newDbPath('mmap-dup')
+    const db = new Database(p)
+    db.exec(`
+      CREATE TABLE graph_edges (id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT, target TEXT, edge_type TEXT, weight REAL, timestamp TEXT);
+      CREATE TABLE facts (fact_id TEXT PRIMARY KEY, subject TEXT, predicate TEXT, object TEXT, confidence REAL, timestamp TEXT, created_at TIMESTAMP);
+    `)
+    const ins = db.prepare(
+      'INSERT INTO facts (fact_id, subject, predicate, object, confidence, timestamp, created_at) VALUES (?,?,?,?,?,?,?)',
+    )
+    // created_at (UTC) drives "Seen"; timestamp only orders canonical rows
+    const f = {
+      run: (...a: [string, string, string, string, number, string]) =>
+        ins.run(...a, a[5].replace('T', ' ').slice(0, 19)),
+    }
+    f.run('fact_f1', 'Rohit', 'likes', 'SwitchUI', 1, '2026-01-01T00:00:00Z')
+    f.run('fact_f2', ' rohit ', 'LIKES', 'switchui', 1, '2026-03-01T00:00:00Z')
+    f.run('fact_f3', 'Rohit', ' likes ', 'SwitchUI ', 1, '2026-02-01T00:00:00Z')
+    f.run('fact_j1', 'If there', 'is', 'genuinely', 1, '2026-01-01T00:00:00Z')
+    f.run('fact_j2', 'If there', 'is', 'genuinely', 1, '2026-01-02T00:00:00Z')
+    const ge = db.prepare(
+      'INSERT INTO graph_edges (source, target, edge_type, weight) VALUES (?,?,?,?)',
+    )
+    ge.run('gist_a', 'fact_f2', 'ctx', 1) // follows f2 onto the canonical fact_f1
+    ge.run('gist_a', 'fact_j1', 'ctx', 1) // junk fact → edge dropped
+    ge.run('fact_f3', 'gist_a', 'ctx', 1) // alias in ensureNode → no stray f3
+    // exact-name entity: 'rohit' (lowercase) must not pull in 'Rohit' facts
+    f.run('fact_r', 'rohit', 'owns', 'Laptop', 1, '2026-04-01T00:00:00Z')
+    db.close()
+    return p
+  }
+
+  it('collapses 3 identical facts into 1 node with count + date range', () => {
+    process.env.MNEMOSYNE_DB_PATH = dupFixture()
+    const g = buildMemoryGraph({})
+    const facts = g.nodes.filter((n) => n.kind === 'fact' && n.id !== 'fact_r')
+    expect(facts).toHaveLength(1)
+    expect(facts[0]).toMatchObject({
+      id: 'fact_f1',
+      count: 3,
+      firstAt: '2026-01-01 00:00:00',
+      lastAt: '2026-03-01 00:00:00',
+      factIds: ['fact_f1', 'fact_f3', 'fact_f2'],
+    })
+    const about = g.edges.find(
+      (e) => e.edgeType === 'about' && e.target === 'entity:Rohit',
+    )
+    expect(about?.occurrences).toBe(3)
+    // both ctx edges (to f2, from f3) land on the canonical f1
+    const ctx = g.edges.filter((e) => e.edgeType === 'ctx')
+    expect(ctx.map((e) => [e.source, e.target]).sort()).toEqual([
+      ['fact_f1', 'gist_a'],
+      ['gist_a', 'fact_f1'],
+    ])
+    expect(g.nodes.some((n) => n.id === 'fact_f2' || n.id === 'fact_f3')).toBe(
+      false,
+    )
+    expect(g.meta.duplicateFacts).toBe(2)
+  })
+
+  it('hides junk facts, counts them, and prunes their only entities', () => {
+    process.env.MNEMOSYNE_DB_PATH = dupFixture()
+    const g = buildMemoryGraph({})
+    const ids = new Set(g.nodes.map((n) => n.id))
+    expect(g.meta.junkFacts).toBe(2)
+    expect(ids.has('fact_j1')).toBe(false)
+    expect(ids.has('entity:genuinely')).toBe(false)
+    expect(ids.has('entity:If there')).toBe(false)
+    expect(g.edges.some((e) => e.target === 'fact_j1')).toBe(false)
+  })
+
+  it('node detail groups identical facts for entities and facts', () => {
+    process.env.MNEMOSYNE_DB_PATH = dupFixture()
+    const ent = getMemoryGraphNode('entity:Rohit')
+    expect(ent?.facts).toEqual([
+      {
+        id: 'fact_f1',
+        text: 'Rohit likes SwitchUI',
+        count: 3,
+        firstAt: '2026-01-01 00:00:00',
+        lastAt: '2026-03-01 00:00:00',
+      },
+    ])
+    expect(getMemoryGraphNode('fact_f3')).toMatchObject({
+      count: 3,
+      firstAt: '2026-01-01 00:00:00',
+      lastAt: '2026-03-01 00:00:00',
+    })
+    expect(ent?.source).toMatchObject({ facts: 3, distinct_facts: 1 })
+    // exact (trimmed) name like the graph: 'rohit' gets only its own fact
+    expect(getMemoryGraphNode('entity:rohit')?.facts?.map((f) => f.id)).toEqual(
+      ['fact_r'],
+    )
+    // only junk facts name it → unknown node
+    expect(getMemoryGraphNode('entity:genuinely')).toBeNull()
   })
 })

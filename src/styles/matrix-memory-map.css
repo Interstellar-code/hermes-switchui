@@ -391,6 +391,15 @@
   line-height: 1.45;
   word-break: break-word;
 }
+.mm-count-badge {
+  margin-left: 6px;
+  padding: 0 5px;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-accent);
+  border: 1px solid currentColor;
+  border-radius: 8px;
+}
 .mm-detail-text {
   max-height: 40vh;
   overflow-y: auto;
@@ -468,6 +477,11 @@
 }
 .mm-detail-neighbours li button:hover {
   background: var(--theme-accent-subtle);
+}
+.mm-detail-neighbours li button:disabled {
+  opacity: 0.55;
+  cursor: default;
+  background: none;
 }
 .mm-detail-more {
   padding: 2px 4px;

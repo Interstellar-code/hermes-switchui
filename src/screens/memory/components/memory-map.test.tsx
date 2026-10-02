@@ -221,7 +221,7 @@ describe('MemoryMap', () => {
       screen
         .getByRole('button', { name: 'mentions' })
         .getAttribute('aria-pressed'),
-    ).toBe('false')
+    ).toBe('true') // mentions is on by default: it is the connective tissue
     expect(
       screen.getByRole('slider', { name: /minimum connections/i }),
     ).toBeTruthy()

@@ -2,6 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
 import { getHermesRoot } from './claude-paths'
+import { JUNK_FACT_SQL, junkFactSqlParams } from './memory-junk'
 import {
   DEFAULT_MEMORY_PROFILE,
   getProfileMatrixMemoryDir,
@@ -435,7 +436,17 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
     type: 'fact',
     table: 'facts',
     sql: (f) =>
-      `SELECT f.fact_id AS id, 'fact' AS type, f.subject || ' ' || f.predicate || ' ' || f.object AS text, f.created_at AS ts FROM facts f WHERE 1=1 ${f}`,
+      // Same view as the Map: junk facts hidden (isJunkFact in SQL), identical
+      // facts (case/trim-insensitive) folded into their first row by
+      // (timestamp, fact_id) — the graph's canonical id/text — dated by the
+      // group's newest created_at.
+      `SELECT id, 'fact' AS type, text, ts FROM (
+         SELECT f.fact_id AS id, f.subject || ' ' || f.predicate || ' ' || f.object AS text,
+           MAX(f.created_at) OVER grp AS ts,
+           ROW_NUMBER() OVER (grp ORDER BY f.timestamp, f.fact_id) AS rn
+         FROM facts f WHERE NOT ${JUNK_FACT_SQL} ${f}
+         WINDOW grp AS (PARTITION BY lower(trim(f.subject)), lower(trim(f.predicate)), lower(trim(f.object)))
+       ) WHERE rn = 1`,
     fts: { table: 'fts_facts', clause: 'f.rowid IN (SELECT rowid FROM fts_facts WHERE fts_facts MATCH @fts)' },
     likeExpr: "(f.subject || ' ' || f.predicate || ' ' || f.object)",
   },
@@ -503,6 +514,8 @@ export function browseMnemosyne(
       ctype: cursor?.[1] ?? null,
       cid: cursor?.[2] ?? null,
     }
+    if (parts.some((p) => p.includes('@junkFillers')))
+      Object.assign(params, junkFactSqlParams())
     if (words.length > 0) {
       params.fts = toFtsQuery(words.join(' '))
       words.forEach((w, i) => (params[`w${i}`] = toLikePattern(w)))

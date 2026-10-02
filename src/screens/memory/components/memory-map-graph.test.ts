@@ -109,6 +109,40 @@ describe('computeVisibleGraph', () => {
     expect(v.edgeIdx).toEqual([3])
   })
 
+  it('drops nodes left without a visible edge, except wiki pages', () => {
+    // mentions off: b and c only had mentions edges → stray dots
+    const v = computeVisibleGraph(NODES, EDGES, {
+      kinds: KINDS,
+      types: { ...TYPES, mentions: false },
+      minDegree: 0,
+      limit: null,
+    })
+    expect([...v.nodeIds].sort()).toEqual(['a', 'ep', 'f', 'hub', 'w'])
+    expect(v.candidates).toBe(5)
+  })
+
+  it('min-degree holds on the visible graph (peels to a fixed point)', () => {
+    // star h–x,y,z plus chain x–y: at min 2, z falls (deg 1), then h still
+    // has x,y (2) and x,y each have h + each other (2) → stable square.
+    const nodes = ['h', 'x', 'y', 'z', 'q'].map((id) => node(id, 'fact'))
+    const edges = [
+      edge('h', 'x', 'about'),
+      edge('h', 'y', 'about'),
+      edge('h', 'z', 'about'),
+      edge('x', 'y', 'about'),
+      edge('z', 'q', 'about'), // z has 2 until q (deg 1) goes
+    ]
+    const v = computeVisibleGraph(nodes, edges, {
+      kinds: KINDS,
+      types: TYPES,
+      minDegree: 2,
+      limit: null,
+    })
+    expect([...v.nodeIds].sort()).toEqual(['h', 'x', 'y'])
+    expect(v.edgeIdx).toEqual([0, 1, 3])
+    expect(v.candidates).toBe(3)
+  })
+
   it('always includes the pinned node when its kind is on', () => {
     const v = computeVisibleGraph(NODES, EDGES, {
       kinds: KINDS,

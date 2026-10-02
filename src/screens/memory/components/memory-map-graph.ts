@@ -13,7 +13,16 @@ export type EdgeType =
   | 'relates'
   | 'summarizes'
 
-export type GraphNode = { id: string; kind: Kind; label: string }
+export type GraphNode = {
+  id: string
+  kind: Kind
+  label: string
+  /** fact nodes: identical facts collapsed into this one (>1 only). */
+  count?: number
+  firstAt?: string | null
+  lastAt?: string | null
+  factIds?: Array<string>
+}
 export type GraphEdge = {
   source: string
   target: string
@@ -30,6 +39,8 @@ export type GraphMeta = {
   dbMissing: boolean
   generatedAt: string
   junkDropped?: number
+  junkFacts?: number
+  duplicateFacts?: number
   byType?: Record<EdgeType, number>
   droppedByType?: Record<EdgeType, number>
 }
@@ -48,6 +59,16 @@ export type GraphNodeDetail = {
   createdAt: string | null
   updatedAt: string | null
   source: Record<string, string | number>
+  count?: number
+  firstAt?: string | null
+  lastAt?: string | null
+  facts?: Array<{
+    id: string
+    text: string
+    count: number
+    firstAt: string | null
+    lastAt: string | null
+  }>
 }
 
 /** Default focused view size (top-N by degree). */
@@ -119,7 +140,7 @@ export type VisibleGraph = {
   nodeIds: Set<string>
   /** Indices into the input edges array. */
   edgeIdx: Array<number>
-  /** Nodes passing the kind / edge-type / degree filters before the limit. */
+  /** Nodes left after the kind / edge-type / degree cut, before the limit. */
   candidates: number
 }
 
@@ -134,33 +155,49 @@ export function computeVisibleGraph(
     const k = kindOf.get(id)
     return k != null && opts.kinds[k]
   }
+  const edgeOn = (e: GraphEdge, among: Set<string>) =>
+    opts.types[e.edgeType] && among.has(e.source) && among.has(e.target)
+  const degreeIn = (among: Set<string>) => {
+    const d = new Map<string, number>()
+    for (const e of edges) {
+      if (!edgeOn(e, among)) continue
+      d.set(e.source, (d.get(e.source) ?? 0) + 1)
+      d.set(e.target, (d.get(e.target) ?? 0) + 1)
+    }
+    return d
+  }
+  // Wiki pages may stand alone (the server keeps them edgeless); anything
+  // else needs at least one visible edge, else it is a stray dot.
+  const floorOf = (id: string) =>
+    kindOf.get(id) === 'wiki' ? opts.minDegree : Math.max(1, opts.minDegree)
 
-  const deg = new Map<string, number>()
-  for (const e of edges) {
-    if (!opts.types[e.edgeType] || !kindOn(e.source) || !kindOn(e.target))
-      continue
-    deg.set(e.source, (deg.get(e.source) ?? 0) + 1)
-    deg.set(e.target, (deg.get(e.target) ?? 0) + 1)
+  // Peel to a fixed point: dropping a node lowers its neighbours' visible
+  // degree, which can push them under the floor in turn.
+  // ponytail: O(E) per pass, passes <= peel depth; fine at 20k edges.
+  let ok = new Set(nodes.filter((n) => opts.kinds[n.kind]).map((n) => n.id))
+  let deg = degreeIn(ok)
+  for (;;) {
+    const next = new Set(
+      [...ok].filter((id) => (deg.get(id) ?? 0) >= floorOf(id)),
+    )
+    if (next.size === ok.size) break
+    ok = next
+    deg = degreeIn(ok)
   }
 
-  const candidates = nodes.filter(
-    (n) => opts.kinds[n.kind] && (deg.get(n.id) ?? 0) >= opts.minDegree,
-  )
   const byDeg = (a: string, b: string) => (deg.get(b) ?? 0) - (deg.get(a) ?? 0)
   let nodeIds: Set<string>
-  if (opts.limit == null || candidates.length <= opts.limit) {
-    nodeIds = new Set(candidates.map((n) => n.id))
+  if (opts.limit == null || ok.size <= opts.limit) {
+    nodeIds = new Set(ok)
   } else {
     // Plain top-N by degree is a scatter: hubs mostly link to nodes outside
     // the cut. Take the top fifth as hubs, fill with their best-connected
     // neighbours, then top up by degree.
-    const ok = new Set(candidates.map((n) => n.id))
     const ranked = [...ok].sort(byDeg)
     nodeIds = new Set(ranked.slice(0, Math.ceil(opts.limit / 5)))
     const near = new Set<string>()
     for (const e of edges) {
-      if (!opts.types[e.edgeType] || !ok.has(e.source) || !ok.has(e.target))
-        continue
+      if (!edgeOn(e, ok)) continue
       if (nodeIds.has(e.source) && !nodeIds.has(e.target)) near.add(e.target)
       if (nodeIds.has(e.target) && !nodeIds.has(e.source)) near.add(e.source)
     }
@@ -168,21 +205,19 @@ export function computeVisibleGraph(
       if (nodeIds.size >= opts.limit) break
       nodeIds.add(id)
     }
+    // the cut can strand a node whose edges all leave it
+    const cutDeg = degreeIn(nodeIds)
+    for (const id of nodeIds)
+      if (!cutDeg.get(id) && kindOf.get(id) !== 'wiki') nodeIds.delete(id)
   }
 
   if (opts.pinned && kindOn(opts.pinned)) nodeIds.add(opts.pinned)
 
   const edgeIdx: Array<number> = []
   edges.forEach((e, i) => {
-    if (
-      opts.types[e.edgeType] &&
-      nodeIds.has(e.source) &&
-      nodeIds.has(e.target)
-    ) {
-      edgeIdx.push(i)
-    }
+    if (edgeOn(e, nodeIds)) edgeIdx.push(i)
   })
-  return { nodeIds, edgeIdx, candidates: candidates.length }
+  return { nodeIds, edgeIdx, candidates: ok.size }
 }
 
 export type SearchEntry = { node: GraphNode; label: string; id: string }

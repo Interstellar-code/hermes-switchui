@@ -148,11 +148,10 @@ const ALL_KINDS_ON: Record<Kind, boolean> = {
   episodic: true,
   wiki: true,
 }
-// Focused default: chat-log episodes + entity `mentions` are the noise.
-const DEFAULT_TYPES: Record<EdgeType, boolean> = {
-  ...ALL_TYPES_ON,
-  mentions: false,
-}
+// Focused default: chat-log episodes are the noise. `mentions` stays on: it
+// is ~70% of edges, and without it the top-300 view splits into ~23 islands
+// (one connected component with it, live hermes-switch data 2026-10).
+const DEFAULT_TYPES: Record<EdgeType, boolean> = ALL_TYPES_ON
 const DEFAULT_KINDS: Record<Kind, boolean> = {
   ...ALL_KINDS_ON,
   episodic: false,
@@ -256,6 +255,13 @@ function readPalette(el: HTMLElement): Palette {
     text: v('--theme-text', '#d8ffe3'),
     bg: v('--theme-bg', '#020804'),
   }
+}
+
+function dateRange(a?: string | null, b?: string | null): string {
+  const d1 = a?.slice(0, 10)
+  const d2 = b?.slice(0, 10)
+  if (!d1 || !d2) return d1 ?? d2 ?? '—'
+  return d1 === d2 ? d1 : `${d1} → ${d2}`
 }
 
 async function fetchGraph(profile: string): Promise<GraphResponse> {
@@ -1256,6 +1262,14 @@ function MemoryMapCanvas({
           </div>
           <div className="mm-detail-label">
             {cleanLabel(detail?.label ?? selected.label) || selected.id}
+            {(detail?.count ?? selected.count ?? 1) > 1 && (
+              <span
+                className="mm-count-badge"
+                title={`${detail?.count ?? selected.count} identical facts`}
+              >
+                ×{detail?.count ?? selected.count}
+              </span>
+            )}
           </div>
           {detail &&
             detail.text.trim() &&
@@ -1291,6 +1305,12 @@ function MemoryMapCanvas({
                 <dd>{lastSeen.slice(0, 10)}</dd>
               </>
             )}
+            {(detail?.count ?? 1) > 1 && (
+              <>
+                <dt>Seen</dt>
+                <dd>{dateRange(detail!.firstAt, detail!.lastAt)}</dd>
+              </>
+            )}
             {Object.entries(detail?.source ?? {}).map(([k, v]) => (
               <Fragment key={k}>
                 <dt>{k.replace(/_/g, ' ')}</dt>
@@ -1308,6 +1328,47 @@ function MemoryMapCanvas({
             >
               Open in Wiki
             </button>
+          )}
+          {detail?.facts && detail.facts.length > 0 && (
+            <div className="mm-detail-neighbours">
+              <section>
+                <h4>
+                  <KindGlyph kind="fact" />
+                  distinct facts · {detail.source.distinct_facts}
+                  {Number(detail.source.facts) >
+                    Number(detail.source.distinct_facts) &&
+                    ` (${detail.source.facts} rows)`}
+                </h4>
+                <ul>
+                  {detail.facts.map((f) => (
+                    <li key={f.id}>
+                      <button
+                        type="button"
+                        disabled={!model.byId.has(f.id)}
+                        title={
+                          model.byId.has(f.id)
+                            ? undefined
+                            : 'Not in current view'
+                        }
+                        onClick={() => focusNode(f.id)}
+                      >
+                        {f.text.length > 48
+                          ? `${f.text.slice(0, 47)}…`
+                          : f.text}
+                        {f.count > 1 && (
+                          <span
+                            className="mm-count-badge"
+                            title={dateRange(f.firstAt, f.lastAt)}
+                          >
+                            ×{f.count}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </div>
           )}
           {neighbourGroups.length > 0 && (
             <div className="mm-detail-neighbours">
@@ -1370,6 +1431,9 @@ function MemoryMapCanvas({
           >
             {showAll ? `Top ${DEFAULT_NODE_LIMIT}` : 'Show all'}
           </button>
+        )}
+        {(data.meta.junkFacts ?? 0) > 0 && (
+          <span> · {data.meta.junkFacts} junk facts hidden</span>
         )}
         {data.meta.truncated && droppedEdges > 0 && (
           <span className="mm-status-warn">

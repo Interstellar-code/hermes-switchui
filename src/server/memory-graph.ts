@@ -36,27 +36,32 @@
 import fs from 'node:fs'
 import Database from 'better-sqlite3'
 import { listKnowledgePages } from './knowledge-browser'
+import { ENTITY_STOPWORDS, isJunkFact } from './memory-junk'
 import { getMnemosyneDbPath } from './mnemosyne-browser'
 
 export const DEFAULT_LIMIT = 20000
 export const MAX_LIMIT = 100000
 const LABEL_MAX = 60
 
-// Junk entity strings (function words + chat filler) that otherwise become
-// the graph's top hubs. Compared lowercased; anything shorter than 3 chars
-// is dropped too.
-const ENTITY_STOPWORDS = new Set(
-  (
-    'the and but for nor not yet are was were has had have its his her she him ' +
-    'you your our they them their this that these those with from into onto ' +
-    'over then than when what which who whom why how where there here also ' +
-    'just some any all each can could will would should may might must shall ' +
-    'been being does did done yes yeah yep nope okay sure thanks thank thx ' +
-    'please hello hey users none null true false one two now new get got let ' +
-    'use see only good both current category ' +
-    'jan feb mar apr jun jul aug sep sept oct nov dec'
-  ).split(' '),
-)
+const FACT_IDS_MAX = 50
+
+export { isJunkFact }
+
+/** Normalized subject|predicate|object key: identical facts share it. */
+export function factKey(
+  subject: string | null,
+  predicate: string | null,
+  object: string | null,
+): string {
+  return [subject, predicate, object]
+    .map((x) =>
+      String(x ?? '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase(),
+    )
+    .join('|')
+}
 
 // Entities shorter than 3 chars are dropped unless they look like an acronym
 // in their original case (PR, DB, UI, CI, KG). Entity ids keep source case.
@@ -105,6 +110,11 @@ export type MemoryGraphNode = {
   id: string
   kind: MemoryGraphKind
   label: string
+  /** fact nodes only, when identical facts were collapsed into this one. */
+  count?: number
+  firstAt?: string | null
+  lastAt?: string | null
+  factIds?: Array<string>
 }
 
 export type MemoryGraphEdge = {
@@ -125,6 +135,10 @@ export type MemoryGraphMeta = {
   generatedAt: string
   /** Raw edge rows dropped for touching a stopword / single-mention entity. */
   junkDropped: number
+  /** Fragment facts hidden by isJunkFact (rows, not unique). */
+  junkFacts: number
+  /** Fact rows folded into an identical fact node. */
+  duplicateFacts: number
   /** Edges kept per type after the limit cut. */
   byType: Record<MemoryGraphEdgeType, number>
   /** Edges dropped per type by the limit cut. */
@@ -157,6 +171,8 @@ function emptyGraph(dbMissing: boolean): MemoryGraph {
       dbMissing,
       generatedAt: new Date().toISOString(),
       junkDropped: 0,
+      junkFacts: 0,
+      duplicateFacts: 0,
       byType: zeroByType(),
       droppedByType: zeroByType(),
     },
@@ -227,8 +243,15 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
       }
       nodes.set(id, { id, kind, label: label || '' })
     }
-    const ensureNode = (id: string) => {
-      if (nodes.has(id)) return
+    // Identical facts collapse onto the first fact_id seen; junk facts vanish.
+    // Applied to every edge endpoint so graph_edges ctx edges follow along.
+    const factAlias = new Map<string, string>()
+    const junkFactIds = new Set<string>()
+    const ensureNode = (raw: string) => {
+      // a folded duplicate fact resolves to its canonical node; a junk fact
+      // never gets one (its edges are dropped in addEdge)
+      const id = factAlias.get(raw) ?? raw
+      if (nodes.has(id) || junkFactIds.has(id)) return
       const kind = classifyById(id)
       const label =
         kind === 'wiki'
@@ -253,6 +276,8 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
     >()
     let rawEdgeCount = 0
     let junkDropped = 0
+    let junkFacts = 0
+    let duplicateFacts = 0
     // Entities named by a fact/relation survive the min-degree filter.
     const factEntities = new Set<string>()
     const wantEdge = (t: MemoryGraphEdgeType) =>
@@ -264,8 +289,14 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
       weight: number,
       timestamp: string | null,
     ) => {
+      source = factAlias.get(source) ?? source
+      target = factAlias.get(target) ?? target
       if (!source || !target || source === target) return
       rawEdgeCount++
+      if (junkFactIds.has(source) || junkFactIds.has(target)) {
+        junkDropped++
+        return
+      }
       if (isJunkEntityId(source) || isJunkEntityId(target)) {
         junkDropped++
         return
@@ -321,9 +352,14 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
 
     // facts → nodes (+ entity strings collected via 'about' edges below)
     if (tableExists(db, 'facts')) {
+      const byKey = new Map<
+        string,
+        { node: MemoryGraphNode; subj: string; obj: string }
+      >()
       for (const row of db
         .prepare(
-          'SELECT fact_id, subject, predicate, object, confidence, timestamp FROM facts',
+          // canonical node = first row by (timestamp, fact_id), as in Browse
+          'SELECT * FROM facts ORDER BY timestamp, fact_id',
         )
         .iterate() as Iterable<{
         fact_id: string
@@ -332,29 +368,63 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
         object: string | null
         confidence: number | null
         timestamp: string | null
+        created_at?: string | null
       }>) {
-        addNode(
-          row.fact_id,
-          'fact',
-          truncateLabel(
-            `${row.subject ?? ''} ${row.predicate ?? ''} ${row.object ?? ''}`,
-          ),
-        )
+        if (isJunkFact(row.subject, row.predicate, row.object)) {
+          junkFacts++
+          junkFactIds.add(row.fact_id)
+          continue
+        }
+        const key = factKey(row.subject, row.predicate, row.object)
+        const ts = row.timestamp ?? null
+        // "Seen" range: created_at is UTC (timestamp is zone-less local time)
+        const seen = row.created_at ?? ts
+        const hit = byKey.get(key)
+        let subj = String(row.subject ?? '').trim()
+        let obj = String(row.object ?? '').trim()
+        if (hit) {
+          // about edges land on the canonical fact's own entity spelling
+          ;({ subj, obj } = hit)
+          const twin = hit.node
+          duplicateFacts++
+          factAlias.set(row.fact_id, twin.id)
+          twin.count = (twin.count ?? 1) + 1
+          if (seen && (!twin.firstAt || seen < twin.firstAt))
+            twin.firstAt = seen
+          if (seen && (!twin.lastAt || seen > twin.lastAt)) twin.lastAt = seen
+          if (twin.factIds!.length < FACT_IDS_MAX)
+            twin.factIds!.push(row.fact_id)
+        } else {
+          addNode(
+            row.fact_id,
+            'fact',
+            truncateLabel(
+              `${row.subject ?? ''} ${row.predicate ?? ''} ${row.object ?? ''}`,
+            ),
+          )
+          const node = nodes.get(row.fact_id)!
+          Object.assign(node, {
+            count: 1,
+            firstAt: seen,
+            lastAt: seen,
+            factIds: [row.fact_id],
+          })
+          byKey.set(key, { node, subj, obj })
+        }
+        const factId = factAlias.get(row.fact_id) ?? row.fact_id
         const w = typeof row.confidence === 'number' ? row.confidence : 1
-        const subj = String(row.subject ?? '').trim()
-        const obj = String(row.object ?? '').trim()
         if (subj) factEntities.add(`entity:${subj}`)
         if (obj) factEntities.add(`entity:${obj}`)
         if (wantEdge('about')) {
           if (subj) {
             const eid = `entity:${subj}`
             addNode(eid, 'entity', truncateLabel(subj))
-            addEdge(row.fact_id, eid, 'about', w, row.timestamp ?? null)
+            addEdge(factId, eid, 'about', w, ts)
           }
           if (obj) {
             const eid = `entity:${obj}`
             addNode(eid, 'entity', truncateLabel(obj))
-            addEdge(row.fact_id, eid, 'about', w, row.timestamp ?? null)
+            addEdge(factId, eid, 'about', w, ts)
           }
         }
       }
@@ -568,11 +638,20 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
 
     const nodeDtos: Array<MemoryGraphNode> = [...nodes.values()]
       .filter((n) => n.kind === 'wiki' || linked.has(n.id))
-      .map((n) => ({
-        id: n.id,
-        kind: n.kind,
-        label: n.label,
-      }))
+      .map((n) =>
+        // dates/ids only matter once something was actually collapsed
+        n.count && n.count > 1
+          ? {
+              id: n.id,
+              kind: n.kind,
+              label: n.label,
+              count: n.count,
+              firstAt: n.firstAt ?? null,
+              lastAt: n.lastAt ?? null,
+              factIds: n.factIds,
+            }
+          : { id: n.id, kind: n.kind, label: n.label },
+      )
 
     return {
       nodes: nodeDtos,
@@ -585,6 +664,8 @@ export function buildMemoryGraph(params: MemoryGraphParams = {}): MemoryGraph {
         dbMissing: false,
         generatedAt: new Date().toISOString(),
         junkDropped,
+        junkFacts,
+        duplicateFacts,
         byType,
         droppedByType,
       },
