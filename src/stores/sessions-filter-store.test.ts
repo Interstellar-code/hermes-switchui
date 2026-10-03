@@ -224,6 +224,32 @@ describe('sessions-filter-store', () => {
     await new Promise((r) => setTimeout(r, 10))
     expect(useStore.getState().profile).toBe('work')
   })
+
+  it('v9 persisted state without groupBy hydrates to date grouping', async () => {
+    localStorageMock.setItem(
+      'hermes.sessions.filter',
+      JSON.stringify({
+        state: {
+          version: 9,
+          sources: [],
+          state: 'all',
+          query: '',
+          dateRange: { from: null, to: null },
+          sort: 'recent',
+          collapsed: false,
+          leftPanel: 'sessions',
+          profile: 'work',
+        },
+        version: 9,
+      }),
+    )
+    const { useSessionsFilterStore: useStore } = await getStore()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(useStore.getState().groupBy).toBe('date')
+    expect(useStore.getState().profile).toBe('work')
+    useStore.getState().setGroupBy('project')
+    expect(useStore.getState().groupBy).toBe('project')
+  })
 })
 
 // ── Device layer of the profile resolver ────────────────────────────────────

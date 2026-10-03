@@ -55,6 +55,11 @@ export type FilterState = {
    * unscoped.
    */
   profile: string
+  /**
+   * Sidebar grouping. Added without a version bump: persist's shallow merge
+   * fills it with the initial `'date'` on existing v9 payloads.
+   */
+  groupBy: 'date' | 'project'
 }
 
 type FilterActions = {
@@ -68,6 +73,7 @@ type FilterActions = {
   setCollapsed: (b: boolean) => void
   setLeftPanel: (p: 'sessions' | 'files') => void
   setProfile: (p: string) => void
+  setGroupBy: (g: 'date' | 'project') => void
   reset: () => void
 }
 
@@ -97,6 +103,7 @@ function buildInitialState(): FilterState {
     collapsed: false,
     leftPanel: 'sessions',
     profile: UNSCOPED_PROFILE,
+    groupBy: 'date',
   }
 }
 
@@ -132,6 +139,8 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
       setLeftPanel: (leftPanel) => set({ leftPanel }),
 
       setProfile: (profile) => set({ profile }),
+
+      setGroupBy: (groupBy) => set({ groupBy }),
 
       reset: () => set(buildInitialState()),
     }),

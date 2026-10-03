@@ -59,6 +59,7 @@ import { Route as ApiSessionsRouteImport } from './routes/api/sessions'
 import { Route as ApiSessionStatusRouteImport } from './routes/api/session-status'
 import { Route as ApiSessionSendRouteImport } from './routes/api/session-send'
 import { Route as ApiSessionHistoryRouteImport } from './routes/api/session-history'
+import { Route as ApiSessionFoldersRouteImport } from './routes/api/session-folders'
 import { Route as ApiSendStreamRouteImport } from './routes/api/send-stream'
 import { Route as ApiSendRouteImport } from './routes/api/send'
 import { Route as ApiPluginsRouteImport } from './routes/api/plugins'
@@ -500,6 +501,11 @@ const ApiSessionSendRoute = ApiSessionSendRouteImport.update({
 const ApiSessionHistoryRoute = ApiSessionHistoryRouteImport.update({
   id: '/api/session-history',
   path: '/api/session-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSessionFoldersRoute = ApiSessionFoldersRouteImport.update({
+  id: '/api/session-folders',
+  path: '/api/session-folders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSendStreamRoute = ApiSendStreamRouteImport.update({
@@ -1581,6 +1587,7 @@ export interface FileRoutesByFullPath {
   '/api/plugins': typeof ApiPluginsRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
+  '/api/session-folders': typeof ApiSessionFoldersRoute
   '/api/session-history': typeof ApiSessionHistoryRoute
   '/api/session-send': typeof ApiSessionSendRoute
   '/api/session-status': typeof ApiSessionStatusRoute
@@ -1823,6 +1830,7 @@ export interface FileRoutesByTo {
   '/api/plugins': typeof ApiPluginsRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
+  '/api/session-folders': typeof ApiSessionFoldersRoute
   '/api/session-history': typeof ApiSessionHistoryRoute
   '/api/session-send': typeof ApiSessionSendRoute
   '/api/session-status': typeof ApiSessionStatusRoute
@@ -2068,6 +2076,7 @@ export interface FileRoutesById {
   '/api/plugins': typeof ApiPluginsRoute
   '/api/send': typeof ApiSendRoute
   '/api/send-stream': typeof ApiSendStreamRoute
+  '/api/session-folders': typeof ApiSessionFoldersRoute
   '/api/session-history': typeof ApiSessionHistoryRoute
   '/api/session-send': typeof ApiSessionSendRoute
   '/api/session-status': typeof ApiSessionStatusRoute
@@ -2314,6 +2323,7 @@ export interface FileRouteTypes {
     | '/api/plugins'
     | '/api/send'
     | '/api/send-stream'
+    | '/api/session-folders'
     | '/api/session-history'
     | '/api/session-send'
     | '/api/session-status'
@@ -2556,6 +2566,7 @@ export interface FileRouteTypes {
     | '/api/plugins'
     | '/api/send'
     | '/api/send-stream'
+    | '/api/session-folders'
     | '/api/session-history'
     | '/api/session-send'
     | '/api/session-status'
@@ -2800,6 +2811,7 @@ export interface FileRouteTypes {
     | '/api/plugins'
     | '/api/send'
     | '/api/send-stream'
+    | '/api/session-folders'
     | '/api/session-history'
     | '/api/session-send'
     | '/api/session-status'
@@ -3045,6 +3057,7 @@ export interface RootRouteChildren {
   ApiPluginsRoute: typeof ApiPluginsRoute
   ApiSendRoute: typeof ApiSendRoute
   ApiSendStreamRoute: typeof ApiSendStreamRoute
+  ApiSessionFoldersRoute: typeof ApiSessionFoldersRoute
   ApiSessionHistoryRoute: typeof ApiSessionHistoryRoute
   ApiSessionSendRoute: typeof ApiSessionSendRoute
   ApiSessionStatusRoute: typeof ApiSessionStatusRoute
@@ -3489,6 +3502,13 @@ declare module '@tanstack/react-router' {
       path: '/api/session-history'
       fullPath: '/api/session-history'
       preLoaderRoute: typeof ApiSessionHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/session-folders': {
+      id: '/api/session-folders'
+      path: '/api/session-folders'
+      fullPath: '/api/session-folders'
+      preLoaderRoute: typeof ApiSessionFoldersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/send-stream': {
@@ -5491,6 +5511,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPluginsRoute: ApiPluginsRoute,
   ApiSendRoute: ApiSendRoute,
   ApiSendStreamRoute: ApiSendStreamRoute,
+  ApiSessionFoldersRoute: ApiSessionFoldersRoute,
   ApiSessionHistoryRoute: ApiSessionHistoryRoute,
   ApiSessionSendRoute: ApiSessionSendRoute,
   ApiSessionStatusRoute: ApiSessionStatusRoute,

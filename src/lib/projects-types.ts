@@ -139,3 +139,19 @@ export type SessionProjectUnbindResponse = {
   session_id: string
   removed: number
 }
+
+/** `GET /api/session-folders` — every explicit session→project binding for a profile. */
+export type SessionProjectMap = {
+  version: string | null
+  projects: Array<{
+    id: string
+    slug: string
+    name: string
+    icon: string | null
+    color: string | null
+    archived: boolean
+    board_slug: string | null
+  }>
+  /** session_id → project_id */
+  sessions: Record<string, string>
+}

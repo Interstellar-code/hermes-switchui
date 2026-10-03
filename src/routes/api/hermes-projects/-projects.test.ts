@@ -200,7 +200,7 @@ describe('/api/hermes-projects/session', () => {
       ),
     })
     expect(res.status).toBe(200)
-    expect(mockResolveSessionProject).toHaveBeenCalledWith('chat-a')
+    expect(mockResolveSessionProject).toHaveBeenCalledWith('chat-a', undefined)
     expect((await res.json()).project.slug).toBe('alpha')
   })
 
@@ -220,7 +220,11 @@ describe('/api/hermes-projects/session', () => {
       ),
     })
     expect(res.status).toBe(200)
-    expect(mockBindSessionProject).toHaveBeenCalledWith('chat-a', 'alpha')
+    expect(mockBindSessionProject).toHaveBeenCalledWith(
+      'chat-a',
+      'alpha',
+      undefined,
+    )
   })
 
   it('unlinks only the requested session', async () => {
@@ -235,6 +239,35 @@ describe('/api/hermes-projects/session', () => {
       ),
     })
     expect(res.status).toBe(200)
-    expect(mockUnbindSessionProject).toHaveBeenCalledWith('chat-a')
+    expect(mockUnbindSessionProject).toHaveBeenCalledWith('chat-a', undefined)
+  })
+
+  it('threads ?profile into resolve, bind and unbind', async () => {
+    const base =
+      'http://localhost/api/hermes-projects/session?sessionKey=chat-a&profile=neo'
+    mockResolveSessionProject.mockResolvedValue({} as never)
+    mockBindSessionProject.mockResolvedValue({} as never)
+    mockUnbindSessionProject.mockResolvedValue({} as never)
+    await sessionHandlers.GET({ request: makeRequest('GET', base) })
+    await sessionHandlers.POST({
+      request: new Request(base, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_slug: 'alpha' }),
+      }),
+    })
+    await sessionHandlers.DELETE({
+      request: new Request(base, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    })
+    expect(mockResolveSessionProject).toHaveBeenCalledWith('chat-a', 'neo')
+    expect(mockBindSessionProject).toHaveBeenCalledWith(
+      'chat-a',
+      'alpha',
+      'neo',
+    )
+    expect(mockUnbindSessionProject).toHaveBeenCalledWith('chat-a', 'neo')
   })
 })

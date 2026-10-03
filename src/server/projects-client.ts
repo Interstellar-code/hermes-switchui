@@ -83,7 +83,11 @@ export async function listProjects(
   const q = new URLSearchParams()
   if (includeArchived) q.set('include_archived', 'true')
   const qs = q.toString()
-  return projectsFetch<ProjectsListResponse>(`${BASE}${qs ? `?${qs}` : ''}`, {}, profile)
+  return projectsFetch<ProjectsListResponse>(
+    `${BASE}${qs ? `?${qs}` : ''}`,
+    {},
+    profile,
+  )
 }
 
 export async function getProject(
@@ -92,7 +96,8 @@ export async function getProject(
 ): Promise<ProjectDetailResponse> {
   return projectsFetch<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}`,
-    {}, profile,
+    {},
+    profile,
   )
 }
 
@@ -102,7 +107,8 @@ export async function getProjectFolders(
 ): Promise<ProjectFoldersResponse> {
   return projectsFetch<ProjectFoldersResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
-    {}, profile,
+    {},
+    profile,
   )
 }
 
@@ -116,7 +122,8 @@ export async function getProjectActivity(
   if (opts?.cursor != null) q.set('cursor', opts.cursor)
   return projectsFetch<ProjectActivityResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/activity?${q.toString()}`,
-    {}, profile,
+    {},
+    profile,
   )
 }
 
@@ -128,7 +135,11 @@ function jsonInit(method: string, body?: unknown): RequestInit {
   }
 }
 
-async function mutateProject<T>(path: string, init: RequestInit, profile?: string): Promise<T> {
+async function mutateProject<T>(
+  path: string,
+  init: RequestInit,
+  profile?: string,
+): Promise<T> {
   return projectsFetch<T>(path, init, profile)
 }
 
@@ -136,7 +147,11 @@ export function createProject(
   input: CreateProjectInput,
   profile?: string,
 ): Promise<ProjectDetailResponse> {
-  return mutateProject<ProjectDetailResponse>(BASE, jsonInit('POST', input), profile)
+  return mutateProject<ProjectDetailResponse>(
+    BASE,
+    jsonInit('POST', input),
+    profile,
+  )
 }
 
 export function updateProject(
@@ -146,7 +161,8 @@ export function updateProject(
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}`,
-    jsonInit('PATCH', input), profile,
+    jsonInit('PATCH', input),
+    profile,
   )
 }
 
@@ -157,7 +173,8 @@ export function addProjectFolder(
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
-    jsonInit('POST', input), profile,
+    jsonInit('POST', input),
+    profile,
   )
 }
 
@@ -168,7 +185,8 @@ export function removeProjectFolder(
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders`,
-    jsonInit('DELETE', { path }), profile,
+    jsonInit('DELETE', { path }),
+    profile,
   )
 }
 
@@ -179,7 +197,8 @@ export function setPrimaryProjectFolder(
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/folders/primary`,
-    jsonInit('POST', { path }), profile,
+    jsonInit('POST', { path }),
+    profile,
   )
 }
 
@@ -189,7 +208,8 @@ export function archiveProject(
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/archive`,
-    jsonInit('POST'), profile,
+    jsonInit('POST'),
+    profile,
   )
 }
 
@@ -199,7 +219,8 @@ export function restoreProject(
 ): Promise<ProjectDetailResponse> {
   return mutateProject<ProjectDetailResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/restore`,
-    jsonInit('POST'), profile,
+    jsonInit('POST'),
+    profile,
   )
 }
 
@@ -209,40 +230,137 @@ export function setActiveProject(
 ): Promise<ProjectsListResponse> {
   return mutateProject<ProjectsListResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}/active`,
-    jsonInit('POST'), profile,
+    jsonInit('POST'),
+    profile,
   )
 }
 
 export function resolveSessionProject(
   sessionId: string,
+  profile?: string,
 ): Promise<SessionProjectResolution> {
   return projectsFetch<SessionProjectResolution>(
     `${BASE}/session/${encodeURIComponent(sessionId)}`,
+    {},
+    profile,
   )
 }
 
 export function bindSessionProject(
   sessionId: string,
   projectSlug: string,
+  profile?: string,
 ): Promise<SessionProjectBindingResponse> {
   return mutateProject<SessionProjectBindingResponse>(
     `${BASE}/session?session_id=${encodeURIComponent(sessionId)}`,
     jsonInit('POST', { project_slug: projectSlug, bound_by: 'switchui' }),
+    profile,
   )
 }
 
 export function unbindSessionProject(
   sessionId: string,
+  profile?: string,
 ): Promise<SessionProjectUnbindResponse> {
   return mutateProject<SessionProjectUnbindResponse>(
     `${BASE}/session/${encodeURIComponent(sessionId)}`,
     jsonInit('DELETE'),
+    profile,
   )
 }
 
-export function deleteProject(idOrSlug: string, profile?: string): Promise<ProjectsListResponse> {
+export type SessionProjectMap = {
+  version: string | null
+  projects: Array<{
+    id: string
+    slug: string
+    name: string
+    icon: string | null
+    color: string | null
+    archived: boolean
+    board_slug: string | null
+  }>
+  sessions: Record<string, string>
+}
+
+export type SessionProjectMapResult =
+  | { notModified: true; etag: string | null }
+  | { notModified: false; etag: string | null; map: SessionProjectMap }
+
+const PROJECT_MAP_PATH = '/api/plugins/hermes-switch-ui/project-map'
+
+/**
+ * Session→project map for sidebar folders. Prefers the hermes-switch-ui
+ * plugin's one-shot `/project-map` (ETag/304); when that route 404s (dashboard
+ * not restarted / plugin older) falls back to the projects plugin: list +
+ * one `/{id}/sessions` call per project (no ETag).
+ */
+export async function getSessionProjectMap(
+  profile?: string,
+  ifNoneMatch?: string,
+): Promise<SessionProjectMapResult> {
+  const scope = profile || getActiveProfileName()
+  const res = await dashboardFetch(
+    `${PROJECT_MAP_PATH}?profile=${encodeURIComponent(scope)}`,
+    {
+      headers: ifNoneMatch ? { 'If-None-Match': ifNoneMatch } : undefined,
+      signal: AbortSignal.timeout(PROJECTS_FETCH_TIMEOUT_MS),
+    },
+  )
+  const etag = res.headers.get('etag')
+  if (res.status === 304) return { notModified: true, etag }
+  if (res.ok) {
+    return {
+      notModified: false,
+      etag,
+      map: (await res.json()) as SessionProjectMap,
+    }
+  }
+  if (res.status !== 404) {
+    throw new Error(`Projects API error ${res.status}: project-map failed`)
+  }
+
+  // ponytail: N+1 fallback; goes away once every dashboard serves /project-map.
+  const { projects } = await listProjects(true, scope)
+  const bindings = await Promise.all(
+    projects.map((p) =>
+      projectsFetch<{ bindings: Array<{ session_id: string }> }>(
+        `${BASE}/${encodeURIComponent(p.id)}/sessions`,
+        {},
+        scope,
+      ),
+    ),
+  )
+  const sessions: Record<string, string> = {}
+  projects.forEach((p, i) => {
+    for (const b of bindings[i].bindings) sessions[b.session_id] = p.id
+  })
+  return {
+    notModified: false,
+    etag: null,
+    map: {
+      version: null,
+      projects: projects.map((p) => ({
+        id: p.id,
+        slug: p.slug,
+        name: p.name,
+        icon: p.icon,
+        color: p.color,
+        archived: p.archived,
+        board_slug: p.board_slug,
+      })),
+      sessions,
+    },
+  }
+}
+
+export function deleteProject(
+  idOrSlug: string,
+  profile?: string,
+): Promise<ProjectsListResponse> {
   return mutateProject<ProjectsListResponse>(
     `${BASE}/${encodeURIComponent(idOrSlug)}`,
-    jsonInit('DELETE'), profile,
+    jsonInit('DELETE'),
+    profile,
   )
 }

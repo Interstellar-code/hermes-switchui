@@ -3,6 +3,7 @@ import { isAuthenticated } from '../../../server/auth-middleware'
 import { requireJsonContentType } from '../../../server/rate-limit'
 import {
   bindSessionProject,
+  explicitProjectProfile,
   projectsErrorStatus,
   resolveSessionProject,
   unbindSessionProject,
@@ -26,7 +27,12 @@ export const Route = createFileRoute('/api/hermes-projects/session')({
         const sessionKey = sessionKeyFrom(request)
         if (!sessionKey) return invalidSessionKey()
         try {
-          return Response.json(await resolveSessionProject(sessionKey))
+          return Response.json(
+            await resolveSessionProject(
+              sessionKey,
+              explicitProjectProfile(request),
+            ),
+          )
         } catch (err) {
           return Response.json(
             { error: err instanceof Error ? err.message : 'Resolve failed' },
@@ -60,7 +66,11 @@ export const Route = createFileRoute('/api/hermes-projects/session')({
         }
         try {
           return Response.json(
-            await bindSessionProject(sessionKey, projectSlug),
+            await bindSessionProject(
+              sessionKey,
+              projectSlug,
+              explicitProjectProfile(request),
+            ),
           )
         } catch (err) {
           return Response.json(
@@ -78,7 +88,12 @@ export const Route = createFileRoute('/api/hermes-projects/session')({
         const sessionKey = sessionKeyFrom(request)
         if (!sessionKey) return invalidSessionKey()
         try {
-          return Response.json(await unbindSessionProject(sessionKey))
+          return Response.json(
+            await unbindSessionProject(
+              sessionKey,
+              explicitProjectProfile(request),
+            ),
+          )
         } catch (err) {
           return Response.json(
             { error: err instanceof Error ? err.message : 'Unbind failed' },

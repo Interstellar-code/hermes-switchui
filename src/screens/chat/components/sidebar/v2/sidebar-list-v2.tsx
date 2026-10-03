@@ -14,10 +14,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { SidebarCardV2 } from './sidebar-card-v2'
 import type { Range } from '@tanstack/react-virtual'
-import type {
-  DayGroupLabel,
-  SessionDayGroup,
-} from '@/screens/chat/apply-filters-and-decorate'
+import type { SessionDayGroup } from '@/screens/chat/apply-filters-and-decorate'
 
 const COLLAPSED_KEY = 'hermes.sessions.groups.collapsed'
 const HEADER_ESTIMATE = 36
@@ -43,7 +40,7 @@ function writeCollapsedMap(map: Record<string, boolean>): void {
   }
 }
 
-const GROUP_LABEL_STYLE: Record<DayGroupLabel, React.CSSProperties> = {
+const GROUP_LABEL_STYLE: Record<string, React.CSSProperties | undefined> = {
   Pinned: { color: 'var(--m-green-400, var(--theme-accent))' },
   Today: { color: 'var(--theme-muted)' },
   Yesterday: { color: 'var(--theme-muted)' },
@@ -54,14 +51,14 @@ type RowModel =
   | {
       type: 'header'
       key: string
-      label: DayGroupLabel
+      label: string
       count: number
       collapsed: boolean
     }
   | {
       type: 'card'
       key: string
-      groupLabel: DayGroupLabel
+      groupLabel: string
       item: SessionDayGroup['items'][number]
       isActive: boolean
     }
@@ -83,7 +80,7 @@ export function SidebarListV2({
 }: SidebarListV2Props) {
   const [collapsedMap, setCollapsedMap] =
     useState<Record<string, boolean>>(readCollapsedMap)
-  const toggleGroup = (label: DayGroupLabel) => {
+  const toggleGroup = (label: string) => {
     setCollapsedMap((prev) => {
       const next = { ...prev, [label]: !prev[label] }
       writeCollapsedMap(next)
@@ -373,7 +370,11 @@ function SidebarAttentionActions({
         aria-label="Mark all updates as read"
         disabled={!hasPendingUpdates}
         onClick={onMarkAllRead}
-        title={hasPendingUpdates ? 'Mark all unread updates as read' : 'No unread updates'}
+        title={
+          hasPendingUpdates
+            ? 'Mark all unread updates as read'
+            : 'No unread updates'
+        }
         style={{
           background: hasPendingUpdates
             ? 'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 10%, transparent)'

@@ -7,6 +7,7 @@ import {
   fetchProjectFolders,
   fetchProjects,
   fetchSessionProject,
+  fetchSessionProjectMap,
   invalidateProjectQueries,
   projectsKeys,
   unbindSessionProject,
@@ -22,7 +23,7 @@ describe('Projects mutations', () => {
   })
 
   it('routes reads and writes through the explicitly selected profile', async () => {
-    const fetchMock = vi.fn(() =>
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
       Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
     )
     vi.stubGlobal('fetch', fetchMock)
@@ -89,6 +90,33 @@ describe('Session project client', () => {
       3,
       '/api/hermes-projects/session?sessionKey=chat-a',
       expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('scopes binding writes and the session map to a profile', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    await bindSessionProject({
+      sessionKey: 'chat-a',
+      projectSlug: 'demo',
+      profile: 'work',
+    })
+    await unbindSessionProject('chat-a', 'work')
+    await fetchSessionProjectMap('work')
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      '/api/hermes-projects/session?sessionKey=chat-a&profile=work',
+      '/api/hermes-projects/session?sessionKey=chat-a&profile=work',
+      '/api/session-folders?profile=work',
+    ])
+    expect(projectsKeys.sessionMap('a')).not.toEqual(
+      projectsKeys.sessionMap('b'),
+    )
+    expect(projectsKeys.sessionMap('a').slice(0, 2)).toEqual(
+      projectsKeys.sessionMapAll,
     )
   })
 })

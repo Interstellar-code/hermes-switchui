@@ -8,6 +8,7 @@ import type {
   ProjectMutationResponse,
   ProjectsListResponse,
   SessionProjectBindingResponse,
+  SessionProjectMap,
   SessionProjectResolution,
   SessionProjectUnbindResponse,
   UpdateProjectInput,
@@ -69,6 +70,9 @@ export const projectsKeys = {
     ['hermes-projects', 'activity', idOrSlug, { profile }] as const,
   session: (sessionKey: string) =>
     ['hermes-projects', 'session', activeScopeKey(sessionKey)] as const,
+  sessionMapAll: ['hermes-projects', 'session-map'] as const,
+  sessionMap: (profile?: string) =>
+    ['hermes-projects', 'session-map', { profile }] as const,
 }
 
 export async function fetchProjects(
@@ -89,7 +93,10 @@ export async function fetchProject(
   profile?: string,
 ): Promise<ProjectDetailResponse> {
   return projectsJson<ProjectDetailResponse>(
-    withProfile(`/api/hermes-projects/${encodeURIComponent(idOrSlug)}`, profile),
+    withProfile(
+      `/api/hermes-projects/${encodeURIComponent(idOrSlug)}`,
+      profile,
+    ),
   )
 }
 
@@ -98,7 +105,10 @@ export async function fetchProjectFolders(
   profile?: string,
 ): Promise<ProjectFoldersResponse> {
   return projectsJson<ProjectFoldersResponse>(
-    withProfile(`/api/hermes-projects/${encodeURIComponent(idOrSlug)}/folders`, profile),
+    withProfile(
+      `/api/hermes-projects/${encodeURIComponent(idOrSlug)}/folders`,
+      profile,
+    ),
   )
 }
 
@@ -112,7 +122,10 @@ export async function fetchProjectActivity(
   if (opts?.cursor != null) q.set('cursor', opts.cursor)
   const qs = q.toString()
   return projectsJson<ProjectActivityResponse>(
-    withProfile(`/api/hermes-projects/${encodeURIComponent(idOrSlug)}/activity${qs ? `?${qs}` : ''}`, profile),
+    withProfile(
+      `/api/hermes-projects/${encodeURIComponent(idOrSlug)}/activity${qs ? `?${qs}` : ''}`,
+      profile,
+    ),
   )
 }
 
@@ -129,21 +142,24 @@ export function fetchSessionProject(
 export function bindSessionProject({
   sessionKey,
   projectSlug,
+  profile,
 }: {
   sessionKey: string
   projectSlug: string
+  profile?: string
 }): Promise<SessionProjectBindingResponse> {
   return projectsJson<SessionProjectBindingResponse>(
-    sessionProjectPath(sessionKey),
+    withProfile(sessionProjectPath(sessionKey), profile),
     jsonBody({ project_slug: projectSlug }),
   )
 }
 
 export function unbindSessionProject(
   sessionKey: string,
+  profile?: string,
 ): Promise<SessionProjectUnbindResponse> {
   return projectsJson<SessionProjectUnbindResponse>(
-    sessionProjectPath(sessionKey),
+    withProfile(sessionProjectPath(sessionKey), profile),
     {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -155,9 +171,12 @@ export function createProject(
   input: CreateProjectInput,
   profile?: string,
 ): Promise<ProjectMutationResponse> {
-  return projectsJson<ProjectMutationResponse>(withProfile('/api/hermes-projects', profile), {
-    ...jsonBody(input),
-  })
+  return projectsJson<ProjectMutationResponse>(
+    withProfile('/api/hermes-projects', profile),
+    {
+      ...jsonBody(input),
+    },
+  )
 }
 
 export function updateProject(
@@ -165,11 +184,14 @@ export function updateProject(
   input: UpdateProjectInput,
   profile?: string,
 ): Promise<ProjectMutationResponse> {
-  return projectsJson<ProjectMutationResponse>(withProfile(projectPath(idOrSlug), profile), {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
+  return projectsJson<ProjectMutationResponse>(
+    withProfile(projectPath(idOrSlug), profile),
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
 }
 
 export function addProjectFolder(
@@ -239,11 +261,17 @@ export function setActiveProject(
   )
 }
 
-export function deleteProject(idOrSlug: string, profile?: string): Promise<ProjectsListResponse> {
-  return projectsJson<ProjectsListResponse>(withProfile(projectPath(idOrSlug), profile), {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-  })
+export function deleteProject(
+  idOrSlug: string,
+  profile?: string,
+): Promise<ProjectsListResponse> {
+  return projectsJson<ProjectsListResponse>(
+    withProfile(projectPath(idOrSlug), profile),
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+    },
+  )
 }
 
 export function invalidateProjectQueries(
@@ -263,7 +291,9 @@ export function useProjectMutation<TInput>(
 }
 
 export function useCreateProject(profile?: string) {
-  return useProjectMutation((input: CreateProjectInput) => createProject(input, profile))
+  return useProjectMutation((input: CreateProjectInput) =>
+    createProject(input, profile),
+  )
 }
 export function useUpdateProject(profile?: string) {
   return useProjectMutation(
@@ -290,46 +320,125 @@ export function useSetPrimaryProjectFolder(profile?: string) {
   )
 }
 export function useArchiveProject(profile?: string) {
-  return useProjectMutation((idOrSlug: string) => archiveProject(idOrSlug, profile))
+  return useProjectMutation((idOrSlug: string) =>
+    archiveProject(idOrSlug, profile),
+  )
 }
 export function useRestoreProject(profile?: string) {
-  return useProjectMutation((idOrSlug: string) => restoreProject(idOrSlug, profile))
+  return useProjectMutation((idOrSlug: string) =>
+    restoreProject(idOrSlug, profile),
+  )
 }
 export function useSetActiveProject(profile?: string) {
-  return useProjectMutation((idOrSlug: string) => setActiveProject(idOrSlug, profile))
+  return useProjectMutation((idOrSlug: string) =>
+    setActiveProject(idOrSlug, profile),
+  )
 }
 export function useDeleteProject(profile?: string) {
-  return useProjectMutation((idOrSlug: string) => deleteProject(idOrSlug, profile))
+  return useProjectMutation((idOrSlug: string) =>
+    deleteProject(idOrSlug, profile),
+  )
 }
 
-function invalidateSessionProjectQuery(
-  queryClient: ReturnType<typeof useQueryClient>,
+export function fetchSessionProjectMap(
+  profile?: string,
+): Promise<SessionProjectMap> {
+  return projectsJson<SessionProjectMap>(
+    withProfile('/api/session-folders', profile),
+  )
+}
+
+export function useSessionProjectMap(profile?: string, enabled = true) {
+  return useQuery({
+    queryKey: projectsKeys.sessionMap(profile),
+    queryFn: () => fetchSessionProjectMap(profile),
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+  })
+}
+
+type QueryClient = ReturnType<typeof useQueryClient>
+type MapSnapshot = Array<[ReadonlyArray<unknown>, SessionProjectMap | undefined]>
+
+/**
+ * Optimistically rewrite one session's binding in every cached session map.
+ * Session ids are globally unique, so touching other profiles' maps is a no-op
+ * in practice and saves guessing which profile key the sidebar used.
+ */
+async function patchSessionMaps(
+  queryClient: QueryClient,
   sessionKey: string,
+  projectSlug: string | null,
+): Promise<MapSnapshot> {
+  await queryClient.cancelQueries({ queryKey: projectsKeys.sessionMapAll })
+  const snapshot = queryClient.getQueriesData<SessionProjectMap>({
+    queryKey: projectsKeys.sessionMapAll,
+  })
+  queryClient.setQueriesData<SessionProjectMap>(
+    { queryKey: projectsKeys.sessionMapAll },
+    (map) => {
+      if (!map) return map
+      const sessions = { ...map.sessions }
+      if (projectSlug === null) {
+        delete sessions[sessionKey]
+      } else {
+        const project = map.projects.find((p) => p.slug === projectSlug)
+        if (!project) return map
+        sessions[sessionKey] = project.id
+      }
+      return { ...map, sessions }
+    },
+  )
+  return snapshot
+}
+
+function rollbackSessionMaps(queryClient: QueryClient, snapshot?: MapSnapshot) {
+  for (const [key, data] of snapshot ?? []) queryClient.setQueryData(key, data)
+}
+
+function settleSessionProject(queryClient: QueryClient, sessionKey: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({
+      queryKey: projectsKeys.session(sessionKey),
+    }),
+    queryClient.invalidateQueries({ queryKey: projectsKeys.sessionMapAll }),
+  ])
+}
+
+export function useBindSessionProject(profile?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { sessionKey: string; projectSlug: string }) =>
+      bindSessionProject({ ...input, profile }),
+    onMutate: ({ sessionKey, projectSlug }) =>
+      patchSessionMaps(queryClient, sessionKey, projectSlug),
+    onError: (_err, _input, snapshot) =>
+      rollbackSessionMaps(queryClient, snapshot),
+    onSettled: (_data, _err, { sessionKey }) =>
+      settleSessionProject(queryClient, sessionKey),
+  })
+}
+
+export function useUnbindSessionProject(profile?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (sessionKey: string) =>
+      unbindSessionProject(sessionKey, profile),
+    onMutate: (sessionKey) => patchSessionMaps(queryClient, sessionKey, null),
+    onError: (_err, _sessionKey, snapshot) =>
+      rollbackSessionMaps(queryClient, snapshot),
+    onSettled: (_data, _err, sessionKey) =>
+      settleSessionProject(queryClient, sessionKey),
+  })
+}
+
+export function useProjects(
+  includeArchived = false,
+  enabled = true,
+  profile?: string,
 ) {
-  return queryClient.invalidateQueries({
-    queryKey: projectsKeys.session(sessionKey),
-  })
-}
-
-export function useBindSessionProject() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: bindSessionProject,
-    onSuccess: (_, { sessionKey }) =>
-      invalidateSessionProjectQuery(queryClient, sessionKey),
-  })
-}
-
-export function useUnbindSessionProject() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: unbindSessionProject,
-    onSuccess: (_, sessionKey) =>
-      invalidateSessionProjectQuery(queryClient, sessionKey),
-  })
-}
-
-export function useProjects(includeArchived = false, enabled = true, profile?: string) {
   return useQuery({
     queryKey: projectsKeys.list(includeArchived, profile),
     queryFn: () => fetchProjects(includeArchived, profile),
@@ -345,7 +454,11 @@ export function useProject(idOrSlug: string, enabled = true, profile?: string) {
   })
 }
 
-export function useProjectFolders(idOrSlug: string, enabled = true, profile?: string) {
+export function useProjectFolders(
+  idOrSlug: string,
+  enabled = true,
+  profile?: string,
+) {
   return useQuery({
     queryKey: projectsKeys.folders(idOrSlug, profile),
     queryFn: () => fetchProjectFolders(idOrSlug, profile),

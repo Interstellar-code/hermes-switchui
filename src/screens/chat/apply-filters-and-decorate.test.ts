@@ -3,6 +3,7 @@ import { applyFiltersAndDecorate } from './apply-filters-and-decorate'
 import type { SessionFeedItem } from './sessions-feed-types'
 import type { FilterState } from '@/stores/sessions-filter-store'
 import type { LocalState } from '@/stores/sessions-local-store'
+import type { SessionProjectMap } from '@/lib/projects-types'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -502,5 +503,115 @@ describe('applyFiltersAndDecorate', () => {
     )
     expect(result.totalCount).toBe(0)
     expect(result.groups).toEqual([])
+  })
+})
+
+describe('applyFiltersAndDecorate — grouping', () => {
+  const project = (
+    id: string,
+    name: string,
+    archived = false,
+  ): SessionProjectMap['projects'][number] => ({
+    id,
+    slug: id,
+    name,
+    icon: null,
+    color: '#f00',
+    archived,
+    board_slug: null,
+  })
+
+  const map: SessionProjectMap = {
+    version: 'v1',
+    projects: [
+      project('p-old', 'Old', true),
+      project('p-a', 'Alpha'),
+      project('p-empty', 'Empty'),
+      project('p-b', 'Beta'),
+    ],
+    sessions: {
+      a1: 'p-a',
+      b1: 'p-b',
+      old1: 'p-old',
+      pin1: 'p-a',
+      'run:x': 'p-b',
+      gone: 'p-a',
+      ghost: 'p-missing',
+    },
+  }
+
+  const now = Date.now()
+  const items = [
+    makeItem({ id: 'chat:a1', when: now - 1 }),
+    makeItem({ id: 'chat:b1', when: now - 2 }),
+    makeItem({ id: 'chat:old1', when: now - 3 }),
+    makeItem({ id: 'chat:pin1', when: now - 4 }),
+    makeItem({ id: 'chat:loose', when: now - 5, day: 'earlier' }),
+    makeItem({ id: 'cron:run:x', src: 'cron', when: now - 6 }),
+    makeItem({ id: 'cron:job', src: 'cron', when: now - 7 }),
+    makeItem({ id: 'chat:ghost', when: now - 8 }),
+  ]
+  const local = makeLocal({ pinned: ['chat:pin1'] })
+
+  it('date mode output carries key/kind and keeps day grouping', () => {
+    const result = applyFiltersAndDecorate(items, makeFilter(), local)
+    expect(result.groups.map((g) => [g.key, g.kind, g.label])).toEqual([
+      ['pinned', 'pinned', 'Pinned'],
+      ['day:Today', 'day', 'Today'],
+      ['day:Earlier', 'day', 'Earlier'],
+    ])
+  })
+
+  it('without a map project mode falls back to date grouping', () => {
+    const result = applyFiltersAndDecorate(items, makeFilter(), local, {
+      groupBy: 'project',
+      map: null,
+    })
+    expect(result.groups.map((g) => g.key)).toEqual([
+      'pinned',
+      'day:Today',
+      'day:Earlier',
+    ])
+  })
+
+  it('project mode: pinned, live projects in map order, archived, unfiled', () => {
+    const result = applyFiltersAndDecorate(items, makeFilter(), local, {
+      groupBy: 'project',
+      map,
+    })
+    expect(result.groups.map((g) => [g.key, g.items.map((i) => i.id)])).toEqual(
+      [
+        ['pinned', ['chat:pin1']],
+        ['project:p-a', ['chat:a1']],
+        ['project:p-b', ['chat:b1', 'cron:run:x']],
+        ['project:p-old', ['chat:old1']],
+        ['unfiled', ['chat:loose', 'cron:job', 'chat:ghost']],
+      ],
+    )
+    const alpha = result.groups[1]
+    expect(alpha).toMatchObject({
+      label: 'Alpha',
+      kind: 'project',
+      color: '#f00',
+      archived: false,
+    })
+    expect(result.groups[3].archived).toBe(true)
+    expect(result.groups[4]).toMatchObject({
+      label: 'Unfiled',
+      kind: 'unfiled',
+    })
+    expect(result.totalCount).toBe(items.length)
+  })
+
+  it('project mode respects filters', () => {
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ sources: ['cron'] }),
+      local,
+      { groupBy: 'project', map },
+    )
+    const ids = result.groups.flatMap((g) => g.items).map((i) => i.id)
+    expect(ids).not.toContain('cron:run:x')
+    expect(ids).not.toContain('cron:job')
   })
 })

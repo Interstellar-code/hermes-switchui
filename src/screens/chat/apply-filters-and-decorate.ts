@@ -2,13 +2,15 @@
  * apply-filters-and-decorate.ts — Phase 3 (S5) of the Sessions Sidebar plan.
  *
  * Pure function: filters feed items, applies local pin/star/archive state,
- * groups by day, and returns per-source counts for chip badges.
+ * groups by day (or by project folder), and returns per-source counts for
+ * chip badges.
  */
 
 import { sortItems } from './sessions-feed'
 import { matchesSessionSearch } from './session-search'
 import type { SessionFeedItem, SessionSource } from './sessions-feed-types'
 import type { FilterState } from '@/stores/sessions-filter-store'
+import type { SessionProjectMap } from '@/lib/projects-types'
 import type { LocalState } from '@/stores/sessions-local-store'
 import { isSessionUpdateUnseen } from '@/stores/sessions-local-store'
 
@@ -16,13 +18,29 @@ import { isSessionUpdateUnseen } from '@/stores/sessions-local-store'
 
 export type DayGroupLabel = 'Pinned' | 'Today' | 'Yesterday' | 'Earlier'
 
-export type SessionDayGroup = {
-  label: DayGroupLabel
+export type SessionGroupKind = 'pinned' | 'day' | 'project' | 'unfiled'
+
+export type SessionGroup = {
+  /** Stable id: `pinned`, `day:Today`, `project:<id>`, `unfiled`. */
+  key: string
+  label: string
+  kind: SessionGroupKind
+  color?: string | null
+  icon?: string | null
+  archived?: boolean
   items: Array<SessionFeedItem>
 }
 
+/** @deprecated use `SessionGroup`; kept so existing imports compile. */
+export type SessionDayGroup = SessionGroup
+
+export type SessionGrouping = {
+  groupBy: FilterState['groupBy']
+  map?: SessionProjectMap | null
+}
+
 export type FilterAndDecorateResult = {
-  groups: Array<SessionDayGroup>
+  groups: Array<SessionGroup>
   totalCount: number
   /** Count of items visible if only that source were selected (state+search+date applied; source filter ignored). */
   sourceCounts: Partial<Record<SessionSource, number>>
@@ -88,6 +106,7 @@ export function applyFiltersAndDecorate(
     | 'lastSeenUpdate'
     | 'seenUpdatesInitialized'
   >,
+  grouping?: SessionGrouping,
 ): FilterAndDecorateResult {
   const pinnedSet = new Set(local.pinned)
   const starredSet = new Set(local.starred)
@@ -139,7 +158,23 @@ export function applyFiltersAndDecorate(
     filter.sort,
   )
 
-  // ── Group ─────────────────────────────────────────────────────────────────
+  const map = grouping?.groupBy === 'project' ? grouping.map : null
+  const groups = map ? groupByProject(decorated, map) : groupByDay(decorated)
+
+  return {
+    groups,
+    totalCount: decorated.length,
+    sourceCounts,
+  }
+}
+
+// ── Grouping ───────────────────────────────────────────────────────────────────
+
+function pinnedGroup(items: Array<SessionFeedItem>): SessionGroup {
+  return { key: 'pinned', label: 'Pinned', kind: 'pinned', items }
+}
+
+function groupByDay(decorated: Array<SessionFeedItem>): Array<SessionGroup> {
   const pinnedItems: Array<SessionFeedItem> = []
   const todayItems: Array<SessionFeedItem> = []
   const yesterdayItems: Array<SessionFeedItem> = []
@@ -157,18 +192,73 @@ export function applyFiltersAndDecorate(
     }
   }
 
-  const groups: Array<SessionDayGroup> = []
-  if (pinnedItems.length > 0)
-    groups.push({ label: 'Pinned', items: pinnedItems })
-  if (todayItems.length > 0) groups.push({ label: 'Today', items: todayItems })
-  if (yesterdayItems.length > 0)
-    groups.push({ label: 'Yesterday', items: yesterdayItems })
-  if (earlierItems.length > 0)
-    groups.push({ label: 'Earlier', items: earlierItems })
-
-  return {
-    groups,
-    totalCount: decorated.length,
-    sourceCounts,
+  const groups: Array<SessionGroup> = []
+  if (pinnedItems.length > 0) groups.push(pinnedGroup(pinnedItems))
+  const days: Array<[DayGroupLabel, Array<SessionFeedItem>]> = [
+    ['Today', todayItems],
+    ['Yesterday', yesterdayItems],
+    ['Earlier', earlierItems],
+  ]
+  for (const [label, items] of days) {
+    if (items.length > 0)
+      groups.push({ key: `day:${label}`, label, kind: 'day', items })
   }
+  return groups
+}
+
+/**
+ * Pinned → live projects (map order, non-empty) → archived projects
+ * (non-empty) → Unfiled. Items keep the incoming sort within each section.
+ * Map entries pointing at unknown projects (or sessions not in the feed) are
+ * ignored, so their items fall through to Unfiled.
+ */
+function groupByProject(
+  decorated: Array<SessionFeedItem>,
+  map: SessionProjectMap,
+): Array<SessionGroup> {
+  const pinnedItems: Array<SessionFeedItem> = []
+  const unfiled: Array<SessionFeedItem> = []
+  const byProject = new Map<string, Array<SessionFeedItem>>(
+    map.projects.map((p) => [p.id, []]),
+  )
+
+  for (const item of decorated) {
+    if (item.pinned) {
+      pinnedItems.push(item)
+      continue
+    }
+    const rawId = item.id.split(':').slice(1).join(':')
+    const projectId = Object.hasOwn(map.sessions, rawId)
+      ? map.sessions[rawId]
+      : undefined
+    const bucket = projectId ? byProject.get(projectId) : undefined
+    if (bucket) bucket.push(item)
+    else unfiled.push(item)
+  }
+
+  const groups: Array<SessionGroup> = []
+  if (pinnedItems.length > 0) groups.push(pinnedGroup(pinnedItems))
+  for (const archived of [false, true]) {
+    for (const p of map.projects) {
+      const items = byProject.get(p.id)!
+      if (p.archived !== archived || items.length === 0) continue
+      groups.push({
+        key: `project:${p.id}`,
+        label: p.name,
+        kind: 'project',
+        color: p.color,
+        icon: p.icon,
+        archived: p.archived,
+        items,
+      })
+    }
+  }
+  if (unfiled.length > 0)
+    groups.push({
+      key: 'unfiled',
+      label: 'Unfiled',
+      kind: 'unfiled',
+      items: unfiled,
+    })
+  return groups
 }

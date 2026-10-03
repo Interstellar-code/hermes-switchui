@@ -307,5 +307,108 @@ describe('projects-client', () => {
         expect.objectContaining({ method: 'DELETE' }),
       )
     })
+
+    it('routes session binding calls to an explicit profile', async () => {
+      mockDashboardFetch.mockResolvedValue(makeOkResponse({}))
+      const {
+        resolveSessionProject,
+        bindSessionProject,
+        unbindSessionProject,
+      } = await import('./projects-client')
+      await resolveSessionProject('chat-1', 'neo')
+      await bindSessionProject('chat-1', 'demo', 'neo')
+      await unbindSessionProject('chat-1', 'neo')
+      const paths = mockDashboardFetch.mock.calls.map((c) => c[0])
+      expect(paths).toEqual([
+        '/api/plugins/projects/session/chat-1?profile=neo',
+        '/api/plugins/projects/session?session_id=chat-1&profile=neo',
+        '/api/plugins/projects/session/chat-1?profile=neo',
+      ])
+    })
+  })
+
+  describe('getSessionProjectMap', () => {
+    const project = {
+      id: 'p1',
+      slug: 'a',
+      name: 'A',
+      icon: null,
+      color: '#f00',
+      archived: false,
+      board_slug: null,
+    }
+
+    it('uses the plugin route and forwards If-None-Match', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        Response.json(
+          { version: 'v1', projects: [project], sessions: { s1: 'p1' } },
+          { headers: { ETag: '"e1"' } },
+        ),
+      )
+      const { getSessionProjectMap } = await import('./projects-client')
+      const result = await getSessionProjectMap('neo', '"e0"')
+      expect(mockDashboardFetch).toHaveBeenCalledWith(
+        '/api/plugins/hermes-switch-ui/project-map?profile=neo',
+        expect.objectContaining({ headers: { 'If-None-Match': '"e0"' } }),
+      )
+      expect(result).toEqual({
+        notModified: false,
+        etag: '"e1"',
+        map: { version: 'v1', projects: [project], sessions: { s1: 'p1' } },
+      })
+    })
+
+    it('passes through 304', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        new Response(null, { status: 304, headers: { ETag: '"e1"' } }),
+      )
+      const { getSessionProjectMap } = await import('./projects-client')
+      expect(await getSessionProjectMap(undefined, '"e1"')).toEqual({
+        notModified: true,
+        etag: '"e1"',
+      })
+      expect(mockDashboardFetch.mock.calls[0][0]).toBe(
+        '/api/plugins/hermes-switch-ui/project-map?profile=hermes-switch',
+      )
+    })
+
+    it('falls back to the projects plugin on 404', async () => {
+      mockDashboardFetch
+        .mockResolvedValueOnce(new Response('nf', { status: 404 }))
+        .mockResolvedValueOnce(
+          makeOkResponse({
+            projects: [{ ...project, folders: [], task_count: 3 }],
+            active_id: null,
+          }),
+        )
+        .mockResolvedValueOnce(
+          makeOkResponse({
+            project_id: 'p1',
+            bindings: [{ session_id: 's1' }],
+          }),
+        )
+      const { getSessionProjectMap } = await import('./projects-client')
+      const result = await getSessionProjectMap('neo')
+      expect(mockDashboardFetch.mock.calls.map((c) => c[0])).toEqual([
+        '/api/plugins/hermes-switch-ui/project-map?profile=neo',
+        '/api/plugins/projects?include_archived=true&profile=neo',
+        '/api/plugins/projects/p1/sessions?profile=neo',
+      ])
+      expect(result).toEqual({
+        notModified: false,
+        etag: null,
+        map: { version: null, projects: [project], sessions: { s1: 'p1' } },
+      })
+    })
+
+    it('throws a status-tagged error on other failures', async () => {
+      mockDashboardFetch.mockResolvedValueOnce(
+        new Response('x', { status: 500 }),
+      )
+      const { getSessionProjectMap } = await import('./projects-client')
+      await expect(getSessionProjectMap()).rejects.toThrow(
+        /Projects API error 500/,
+      )
+    })
   })
 })
