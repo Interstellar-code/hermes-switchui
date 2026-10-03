@@ -22,7 +22,105 @@ export type MnemosyneStats = {
   counts: MnemosyneStatsCounts
   /** ISO time of the newest working/episodic row, if any. */
   lastWriteAt?: string | null
+  /** Consolidation/embedding health; each part null when the DB predates it. */
+  health?: MnemosyneHealth
   missingReason?: string
+}
+
+export type MnemosyneHealth = {
+  lastConsolidation: {
+    at: string | null
+    method: 'llm' | 'aaak' | null
+    items: number | null
+  } | null
+  /** Rows the auto-sleep sweep would pick up now (plugin eligibility), and
+   * rows parked in the 6h failed-summary backoff (null on pre-0.21.7 DBs). */
+  backlog: { rows: number; sessions: number; backoff: number | null } | null
+  embeddings: { covered: number; total: number } | null
+}
+
+// Mirrors mnemosyne beam.py: eligible = older than WORKING_MEMORY_TTL_HOURS // 2,
+// failed summaries back off CONSOLIDATION_RETRY_BACKOFF_SECONDS (6h). The
+// plugin stores naive local-time isoformat strings, so compare in localtime.
+const WM_TTL_HOURS = Number(process.env.MNEMOSYNE_WM_TTL_HOURS) || 168
+const localIsoAgo = (hours: number) =>
+  `strftime('%Y-%m-%dT%H:%M:%f', 'now', 'localtime', '-${hours} hours')`
+
+function getMnemosyneHealth(db: Database.Database): MnemosyneHealth {
+  let lastConsolidation: MnemosyneHealth['lastConsolidation'] = null
+  if (tableExists(db, 'consolidation_log')) {
+    const row = db
+      .prepare(
+        'SELECT created_at, summary_preview, items_consolidated FROM consolidation_log ORDER BY id DESC LIMIT 1',
+      )
+      .get() as
+      | {
+          created_at: string | null
+          summary_preview: string | null
+          items_consolidated: number | null
+        }
+      | undefined
+    if (row) {
+      // created_at is python datetime.now().isoformat() → naive local time.
+      const ms = row.created_at
+        ? Date.parse(row.created_at.replace(' ', 'T'))
+        : NaN
+      const preview = row.summary_preview ?? ''
+      lastConsolidation = {
+        at: Number.isNaN(ms) ? null : new Date(ms).toISOString(),
+        method: preview.includes('(llm)')
+          ? 'llm'
+          : preview.includes('(aaak)')
+            ? 'aaak'
+            : null,
+        items: row.items_consolidated,
+      }
+    }
+  }
+
+  let backlog: MnemosyneHealth['backlog'] = null
+  if (
+    ['consolidated_at', 'timestamp', 'pinned', 'session_id'].every((c) =>
+      hasColumn(db, 'working_memory', c),
+    )
+  ) {
+    const claims = hasColumn(db, 'working_memory', 'consolidation_claimed_at')
+    const pending = 'consolidated_at IS NULL AND (pinned IS NULL OR pinned = 0)'
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) AS rows, COUNT(DISTINCT COALESCE(session_id, 'default')) AS sessions
+         FROM working_memory
+         WHERE ${pending} AND timestamp < ${localIsoAgo(Math.floor(WM_TTL_HOURS / 2))}
+         ${claims ? `AND (consolidation_claimed_at IS NULL OR consolidation_claimed_at < ${localIsoAgo(6)})` : ''}`,
+      )
+      .get() as { rows: number; sessions: number }
+    const backoff = claims
+      ? (
+          db
+            .prepare(
+              `SELECT COUNT(*) AS n FROM working_memory
+               WHERE consolidated_at IS NULL AND consolidation_claimed_at IS NOT NULL
+               AND consolidation_claimed_at >= ${localIsoAgo(6)}`,
+            )
+            .get() as { n: number }
+        ).n
+      : null
+    backlog = { rows: row.rows, sessions: row.sessions, backoff }
+  }
+
+  let embeddings: MnemosyneHealth['embeddings'] = null
+  if (hasColumn(db, 'memory_embeddings', 'memory_id')) {
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) AS total,
+           SUM(EXISTS (SELECT 1 FROM memory_embeddings me WHERE me.memory_id = wm.id)) AS covered
+         FROM working_memory wm`,
+      )
+      .get() as { total: number; covered: number | null }
+    embeddings = { covered: row.covered ?? 0, total: row.total }
+  }
+
+  return { lastConsolidation, backlog, embeddings }
 }
 
 function getDefaultBankId(): string {
@@ -53,7 +151,12 @@ function getCandidateDbPaths(
   if (explicitDataDir) {
     const dataDir = path.resolve(explicitDataDir)
     return [
-      path.join(dataDir, bankId === 'default' ? 'mnemosyne.db' : path.join('banks', bankId, 'mnemosyne.db')),
+      path.join(
+        dataDir,
+        bankId === 'default'
+          ? 'mnemosyne.db'
+          : path.join('banks', bankId, 'mnemosyne.db'),
+      ),
     ]
   }
 
@@ -187,6 +290,7 @@ export function getMnemosyneStats(
         total: working + episodic,
       },
       lastWriteAt: sqliteTsToIso(last.ts),
+      health: getMnemosyneHealth(db),
     }
   } finally {
     db.close()
@@ -214,7 +318,9 @@ function scoreText(text: string, terms: Array<string>): number {
 }
 
 function snippet(text: unknown): string {
-  const collapsed = String(text ?? '').replace(/\s+/g, ' ').trim()
+  const collapsed = String(text ?? '')
+    .replace(/\s+/g, ' ')
+    .trim()
   return collapsed.length > SEARCH_SNIPPET_MAX
     ? `${collapsed.slice(0, SEARCH_SNIPPET_MAX - 1)}…`
     : collapsed
@@ -237,7 +343,12 @@ const SEARCH_SOURCES: Array<SearchSource> = [
     text: "COALESCE(t.subject, '') || ' ' || COALESCE(t.predicate, '') || ' ' || COALESCE(t.object, '')",
     fts: 'fts_facts',
   },
-  { kind: 'episodic', table: 'episodic_memory', text: 't.content', fts: 'fts_episodes' },
+  {
+    kind: 'episodic',
+    table: 'episodic_memory',
+    text: 't.content',
+    fts: 'fts_episodes',
+  },
 ]
 
 /**
@@ -273,12 +384,16 @@ export function searchMnemosyne(
     .join(' OR ')
   // unicode61 can't split unspaced scripts (CJK/Thai): those words also go
   // through LIKE, even when FTS found rows for the others.
-  const nonLatinWords = words.filter((w) => /[^\p{Script=Latin}\p{N}_]/u.test(w))
+  const nonLatinWords = words.filter((w) =>
+    /[^\p{Script=Latin}\p{N}_]/u.test(w),
+  )
 
   const db = openReadonlyDb(dbPath)
   /** Rows whose folded text contains any of `ws`, most words matched first. */
   const likeRows = (s: SearchSource, ws: Array<string>) => {
-    const params = Object.fromEntries(ws.map((w, i) => [`w${i}`, toLikePattern(fold(w))]))
+    const params = Object.fromEntries(
+      ws.map((w, i) => [`w${i}`, toLikePattern(fold(w))]),
+    )
     const hits = ws.map((_, i) => `(f LIKE @w${i} ESCAPE '\\')`)
     return db
       .prepare(
@@ -288,7 +403,9 @@ export function searchMnemosyne(
       .all({ ...params, cap }) as Array<{ text: string | null }>
   }
   try {
-    db.function('fold', { deterministic: true }, (v: unknown) => fold(String(v ?? '')))
+    db.function('fold', { deterministic: true }, (v: unknown) =>
+      fold(String(v ?? '')),
+    )
     const matches: Array<MnemosyneSearchMatch> = []
     for (const s of SEARCH_SOURCES) {
       if (!tableExists(db, s.table)) continue
@@ -302,7 +419,9 @@ export function searchMnemosyne(
           .all({ q: ftsQuery, cap }) as typeof rows
         if (nonLatinWords.length > 0) {
           const seen = new Set(rows.map((r) => r.text))
-          rows.push(...likeRows(s, nonLatinWords).filter((r) => !seen.has(r.text)))
+          rows.push(
+            ...likeRows(s, nonLatinWords).filter((r) => !seen.has(r.text)),
+          )
         }
       } else {
         rows = likeRows(s, words)
@@ -375,7 +494,9 @@ function searchWords(q: string): Array<string> {
 export function toFtsQuery(q: string): string | null {
   const words = searchWords(q)
   if (words.length === 0) return null
-  return words.map((w, i) => `"${w}"${i === words.length - 1 ? '*' : ''}`).join(' ')
+  return words
+    .map((w, i) => `"${w}"${i === words.length - 1 ? '*' : ''}`)
+    .join(' ')
 }
 
 /** LIKE pattern with %, _ and \ escaped (use with ESCAPE '\'). */
@@ -393,7 +514,9 @@ function encodeCursor(c: Cursor): string {
 export function decodeCursor(raw: string): Cursor | null {
   try {
     const c = JSON.parse(Buffer.from(raw, 'base64url').toString()) as unknown
-    return Array.isArray(c) && c.length === 3 && c.every((v) => typeof v === 'string')
+    return Array.isArray(c) &&
+      c.length === 3 &&
+      c.every((v) => typeof v === 'string')
       ? (c as Cursor)
       : null
   } catch {
@@ -410,7 +533,9 @@ function toSqliteTs(iso: string): string | null {
 
 function sqliteTsToIso(ts: string | null): string | null {
   if (!ts) return null
-  const ms = Date.parse(`${ts.replace(' ', 'T')}${/[zZ]|[+-]\d\d:?\d\d$/.test(ts) ? '' : 'Z'}`)
+  const ms = Date.parse(
+    `${ts.replace(' ', 'T')}${/[zZ]|[+-]\d\d:?\d\d$/.test(ts) ? '' : 'Z'}`,
+  )
   return Number.isNaN(ms) ? null : new Date(ms).toISOString()
 }
 
@@ -429,7 +554,8 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
   {
     type: 'gist',
     table: 'gists',
-    sql: (f) => `SELECT g.id AS id, 'gist' AS type, g.text AS text, g.created_at AS ts FROM gists g WHERE 1=1 ${f}`,
+    sql: (f) =>
+      `SELECT g.id AS id, 'gist' AS type, g.text AS text, g.created_at AS ts FROM gists g WHERE 1=1 ${f}`,
     likeExpr: 'g.text',
   },
   {
@@ -447,7 +573,11 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
          FROM facts f WHERE NOT ${JUNK_FACT_SQL} ${f}
          WINDOW grp AS (PARTITION BY lower(trim(f.subject)), lower(trim(f.predicate)), lower(trim(f.object)))
        ) WHERE rn = 1`,
-    fts: { table: 'fts_facts', clause: 'f.rowid IN (SELECT rowid FROM fts_facts WHERE fts_facts MATCH @fts)' },
+    fts: {
+      table: 'fts_facts',
+      clause:
+        'f.rowid IN (SELECT rowid FROM fts_facts WHERE fts_facts MATCH @fts)',
+    },
     likeExpr: "(f.subject || ' ' || f.predicate || ' ' || f.object)",
   },
   {
@@ -460,15 +590,25 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
   {
     type: 'episodic',
     table: 'episodic_memory',
-    sql: (f) => `SELECT e.id AS id, 'episodic' AS type, e.content AS text, e.created_at AS ts FROM episodic_memory e WHERE 1=1 ${f}`,
-    fts: { table: 'fts_episodes', clause: 'e.rowid IN (SELECT rowid FROM fts_episodes WHERE fts_episodes MATCH @fts)' },
+    sql: (f) =>
+      `SELECT e.id AS id, 'episodic' AS type, e.content AS text, e.created_at AS ts FROM episodic_memory e WHERE 1=1 ${f}`,
+    fts: {
+      table: 'fts_episodes',
+      clause:
+        'e.rowid IN (SELECT rowid FROM fts_episodes WHERE fts_episodes MATCH @fts)',
+    },
     likeExpr: 'e.content',
   },
   {
     type: 'working',
     table: 'working_memory',
-    sql: (f) => `SELECT w.id AS id, 'working' AS type, w.content AS text, w.created_at AS ts FROM working_memory w WHERE 1=1 ${f}`,
-    fts: { table: 'fts_working', clause: 'w.id IN (SELECT id FROM fts_working WHERE fts_working MATCH @fts)' },
+    sql: (f) =>
+      `SELECT w.id AS id, 'working' AS type, w.content AS text, w.created_at AS ts FROM working_memory w WHERE 1=1 ${f}`,
+    fts: {
+      table: 'fts_working',
+      clause:
+        'w.id IN (SELECT id FROM fts_working WHERE fts_working MATCH @fts)',
+    },
     likeExpr: 'w.content',
   },
 ]
@@ -502,7 +642,9 @@ export function browseMnemosyne(
       const clause =
         s.fts && tableExists(db, s.fts.table)
           ? s.fts.clause
-          : words.map((_, i) => `${s.likeExpr} LIKE @w${i} ESCAPE '\\'`).join(' AND ')
+          : words
+              .map((_, i) => `${s.likeExpr} LIKE @w${i} ESCAPE '\\'`)
+              .join(' AND ')
       return s.sql(`AND ${clause}`)
     })
     if (parts.length === 0) return empty
@@ -534,7 +676,12 @@ export function browseMnemosyne(
           ORDER BY ts DESC, type DESC, id DESC
           LIMIT @limit`,
       )
-      .all(params) as Array<{ id: string; type: MnemosyneBrowseType; text: string | null; ts: string }>
+      .all(params) as Array<{
+      id: string
+      type: MnemosyneBrowseType
+      text: string | null
+      ts: string
+    }>
 
     const page = rows.slice(0, limit)
     const last = page.at(-1)
@@ -546,7 +693,9 @@ export function browseMnemosyne(
         createdAt: sqliteTsToIso(r.ts),
       })),
       nextCursor:
-        rows.length > limit && last ? encodeCursor([last.ts, last.type, String(last.id)]) : null,
+        rows.length > limit && last
+          ? encodeCursor([last.ts, last.type, String(last.id)])
+          : null,
     }
   } finally {
     db.close()

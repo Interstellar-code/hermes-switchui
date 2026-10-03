@@ -8,7 +8,7 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryScreen, nextTabId } from './memory-screen'
+import { MemoryScreen, healthItems, nextTabId } from './memory-screen'
 import { useMemoryScreenStore } from '@/stores/memory-screen-store'
 
 // Stub the lazy tab bodies so the screen renders without heavy deps.
@@ -27,7 +27,7 @@ vi.mock('./components/settings-tab', () => ({
 }))
 vi.mock('./components/chat-tab', () => ({ ChatTab: () => <div>chat</div> }))
 
-function mockStats(exists: boolean, total: number) {
+function mockStats(exists: boolean, total: number, extra: object = {}) {
   vi.stubGlobal(
     'fetch',
     vi.fn(() =>
@@ -38,6 +38,7 @@ function mockStats(exists: boolean, total: number) {
             checkedAt: 0,
             db: { exists },
             counts: { working: total, episodic: 0, triples: 0, fts: 0, total },
+            ...extra,
           }),
       }),
     ),
@@ -163,5 +164,50 @@ describe('nextTabId', () => {
     expect(nextTabId(ids, 'a', 'End')).toBe('c')
     expect(nextTabId(ids, 'a', 'Enter')).toBeNull()
     expect(nextTabId([], 'a', 'ArrowRight')).toBeNull()
+  })
+})
+
+describe('MemoryScreen — header health', () => {
+  const day = 24 * 60 * 60_000
+  const health = (ageDays: number, method: string, covered: number) => ({
+    lastConsolidation: {
+      at: new Date(Date.now() - ageDays * day).toISOString(),
+      method,
+      items: 32,
+    },
+    backlog: { rows: 2410, sessions: 325, backoff: 0 },
+    embeddings: { covered, total: 100 },
+  })
+
+  it('renders consolidation, backlog and embeddings without warnings when healthy', async () => {
+    mockStats(true, 42, { health: health(2, 'llm', 100) })
+    renderScreen()
+    const c = await screen.findByText('consolidated 2d ago (llm)')
+    expect(c.className).not.toMatch(/warn/)
+    expect(c.getAttribute('title')).toMatch(/aaak/)
+    expect(screen.getByText(/backlog 2,410 in 325 sessions/)).toBeTruthy()
+    expect(screen.getByText('embeddings 100%').className).not.toMatch(/warn/)
+  })
+
+  it('flags stale consolidation and low embedding coverage', async () => {
+    mockStats(true, 42, { health: health(4, 'llm', 90) })
+    renderScreen()
+    const c = await screen.findByText('consolidated 4d ago (llm)')
+    expect(c.className).toBe('mem-header-warn')
+    expect(screen.getByText('embeddings 90%').className).toBe('mem-header-warn')
+  })
+
+  it('flags aaak consolidation and skips absent parts', () => {
+    const items = healthItems({
+      lastConsolidation: {
+        at: new Date().toISOString(),
+        method: 'aaak',
+        items: 1,
+      },
+      backlog: null,
+      embeddings: null,
+    })
+    expect(items.map((i) => [i.key, i.warn])).toEqual([['consolidation', true]])
+    expect(healthItems(undefined)).toEqual([])
   })
 })

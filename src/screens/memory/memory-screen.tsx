@@ -7,10 +7,11 @@
  * Active view persisted to localStorage via useMemoryScreenStore.
  */
 
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Fragment, Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { UnifiedSearch } from './components/unified-search'
 import type { MemoryTab } from '@/stores/memory-screen-store'
+import type { MnemosyneHealth } from '@/server/mnemosyne-browser'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import {
@@ -27,6 +28,7 @@ type MnemosyneAvailability = {
   db: { exists: boolean }
   counts: { total: number; triples: number }
   lastWriteAt?: string | null
+  health?: MnemosyneHealth
 }
 
 async function fetchMnemosyneAvailability(
@@ -244,6 +246,46 @@ function formatRelative(iso: string): string {
 
 const fmt = (n: number) => new Intl.NumberFormat().format(n)
 
+const STALE_CONSOLIDATION_MS = 3 * 24 * 60 * 60_000
+
+/** Compact consolidation/embedding health items for the header stat line. */
+export function healthItems(
+  h: MnemosyneHealth | undefined,
+  now = Date.now(),
+): Array<{ key: string; text: string; title: string; warn: boolean }> {
+  if (!h) return []
+  const items = []
+  const lc = h.lastConsolidation
+  if (lc?.at) {
+    const stale = now - Date.parse(lc.at) > STALE_CONSOLIDATION_MS
+    items.push({
+      key: 'consolidation',
+      text: `consolidated ${formatRelative(lc.at)}${lc.method ? ` (${lc.method})` : ''}`,
+      title: `Last sleep pass folded ${lc.items ?? '?'} working memories into summaries. llm = host-LLM summary; aaak = lossy fallback compression.${stale ? ' Over 3 days ago — auto-sleep may not be running.' : ''}`,
+      warn: stale || lc.method === 'aaak',
+    })
+  }
+  if (h.backlog) {
+    const { rows, sessions, backoff } = h.backlog
+    items.push({
+      key: 'backlog',
+      text: `backlog ${fmt(rows)} in ${fmt(sessions)} sessions`,
+      title: `Unconsolidated, unpinned working memories old enough for the next sleep sweep.${backoff ? ` ${fmt(backoff)} more are in the 6h retry backoff after a failed summary.` : ''}`,
+      warn: false,
+    })
+  }
+  if (h.embeddings && h.embeddings.total > 0) {
+    const pct = (h.embeddings.covered / h.embeddings.total) * 100
+    items.push({
+      key: 'embeddings',
+      text: `embeddings ${Math.floor(pct)}%`,
+      title: `${fmt(h.embeddings.covered)} of ${fmt(h.embeddings.total)} working memories have a vector embedding; the rest are keyword-only in recall.`,
+      warn: pct < 95,
+    })
+  }
+  return items
+}
+
 // ── MemoryScreen ──────────────────────────────────────────────────────────
 
 export function MemoryScreen() {
@@ -342,6 +384,17 @@ export function MemoryScreen() {
                   <span>last write {formatRelative(mnemo.lastWriteAt)}</span>
                 </>
               )}
+              {healthItems(mnemo.health).map((item) => (
+                <Fragment key={item.key}>
+                  <div className="sep" />
+                  <span
+                    title={item.title}
+                    className={item.warn ? 'mem-header-warn' : undefined}
+                  >
+                    {item.text}
+                  </span>
+                </Fragment>
+              ))}
             </>
           ) : (
             <span>

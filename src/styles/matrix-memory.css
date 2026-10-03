@@ -58,6 +58,9 @@
     color: var(--m-text-strong, var(--theme-text));
     font-weight: 600;
   }
+  .mem-header-stats .mem-header-warn {
+    color: var(--theme-warning);
+  }
   .mem-header-stats .sep {
     width: 1px;
     height: 14px;
