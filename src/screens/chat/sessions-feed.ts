@@ -120,15 +120,20 @@ export function sessionsFeedKey(): Array<unknown> {
 }
 
 /**
- * Invalidate the single session-list cache.
+ * Invalidate every session list the sidebar can render.
  *
- * The V2 sidebar feed now reads raw sessions from `chatQueryKeys.sessions`
- * (the same key used by all mutation optimistic-update helpers), so only one
- * invalidation is needed. Calling this causes both `useChatSessions` and
- * `useChatSessionsFeed` to re-fetch from `/api/sessions`.
+ * Unscoped, the V2 feed reads `chatQueryKeys.sessions` (shared with
+ * `useChatSessions`). With a profile resolved it reads
+ * `chatQueryKeys.scopedSessions(profile)` instead — invalidating only the
+ * former left the scoped sidebar stale until its next 120s poll.
  */
 export function invalidateSessionLists(queryClient: QueryClient): void {
   void queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
+  // The sidebar's scoped-profile list (chatQueryKeys.scopedSessions) has its
+  // own key; invalidate every profile's copy by prefix.
+  void queryClient.invalidateQueries({
+    queryKey: ['sessions-feed', 'scoped-chat'],
+  })
 }
 
 // ── Day bucketing ──────────────────────────────────────────────────────────────
@@ -359,12 +364,14 @@ export function useChatSessionsFeed(enabled = true): SessionSourceResult {
  * Cron-job enrichment is skipped: the jobs endpoint is active-profile scoped,
  * so cross-profile cron runs keep their raw key-derived title.
  */
-export function useScopedChatSessionsFeed(profile: string): SessionSourceResult {
+export function useScopedChatSessionsFeed(
+  profile: string,
+): SessionSourceResult {
   const scoped = Boolean(profile) && profile !== ACTIVE_PROFILE
   const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
 
   const scopedQuery = useQuery({
-    queryKey: ['sessions-feed', 'scoped-chat', profile],
+    queryKey: chatQueryKeys.scopedSessions(profile),
     queryFn: () => fetchProfileSessions(profile),
     enabled: scoped,
     staleTime: 60_000,
@@ -377,7 +384,13 @@ export function useScopedChatSessionsFeed(profile: string): SessionSourceResult 
   )
 
   if (!scoped) {
-    return { src: 'chat', items: [], available: false, loading: false, error: null }
+    return {
+      src: 'chat',
+      items: [],
+      available: false,
+      loading: false,
+      error: null,
+    }
   }
   return {
     src: 'chat',

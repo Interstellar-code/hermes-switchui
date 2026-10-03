@@ -69,6 +69,15 @@ export const chatQueryKeys = {
   get sessions(): Array<string> {
     return ['chat', 'sessions', ...activeScopeSegments()]
   },
+  /**
+   * The sidebar's list while a profile is resolved (`useScopedChatSessionsFeed`).
+   * Distinct from `sessions` on purpose; list mutations must touch both.
+   */
+  scopedSessions: (profile: string): Array<string> => [
+    'sessions-feed',
+    'scoped-chat',
+    profile,
+  ],
   /** Raw session list (context bar / header re-fetch). */
   get sessionsRaw(): Array<string> {
     return ['chat', 'sessions', 'raw', ...activeScopeSegments()]
@@ -767,15 +776,19 @@ export function removeSessionFromCache(
   sessionKey: string,
   friendlyId: string,
 ) {
-  queryClient.setQueryData(
-    chatQueryKeys.sessions,
-    function update(messages: unknown) {
-      if (!Array.isArray(messages)) return messages
-      return (messages as Array<SessionMeta>).filter((session) => {
-        return session.key !== sessionKey && session.friendlyId !== friendlyId
-      })
-    },
-  )
+  const update = (messages: unknown) => {
+    if (!Array.isArray(messages)) return messages
+    return (messages as Array<SessionMeta>).filter((session) => {
+      return session.key !== sessionKey && session.friendlyId !== friendlyId
+    })
+  }
+  queryClient.setQueryData(chatQueryKeys.sessions, update)
+  // With a profile resolved the sidebar renders the scoped list, not
+  // `sessions` — drop the row there too or it lingers until the next poll.
+  const profile = getSessionProfile()
+  if (profile) {
+    queryClient.setQueryData(chatQueryKeys.scopedSessions(profile), update)
+  }
 
   queryClient.removeQueries({
     queryKey: chatQueryKeys.historyByFriendlyId(friendlyId),
