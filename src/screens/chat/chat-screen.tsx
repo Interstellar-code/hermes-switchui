@@ -1467,6 +1467,7 @@ export function ChatScreen({
             >
               <FileExplorerSidebar
                 collapsed={false}
+                className="!w-full !min-w-0"
                 onToggle={handleToggleFileExplorer}
                 onInsertReference={handleInsertFileReference}
                 onAttachImage={handleAttachWorkspaceImage}
