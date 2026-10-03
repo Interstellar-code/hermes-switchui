@@ -209,6 +209,7 @@ import { Route as ApiSessionsSessionKeyForkRouteImport } from './routes/api/sess
 import { Route as ApiSessionsSessionKeyDelegationsRouteImport } from './routes/api/sessions/$sessionKey.delegations'
 import { Route as ApiSessionsSessionKeyCompressRouteImport } from './routes/api/sessions/$sessionKey.compress'
 import { Route as ApiSessionsSessionKeyClarifyRouteImport } from './routes/api/sessions/$sessionKey.clarify'
+import { Route as ApiSessionsSessionKeyChannelRouteImport } from './routes/api/sessions/$sessionKey.channel'
 import { Route as ApiSessionsSessionKeyActiveRunRouteImport } from './routes/api/sessions/$sessionKey.active-run'
 import { Route as ApiSelfImproveScenariosIdRouteImport } from './routes/api/self-improve/scenarios.$id'
 import { Route as ApiSelfImproveProfilesProfileRouteImport } from './routes/api/self-improve/profiles.$profile'
@@ -1269,6 +1270,12 @@ const ApiSessionsSessionKeyClarifyRoute =
     path: '/$sessionKey/clarify',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiSessionsSessionKeyChannelRoute =
+  ApiSessionsSessionKeyChannelRouteImport.update({
+    id: '/$sessionKey/channel',
+    path: '/$sessionKey/channel',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 const ApiSessionsSessionKeyActiveRunRoute =
   ApiSessionsSessionKeyActiveRunRouteImport.update({
     id: '/$sessionKey/active-run',
@@ -1722,6 +1729,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
+  '/api/sessions/$sessionKey/channel': typeof ApiSessionsSessionKeyChannelRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/compress': typeof ApiSessionsSessionKeyCompressRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
@@ -1963,6 +1971,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
+  '/api/sessions/$sessionKey/channel': typeof ApiSessionsSessionKeyChannelRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/compress': typeof ApiSessionsSessionKeyCompressRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
@@ -2207,6 +2216,7 @@ export interface FileRoutesById {
   '/api/self-improve/profiles/$profile': typeof ApiSelfImproveProfilesProfileRouteWithChildren
   '/api/self-improve/scenarios/$id': typeof ApiSelfImproveScenariosIdRoute
   '/api/sessions/$sessionKey/active-run': typeof ApiSessionsSessionKeyActiveRunRoute
+  '/api/sessions/$sessionKey/channel': typeof ApiSessionsSessionKeyChannelRoute
   '/api/sessions/$sessionKey/clarify': typeof ApiSessionsSessionKeyClarifyRoute
   '/api/sessions/$sessionKey/compress': typeof ApiSessionsSessionKeyCompressRoute
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
@@ -2452,6 +2462,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/profiles/$profile'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
+    | '/api/sessions/$sessionKey/channel'
     | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/compress'
     | '/api/sessions/$sessionKey/delegations'
@@ -2693,6 +2704,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/profiles/$profile'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
+    | '/api/sessions/$sessionKey/channel'
     | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/compress'
     | '/api/sessions/$sessionKey/delegations'
@@ -2936,6 +2948,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/profiles/$profile'
     | '/api/self-improve/scenarios/$id'
     | '/api/sessions/$sessionKey/active-run'
+    | '/api/sessions/$sessionKey/channel'
     | '/api/sessions/$sessionKey/clarify'
     | '/api/sessions/$sessionKey/compress'
     | '/api/sessions/$sessionKey/delegations'
@@ -4528,6 +4541,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyClarifyRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/sessions/$sessionKey/channel': {
+      id: '/api/sessions/$sessionKey/channel'
+      path: '/$sessionKey/channel'
+      fullPath: '/api/sessions/$sessionKey/channel'
+      preLoaderRoute: typeof ApiSessionsSessionKeyChannelRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/sessions/$sessionKey/active-run': {
       id: '/api/sessions/$sessionKey/active-run'
       path: '/$sessionKey/active-run'
@@ -5014,6 +5034,7 @@ const ApiMemoryRouteWithChildren = ApiMemoryRoute._addFileChildren(
 interface ApiSessionsRouteChildren {
   ApiSessionsSendRoute: typeof ApiSessionsSendRoute
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
+  ApiSessionsSessionKeyChannelRoute: typeof ApiSessionsSessionKeyChannelRoute
   ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
   ApiSessionsSessionKeyCompressRoute: typeof ApiSessionsSessionKeyCompressRoute
   ApiSessionsSessionKeyDelegationsRoute: typeof ApiSessionsSessionKeyDelegationsRoute
@@ -5026,6 +5047,7 @@ interface ApiSessionsRouteChildren {
 const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSendRoute: ApiSessionsSendRoute,
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
+  ApiSessionsSessionKeyChannelRoute: ApiSessionsSessionKeyChannelRoute,
   ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,
   ApiSessionsSessionKeyCompressRoute: ApiSessionsSessionKeyCompressRoute,
   ApiSessionsSessionKeyDelegationsRoute: ApiSessionsSessionKeyDelegationsRoute,

@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { SessionChannelSelectorV2 } from './session-channel-selector-v2'
 import { SessionSelectorsV2 } from './session-selectors-v2'
 import type { ThinkingLevel } from '../chat-composer-types'
 import { useSessionStatus } from '@/hooks/use-session-status'
@@ -109,6 +110,9 @@ function ChatMetaBarV2Component({
           </span>
         </>
       )}
+
+      {/* Renders its own leading separator, only when it has a chip to show */}
+      <SessionChannelSelectorV2 sessionKey={sessionKey} />
 
       {/* Spacer */}
       <span className="flex-1" />
