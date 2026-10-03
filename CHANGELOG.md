@@ -3,6 +3,34 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.6.0] — 2026-10-03
+
+A rebuilt Memory page.
+
+### Security
+
+- **Memory And Wiki File APIs Could Read Or Write Any Markdown File Under `~/.hermes`**: `/api/memory/read|write|get` accepted any `.md` path, including another profile's `SOUL.md` or a skill file — a way to inject instructions into an agent. They now only touch `MEMORY.md`, `memory/` and `memories/`, with symlink-aware containment and atomic writes. The wiki folder setting is restricted to dedicated wiki folders (never `~/.hermes` itself), re-checked on every read and write, and GitHub-backed wikis are read-only in the editor.
+
+### Added
+
+- **A Real Browse Tab**: Newest-first list of everything the agent remembers — gists, facts, entities, episodes, working memory — with type filters, search and load-more.
+- **Profile Picker**: One selector in the header drives the whole page: memories, Map, wiki, chat and agent files. Each profile reads its own memory database and wiki.
+- **One Search Box**: Searches agent files, wiki and memories at once, grouped by source; results open the right tab. Chat retrieval now uses the database's search index, so accented and Chinese/Japanese/Thai queries work.
+- **Memory Health In The Header**: When memory last consolidated (and whether by LLM or fallback), the consolidation backlog, and embedding coverage — with a warning colour when something is stale. Lets you confirm hermes-agent 0.21.7's consolidation fix is working.
+- **Wiki**: Proper Markdown rendering, clickable `[[links]]`, full-text search, tag/type filters, and a warning before saving over a page that changed since you opened it.
+
+### Changed
+
+- **The Map Is Usable**: Opens on ~300 well-connected nodes instead of 20,000; click a node for its full text, dates and connections (with Open in Wiki); search jumps to the node; clickable legend, fit-to-screen, refresh; shapes as well as colours; theme-aware; faster drawing. Mentions are on by default so the map opens as one connected picture, and Min connections now holds for what is drawn.
+- **Duplicate And Junk Facts Are Folded Or Hidden**: Identical facts show once with a ×N count; regex-extractor fragments like "If there is genuinely" are hidden on the Map and in Browse (display only — the database is untouched). Common words like "Re" or "If" no longer become the biggest hubs.
+- **Tidier Layout**: Plain "Memory" header with counts, Settings behind a gear, Chat in a side drawer that keeps its conversation, keyboard-accessible tabs, unavailable tabs shown disabled with a reason.
+
+### Fixed
+
+- **The Map Silently Dropped Whole Link Types**: Over 20,000 edges, the server sorted by type name and cut the rest, losing every wiki, entity-to-entity and episode link. Each type now gets a fair share.
+- **Editing A Wiki Page Erased Its Frontmatter** (title, type, tags), and the edit dialogs rendered unstyled.
+- **"Clear Knowledge Cache" Did Nothing**: It is now "Re-sync Knowledge" and actually re-syncs.
+
 ## [2.5.43] — 2026-10-01
 
 ### Fixed
