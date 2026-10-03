@@ -94,7 +94,10 @@ import {
   activeScopeSegments,
   getSessionProfile,
 } from '@/lib/session-scope'
-import { useProfileScopeForUrl } from '@/hooks/use-resolved-profile'
+import {
+  useProfileScopeForUrl,
+  useResolvedProfile,
+} from '@/hooks/use-resolved-profile'
 
 // ─── Model catalog (curated /api/models) ───────────────────────────────────
 type NormalizedModel = {
@@ -354,10 +357,13 @@ function SessionSelectorsV2Component({
     retry: false,
     staleTime: 15_000,
   })
-  const projectsQuery = useProjects(false)
+  // Browsed profile, so binding while viewing a foreign profile writes to
+  // that profile's projects.db (same scope the sidebar folders read).
+  const browseProfile = useResolvedProfile() ?? undefined
+  const projectsQuery = useProjects(false, true, browseProfile)
   const sessionProjectQuery = useSessionProject(sessionKey)
-  const bindSessionProjectMutation = useBindSessionProject()
-  const unbindSessionProjectMutation = useUnbindSessionProject()
+  const bindSessionProjectMutation = useBindSessionProject(browseProfile)
+  const unbindSessionProjectMutation = useUnbindSessionProject(browseProfile)
   const gatewayModeQuery = useQuery({
     queryKey: ['gateway-status', 'mode'],
     queryFn: fetchGatewayMode,
@@ -379,9 +385,7 @@ function SessionSelectorsV2Component({
     staleTime: 5_000,
     retry: false,
   })
-  const scopeData = scopeStatusQuery.isError
-    ? undefined
-    : scopeStatusQuery.data
+  const scopeData = scopeStatusQuery.isError ? undefined : scopeStatusQuery.data
   const scopeMode = scopeData?.mode ?? 'single'
   const sessionCounts = scopeData?.sessionCounts ?? {}
 
@@ -478,9 +482,8 @@ function SessionSelectorsV2Component({
   // before → after directories and confirmed.
   const markNeedsRestart = useGatewayRestartStore((s) => s.markNeedsRestart)
   const [cwdDraft, setCwdDraft] = React.useState('')
-  const [cwdPreview, setCwdPreview] = React.useState<AgentCwdWriteResponse | null>(
-    null,
-  )
+  const [cwdPreview, setCwdPreview] =
+    React.useState<AgentCwdWriteResponse | null>(null)
   const [cwdError, setCwdError] = React.useState<string | null>(null)
 
   const previewAgentCwdMutation = useMutation({
@@ -923,8 +926,7 @@ function SessionSelectorsV2Component({
                 'inline-flex max-w-28 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50',
                 scopedProfileName
                   ? 'ring-1 ring-[var(--theme-accent)]'
-                  : deviceProfileName &&
-                      'ring-1 ring-[var(--theme-accent)]/50',
+                  : deviceProfileName && 'ring-1 ring-[var(--theme-accent)]/50',
                 // Genuinely unscoped renders visibly differently from an
                 // explicit pick (URL, device, or literally 'default') so it
                 // can never be mistaken for a deliberate selection.
@@ -1142,8 +1144,8 @@ function SessionSelectorsV2Component({
                 <div className="text-[11px] leading-snug">
                   Profile <b>{agentCwd.resolved.profile}</b> has no{' '}
                   <code>terminal:</code> block, and profiles do not inherit one.
-                  The agent will run in <b>$HOME</b> ({agentCwd.homeDir}), not in
-                  any project.
+                  The agent will run in <b>$HOME</b> ({agentCwd.homeDir}), not
+                  in any project.
                 </div>
                 {agentCwd.editable && agentCwd.suggestedCwd ? (
                   <button

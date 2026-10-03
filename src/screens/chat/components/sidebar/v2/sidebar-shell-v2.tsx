@@ -14,6 +14,10 @@ import { SidebarListV2 } from './sidebar-list-v2'
 import { SidebarRailV2 } from './sidebar-rail-v2'
 import { SidebarSearchV2 } from './sidebar-search-v2'
 import { SidebarSourceChipsV2 } from './sidebar-source-chips-v2'
+import { SidebarGroupToggleV2 } from './sidebar-folders-v2'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import { useSessionProjectMap } from '@/lib/projects-api'
+import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
 import {
   isSessionUpdateUnseen,
   useSessionsLocalStore,
@@ -34,6 +38,16 @@ export function SidebarShellV2() {
   const fSort = useSessionsFilterStore((s) => s.sort)
   const fUpdatesOnly = useSessionsFilterStore((s) => s.updatesOnly)
   const toggleUpdatesOnly = useSessionsFilterStore((s) => s.toggleUpdatesOnly)
+  const groupBy = useSessionsFilterStore((s) => s.groupBy)
+
+  // Folders = the browsed profile's projects; map only fetched in project mode.
+  const profile = useResolvedProfile() ?? undefined
+  const { data: folderMap } = useSessionProjectMap(
+    profile,
+    groupBy === 'project',
+  )
+  const exitSelect = useSessionsSelectionStore((s) => s.exit)
+  useEffect(() => exitSelect(), [profile, exitSelect])
 
   const lPinned = useSessionsLocalStore((s) => s.pinned)
   const lStarred = useSessionsLocalStore((s) => s.starred)
@@ -88,8 +102,11 @@ export function SidebarShellV2() {
           lastSeenUpdate,
           seenUpdatesInitialized,
         },
+        { groupBy, map: folderMap },
       ),
     [
+      groupBy,
+      folderMap,
       items,
       fSources,
       fQuery,
@@ -160,6 +177,7 @@ export function SidebarShellV2() {
             sourceCounts={sourceCounts}
             attention={attention}
           />
+          <SidebarGroupToggleV2 profile={profile} map={folderMap} />
           <SidebarListV2
             groups={groups}
             updatesOnly={fUpdatesOnly}

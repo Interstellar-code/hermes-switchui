@@ -19,6 +19,25 @@ export type SessionSource =
   | 'a2a'
 
 /**
+ * Sources backed by a gateway chat session (open via /chat/$sessionKey,
+ * delete via DELETE /api/sessions, bindable to a project folder).
+ */
+const CHAT_SOURCES: ReadonlySet<SessionSource> = new Set<SessionSource>([
+  'chat',
+  'recovered',
+  'cron',
+  'api',
+  'task',
+  'tg',
+  'cli',
+  'a2a',
+])
+
+export function isChatSource(src: SessionSource): boolean {
+  return CHAT_SOURCES.has(src)
+}
+
+/**
  * Lifecycle state of a session/job/task item.
  * Mapped from source-specific state strings in each per-source hook.
  */

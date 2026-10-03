@@ -14,6 +14,7 @@ import type {
   UpdateProjectInput,
 } from './projects-types'
 import { activeScopeKey } from '@/lib/session-scope'
+import { runPool } from '@/lib/run-pool'
 
 async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
@@ -360,24 +361,28 @@ export function useSessionProjectMap(profile?: string, enabled = true) {
 }
 
 type QueryClient = ReturnType<typeof useQueryClient>
-type MapSnapshot = Array<[ReadonlyArray<unknown>, SessionProjectMap | undefined]>
+type MapSnapshot = Array<
+  [ReadonlyArray<unknown>, SessionProjectMap | undefined]
+>
 
 /**
- * Optimistically rewrite one session's binding in every cached session map.
- * Session ids are globally unique, so touching other profiles' maps is a no-op
- * in practice and saves guessing which profile key the sidebar used.
+ * Optimistically rewrite one session's binding in the profile's cached session
+ * map (the one the sidebar reads via useSessionProjectMap(profile)).
  */
 async function patchSessionMaps(
   queryClient: QueryClient,
+  profile: string | undefined,
   sessionKey: string,
   projectSlug: string | null,
 ): Promise<MapSnapshot> {
-  await queryClient.cancelQueries({ queryKey: projectsKeys.sessionMapAll })
+  const queryKey = projectsKeys.sessionMap(profile)
+  await queryClient.cancelQueries({ queryKey, exact: true })
   const snapshot = queryClient.getQueriesData<SessionProjectMap>({
-    queryKey: projectsKeys.sessionMapAll,
+    queryKey,
+    exact: true,
   })
   queryClient.setQueriesData<SessionProjectMap>(
-    { queryKey: projectsKeys.sessionMapAll },
+    { queryKey, exact: true },
     (map) => {
       if (!map) return map
       const sessions = { ...map.sessions }
@@ -413,7 +418,7 @@ export function useBindSessionProject(profile?: string) {
     mutationFn: (input: { sessionKey: string; projectSlug: string }) =>
       bindSessionProject({ ...input, profile }),
     onMutate: ({ sessionKey, projectSlug }) =>
-      patchSessionMaps(queryClient, sessionKey, projectSlug),
+      patchSessionMaps(queryClient, profile, sessionKey, projectSlug),
     onError: (_err, _input, snapshot) =>
       rollbackSessionMaps(queryClient, snapshot),
     onSettled: (_data, _err, { sessionKey }) =>
@@ -426,11 +431,50 @@ export function useUnbindSessionProject(profile?: string) {
   return useMutation({
     mutationFn: (sessionKey: string) =>
       unbindSessionProject(sessionKey, profile),
-    onMutate: (sessionKey) => patchSessionMaps(queryClient, sessionKey, null),
+    onMutate: (sessionKey) =>
+      patchSessionMaps(queryClient, profile, sessionKey, null),
     onError: (_err, _sessionKey, snapshot) =>
       rollbackSessionMaps(queryClient, snapshot),
     onSettled: (_data, _err, sessionKey) =>
       settleSessionProject(queryClient, sessionKey),
+  })
+}
+
+/**
+ * Move many sessions at once (`projectSlug: null` = remove from project).
+ * Optimistic map patch up front, ≤4 requests in flight, ONE invalidate at the
+ * end. Resolves with the session keys that failed (rolled back via refetch).
+ */
+export function useBulkMoveSessions(profile?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async ({
+      sessionKeys,
+      projectSlug,
+    }: {
+      sessionKeys: Array<string>
+      projectSlug: string | null
+    }) => {
+      for (const key of sessionKeys)
+        await patchSessionMaps(queryClient, profile, key, projectSlug)
+      const results = await runPool<string, unknown>(
+        sessionKeys,
+        4,
+        (sessionKey) =>
+          projectSlug === null
+            ? unbindSessionProject(sessionKey, profile)
+            : bindSessionProject({ sessionKey, projectSlug, profile }),
+      )
+      return sessionKeys.filter((_, i) => results[i].status === 'rejected')
+    },
+    onSettled: async () => {
+      // A map refetch that started mid-move would land stale bindings over
+      // the final state — drop it before the one invalidate.
+      await queryClient.cancelQueries({
+        queryKey: projectsKeys.sessionMap(profile),
+      })
+      await queryClient.invalidateQueries({ queryKey: projectsKeys.all })
+    },
   })
 }
 

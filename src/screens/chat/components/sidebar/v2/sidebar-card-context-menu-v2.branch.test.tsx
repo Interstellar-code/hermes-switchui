@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarCardContextMenuV2 } from './sidebar-card-context-menu-v2'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
+import type * as Folders from './sidebar-folders-v2'
 
 /**
  * "Branch" exposes the gateway's session fork, which was reachable only from
@@ -38,6 +45,65 @@ vi.mock('@/screens/chat/hooks/use-rename-session', () => ({
     renaming: false,
     error: null,
   }),
+}))
+
+vi.mock('@/hooks/use-resolved-profile', () => ({
+  useResolvedProfile: () => 'work',
+}))
+
+const { bind, unbind, showForm } = vi.hoisted(() => ({
+  bind: vi.fn(),
+  unbind: vi.fn(),
+  showForm: vi.fn(),
+}))
+
+vi.mock('@/lib/projects-api', () => ({
+  useSessionProjectMap: () => ({
+    data: {
+      version: 'v',
+      projects: [
+        {
+          id: 'p1',
+          slug: 'alpha',
+          name: 'Alpha',
+          icon: null,
+          color: '#f00',
+          archived: false,
+          board_slug: null,
+        },
+        {
+          id: 'p2',
+          slug: 'beta',
+          name: 'Beta',
+          icon: null,
+          color: null,
+          archived: false,
+          board_slug: null,
+        },
+        {
+          id: 'p3',
+          slug: 'old',
+          name: 'Old',
+          icon: null,
+          color: null,
+          archived: true,
+          board_slug: null,
+        },
+      ],
+      sessions: { 'session-1': 'p1' },
+    },
+  }),
+  useBindSessionProject: (profile?: string) => ({
+    mutate: (v: unknown) => bind(v, profile),
+  }),
+  useUnbindSessionProject: (profile?: string) => ({
+    mutate: (v: unknown) => unbind(v, profile),
+  }),
+}))
+
+vi.mock('./sidebar-folders-v2', async (orig) => ({
+  ...(await orig<typeof Folders>()),
+  useFolderFormStore: { getState: () => ({ show: showForm }) },
 }))
 
 vi.mock('@/stores/sessions-local-store', () => ({
@@ -83,6 +149,9 @@ function open(item: SessionFeedItem = makeItem()) {
 }
 
 beforeEach(() => {
+  bind.mockClear()
+  unbind.mockClear()
+  showForm.mockClear()
   navigate.mockClear()
   forkSession.mockClear()
   forkSession.mockResolvedValue('fork-key')
@@ -132,5 +201,52 @@ describe('SidebarCardContextMenuV2 — Branch', () => {
 
     await waitFor(() => expect(forkSession).toHaveBeenCalled())
     expect(navigate).not.toHaveBeenCalled()
+  })
+})
+
+describe('SidebarCardContextMenuV2 — Move to project', () => {
+  function openMove() {
+    open()
+    fireEvent.click(screen.getByRole('menuitem', { name: /Move to project/ }))
+    return screen.getByTestId('move-to-project-submenu')
+  }
+
+  it('lists live projects with a check on the current one; hides archived', () => {
+    const sub = openMove()
+    expect(sub.textContent).toContain('MOVE TO')
+    expect(sub.textContent).toContain('Alpha✓')
+    expect(sub.textContent).toContain('Beta')
+    expect(sub.textContent).not.toContain('Old')
+    expect(sub.textContent).toContain('Archived projects hidden')
+  })
+
+  it('binds the raw session id to the picked project for the browsed profile', () => {
+    openMove()
+    fireEvent.click(screen.getByRole('menuitem', { name: /Beta/ }))
+    expect(bind).toHaveBeenCalledWith(
+      { sessionKey: 'session-1', projectSlug: 'beta' },
+      'work',
+    )
+  })
+
+  it('Remove from project unbinds', () => {
+    openMove()
+    fireEvent.click(
+      screen.getByRole('menuitem', { name: 'Remove from project' }),
+    )
+    expect(unbind).toHaveBeenCalledWith('session-1', 'work')
+  })
+
+  it('+ New folder… opens the form carrying this session', () => {
+    openMove()
+    fireEvent.click(screen.getByRole('menuitem', { name: /New folder/ }))
+    expect(showForm).toHaveBeenCalledWith(['session-1'])
+  })
+
+  it('is not offered for items with no chat session', () => {
+    open(makeItem({ id: 'file:x', src: 'file' as SessionFeedItem['src'] }))
+    expect(
+      screen.queryByRole('menuitem', { name: /Move to project/ }),
+    ).toBeNull()
   })
 })

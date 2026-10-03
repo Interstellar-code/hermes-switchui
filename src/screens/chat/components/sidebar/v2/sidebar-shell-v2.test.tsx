@@ -3,10 +3,19 @@ import { render } from '@testing-library/react'
 import { beforeEach, expect, it, vi } from 'vitest'
 import { SidebarShellV2 } from './sidebar-shell-v2'
 
-const { useSessionsFeed, applyFiltersAndDecorate } = vi.hoisted(() => ({
-  useSessionsFeed: vi.fn(),
-  applyFiltersAndDecorate: vi.fn(),
+const { useSessionsFeed, applyFiltersAndDecorate, useSessionProjectMap } =
+  vi.hoisted(() => ({
+    useSessionsFeed: vi.fn(),
+    applyFiltersAndDecorate: vi.fn(),
+    useSessionProjectMap: vi.fn(),
+  }))
+const folderMap = { version: 'v', projects: [], sessions: {} }
+
+vi.mock('@/lib/projects-api', () => ({ useSessionProjectMap }))
+vi.mock('@/hooks/use-resolved-profile', () => ({
+  useResolvedProfile: () => 'work',
 }))
+vi.mock('./sidebar-folders-v2', () => ({ SidebarGroupToggleV2: () => null }))
 
 vi.mock('@/screens/chat/sessions-feed', () => ({
   useSessionsFeed,
@@ -32,6 +41,7 @@ vi.mock('@/stores/sessions-filter-store', () => ({
       dateRange: { from: null, to: null },
       sort: 'recent',
       updatesOnly: false,
+      groupBy: 'project',
     }),
 }))
 vi.mock('@/stores/sessions-local-store', () => ({
@@ -59,6 +69,7 @@ vi.mock('./sidebar-source-chips-v2', () => ({
 }))
 
 beforeEach(() => {
+  useSessionProjectMap.mockReturnValue({ data: folderMap })
   useSessionsFeed.mockReturnValue({
     items: [{ id: 'chat:a' }, { id: 'task:b' }],
     loading: false,
@@ -88,5 +99,11 @@ it('passes the raw merged feed to the filtering owner', () => {
       lastSeenUpdate: {},
       seenUpdatesInitialized: false,
     },
+    { groupBy: 'project', map: folderMap },
   )
+})
+
+it('fetches folders for the browsed profile only in project mode', () => {
+  render(<SidebarShellV2 />)
+  expect(useSessionProjectMap).toHaveBeenCalledWith('work', true)
 })

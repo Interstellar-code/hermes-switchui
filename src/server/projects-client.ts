@@ -14,6 +14,7 @@ import type {
   ProjectFoldersResponse,
   ProjectsListResponse,
   SessionProjectBindingResponse,
+  SessionProjectMap,
   SessionProjectResolution,
   SessionProjectUnbindResponse,
   UpdateProjectInput,
@@ -267,20 +268,6 @@ export function unbindSessionProject(
     jsonInit('DELETE'),
     profile,
   )
-}
-
-export type SessionProjectMap = {
-  version: string | null
-  projects: Array<{
-    id: string
-    slug: string
-    name: string
-    icon: string | null
-    color: string | null
-    archived: boolean
-    board_slug: string | null
-  }>
-  sessions: Record<string, string>
 }
 
 export type SessionProjectMapResult =

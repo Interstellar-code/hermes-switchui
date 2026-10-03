@@ -1,7 +1,9 @@
 'use client'
 
 /**
- * sidebar-list-v2.tsx — day-grouped session list for the v2 sidebar.
+ * sidebar-list-v2.tsx — grouped (day or project folder) session list for the v2 sidebar.
+ * Select mode: click toggles, shift-click ranges, header checkbox selects a
+ * group, bulk action bar replaces the UPDATES row.
  *
  * Phase 3c: groups prop passed from shell (no duplicate useSessionsFeed call).
  * Phase 3b: day group labels with count badges, sticky headers, Pinned section,
@@ -13,8 +15,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
 import { SidebarCardV2 } from './sidebar-card-v2'
+import { SidebarBulkActionsV2 } from './sidebar-bulk-actions-v2'
+import {
+  FolderHeaderMenu,
+  FolderRenameInput,
+  folderColor,
+} from './sidebar-folders-v2'
 import type { Range } from '@tanstack/react-virtual'
-import type { SessionDayGroup } from '@/screens/chat/apply-filters-and-decorate'
+import type { SessionGroup } from '@/screens/chat/apply-filters-and-decorate'
+import { isChatSource } from '@/screens/chat/sessions-feed-types'
+import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
 
 const COLLAPSED_KEY = 'hermes.sessions.groups.collapsed'
 const HEADER_ESTIMATE = 36
@@ -40,31 +50,53 @@ function writeCollapsedMap(map: Record<string, boolean>): void {
   }
 }
 
-const GROUP_LABEL_STYLE: Record<string, React.CSSProperties | undefined> = {
-  Pinned: { color: 'var(--m-green-400, var(--theme-accent))' },
-  Today: { color: 'var(--theme-muted)' },
-  Yesterday: { color: 'var(--theme-muted)' },
-  Earlier: { color: 'var(--theme-muted)' },
+const GROUP_LABEL_STYLE: Record<
+  SessionGroup['kind'],
+  React.CSSProperties | undefined
+> = {
+  pinned: { color: 'var(--m-green-400, var(--theme-accent))' },
+  day: { color: 'var(--theme-muted)' },
+  project: { color: 'var(--theme-text)' },
+  unfiled: { color: 'var(--theme-muted)' },
 }
+
+/**
+ * Collapse state is keyed by group `key` (`day:Today`, `project:<id>`, …).
+ * Pinned/day groups fall back to the legacy label key so state saved before
+ * project folders existed still applies.
+ */
+export function isGroupCollapsed(
+  map: Record<string, boolean>,
+  group: Pick<SessionGroup, 'key' | 'label' | 'kind'>,
+): boolean {
+  const legacy =
+    group.kind === 'pinned' || group.kind === 'day'
+      ? map[group.label]
+      : undefined
+  return (map[group.key] ?? legacy) === true
+}
+
+type SessionItem = SessionGroup['items'][number]
 
 type RowModel =
   | {
       type: 'header'
       key: string
-      label: string
+      group: SessionGroup
       count: number
       collapsed: boolean
     }
   | {
       type: 'card'
       key: string
-      groupLabel: string
-      item: SessionDayGroup['items'][number]
+      item: SessionItem
       isActive: boolean
+      /** Project colour stripe (project sections only). */
+      stripe?: string
     }
 
 interface SidebarListV2Props {
-  groups: Array<SessionDayGroup>
+  groups: Array<SessionGroup>
   updatesOnly?: boolean
   hasPendingUpdates?: boolean
   onToggleUpdatesOnly?: () => void
@@ -80,9 +112,9 @@ export function SidebarListV2({
 }: SidebarListV2Props) {
   const [collapsedMap, setCollapsedMap] =
     useState<Record<string, boolean>>(readCollapsedMap)
-  const toggleGroup = (label: string) => {
+  const toggleGroup = (group: SessionGroup) => {
     setCollapsedMap((prev) => {
-      const next = { ...prev, [label]: !prev[label] }
+      const next = { ...prev, [group.key]: !isGroupCollapsed(prev, group) }
       writeCollapsedMap(next)
       return next
     })
@@ -102,40 +134,90 @@ export function SidebarListV2({
 
   const rows = useMemo<Array<RowModel>>(() => {
     const next: Array<RowModel> = []
-    for (const { label, items: groupItems } of groups) {
-      const isCollapsed = collapsedMap[label] === true
+    for (const group of groups) {
+      const groupItems = group.items
+      const isCollapsed = isGroupCollapsed(collapsedMap, group)
+      const stripe =
+        group.kind === 'project'
+          ? folderColor(group.key.slice('project:'.length), group.color)
+          : undefined
       next.push({
         type: 'header',
-        key: `header:${label}`,
-        label,
+        key: `header:${group.key}`,
+        group,
         count: groupItems.length,
         collapsed: isCollapsed,
       })
       if (!isCollapsed) {
         for (const item of groupItems) {
           const rawId = item.id.split(':').slice(1).join(':')
-          const isActive =
-            (item.src === 'chat' ||
-              item.src === 'recovered' ||
-              item.src === 'cron' ||
-              item.src === 'api' ||
-              item.src === 'task' ||
-              item.src === 'cli' ||
-              item.src === 'a2a' ||
-              item.src === 'tg') &&
-            rawId === activeSessionKey
+          const isActive = isChatSource(item.src) && rawId === activeSessionKey
           next.push({
             type: 'card',
             key: item.id,
-            groupLabel: label,
             item,
             isActive,
+            stripe,
           })
         }
       }
     }
     return next
   }, [groups, collapsedMap, activeSessionKey])
+
+  const selecting = useSessionsSelectionStore((s) => s.active)
+  const selected = useSessionsSelectionStore((s) => s.selected)
+  const clickSelect = useSessionsSelectionStore((s) => s.click)
+  const setMany = useSessionsSelectionStore((s) => s.setMany)
+  const setOrder = useSessionsSelectionStore((s) => s.setOrder)
+  const exitSelect = useSessionsSelectionStore((s) => s.exit)
+  const allItems = useMemo(() => groups.flatMap((g) => g.items), [groups])
+  const projectMode = groups.some(
+    (g) => g.kind === 'project' || g.kind === 'unfiled',
+  )
+
+  // Visible card order drives shift-click range selection.
+  useEffect(() => {
+    setOrder(rows.flatMap((r) => (r.type === 'card' ? [r.item.id] : [])))
+  }, [rows, setOrder])
+
+  useEffect(() => {
+    if (!selecting) return
+    const onKey = (e: KeyboardEvent) => {
+      // A bulk dialog owns Esc while open (and ignores it mid-delete).
+      if (e.key !== 'Escape') return
+      if (useSessionsSelectionStore.getState().dialogOpen) return
+      exitSelect()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [selecting, exitSelect])
+
+  /**
+   * Select mode: a click toggles instead of navigating. Outside select mode,
+   * shift-click enters select mode with that card; cmd/ctrl-click is left to
+   * the browser (open in new tab).
+   */
+  const onCardClickCapture = (e: React.MouseEvent, id: string) => {
+    if (!selecting && !e.shiftKey) return
+    // Portaled children (context menu, dialogs) bubble through the React tree
+    // but are not DOM descendants — leave their clicks alone.
+    if (!e.currentTarget.contains(e.target as Node)) return
+    e.preventDefault()
+    e.stopPropagation()
+    clickSelect(id, e.shiftKey)
+  }
+
+  const footer = selecting ? (
+    <SidebarBulkActionsV2 items={allItems} />
+  ) : (
+    <SidebarAttentionActions
+      updatesOnly={updatesOnly}
+      hasPendingUpdates={hasPendingUpdates}
+      onToggleUpdatesOnly={onToggleUpdatesOnly}
+      onMarkAllRead={onMarkAllRead}
+    />
+  )
 
   const stickyIndexes = useMemo(
     () => rows.flatMap((row, i) => (row.type === 'header' ? [i] : [])),
@@ -192,12 +274,7 @@ export function SidebarListV2({
             </span>
           </div>
         </div>
-        <SidebarAttentionActions
-          updatesOnly={updatesOnly}
-          hasPendingUpdates={hasPendingUpdates}
-          onToggleUpdatesOnly={onToggleUpdatesOnly}
-          onMarkAllRead={onMarkAllRead}
-        />
+        {footer}
         <NewChatFooter />
       </div>
     )
@@ -248,72 +325,61 @@ export function SidebarListV2({
                 }
               >
                 {row.type === 'header' ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleGroup(row.label)}
-                    aria-expanded={!row.collapsed}
-                    aria-controls={`group-${row.label}`}
-                    className="flex items-center gap-2 px-3 pt-3 pb-1 z-10 select-none w-full"
-                    style={{
-                      background: 'var(--theme-sidebar)',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'inherit',
-                    }}
-                  >
-                    <span
-                      aria-hidden
-                      className="m-mono"
-                      style={{
-                        display: 'inline-block',
-                        fontSize: 8,
-                        width: 10,
-                        textAlign: 'center',
-                        color: 'var(--theme-muted)',
-                        opacity: 0.7,
-                        transform: row.collapsed
-                          ? 'rotate(-90deg)'
-                          : 'rotate(0deg)',
-                        transition: 'transform 120ms ease-out',
-                      }}
-                    >
-                      ▼
-                    </span>
-                    <span
-                      className="m-label"
-                      style={{
-                        ...GROUP_LABEL_STYLE[row.label],
-                        opacity: 0.7,
-                      }}
-                    >
-                      {row.label}
-                    </span>
-                    <span
-                      className="m-mono rounded-full px-1.5 flex-shrink-0"
-                      style={{
-                        border:
-                          '1px solid var(--m-green-500, var(--theme-accent))',
-                        color: 'var(--m-green-400, var(--theme-accent))',
-                        background: 'transparent',
-                        lineHeight: '14px',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {row.count}
-                    </span>
-                    <span
-                      aria-hidden
-                      style={{
-                        flex: 1,
-                        height: 1,
-                        background:
-                          'var(--theme-border-subtle, var(--theme-border))',
-                        opacity: 0.5,
-                      }}
-                    />
-                  </button>
+                  <GroupHeader
+                    row={row}
+                    projectMode={projectMode}
+                    selecting={selecting}
+                    selected={selected}
+                    onToggle={() => toggleGroup(row.group)}
+                    onSelectAll={(on) =>
+                      setMany(
+                        row.group.items.map((i) => i.id),
+                        on,
+                      )
+                    }
+                  />
                 ) : (
-                  <div id={`group-${row.groupLabel}`}>
+                  <div
+                    aria-selected={
+                      selecting ? selected[row.item.id] === true : undefined
+                    }
+                    data-testid={`card-row-${row.item.id}`}
+                    onClickCapture={(e) => onCardClickCapture(e, row.item.id)}
+                    style={{ position: 'relative' }}
+                  >
+                    {row.stripe && (
+                      <span
+                        aria-hidden
+                        data-testid="folder-stripe"
+                        style={{
+                          position: 'absolute',
+                          left: 2,
+                          top: 8,
+                          bottom: 8,
+                          width: 2,
+                          borderRadius: 1,
+                          background: row.stripe,
+                          zIndex: 1,
+                        }}
+                      />
+                    )}
+                    {selecting && (
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${row.item.title}`}
+                        checked={selected[row.item.id] === true}
+                        readOnly
+                        tabIndex={-1}
+                        style={{
+                          position: 'absolute',
+                          right: 14,
+                          top: 10,
+                          zIndex: 1,
+                          accentColor: 'var(--theme-accent)',
+                          pointerEvents: 'none',
+                        }}
+                      />
+                    )}
                     <SidebarCardV2 item={row.item} isActive={row.isActive} />
                   </div>
                 )}
@@ -323,13 +389,190 @@ export function SidebarListV2({
         </div>
       </div>
 
-      <SidebarAttentionActions
-        updatesOnly={updatesOnly}
-        hasPendingUpdates={hasPendingUpdates}
-        onToggleUpdatesOnly={onToggleUpdatesOnly}
-        onMarkAllRead={onMarkAllRead}
-      />
+      {footer}
       <NewChatFooter />
+    </div>
+  )
+}
+
+function GroupHeader({
+  row,
+  projectMode,
+  selecting,
+  selected,
+  onToggle,
+  onSelectAll,
+}: {
+  row: Extract<RowModel, { type: 'header' }>
+  projectMode: boolean
+  selecting: boolean
+  selected: Partial<Record<string, true>>
+  onToggle: () => void
+  onSelectAll: (on: boolean) => void
+}) {
+  const { group } = row
+  const isProject = group.kind === 'project'
+  const projectId = group.key.slice('project:'.length)
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const menuBtnRef = useRef<HTMLButtonElement>(null)
+  const closeMenu = () => {
+    setMenuAt(null)
+    // The menu item that opened a dialog is gone by now; land focus back on
+    // the folder's ⋯ trigger unless the user already moved it elsewhere.
+    setTimeout(() => {
+      if (document.activeElement === document.body) menuBtnRef.current?.focus()
+    }, 0)
+  }
+  const [renaming, setRenaming] = useState(false)
+  const nSelected = selecting
+    ? group.items.filter((i) => selected[i.id]).length
+    : 0
+  const allSelected = nSelected > 0 && nSelected === group.items.length
+  return (
+    <div
+      className="group/hdr flex items-center gap-1 pr-2 select-none"
+      data-testid={`group-header-${group.key}`}
+      onContextMenu={
+        isProject
+          ? (e) => {
+              e.preventDefault()
+              setMenuAt({ x: e.clientX, y: e.clientY })
+            }
+          : undefined
+      }
+      style={{
+        background: 'var(--theme-sidebar)',
+        opacity: group.archived ? 0.55 : 1,
+      }}
+    >
+      {selecting && (
+        <input
+          type="checkbox"
+          aria-label={`Select all in ${group.label}`}
+          checked={allSelected}
+          ref={(el) => {
+            if (el) el.indeterminate = nSelected > 0 && !allSelected
+          }}
+          onChange={() => onSelectAll(!allSelected)}
+          className="ml-3 mt-2"
+          style={{ accentColor: 'var(--theme-accent)' }}
+        />
+      )}
+      {renaming ? (
+        <div className="flex flex-1 min-w-0 items-center px-3 pt-3 pb-1">
+          <FolderRenameInput
+            projectId={projectId}
+            name={group.label}
+            onDone={() => setRenaming(false)}
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={!row.collapsed}
+          className="flex flex-1 min-w-0 items-center gap-2 px-3 pt-3 pb-1 z-10"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: 'inherit',
+            paddingLeft: selecting ? 4 : undefined,
+          }}
+        >
+          <span
+            aria-hidden
+            className="m-mono"
+            style={{
+              display: 'inline-block',
+              fontSize: 8,
+              width: 10,
+              textAlign: 'center',
+              color: 'var(--theme-muted)',
+              opacity: 0.7,
+              transform: row.collapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+              transition: 'transform 120ms ease-out',
+            }}
+          >
+            ▼
+          </span>
+          {isProject && (
+            <span
+              aria-hidden
+              data-testid="folder-dot"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 2,
+                flexShrink: 0,
+                background: folderColor(projectId, group.color),
+              }}
+            />
+          )}
+          <span
+            className="m-label truncate"
+            style={{ ...GROUP_LABEL_STYLE[group.kind], opacity: 0.7 }}
+          >
+            {group.kind === 'pinned' && projectMode ? '★ ' : ''}
+            {group.label}
+            {group.archived ? ' · ARCHIVED' : ''}
+          </span>
+          <span
+            className="m-mono rounded-full px-1.5 flex-shrink-0"
+            style={{
+              border: '1px solid var(--m-green-500, var(--theme-accent))',
+              color: 'var(--m-green-400, var(--theme-accent))',
+              background: 'transparent',
+              lineHeight: '14px',
+              fontVariantNumeric: 'tabular-nums',
+            }}
+          >
+            {row.count}
+          </span>
+          <span
+            aria-hidden
+            style={{
+              flex: 1,
+              height: 1,
+              background: 'var(--theme-border-subtle, var(--theme-border))',
+              opacity: 0.5,
+            }}
+          />
+        </button>
+      )}
+      {isProject && (
+        <button
+          ref={menuBtnRef}
+          type="button"
+          aria-label={`Folder actions for ${group.label}`}
+          aria-haspopup="menu"
+          onClick={(e) => {
+            const r = e.currentTarget.getBoundingClientRect()
+            setMenuAt({ x: r.right - 180, y: r.bottom + 2 })
+          }}
+          className="m-mono pt-2 opacity-0 group-hover/hdr:opacity-100 focus:opacity-100"
+          style={{
+            color: 'var(--theme-muted)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 11,
+            opacity: menuAt ? 1 : undefined,
+          }}
+        >
+          ⋯
+        </button>
+      )}
+      {isProject && menuAt && (
+        <FolderHeaderMenu
+          projectId={projectId}
+          name={group.label}
+          archived={group.archived === true}
+          position={menuAt}
+          onClose={closeMenu}
+          onRename={() => setRenaming(true)}
+        />
+      )}
     </div>
   )
 }

@@ -10,17 +10,32 @@
  * - Closes on action / ESC / click-outside.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
 import { useShallow } from 'zustand/react/shallow'
+import { FolderPickerList, useFolderFormStore } from './sidebar-folders-v2'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 import type { ContextMenuPoint } from '@/lib/context-menu'
 import { clampContextMenuPosition } from '@/lib/context-menu'
+import { isChatSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useDeleteSession } from '@/screens/chat/hooks/use-delete-session'
 import { useForkSession } from '@/screens/chat/hooks/use-fork-session'
 import { useRenameSession } from '@/screens/chat/hooks/use-rename-session'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import {
+  useBindSessionProject,
+  useSessionProjectMap,
+  useUnbindSessionProject,
+} from '@/lib/projects-api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,20 +74,22 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [branchOpen, setBranchOpen] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+  const submenuRef = useRef<HTMLDivElement>(null)
 
   const menuRef = useRef<HTMLDivElement>(null)
   // chat / cron / api / task / tg / cli / a2a are all backed by chat sessions
   // and share the same delete/rename path (gateway DELETE /api/sessions/<id>).
-  const isChatItem =
-    item.src === 'chat' ||
-    item.src === 'recovered' ||
-    item.src === 'cron' ||
-    item.src === 'api' ||
-    item.src === 'task' ||
-    item.src === 'tg' ||
-    item.src === 'cli' ||
-    item.src === 'a2a'
+  const isChatItem = isChatSource(item.src)
   const rawId = item.id.split(':').slice(1).join(':')
+
+  // Folders = the browsed profile's projects. The menu only mounts while
+  // open, so this fetch is lazy in date mode and a cache hit in project mode.
+  const profile = useResolvedProfile() ?? undefined
+  const { data: folderMap } = useSessionProjectMap(profile, isChatItem)
+  const bindProject = useBindSessionProject(profile)
+  const unbindProject = useUnbindSessionProject(profile)
+  const currentProjectId = folderMap?.sessions[rawId] ?? null
 
   const handleArchiveToggle = useCallback(() => {
     toggleArchived(item.id)
@@ -136,10 +153,22 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     if (typeof window === 'undefined') return position
     return clampContextMenuPosition(
       position,
-      { width: 180, height: isChatItem ? 244 : 120 },
+      { width: 180, height: isChatItem ? 276 : 120 },
       { width: window.innerWidth, height: window.innerHeight },
     )
   }, [isChatItem, position])
+
+  // Keep the Move submenu inside the viewport: shift it up when it would run
+  // past the bottom edge (never above the top edge).
+  useLayoutEffect(() => {
+    const el = submenuRef.current
+    if (!moveOpen || !el) return
+    el.style.top = '-4px'
+    const rect = el.getBoundingClientRect()
+    const overflow = rect.bottom - (window.innerHeight - 8)
+    if (overflow > 0)
+      el.style.top = `${-4 - Math.min(overflow, Math.max(0, rect.top - 8))}px`
+  }, [moveOpen, folderMap])
 
   const { forkSession, forking, error: forkError } = useForkSession()
 
@@ -216,6 +245,50 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
           {isChatItem && (
             <>
               <div style={{ height: 1, background: 'var(--theme-border)', margin: '4px 0' }} />
+              <div
+                style={{ position: 'relative' }}
+                onMouseEnter={() => setMoveOpen(true)}
+                onMouseLeave={() => setMoveOpen(false)}
+              >
+                <MenuItem
+                  label="Move to project ▸"
+                  icon="▤"
+                  onClick={() => setMoveOpen((v) => !v)}
+                />
+                {moveOpen && (
+                  <div
+                    ref={submenuRef}
+                    data-testid="move-to-project-submenu"
+                    style={{
+                      position: 'absolute',
+                      top: -4,
+                      // flip left when the menu sits near the right edge
+                      ...(resolvedPosition.x + 180 + 200 > window.innerWidth
+                        ? { right: '100%' }
+                        : { left: '100%' }),
+                      minWidth: 200,
+                      background: 'var(--theme-card)',
+                      border: '1px solid var(--theme-border)',
+                      borderRadius: 6,
+                      boxShadow: 'var(--theme-shadow-2)',
+                    }}
+                  >
+                    <FolderPickerList
+                      projects={folderMap?.projects ?? []}
+                      currentId={currentProjectId}
+                      onPick={(p) =>
+                        act(() =>
+                          bindProject.mutate({ sessionKey: rawId, projectSlug: p.slug }),
+                        )
+                      }
+                      onRemove={() => act(() => unbindProject.mutate(rawId))}
+                      onNewFolder={() =>
+                        act(() => useFolderFormStore.getState().show([rawId]))
+                      }
+                    />
+                  </div>
+                )}
+              </div>
               <MenuItem
                 label="Branch"
                 icon="⑂"
