@@ -296,4 +296,44 @@ describe('remote model discovery (model.base_url)', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
+
+  it('falls back to providers.<model.provider> when model.base_url is absent', async () => {
+    process.env.CLAUDE_HOME = remoteHome
+    existsSync.mockImplementation((p: string) => p === `${remoteHome}/config.yaml`)
+    readFileSync.mockImplementation((p: string) =>
+      p === `${remoteHome}/config.yaml`
+        ? [
+            'model:',
+            '  default: auto',
+            '  provider: manifest',
+            'providers:',
+            '  manifest:',
+            '    base_url: http://manifest.test/v1',
+            '    api_key: mnfst_provider-token',
+            '    discover_models: true',
+            '',
+          ].join('\n')
+        : '',
+    )
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({ data: [{ id: 'auto' }, { id: 'zai/glm-5.3-flash-subscription' }] }),
+        { status: 200 },
+      ),
+    )
+
+    const get = await getHandler()
+    const res = await get({ request: new Request('http://localhost/api/models') })
+    const json = await res.json()
+    const picked = json.models.find((m: any) => m.id === 'zai/glm-5.3-flash-subscription')
+    // Provider is the configured key, not the id's `zai/` prefix.
+    expect(picked?.provider).toBe('manifest')
+    expect(json.models.filter((m: any) => m.id === 'auto')).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://manifest.test/v1/models',
+      expect.objectContaining({
+        headers: expect.objectContaining({ Authorization: 'Bearer mnfst_provider-token' }),
+      }),
+    )
+  })
 })

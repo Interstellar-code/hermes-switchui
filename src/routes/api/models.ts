@@ -172,7 +172,26 @@ function readRemoteModelConfig(
     return null
   const rec = asRecord(modelField)
   const baseUrl = readString(rec.base_url)
-  if (!baseUrl) return null
+  if (!baseUrl) {
+    // No model.base_url: fall back to the active provider's own connection
+    // block (`providers.<model.provider>`), e.g. `provider: manifest` +
+    // `providers.manifest.base_url`. Entries keep the configured provider
+    // key so a picked id like `zai/glm-…` still routes through it.
+    const providerKey = readString(rec.provider)
+    const providerRec = asRecord(asRecord(config.providers)[providerKey])
+    const providerBaseUrl = readString(providerRec.base_url)
+    if (!providerKey || !providerBaseUrl || providerRec.discover_models === false)
+      return null
+    return {
+      baseUrl: providerBaseUrl,
+      apiKey: readString(providerRec.api_key),
+      provider: providerKey,
+      contextLength:
+        typeof providerRec.context_length === 'number'
+          ? providerRec.context_length
+          : undefined,
+    }
+  }
   return {
     baseUrl,
     apiKey: readString(rec.api_key),
@@ -191,7 +210,10 @@ function readRemoteModelConfig(
 async function fetchRemoteModels(
   remote: RemoteModelConfig,
 ): Promise<Array<ModelEntry>> {
-  const cached = remoteModelsCache.get(remote.baseUrl)
+  // Entries embed provider/contextLength and the list may be key-scoped, so
+  // profiles sharing one base URL must not share a cache slot.
+  const cacheKey = `${remote.baseUrl}\n${remote.provider}\n${remote.contextLength ?? ''}\n${remote.apiKey ?? ''}`
+  const cached = remoteModelsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < REMOTE_MODELS_TTL_MS) {
     return cached.models
   }
@@ -229,7 +251,7 @@ async function fetchRemoteModels(
         },
       ]
     })
-    remoteModelsCache.set(remote.baseUrl, { ts: Date.now(), models })
+    remoteModelsCache.set(cacheKey, { ts: Date.now(), models })
     return models
   } catch {
     return cached?.models ?? []
