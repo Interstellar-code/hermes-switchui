@@ -14,6 +14,7 @@ import type {
   SessionState,
 } from '@/screens/chat/sessions-feed-types'
 import { UNSCOPED_PROFILE, setDeviceSessionProfile } from '@/lib/session-scope'
+import { clampSidebarWidth } from '@/screens/chat/components/sidebar/v2/sidebar-resize-handle-v2'
 
 export { UNSCOPED_PROFILE }
 
@@ -60,6 +61,8 @@ export type FilterState = {
    * fills it with the initial `'date'` on existing v9 payloads.
    */
   groupBy: 'date' | 'project'
+  /** Expanded sessions panel width in px. Added without a version bump. */
+  sidebarWidth: number
 }
 
 type FilterActions = {
@@ -74,6 +77,7 @@ type FilterActions = {
   setLeftPanel: (p: 'sessions' | 'files') => void
   setProfile: (p: string) => void
   setGroupBy: (g: 'date' | 'project') => void
+  setSidebarWidth: (w: number) => void
   reset: () => void
 }
 
@@ -104,6 +108,7 @@ function buildInitialState(): FilterState {
     leftPanel: 'sessions',
     profile: UNSCOPED_PROFILE,
     groupBy: 'date',
+    sidebarWidth: 320,
   }
 }
 
@@ -141,6 +146,11 @@ export const useSessionsFilterStore = create<FilterState & FilterActions>()(
       setProfile: (profile) => set({ profile }),
 
       setGroupBy: (groupBy) => set({ groupBy }),
+
+      setSidebarWidth: (sidebarWidth) => {
+        if (Number.isFinite(sidebarWidth))
+          set({ sidebarWidth: clampSidebarWidth(sidebarWidth) })
+      },
 
       reset: () => set(buildInitialState()),
     }),

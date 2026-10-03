@@ -34,6 +34,8 @@ vi.mock('@/stores/sessions-filter-store', () => ({
     selector({
       collapsed: false,
       setCollapsed: vi.fn(),
+      sidebarWidth: 480,
+      setSidebarWidth: vi.fn(),
       leftPanel: 'sessions',
       setLeftPanel: vi.fn(),
       sources: ['chat'],
@@ -101,6 +103,19 @@ it('passes the raw merged feed to the filtering owner', () => {
     },
     { groupBy: 'project', map: folderMap },
   )
+})
+
+it('renders the panel at the persisted width with a resize separator', () => {
+  const { container } = render(<SidebarShellV2 />)
+  const panel = container.querySelector<HTMLElement>(
+    '[data-testid="sessions-panel"]',
+  )
+  expect(panel?.style.width).toBe('480px')
+  expect(
+    container
+      .querySelector('[role="separator"]')
+      ?.getAttribute('aria-valuenow'),
+  ).toBe('480')
 })
 
 it('fetches folders for the browsed profile only in project mode', () => {

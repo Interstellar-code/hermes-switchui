@@ -250,6 +250,28 @@ describe('sessions-filter-store', () => {
     useStore.getState().setGroupBy('project')
     expect(useStore.getState().groupBy).toBe('project')
   })
+
+  it('v9 persisted state hydrates sidebarWidth, defaulting to 320', async () => {
+    const { useSessionsFilterStore: fresh } = await getStore()
+    expect(fresh.getState().sidebarWidth).toBe(320)
+    vi.resetModules()
+    localStorageMock.setItem(
+      'hermes.sessions.filter',
+      JSON.stringify({
+        state: { version: 9, sources: [], sidebarWidth: 444 },
+        version: 9,
+      }),
+    )
+    const { useSessionsFilterStore: useStore } = await getStore()
+    await new Promise((r) => setTimeout(r, 10))
+    expect(useStore.getState().sidebarWidth).toBe(444)
+    useStore.getState().setSidebarWidth(300)
+    expect(useStore.getState().sidebarWidth).toBe(300)
+    useStore.getState().setSidebarWidth(NaN)
+    expect(useStore.getState().sidebarWidth).toBe(300)
+    useStore.getState().setSidebarWidth(9999)
+    expect(useStore.getState().sidebarWidth).toBe(560)
+  })
 })
 
 // ── Device layer of the profile resolver ────────────────────────────────────

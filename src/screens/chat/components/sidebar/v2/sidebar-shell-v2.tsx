@@ -7,13 +7,17 @@
  * count to header.
  */
 
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { SidebarHeaderV2 } from './sidebar-header-v2'
 import { SidebarListV2 } from './sidebar-list-v2'
 import { SidebarRailV2 } from './sidebar-rail-v2'
 import { SidebarSearchV2 } from './sidebar-search-v2'
 import { SidebarSourceChipsV2 } from './sidebar-source-chips-v2'
+import {
+  SidebarResizeHandleV2,
+  clampSidebarWidth,
+} from './sidebar-resize-handle-v2'
 import { SidebarGroupToggleV2 } from './sidebar-folders-v2'
 import { useResolvedProfile } from '@/hooks/use-resolved-profile'
 import { useSessionProjectMap } from '@/lib/projects-api'
@@ -32,6 +36,11 @@ import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decora
 export function SidebarShellV2() {
   const collapsed = useSessionsFilterStore((s) => s.collapsed)
   const setCollapsed = useSessionsFilterStore((s) => s.setCollapsed)
+  const storedWidth = useSessionsFilterStore((s) => s.sidebarWidth)
+  const setSidebarWidth = useSessionsFilterStore((s) => s.setSidebarWidth)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // Static clamp only (SSR-safe); the 50vw cap is the panel's CSS max-width.
+  const sidebarWidth = clampSidebarWidth(storedWidth)
   const fSources = useSessionsFilterStore((s) => s.sources)
   const fQuery = useSessionsFilterStore((s) => s.query)
   const fDateRange = useSessionsFilterStore((s) => s.dateRange)
@@ -157,35 +166,44 @@ export function SidebarShellV2() {
           sourceResults={sources}
         />
       ) : (
-        <div
-          className="flex flex-col shrink-0 overflow-hidden rounded-md my-2 mx-2"
-          data-testid="sessions-panel"
-          style={{
-            width: 320,
-            border: '1px solid var(--theme-border)',
-            background: 'var(--theme-sidebar)',
-          }}
-        >
-          <SidebarHeaderV2
-            onCollapse={() => setCollapsed(true)}
-            count={totalCount}
-            totals={profileTotals}
-          />
-          <SidebarSearchV2 />
-          <SidebarSourceChipsV2
-            sourceResults={sources}
-            sourceCounts={sourceCounts}
-            attention={attention}
-          />
-          <SidebarGroupToggleV2 profile={profile} map={folderMap} />
-          <SidebarListV2
-            groups={groups}
-            updatesOnly={fUpdatesOnly}
-            hasPendingUpdates={Object.values(attention).some(
-              ({ updated }) => updated,
-            )}
-            onToggleUpdatesOnly={toggleUpdatesOnly}
-            onMarkAllRead={() => markSessionsSeen(items)}
+        <div className="relative flex shrink-0 my-2 mx-2">
+          <div
+            className="flex flex-col overflow-hidden rounded-md"
+            ref={panelRef}
+            data-testid="sessions-panel"
+            style={{
+              width: sidebarWidth,
+              maxWidth: 'max(260px, 50vw)',
+              border: '1px solid var(--theme-border)',
+              background: 'var(--theme-sidebar)',
+            }}
+          >
+            <SidebarHeaderV2
+              onCollapse={() => setCollapsed(true)}
+              count={totalCount}
+              totals={profileTotals}
+            />
+            <SidebarSearchV2 />
+            <SidebarSourceChipsV2
+              sourceResults={sources}
+              sourceCounts={sourceCounts}
+              attention={attention}
+            />
+            <SidebarGroupToggleV2 profile={profile} map={folderMap} />
+            <SidebarListV2
+              groups={groups}
+              updatesOnly={fUpdatesOnly}
+              hasPendingUpdates={Object.values(attention).some(
+                ({ updated }) => updated,
+              )}
+              onToggleUpdatesOnly={toggleUpdatesOnly}
+              onMarkAllRead={() => markSessionsSeen(items)}
+            />
+          </div>
+          <SidebarResizeHandleV2
+            width={sidebarWidth}
+            onResize={setSidebarWidth}
+            panelRef={panelRef}
           />
         </div>
       )}
