@@ -33,3 +33,33 @@ describe('SidebarListV2 attention actions', () => {
     expect(markRead.hasAttribute('disabled')).toBe(false)
   })
 })
+
+describe('SidebarListV2 load more', () => {
+  it('shows loaded of total and calls onLoadMore; absent when not passed', () => {
+    const onLoadMore = vi.fn()
+    const { rerender } = render(
+      <SidebarListV2
+        groups={[]}
+        loadMore={{ loaded: 200, total: 853, loading: false, onLoadMore }}
+      />,
+    )
+    expect(screen.getByText('Loaded 200 of 853')).toBeTruthy()
+    screen.getByRole('button', { name: 'Load more' }).click()
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+
+    rerender(
+      <SidebarListV2
+        groups={[]}
+        loadMore={{ loaded: 200, total: 853, loading: true, onLoadMore }}
+      />,
+    )
+    const busy = screen.getByRole('button', { name: 'Loading…' })
+    expect(busy.getAttribute('aria-disabled')).toBe('true')
+    expect(busy.getAttribute('aria-busy')).toBe('true')
+    busy.click()
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+
+    rerender(<SidebarListV2 groups={[]} />)
+    expect(screen.queryByTestId('sessions-load-more')).toBeNull()
+  })
+})

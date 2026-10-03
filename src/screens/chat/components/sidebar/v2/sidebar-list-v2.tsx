@@ -101,6 +101,16 @@ interface SidebarListV2Props {
   hasPendingUpdates?: boolean
   onToggleUpdatesOnly?: () => void
   onMarkAllRead?: () => void
+  /** Present while more sessions exist server-side than are loaded. */
+  loadMore?: LoadMoreState
+}
+
+type LoadMoreState = {
+  loaded: number
+  /** Server total for the visible sources; null when unknown or filtered. */
+  total: number | null
+  loading: boolean
+  onLoadMore: () => void
 }
 
 export function SidebarListV2({
@@ -109,6 +119,7 @@ export function SidebarListV2({
   hasPendingUpdates = false,
   onToggleUpdatesOnly,
   onMarkAllRead,
+  loadMore,
 }: SidebarListV2Props) {
   const [collapsedMap, setCollapsedMap] =
     useState<Record<string, boolean>>(readCollapsedMap)
@@ -274,6 +285,7 @@ export function SidebarListV2({
             </span>
           </div>
         </div>
+        {loadMore && <LoadMoreRow {...loadMore} />}
         {footer}
         <NewChatFooter />
       </div>
@@ -387,10 +399,46 @@ export function SidebarListV2({
             )
           })}
         </div>
+        {loadMore && <LoadMoreRow {...loadMore} />}
       </div>
 
       {footer}
       <NewChatFooter />
+    </div>
+  )
+}
+
+function LoadMoreRow({ loaded, total, loading, onLoadMore }: LoadMoreState) {
+  return (
+    <div
+      className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+      data-testid="sessions-load-more"
+      style={{ color: 'var(--theme-muted)' }}
+    >
+      <span className="m-mono" aria-live="polite">
+        Loaded {loaded}
+        {total != null && ` of ${total}`}
+      </span>
+      <button
+        type="button"
+        // aria-disabled, not disabled: keeps focus on the button while a page
+        // loads instead of dropping it to <body>.
+        aria-disabled={loading}
+        aria-busy={loading}
+        onClick={() => {
+          if (!loading) onLoadMore()
+        }}
+        className="rounded px-2 py-0.5"
+        style={{
+          border: '1px solid var(--theme-border)',
+          background: 'var(--theme-card)',
+          color: 'var(--theme-text)',
+          cursor: loading ? 'default' : 'pointer',
+          opacity: loading ? 0.6 : 1,
+        }}
+      >
+        {loading ? 'Loading…' : 'Load more'}
+      </button>
     </div>
   )
 }

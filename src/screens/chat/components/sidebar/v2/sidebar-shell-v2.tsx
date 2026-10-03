@@ -7,7 +7,7 @@
  * count to header.
  */
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouterState } from '@tanstack/react-router'
 import { SidebarHeaderV2 } from './sidebar-header-v2'
 import { SidebarListV2 } from './sidebar-list-v2'
@@ -28,10 +28,16 @@ import {
 } from '@/stores/sessions-local-store'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import {
+  addUnloadedSourceCounts,
+  mergeSessionFeedItems,
   useProfileSessionTotals,
+  useSessionSourceTotals,
+  useSessionWindowPages,
   useSessionsFeed,
+  visibleSourceProgress,
 } from '@/screens/chat/sessions-feed'
 import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
+import { DEFAULT_SESSION_LIST_LIMIT } from '@/screens/chat/chat-queries'
 
 export function SidebarShellV2() {
   const collapsed = useSessionsFilterStore((s) => s.collapsed)
@@ -73,8 +79,50 @@ export function SidebarShellV2() {
   const pathname = useRouterState({ select: (s) => s.location.pathname })
 
   // Single feed subscription — SidebarListV2 consumes groups via prop (no duplicate hook)
-  const { items, sources } = useSessionsFeed({ raw: true, query: fQuery })
+  const { items: baseItems, sources } = useSessionsFeed({
+    raw: true,
+    query: fQuery,
+  })
   const { totals: profileTotals } = useProfileSessionTotals()
+
+  // The feed holds only the newest window per source; chips count the real
+  // server totals and the list pages in the rest on demand.
+  const sourceTotals = useSessionSourceTotals(profile ?? null)
+  const hiddenSources: Array<string> = fSources
+  const countFiltered =
+    Boolean(fQuery.trim()) ||
+    Boolean(fDateRange.from || fDateRange.to) ||
+    fUpdatesOnly
+  // Clicking chips one by one would otherwise key (and auto-fetch) a window
+  // per intermediate selection.
+  const [windowSources, setWindowSources] = useState(fSources)
+  useEffect(() => {
+    const timer = setTimeout(() => setWindowSources(fSources), 300)
+    return () => clearTimeout(timer)
+  }, [fSources])
+  // A narrowed selection whose visible server sources have rows the base
+  // windows did not load fetches its own window straight away.
+  const autoLoad = useMemo(() => {
+    if (windowSources.length === 0 || !sourceTotals) return false
+    const { loaded, total } = visibleSourceProgress(
+      baseItems,
+      sourceTotals,
+      windowSources,
+    )
+    return loaded < total
+  }, [baseItems, sourceTotals, windowSources])
+  const windowPages = useSessionWindowPages(
+    profile ?? null,
+    windowSources,
+    autoLoad,
+  )
+  const items = useMemo(
+    () =>
+      windowPages.items.length > 0
+        ? mergeSessionFeedItems(windowPages.items, baseItems)
+        : baseItems,
+    [baseItems, windowPages.items],
+  )
 
   useEffect(() => {
     if (!sources.some((source) => source.src === 'chat' && source.available))
@@ -92,7 +140,11 @@ export function SidebarShellV2() {
   }, [items, markSessionSeen, pathname])
 
   // Memoize to avoid new object refs on every render
-  const { groups, totalCount, sourceCounts } = useMemo(
+  const {
+    groups,
+    totalCount,
+    sourceCounts: loadedSourceCounts,
+  } = useMemo(
     () =>
       applyFiltersAndDecorate(
         items,
@@ -129,6 +181,45 @@ export function SidebarShellV2() {
       seenUpdatesInitialized,
     ],
   )
+
+  // Server totals only when nothing narrows the count the server can't see
+  // (search, date window, updates-only); otherwise count what is loaded.
+  const sourceCounts = useMemo(
+    () =>
+      countFiltered
+        ? loadedSourceCounts
+        : addUnloadedSourceCounts(loadedSourceCounts, items, sourceTotals),
+    [countFiltered, loadedSourceCounts, items, sourceTotals],
+  )
+  // Progress per visible SERVER source (not per-chip remainders), so hiding
+  // CHAT while API stays visible still pages api_server.
+  const progress = useMemo(
+    () =>
+      sourceTotals
+        ? visibleSourceProgress(items, sourceTotals, fSources)
+        : null,
+    [items, sourceTotals, fSources],
+  )
+  const loadedVisible = Object.entries(loadedSourceCounts).reduce(
+    (sum, [src, n]) => (hiddenSources.includes(src) ? sum : sum + n),
+    0,
+  )
+  // Filters keep "Load more" (older pages can match a date window or search)
+  // but drop the "of M": the server total ignores those filters. Without a
+  // total, offer it only once a full first window came back.
+  const showTotal = progress !== null && !countFiltered
+  const loadMore =
+    windowPages.hasMore &&
+    (progress
+      ? progress.loaded < progress.total
+      : items.length >= DEFAULT_SESSION_LIST_LIMIT)
+      ? {
+          loaded: showTotal ? progress.loaded : loadedVisible,
+          total: showTotal ? progress.total : null,
+          loading: windowPages.loading,
+          onLoadMore: windowPages.loadMore,
+        }
+      : undefined
 
   const hasLive = useMemo(() => items.some((i) => i.live), [items])
   const attention = useMemo(() => {
@@ -198,6 +289,7 @@ export function SidebarShellV2() {
               )}
               onToggleUpdatesOnly={toggleUpdatesOnly}
               onMarkAllRead={() => markSessionsSeen(items)}
+              loadMore={loadMore}
             />
           </div>
           <SidebarResizeHandleV2

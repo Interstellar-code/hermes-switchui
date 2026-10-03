@@ -1065,7 +1065,8 @@ export function ChatScreen({
           throw new Error('Invalid session response')
         }
 
-        invalidateSessionLists(queryClient)
+        // New chats arrive constantly; chip totals catch up on their interval.
+        invalidateSessionLists(queryClient, { refetchTotals: false })
         return { sessionKey, friendlyId }
       } finally {
         setCreatingSession(false)

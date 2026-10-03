@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { chatQueryKeys } from '../chat-queries'
+import { chatQueryKeys, updateSessionWindowPages } from '../chat-queries'
 import { invalidateSessionLists } from '../sessions-feed'
 import { updateSessionTitleState } from '../session-title-store'
 import { profileBody, readSendFailure } from '@/lib/session-scope'
@@ -50,9 +50,7 @@ export function useRenameSession(): RenameSessionResult {
 
       const targetId = payload.friendlyId || payload.sessionKey
       // Optimistically update the session title in cache
-      queryClient.setQueryData(
-        chatQueryKeys.sessions,
-        function update(sessions: unknown) {
+      const update = function update(sessions: unknown) {
           if (!Array.isArray(sessions)) return sessions
           return (sessions as Array<Record<string, unknown>>).map((session) => {
             const key = typeof session.key === 'string' ? session.key : ''
@@ -70,8 +68,10 @@ export function useRenameSession(): RenameSessionResult {
               titleError: null,
             }
           })
-        },
-      )
+      }
+      queryClient.setQueryData(chatQueryKeys.sessions, update)
+      // Rows paged in by "Load more" live in their own cache.
+      updateSessionWindowPages(queryClient, update)
 
       return { previousSessions, targetId }
     },

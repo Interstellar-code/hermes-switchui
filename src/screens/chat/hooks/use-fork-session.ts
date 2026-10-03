@@ -56,7 +56,7 @@ export function useForkSession(): ForkSessionResult {
     onSuccess: function onSuccess() {
       // Both the branch and the now-ended source changed — refetch rather
       // than patch (#218: two independent session-list caches).
-      invalidateSessionLists(queryClient)
+      invalidateSessionLists(queryClient, { refetchTotals: false })
     },
     onSettled: function onSettled() {
       setForking(false)

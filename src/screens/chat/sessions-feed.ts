@@ -12,11 +12,13 @@
  *   - IDs are namespaced: `{src}:{rawId}` (e.g. `chat:abc`, `task:t-1`).
  */
 
-import { useQuery } from '@tanstack/react-query'
-import { useMemo } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import {
+  DEFAULT_SESSION_LIST_LIMIT,
   chatQueryKeys,
   fetchProfileSessions,
+  fetchSessionWindow,
   fetchSessions,
   searchSessions,
 } from './chat-queries'
@@ -127,13 +129,30 @@ export function sessionsFeedKey(): Array<unknown> {
  * `chatQueryKeys.scopedSessions(profile)` instead — invalidating only the
  * former left the scoped sidebar stale until its next 120s poll.
  */
-export function invalidateSessionLists(queryClient: QueryClient): void {
+export function invalidateSessionLists(
+  queryClient: QueryClient,
+  { refetchTotals = true }: { refetchTotals?: boolean } = {},
+): void {
   void queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
   // The sidebar's scoped-profile list (chatQueryKeys.scopedSessions) has its
   // own key; invalidate every profile's copy by prefix.
   void queryClient.invalidateQueries({
     queryKey: ['sessions-feed', 'scoped-chat'],
   })
+  // Extra "Load more" pages: marked stale only. Refetching every loaded page
+  // of every window on each mutation is the expensive part; they refresh when
+  // next mounted/paged, and the base windows above carry the newest rows.
+  void queryClient.invalidateQueries({
+    queryKey: ['sessions-feed', 'window'],
+    refetchType: 'none',
+  })
+  // Counts only change on delete (and create — which leaves them to the
+  // 120s interval, since new chats arrive constantly).
+  if (refetchTotals) {
+    void queryClient.invalidateQueries({
+      queryKey: ['sessions-feed', 'source-totals'],
+    })
+  }
 }
 
 // ── Day bucketing ──────────────────────────────────────────────────────────────
@@ -458,9 +477,247 @@ function sessionsToFeedItems(
         originalTitle: fallbackTitle,
         originalPreview: fallbackSub,
         profile: s.profile,
+        serverSource: s.source,
       },
     }
   })
+}
+
+// ── Server-side source totals + extra list pages ──────────────────────────────
+
+/**
+ * Chips each server `source` can classify into (`classifySessionSource`). The
+ * FIRST entry is where rows not yet loaded are counted: which chip an unloaded
+ * row would land in is unknowable (api_server splits chat/api by `kind`, task
+ * is a title heuristic), so loaded rows count exactly and only the remainder
+ * is attributed. Unlisted sources (local, new adapters) behave like `kanban`.
+ */
+export const SERVER_SOURCE_CHIPS: Record<string, Array<SessionSource>> = {
+  cron: ['cron'],
+  api_server: ['chat', 'api', 'task'],
+  telegram: ['tg'],
+  a2a_fleet: ['a2a', 'task'],
+  cli: ['cli', 'task'],
+  recovered: ['recovered'],
+  kanban: ['chat', 'task'],
+}
+const OTHER_SOURCE_CHIPS: Array<SessionSource> = ['chat', 'task']
+
+export type SessionSourceTotals = {
+  total: number
+  bySource: Record<string, number>
+}
+
+async function fetchSourceTotals(
+  profile: string | null,
+): Promise<SessionSourceTotals | null> {
+  const query = profile ? `?profile=${encodeURIComponent(profile)}` : ''
+  try {
+    const res = await fetch(`/api/sessions/source-totals${query}`)
+    if (!res.ok) return null
+    const data = (await res.json()) as { totals?: SessionSourceTotals | null }
+    return data.totals ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Real per-server-source session counts for `profile` (null = active, read
+ * unscoped). `null` when the server cannot count (no dashboard) — callers
+ * fall back to counting loaded rows.
+ */
+export function useSessionSourceTotals(
+  profile: string | null,
+): SessionSourceTotals | null {
+  const query = useQuery({
+    queryKey: ['sessions-feed', 'source-totals', profile ?? ACTIVE_PROFILE],
+    queryFn: () => fetchSourceTotals(profile),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+  })
+  return query.data ?? null
+}
+
+function serverSourceOf(item: SessionFeedItem): string {
+  const source = item.sourceMeta.serverSource
+  return typeof source === 'string' ? source : ''
+}
+
+/**
+ * Loaded vs server total for the server sources still on screen — a server
+ * source counts while ANY chip it can classify into is visible (hiding CHAT
+ * keeps api_server in play for API/TASK). `items` = every loaded row,
+ * archived included, to compare like for like with the server total.
+ */
+export function visibleSourceProgress(
+  items: Array<SessionFeedItem>,
+  totals: SessionSourceTotals,
+  hidden: Array<SessionSource>,
+): { loaded: number; total: number } {
+  const visible = (source: string) =>
+    (SERVER_SOURCE_CHIPS[source] ?? OTHER_SOURCE_CHIPS).some(
+      (chip) => !hidden.includes(chip),
+    )
+  let known = 0
+  let total = 0
+  for (const [source, n] of Object.entries(totals.bySource)) {
+    known += n
+    if (visible(source)) total += n
+  }
+  // Sources the server did not break out ('other') map like OTHER_SOURCE_CHIPS.
+  if (visible('')) total += Math.max(0, totals.total - known)
+  const loaded = items.filter((item) => visible(serverSourceOf(item))).length
+  return { loaded, total }
+}
+
+/**
+ * Chip counts with the rows the list has NOT loaded added back from the server
+ * totals. `sourceCounts` (loaded, filtered) stays exact for what is loaded;
+ * per server source, `total - loaded` is attributed to its primary chip.
+ *
+ * `items` must be every loaded row (archived included): the server total counts
+ * locally-archived sessions too, so subtracting them keeps the remainder right.
+ * Archived rows that were never loaded can't be known — chips may overcount by
+ * that many until they load. Only valid with no count-affecting filter active.
+ */
+export function addUnloadedSourceCounts(
+  sourceCounts: Partial<Record<SessionSource, number>>,
+  items: Array<SessionFeedItem>,
+  totals: SessionSourceTotals | null,
+): Partial<Record<SessionSource, number>> {
+  if (!totals) return sourceCounts
+  const loaded = new Map<string, number>()
+  for (const item of items) {
+    const source = serverSourceOf(item)
+    loaded.set(source, (loaded.get(source) ?? 0) + 1)
+  }
+  const next = { ...sourceCounts }
+  const add = (chip: SessionSource, n: number) => {
+    if (n > 0) next[chip] = (next[chip] ?? 0) + n
+  }
+  let known = 0
+  let loadedKnown = 0
+  for (const [source, total] of Object.entries(totals.bySource)) {
+    known += total
+    loadedKnown += loaded.get(source) ?? 0
+    add(
+      (SERVER_SOURCE_CHIPS[source] ?? OTHER_SOURCE_CHIPS)[0],
+      total - (loaded.get(source) ?? 0),
+    )
+  }
+  add(OTHER_SOURCE_CHIPS[0], totals.total - known - (items.length - loadedKnown))
+  return next
+}
+
+/**
+ * Server filter for the extra-pages window given the hidden chips. Nothing
+ * hidden = the non-cron recents window, continuing after the first page the
+ * base feed already holds. Otherwise exclude every server source whose chips
+ * are ALL hidden, so a narrowed selection (e.g. only CLI visible) pages
+ * through exactly the sources still shown.
+ */
+export function sessionWindowFilter(hidden: ReadonlyArray<SessionSource>): {
+  filter: Record<string, string>
+  filterKey: string
+  startOffset: number
+} {
+  const excluded =
+    hidden.length === 0
+      ? ['cron']
+      : Object.entries(SERVER_SOURCE_CHIPS)
+          .filter(([, chips]) => chips.every((chip) => hidden.includes(chip)))
+          .map(([source]) => source)
+  const filter: Record<string, string> =
+    excluded.length > 0 ? { exclude_sources: excluded.join(',') } : {}
+  const filterKey = new URLSearchParams(filter).toString()
+  return {
+    filter,
+    filterKey,
+    // The base feed (newest 200 non-cron + newest 200 cron) already holds the
+    // newest 200 of both of these, so their first page would be a no-op.
+    startOffset:
+      filterKey === 'exclude_sources=cron' || filterKey === ''
+        ? DEFAULT_SESSION_LIST_LIMIT
+        : 0,
+  }
+}
+
+/**
+ * Extra list pages for the sidebar: "Load more" beyond the first window, and
+ * — when `autoLoad` (a narrowed source selection with unloaded rows) — the
+ * first page of the narrowed window right away. Rows are returned as feed
+ * items; the caller merges them under the base feed (base wins on duplicates,
+ * so optimistic renames in the base cache are not overwritten).
+ */
+export function useSessionWindowPages(
+  profile: string | null,
+  hidden: ReadonlyArray<SessionSource>,
+  autoLoad: boolean,
+): {
+  items: Array<SessionFeedItem>
+  hasMore: boolean
+  loading: boolean
+  loadMore: () => void
+} {
+  const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
+  const { filter, filterKey, startOffset } = sessionWindowFilter(hidden)
+  const pageSize = DEFAULT_SESSION_LIST_LIMIT
+  const queryKey = chatQueryKeys.sessionWindow(
+    profile ?? ACTIVE_PROFILE,
+    filterKey,
+  )
+  const keyString = queryKey.join('|')
+  const [requested, setRequested] = useState<string | null>(null)
+  // ponytail: offset paging — a session created/deleted between pages shifts
+  // the window, so a row can repeat (deduped) or be skipped until refetch.
+  // Switch to a keyset cursor (updatedAt, id) if those gaps start to matter.
+  const query = useInfiniteQuery({
+    queryKey,
+    queryFn: ({ pageParam }) => fetchSessionWindow(filter, profile, pageParam),
+    initialPageParam: startOffset,
+    getNextPageParam: (last, _all, lastOffset) =>
+      last.length < pageSize ? undefined : lastOffset + pageSize,
+    getPreviousPageParam: (_first, _all, firstOffset) =>
+      firstOffset > startOffset ? firstOffset - pageSize : undefined,
+    // Bounds memory and refetch cost; the oldest page drops past 10.
+    maxPages: 10,
+    enabled: autoLoad || requested === keyString,
+    staleTime: 60_000,
+    // Old pages change rarely (new rows land in the base windows, polled every
+    // 2 min); a slow refresh keeps titles/deletes from elsewhere eventually
+    // consistent without refetching up to 10 pages every couple of minutes.
+    refetchInterval: 10 * 60_000,
+  })
+  const rawRows = useMemo(() => query.data?.pages.flat() ?? [], [query.data])
+  // Cron-run titles come from the jobs list, which is active-profile scoped —
+  // enrich only unscoped, same as the base feeds.
+  const hasCronRows =
+    profile === null && rawRows.some((row) => parseCronSessionKey(row.key))
+  const jobsQuery = useQuery({
+    queryKey: [...sessionsFeedKey(), 'cron-jobs', 'window'],
+    queryFn: () => fetchJobs().catch(() => [] as Array<ClaudeJob>),
+    enabled: hasCronRows,
+    staleTime: 60_000,
+  })
+  const jobs = jobsQuery.data
+  const items = useMemo(() => {
+    const now = Date.now()
+    return sessionsToFeedItems(rawRows, jobs ?? [], waitingSessionKeys).map(
+      (item) => ({ ...item, day: getDayBucket(item.when, now) }),
+    )
+  }, [rawRows, jobs, waitingSessionKeys])
+  return {
+    items,
+    // Before the first extra page there is no evidence either way.
+    hasMore: query.data ? query.hasNextPage : true,
+    loading: query.isFetching,
+    loadMore: () => {
+      if (query.isFetching) return
+      if (query.data) void query.fetchNextPage()
+      else setRequested(keyString)
+    },
+  }
 }
 
 // ── Cross-profile browse totals (P3 sidebar lane) ─────────────────────────────

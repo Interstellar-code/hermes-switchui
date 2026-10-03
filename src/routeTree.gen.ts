@@ -111,6 +111,7 @@ import { Route as ApiSkillsUninstallRouteImport } from './routes/api/skills/unin
 import { Route as ApiSkillsToggleRouteImport } from './routes/api/skills/toggle'
 import { Route as ApiSkillsInstallRouteImport } from './routes/api/skills/install'
 import { Route as ApiSkillsHubSearchRouteImport } from './routes/api/skills/hub-search'
+import { Route as ApiSessionsSourceTotalsRouteImport } from './routes/api/sessions/source-totals'
 import { Route as ApiSessionsSendRouteImport } from './routes/api/sessions/send'
 import { Route as ApiSelfImproveScenariosRouteImport } from './routes/api/self-improve/scenarios'
 import { Route as ApiSelfImproveProposeRouteImport } from './routes/api/self-improve/propose'
@@ -763,6 +764,11 @@ const ApiSkillsHubSearchRoute = ApiSkillsHubSearchRouteImport.update({
   id: '/hub-search',
   path: '/hub-search',
   getParentRoute: () => ApiSkillsRoute,
+} as any)
+const ApiSessionsSourceTotalsRoute = ApiSessionsSourceTotalsRouteImport.update({
+  id: '/source-totals',
+  path: '/source-totals',
+  getParentRoute: () => ApiSessionsRoute,
 } as any)
 const ApiSessionsSendRoute = ApiSessionsSendRouteImport.update({
   id: '/send',
@@ -1703,6 +1709,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/self-improve/scenarios': typeof ApiSelfImproveScenariosRouteWithChildren
   '/api/sessions/send': typeof ApiSessionsSendRoute
+  '/api/sessions/source-totals': typeof ApiSessionsSourceTotalsRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
   '/api/skills/toggle': typeof ApiSkillsToggleRoute
@@ -1946,6 +1953,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/self-improve/scenarios': typeof ApiSelfImproveScenariosRouteWithChildren
   '/api/sessions/send': typeof ApiSessionsSendRoute
+  '/api/sessions/source-totals': typeof ApiSessionsSourceTotalsRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
   '/api/skills/toggle': typeof ApiSkillsToggleRoute
@@ -2192,6 +2200,7 @@ export interface FileRoutesById {
   '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/self-improve/scenarios': typeof ApiSelfImproveScenariosRouteWithChildren
   '/api/sessions/send': typeof ApiSessionsSendRoute
+  '/api/sessions/source-totals': typeof ApiSessionsSourceTotalsRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
   '/api/skills/install': typeof ApiSkillsInstallRoute
   '/api/skills/toggle': typeof ApiSkillsToggleRoute
@@ -2439,6 +2448,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/propose'
     | '/api/self-improve/scenarios'
     | '/api/sessions/send'
+    | '/api/sessions/source-totals'
     | '/api/skills/hub-search'
     | '/api/skills/install'
     | '/api/skills/toggle'
@@ -2682,6 +2692,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/propose'
     | '/api/self-improve/scenarios'
     | '/api/sessions/send'
+    | '/api/sessions/source-totals'
     | '/api/skills/hub-search'
     | '/api/skills/install'
     | '/api/skills/toggle'
@@ -2927,6 +2938,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/propose'
     | '/api/self-improve/scenarios'
     | '/api/sessions/send'
+    | '/api/sessions/source-totals'
     | '/api/skills/hub-search'
     | '/api/skills/install'
     | '/api/skills/toggle'
@@ -3867,6 +3879,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/skills/hub-search'
       preLoaderRoute: typeof ApiSkillsHubSearchRouteImport
       parentRoute: typeof ApiSkillsRoute
+    }
+    '/api/sessions/source-totals': {
+      id: '/api/sessions/source-totals'
+      path: '/source-totals'
+      fullPath: '/api/sessions/source-totals'
+      preLoaderRoute: typeof ApiSessionsSourceTotalsRouteImport
+      parentRoute: typeof ApiSessionsRoute
     }
     '/api/sessions/send': {
       id: '/api/sessions/send'
@@ -5053,6 +5072,7 @@ const ApiMemoryRouteWithChildren = ApiMemoryRoute._addFileChildren(
 
 interface ApiSessionsRouteChildren {
   ApiSessionsSendRoute: typeof ApiSessionsSendRoute
+  ApiSessionsSourceTotalsRoute: typeof ApiSessionsSourceTotalsRoute
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
   ApiSessionsSessionKeyChannelRoute: typeof ApiSessionsSessionKeyChannelRoute
   ApiSessionsSessionKeyClarifyRoute: typeof ApiSessionsSessionKeyClarifyRoute
@@ -5066,6 +5086,7 @@ interface ApiSessionsRouteChildren {
 
 const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSendRoute: ApiSessionsSendRoute,
+  ApiSessionsSourceTotalsRoute: ApiSessionsSourceTotalsRoute,
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
   ApiSessionsSessionKeyChannelRoute: ApiSessionsSessionKeyChannelRoute,
   ApiSessionsSessionKeyClarifyRoute: ApiSessionsSessionKeyClarifyRoute,

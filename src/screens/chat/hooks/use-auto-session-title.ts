@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 
-import { chatQueryKeys } from '../chat-queries'
+import { chatQueryKeys, updateSessionWindowPages } from '../chat-queries'
 import { invalidateSessionLists } from '../sessions-feed'
 import {
   updateSessionTitleState,
@@ -130,9 +130,7 @@ export function useAutoSessionTitle({
       status: 'ready',
       error: null,
     })
-    queryClient.setQueryData(
-      chatQueryKeys.sessions,
-      function updateSessions(existing: unknown) {
+    const updateSessions = function updateSessions(existing: unknown) {
         if (!Array.isArray(existing)) return existing
         return existing.map((session) => {
           if (
@@ -152,8 +150,10 @@ export function useAutoSessionTitle({
           }
           return session
         })
-      },
-    )
+    }
+    queryClient.setQueryData(chatQueryKeys.sessions, updateSessions)
+    // Rows paged in by "Load more" live in their own cache.
+    updateSessionWindowPages(queryClient, updateSessions)
   }
 
   const mutation = useMutation({
@@ -176,8 +176,9 @@ export function useAutoSessionTitle({
     onSuccess: (payload) => {
       applyTitle(payload.friendlyId, payload.title, 'auto')
       // Invalidate both session-list caches so the V2 sidebar and legacy
-      // consumers both pick up the auto-generated title (#218).
-      invalidateSessionLists(queryClient)
+      // consumers both pick up the auto-generated title (#218). A title
+      // change never moves a count, so the chip totals keep their interval.
+      invalidateSessionLists(queryClient, { refetchTotals: false })
     },
     onError: (error, payload) => {
       const msg = error instanceof Error ? error.message : String(error)

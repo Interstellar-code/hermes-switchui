@@ -1,5 +1,5 @@
 import { normalizeSessions, readError } from './utils'
-import type { QueryClient } from '@tanstack/react-query'
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type {
   ChatMessage,
   HistoryResponse,
@@ -7,6 +7,7 @@ import type {
   SessionMeta,
 } from './types'
 import {
+  UNSCOPED_PROFILE,
   activeScopeKey,
   activeScopeSegments,
   getSessionProfile,
@@ -78,6 +79,16 @@ export const chatQueryKeys = {
     'scoped-chat',
     profile,
   ],
+  /**
+   * Extra list pages beyond the first window ("Load more" / a narrowed source
+   * selection), one infinite query per (profile, server filter).
+   */
+  sessionWindow: (profile: string, filterKey: string): Array<string> => [
+    'sessions-feed',
+    'window',
+    profile,
+    filterKey,
+  ],
   /** Raw session list (context bar / header re-fetch). */
   get sessionsRaw(): Array<string> {
     return ['chat', 'sessions', 'raw', ...activeScopeSegments()]
@@ -145,13 +156,14 @@ async function fetchSessionWindows(
     .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
 }
 
-async function fetchSessionWindow(
+export async function fetchSessionWindow(
   filter: Record<string, string>,
   profile: string | null | undefined,
+  offset = 0,
 ): Promise<Array<SessionMeta>> {
   const query = new URLSearchParams({
     limit: String(DEFAULT_SESSION_LIST_LIMIT),
-    offset: '0',
+    offset: String(offset),
     ...filter,
   })
   if (profile) query.set('profile', profile)
@@ -771,6 +783,31 @@ export function updateSessionLastMessage(
   )
 }
 
+/**
+ * Apply a session-list updater to every extra "Load more" / source-window
+ * page of the current profile — the list helpers' counterpart for rows that
+ * live only in those pages (rename, auto-title, delete).
+ */
+export function updateSessionWindowPages(
+  queryClient: QueryClient,
+  update: (sessions: Array<SessionMeta>) => unknown,
+) {
+  queryClient.setQueriesData<InfiniteData<Array<SessionMeta>>>(
+    {
+      queryKey: [
+        'sessions-feed',
+        'window',
+        getSessionProfile() ?? UNSCOPED_PROFILE,
+      ],
+    },
+    (data) =>
+      data && {
+        ...data,
+        pages: data.pages.map((page) => update(page) as Array<SessionMeta>),
+      },
+  )
+}
+
 export function removeSessionFromCache(
   queryClient: QueryClient,
   sessionKey: string,
@@ -789,6 +826,7 @@ export function removeSessionFromCache(
   if (profile) {
     queryClient.setQueryData(chatQueryKeys.scopedSessions(profile), update)
   }
+  updateSessionWindowPages(queryClient, update)
 
   queryClient.removeQueries({
     queryKey: chatQueryKeys.historyByFriendlyId(friendlyId),
