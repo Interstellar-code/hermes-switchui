@@ -3,6 +3,12 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.6.1] — 2026-10-03
+
+### Changed
+
+- **The Memory Map Shows 2,000 Nodes Instead Of 300**: The Map opened on a 293-node slice of a 7,500-node graph. It now opens on ~2,000 nodes grown outward from the hubs ring by ring, so they stay one connected picture rather than islands. A toolbar picker offers 500 / 1,000 / 2,000 / 5,000 / All and is remembered per browser; Reset filters leaves it alone. Labels follow zoom (selected node and search hits first, then neighbours, then hubs), edges thin out when zoomed out, and large graphs cool faster — 2,000 nodes settle in ~1.9s and pan at ~60fps.
+
 ## [2.6.0] — 2026-10-03
 
 A rebuilt Memory page.
