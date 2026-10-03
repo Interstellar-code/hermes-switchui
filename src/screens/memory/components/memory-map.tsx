@@ -9,7 +9,8 @@
  * d3-force drives the layout, d3-zoom handles pan/zoom, and node dragging +
  * hover use simulation.find() for hit-testing.
  *
- * Usability defaults: only the top DEFAULT_NODE_LIMIT nodes by degree are
+ * Usability defaults: only the top DEFAULT_NODE_LIMIT nodes (toolbar select,
+ * persisted in localStorage) are
  * shown (episodic chat-log nodes and `mentions` edges off) until "Show all".
  * The simulation only holds the visible subset; filter changes swap its
  * nodes/links in place so positions persist. Edges are bucketed per type on
@@ -158,6 +159,23 @@ const DEFAULT_KINDS: Record<Kind, boolean> = {
 }
 
 const TAU = Math.PI * 2
+// ponytail: labels are the costliest draw call; cap per frame
+const LABEL_MAX = 150
+const LIMIT_OPTIONS = [500, 1000, 2000, 5000] as const
+const LIMIT_KEY = 'memory-map-node-limit'
+
+/** Persisted node-limit choice: a number, or null for "All". */
+function readLimit(): number | null {
+  try {
+    const v = localStorage.getItem(LIMIT_KEY)
+    if (v === 'all') return null
+    const n = Number(v)
+    if ((LIMIT_OPTIONS as ReadonlyArray<number>).includes(n)) return n
+  } catch {
+    /* storage blocked */
+  }
+  return DEFAULT_NODE_LIMIT
+}
 // ponytail: expanded neighbour list is capped; paginate if hubs need more
 const NEIGHBOUR_MAX = 200
 
@@ -387,7 +405,11 @@ function MemoryMapCanvas({
   const [visibleTypes, setVisibleTypes] = useState(DEFAULT_TYPES)
   const [visibleKinds, setVisibleKinds] = useState(DEFAULT_KINDS)
   const [minConnections, setMinConnections] = useState(0)
-  const [showAll, setShowAll] = useState(false)
+  // null = every node that passes the filters ("Show all")
+  const [nodeLimit, setNodeLimitState] = useState<number | null>(readLimit)
+  const showAll = nodeLimit == null
+  // the status-line toggle returns here from "Show all"
+  const [lastLimit, setLastLimit] = useState(nodeLimit ?? DEFAULT_NODE_LIMIT)
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeResult, setActiveResult] = useState(0)
@@ -431,10 +453,10 @@ function MemoryMapCanvas({
         kinds: visibleKinds,
         types: visibleTypes,
         minDegree: minConnections,
-        limit: showAll ? null : DEFAULT_NODE_LIMIT,
+        limit: nodeLimit,
         pinned: selectedId,
       }),
-    [data, visibleKinds, visibleTypes, minConnections, showAll, selectedId],
+    [data, visibleKinds, visibleTypes, minConnections, nodeLimit, selectedId],
   )
 
   const results = useMemo(
@@ -491,18 +513,17 @@ function MemoryMapCanvas({
       .id((d) => d.id)
       .distance((d) => (d.edgeType === 'mentions' ? 40 : 28))
       .strength(0.15)
+    const chargeForce = forceManyBody<SimNode>().strength(-14).distanceMax(400)
+    const collideForce = forceCollide<SimNode>()
+      .radius((d) => nodeRadius(d) + 1)
+      .iterations(1)
     const sim = forceSimulation<SimNode, SimEdge>([])
       .force('link', linkForce)
-      .force('charge', forceManyBody<SimNode>().strength(-14).distanceMax(400))
+      .force('charge', chargeForce)
       .force('center', forceCenter(width / 2, height / 2))
       .force('x', forceX(width / 2).strength(0.02))
       .force('y', forceY(height / 2).strength(0.02))
-      .force(
-        'collide',
-        forceCollide<SimNode>()
-          .radius((d) => nodeRadius(d) + 1)
-          .iterations(1),
-      )
+      .force('collide', collideForce)
       .alphaDecay(0.03)
       .stop()
 
@@ -513,6 +534,8 @@ function MemoryMapCanvas({
     const visByKind = new Map<Kind, Array<SimNode>>()
     const edgesByType = new Map<EdgeType, Array<SimEdge>>()
     const visAdj = new Map<string, Array<SimNode>>()
+    // label LOD: hubs by visible degree, most-connected first
+    let hubs: Array<SimNode> = []
 
     const end = (v: string | SimNode) =>
       typeof v === 'string' ? nodeById.get(v) : v
@@ -573,10 +596,26 @@ function MemoryMapCanvas({
         visAdj.get(s.id)!.push(t)
         visAdj.get(t.id)!.push(s)
       }
+      hubs = visNodes
+        .filter((n) => n.kind === 'entity' || n.kind === 'wiki')
+        .sort(
+          (a, b) =>
+            (visAdj.get(b.id)?.length ?? 0) - (visAdj.get(a.id)?.length ?? 0),
+        )
+
+      // Cheaper sim for big subsets: Barnes-Hut is O(n log n) per tick but the
+      // constant bites at a few thousand nodes, so cool faster and loosen
+      // theta; collide is skipped entirely past 3000 nodes.
+      const big = visNodes.length > 1000
+      sim.alphaDecay(big ? 0.05 : 0.03)
+      chargeForce.theta(big ? 1.2 : 0.9)
+      collideForce.iterations(visNodes.length > 3000 ? 0 : 1)
 
       if (reduced) {
         sim.stop()
-        sim.tick(200)
+        // sync ticks block the main thread; scale down for big subsets
+        const n = visNodes.length
+        sim.tick(n <= 1000 ? 200 : n <= 3000 ? 80 : 40)
         if (!fitted) {
           fitted = true
           fit(false)
@@ -616,15 +655,19 @@ function MemoryMapCanvas({
       c.translate(transform.x, transform.y)
       c.scale(transform.k, transform.k)
 
-      // edges, batched per type
-      c.lineWidth = 1 / transform.k
+      // edges, batched per type; fade when zoomed out on a dense subset
+      c.lineWidth = Math.max(0.3, Math.min(1, transform.k)) / transform.k
+      const edgeFade =
+        visNodes.length > 600 && transform.k < 0.8
+          ? Math.max(0.35, transform.k / 0.8)
+          : 1
       for (const type of EDGE_ORDER) {
         const bucket = edgesByType.get(type)
         if (!bucket) continue
         c.strokeStyle = palette.kind[EDGE_KIND[type]]
         c.globalAlpha = activeId
           ? Math.min(1, EDGE_ALPHA[type] * 2)
-          : EDGE_ALPHA[type]
+          : EDGE_ALPHA[type] * edgeFade
         c.beginPath()
         for (const e of bucket) {
           const s = e.source as SimNode
@@ -706,24 +749,24 @@ function MemoryMapCanvas({
         c.stroke()
       }
 
-      // labels: active neighbourhood, else entity/wiki hubs once zoomed in
+      // labels (LOD): active neighbourhood + search hits always; entity/wiki
+      // hubs by degree — only the biggest few when zoomed out, all on-screen
+      // ones once zoomed in. Capped per frame.
       const labelled: Array<SimNode> = []
-      if (activeId) {
-        for (const id of neighbors) {
-          const n = nodeById.get(id)
-          if (n && n.x != null && onScreen(n)) labelled.push(n)
-        }
-      } else if (transform.k >= 1.4) {
-        for (const n of visNodes) {
-          if (labelled.length >= 120) break
-          if (
-            (n.kind === 'entity' || n.kind === 'wiki') &&
-            n.x != null &&
-            onScreen(n)
-          ) {
-            labelled.push(n)
-          }
-        }
+      const seen = new Set<string>()
+      const addLabel = (n: SimNode | undefined) => {
+        if (labelled.length >= LABEL_MAX || !n || seen.has(n.id)) return
+        if (n.x == null || !onScreen(n)) return
+        seen.add(n.id)
+        labelled.push(n)
+      }
+      if (activeId) addLabel(nodeById.get(activeId))
+      for (const n of matched) addLabel(n)
+      if (activeId) for (const id of neighbors) addLabel(nodeById.get(id))
+      if (!activeId) {
+        const hubCap =
+          transform.k >= 1.4 ? LABEL_MAX : transform.k >= 0.6 ? 25 : 10
+        for (let i = 0; i < hubs.length && i < hubCap; i++) addLabel(hubs[i])
       }
       if (labelled.length > 0) {
         const fs = 11 / transform.k
@@ -753,7 +796,7 @@ function MemoryMapCanvas({
     sim.on('end', () => {
       if (!fitted) {
         fitted = true
-        fit(false)
+        fit()
       }
     })
 
@@ -774,6 +817,8 @@ function MemoryMapCanvas({
         return !nodeAt(px, py) // grab a node → let drag win; else pan
       })
       .on('zoom', (event: any) => {
+        // user took control during the first layout: don't auto-fit over it
+        if (event.sourceEvent) fitted = true
         transform = event.transform
         scheduleDraw()
       })
@@ -977,11 +1022,20 @@ function MemoryMapCanvas({
     useWikiFocusStore.getState().setPath(path)
     setActiveTab('wiki')
   }
+  function setNodeLimit(limit: number | null) {
+    setNodeLimitState(limit)
+    if (limit != null) setLastLimit(limit)
+    try {
+      localStorage.setItem(LIMIT_KEY, limit == null ? 'all' : String(limit))
+    } catch {
+      /* storage blocked */
+    }
+  }
+
   function resetFilters() {
     setVisibleTypes(DEFAULT_TYPES)
     setVisibleKinds(DEFAULT_KINDS)
     setMinConnections(0)
-    setShowAll(false)
   }
   const filtersActive =
     minConnections > 0 ||
@@ -1024,7 +1078,7 @@ function MemoryMapCanvas({
     Math.max(0, results.matches.length - 1),
   )
   const shown = visible.nodeIds.size
-  const limited = !showAll && visible.candidates > DEFAULT_NODE_LIMIT
+  const limited = !showAll && visible.candidates > nodeLimit
   const droppedEdges = data.meta.rawEdgeCount - data.meta.edgeCount
 
   return (
@@ -1118,6 +1172,24 @@ function MemoryMapCanvas({
         >
           Filters{filtersActive ? ' •' : ''}
         </button>
+        <select
+          className="mm-toggle mm-limit"
+          aria-label="Maximum nodes shown"
+          title="Maximum nodes shown"
+          value={nodeLimit ?? 'all'}
+          onChange={(e) =>
+            setNodeLimit(
+              e.target.value === 'all' ? null : Number(e.target.value),
+            )
+          }
+        >
+          {LIMIT_OPTIONS.map((n) => (
+            <option key={n} value={n}>
+              {n} nodes
+            </option>
+          ))}
+          <option value="all">All nodes</option>
+        </select>
         <div className="mm-zoom" role="group" aria-label="View controls">
           <button
             type="button"
@@ -1427,9 +1499,9 @@ function MemoryMapCanvas({
           <button
             type="button"
             className="mm-link-btn"
-            onClick={() => setShowAll((s) => !s)}
+            onClick={() => setNodeLimit(showAll ? lastLimit : null)}
           >
-            {showAll ? `Top ${DEFAULT_NODE_LIMIT}` : 'Show all'}
+            {showAll ? `Top ${lastLimit}` : 'Show all'}
           </button>
         )}
         {(data.meta.junkFacts ?? 0) > 0 && (

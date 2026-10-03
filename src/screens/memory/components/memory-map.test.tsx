@@ -123,6 +123,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  localStorage.removeItem('memory-map-node-limit')
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -329,5 +330,27 @@ describe('MemoryMap', () => {
     mockCtx.arc.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'mentions' }))
     await waitFor(() => expect(mockCtx.arc).toHaveBeenCalled())
+  })
+
+  it('node-limit select persists to localStorage and restores "All"', async () => {
+    localStorage.setItem('memory-map-node-limit', 'all')
+    vi.stubGlobal('fetch', okFetch(GRAPH))
+    renderMap()
+    const select = await screen.findByRole('combobox', {
+      name: /maximum nodes shown/i,
+    })
+    expect((select as HTMLSelectElement).value).toBe('all')
+    fireEvent.change(select, { target: { value: '500' } })
+    expect(localStorage.getItem('memory-map-node-limit')).toBe('500')
+  })
+
+  it('falls back to the default node limit on an invalid stored value', async () => {
+    localStorage.setItem('memory-map-node-limit', 'garbage')
+    vi.stubGlobal('fetch', okFetch(GRAPH))
+    renderMap()
+    const select = await screen.findByRole('combobox', {
+      name: /maximum nodes shown/i,
+    })
+    expect((select as HTMLSelectElement).value).toBe('2000')
   })
 })

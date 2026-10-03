@@ -98,6 +98,45 @@ describe('computeVisibleGraph', () => {
     expect(v.edgeIdx).toEqual([0, 1, 2])
   })
 
+  it('grows the cut ring by ring so second-hop nodes beat stranded hubs', () => {
+    const nodes = ['h', 'l1', 'l2', 'l3', 'm1', 'p', 'q', 'r'].map((id) =>
+      node(id, 'fact'),
+    )
+    const edges = [
+      edge('h', 'l1', 'about'),
+      edge('h', 'l2', 'about'),
+      edge('h', 'l3', 'about'),
+      edge('l1', 'm1', 'about'),
+      edge('p', 'q', 'about'),
+      edge('p', 'r', 'about'),
+    ]
+    const v = computeVisibleGraph(nodes, edges, {
+      kinds: KINDS,
+      types: TYPES,
+      minDegree: 0,
+      limit: 5,
+    })
+    expect([...v.nodeIds].sort()).toEqual(['h', 'l1', 'l2', 'l3', 'm1'])
+    expect(v.edgeIdx).toEqual([0, 1, 2, 3])
+    // a pinned node outside the ring-filled cut is forced in, with its edges
+    const pinned = computeVisibleGraph(nodes, edges, {
+      kinds: KINDS,
+      types: TYPES,
+      minDegree: 0,
+      limit: 5,
+      pinned: 'q',
+    })
+    expect([...pinned.nodeIds].sort()).toEqual([
+      'h',
+      'l1',
+      'l2',
+      'l3',
+      'm1',
+      'q',
+    ])
+    expect(pinned.edgeIdx).toEqual([0, 1, 2, 3])
+  })
+
   it('degree counts only edges whose type and endpoint kinds are visible', () => {
     const v = computeVisibleGraph(NODES, EDGES, {
       kinds: { ...KINDS, episodic: false },

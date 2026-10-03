@@ -72,7 +72,7 @@ export type GraphNodeDetail = {
 }
 
 /** Default focused view size (top-N by degree). */
-export const DEFAULT_NODE_LIMIT = 300
+export const DEFAULT_NODE_LIMIT = 2000
 
 // "(ASSISTANT) …", "[user] …", "assistant: …" — chat-log role prefixes.
 const ROLE_PREFIX =
@@ -191,17 +191,35 @@ export function computeVisibleGraph(
     nodeIds = new Set(ok)
   } else {
     // Plain top-N by degree is a scatter: hubs mostly link to nodes outside
-    // the cut. Take the top fifth as hubs, fill with their best-connected
-    // neighbours, then top up by degree.
+    // the cut. Take the top fifth as hubs, then grow outward ring by ring
+    // (best-connected neighbours first) so every added node touches the
+    // picture; top up by degree only if the rings run dry.
     const ranked = [...ok].sort(byDeg)
     nodeIds = new Set(ranked.slice(0, Math.ceil(opts.limit / 5)))
-    const near = new Set<string>()
+    const adj = new Map<string, Array<string>>()
     for (const e of edges) {
       if (!edgeOn(e, ok)) continue
-      if (nodeIds.has(e.source) && !nodeIds.has(e.target)) near.add(e.target)
-      if (nodeIds.has(e.target) && !nodeIds.has(e.source)) near.add(e.source)
+      ;(adj.get(e.source) ?? adj.set(e.source, []).get(e.source)!).push(
+        e.target,
+      )
+      ;(adj.get(e.target) ?? adj.set(e.target, []).get(e.target)!).push(
+        e.source,
+      )
     }
-    for (const id of [...[...near].sort(byDeg), ...ranked]) {
+    // frontier BFS: each ring only expands the nodes added by the last one
+    let frontier = [...nodeIds]
+    while (frontier.length > 0 && nodeIds.size < opts.limit) {
+      const near = new Set<string>()
+      for (const id of frontier)
+        for (const nb of adj.get(id) ?? []) if (!nodeIds.has(nb)) near.add(nb)
+      frontier = []
+      for (const id of [...near].sort(byDeg)) {
+        if (nodeIds.size >= opts.limit) break
+        nodeIds.add(id)
+        frontier.push(id)
+      }
+    }
+    for (const id of ranked) {
       if (nodeIds.size >= opts.limit) break
       nodeIds.add(id)
     }
