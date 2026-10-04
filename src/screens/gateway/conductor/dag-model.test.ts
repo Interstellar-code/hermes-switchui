@@ -4,11 +4,13 @@
  * the live dev server on 2026-10-04.
  */
 import { describe, expect, it } from 'vitest'
-import { buildDag, classifyTier, loopBadge } from './dag-model'
+import { agentCount, buildDag, classifyTier, loopBadge } from './dag-model'
 import improveLoop from './__fixtures__/parsed-agent-improve-loop.json'
 import loopDag from './__fixtures__/parsed-archon-test-loop-dag.json'
 import validatePr from './__fixtures__/parsed-archon-validate-pr.json'
+import runSessions from './__fixtures__/run-sessions.json'
 import improveLoopRuns from './__fixtures__/node-runs-agent-improve-loop-paused.json'
+import type { RunSessions } from '@/server/workflow-engine/interface'
 import type { ParsedWorkflow } from '@/screens/workflows/types'
 import type { DagNodeRun } from './dag-model'
 
@@ -266,14 +268,13 @@ describe('tokens, tiers and cap', () => {
 
 describe('buildDag — loop token sums', () => {
   it('counts only the wrapper row, never wrapper + iterations', () => {
-    const row = (id: string, iter: number | null, tok: number): DagNodeRun =>
-      ({
-        id,
-        dag_node_id: 'analyze',
-        status: 'completed',
-        loop_iteration: iter,
-        total_tokens: tok,
-      }) as DagNodeRun
+    const row = (id: string, iter: number | null, tok: number): DagNodeRun => ({
+      id,
+      dag_node_id: 'analyze',
+      status: 'completed',
+      loop_iteration: iter,
+      total_tokens: tok,
+    })
     const runs = [
       row('w', null, 90),
       row('a', 1, 30),
@@ -282,5 +283,38 @@ describe('buildDag — loop token sums', () => {
     ]
     const dag = buildDag(parsed(improveLoop), runs)
     expect(byId(dag, 'analyze').tokens).toBe(90)
+  })
+})
+
+describe('buildDag — linked sessions (C3)', () => {
+  const sessions = runSessions as unknown as RunSessions
+  const runs = (extra: Array<DagNodeRun> = []): Array<DagNodeRun> => [
+    { id: 'nr-analyze', dag_node_id: 'analyze', status: 'completed' },
+    ...extra,
+  ]
+
+  it('attaches sessions to the wrapper node and counts nested agents', () => {
+    const dag = buildDag(parsed(improveLoop), runs(), sessions)
+    const n = byId(dag, 'analyze')
+    expect(n.sessions).toHaveLength(1)
+    expect(agentCount(n.sessions)).toBe(3) // session + sub-1 + sub-1a
+    expect(n.tier).toBe(3)
+    expect(byId(dag, 'approval').sessions).toEqual([])
+  })
+
+  it('skips sessions owned by loop-iteration rows', () => {
+    const dag = buildDag(
+      parsed(improveLoop),
+      [
+        {
+          id: 'nr-analyze',
+          dag_node_id: 'analyze',
+          status: 'x',
+          loop_iteration: 2,
+        },
+      ],
+      sessions,
+    )
+    expect(byId(dag, 'analyze').sessions).toEqual([])
   })
 })

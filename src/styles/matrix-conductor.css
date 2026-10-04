@@ -983,6 +983,79 @@
     border-color: var(--m-green-400, var(--theme-accent-secondary));
   }
 
+  .dn .agents-chip {
+    position: absolute;
+    right: 8px;
+    bottom: 5px;
+    font-size: 8.5px;
+    color: var(--m-green-500, var(--theme-accent));
+  }
+
+  /* ── Agents panel (drawer) ── */
+  .ag-panel {
+    border-bottom: 1px solid var(--m-border, var(--theme-border));
+    font: 400 11px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text, var(--theme-text));
+  }
+  .ag-toggle {
+    width: 100%;
+    padding: 8px 20px;
+    text-align: left;
+    font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: var(--m-text-faint, var(--theme-muted));
+    background: none;
+    border: 0;
+    cursor: pointer;
+  }
+  .ag-body {
+    padding: 0 20px 12px;
+    max-height: 40vh;
+    overflow-y: auto;
+  }
+  .ag-tree {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 12px;
+    border-left: 1px solid var(--m-border, var(--theme-border));
+  }
+  .ag-panel > .ag-body > .ag-tree {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .ag-node {
+    margin-bottom: 8px;
+  }
+  .ag-node-head,
+  .ag-kind {
+    font-size: 9.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .ag-title {
+    color: var(--m-green-500, var(--theme-accent));
+    text-decoration: none;
+  }
+  .ag-title:hover {
+    text-decoration: underline;
+  }
+  .ag-meta {
+    font-size: 10px;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .ag-deleg {
+    margin: 2px 0;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .ag-state {
+    color: var(--m-warning, var(--theme-accent));
+  }
+  .ag-empty {
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
   /* ── Mission Detail Drawer ── */
   .mdd-backdrop {
     position: fixed;

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { AgentsPanel } from './agents-panel'
 import { useAbortMission } from './use-conductor-queries'
 import { useRunDag } from './use-run-dag'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -79,6 +80,7 @@ export function MissionDetailDrawer() {
             </svg>
           </button>
         </div>
+        <AgentsPanel runId={drawerRunId} />
         <RunDetailPanel runId={drawerRunId} onClose={close} hideHeader />
       </aside>
       <ConfirmDialog

@@ -1,0 +1,20 @@
+{
+  "owner": { "id": "chat-owner-1", "title": "Fix the build", "model": "m", "source": "webui", "input_tokens": 10, "output_tokens": 5, "cost": null, "cost_source": null, "started_at": 1790000000.5, "ended_at": null, "end_reason": null, "last_activity_description": null },
+  "nodes": [
+    {
+      "node_run_id": "nr-analyze", "dag_node_id": "analyze", "profile": "coder", "session_id": "s-analyze", "gateway_run_id": null,
+      "session": { "id": "s-analyze", "title": "Analyze step", "model": "opus", "source": "api_server", "input_tokens": 1200, "output_tokens": 300, "cost": 0.02, "cost_source": "actual", "started_at": 1790000001, "ended_at": 1790000100, "end_reason": "complete", "last_activity_description": null },
+      "children": [
+        {
+          "kind": "subagent", "id": "sub-1", "title": "Explore repo", "model": "haiku", "source": "api_server", "input_tokens": 500, "output_tokens": 100, "cost": null, "cost_source": null, "started_at": 1790000010, "ended_at": null, "end_reason": null, "last_activity_description": null,
+          "children": [
+            { "kind": "subagent", "id": "sub-1a", "title": null, "model": "haiku", "source": "api_server", "input_tokens": 10, "output_tokens": 10, "cost": null, "cost_source": null, "started_at": 1790000020, "ended_at": 1790000030, "end_reason": "complete", "last_activity_description": null, "children": [], "delegations": [] }
+          ],
+          "delegations": []
+        }
+      ],
+      "delegations": [{ "id": "d1", "state": "dispatched", "goal": "Summarise failing tests", "dispatched_at": 1790000015, "completed_at": null }]
+    }
+  ],
+  "totals": { "sessions": 4, "subagents": 2, "tokens": 2130, "cost_usd": 0.02, "truncated": false }
+}

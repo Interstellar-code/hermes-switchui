@@ -3,6 +3,7 @@
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { RunSessions } from '../../../server/workflow-engine/interface'
 import type {
   ConductorSnapshot,
   Mission,
@@ -29,6 +30,19 @@ async function fetchMission(id: string): Promise<Mission> {
   const res = await fetch(`/api/conductor/missions/${id}`)
   if (!res.ok) throw new Error(`conductor/missions/${id}: ${res.status}`)
   return res.json() as Promise<Mission>
+}
+
+export interface RunSessionsResponse {
+  available: boolean
+  data: RunSessions | null
+}
+
+async function fetchRunSessions(id: string): Promise<RunSessionsResponse> {
+  const res = await fetch(
+    `/api/conductor/runs/${encodeURIComponent(id)}/sessions`,
+  )
+  if (!res.ok) throw new Error(`conductor/runs/${id}/sessions: ${res.status}`)
+  return res.json() as Promise<RunSessionsResponse>
 }
 
 async function postAbortMission(id: string): Promise<{ ok: boolean }> {
@@ -94,6 +108,16 @@ export function useConductorMission(id: string | null | undefined) {
     queryKey: ['conductor', 'mission', id],
     queryFn: () => fetchMission(id!),
     enabled: Boolean(id),
+  })
+}
+
+/** Sessions linked to the focused run; 10s poll (plan §7), never for other runs. */
+export function useRunSessions(runId: string | null | undefined) {
+  return useQuery({
+    queryKey: ['conductor', 'sessions', runId],
+    queryFn: () => fetchRunSessions(runId!),
+    enabled: Boolean(runId),
+    refetchInterval: 10_000,
   })
 }
 

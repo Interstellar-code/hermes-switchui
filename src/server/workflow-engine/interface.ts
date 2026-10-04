@@ -77,6 +77,60 @@ export interface WorkflowRun {
   usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_usd: number | null } | null;
 }
 
+/** Run-sessions endpoint (workflow-run-sessions patch). */
+export interface SessionInfo {
+  id: string;
+  title: string | null;
+  model: string | null;
+  source: string | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cost: number | null;
+  cost_source: 'actual' | 'estimated' | null;
+  /** epoch seconds (float) */
+  started_at: number | null;
+  ended_at: number | null;
+  end_reason: string | null;
+  last_activity_description: string | null;
+}
+
+export interface SessionDelegation {
+  id: string;
+  state: string;
+  goal: string | null;
+  dispatched_at: number | string | null;
+  completed_at: number | string | null;
+}
+
+export type SessionChild = SessionInfo & {
+  kind: 'subagent' | 'child';
+  children: Array<SessionChild>;
+  delegations: Array<SessionDelegation>;
+};
+
+export interface RunSessionNode {
+  node_run_id: string;
+  dag_node_id: string;
+  profile: string | null;
+  session_id: string | null;
+  gateway_run_id: string | null;
+  session: SessionInfo | null;
+  children: Array<SessionChild>;
+  delegations: Array<SessionDelegation>;
+}
+
+export interface RunSessions {
+  owner: SessionInfo | null;
+  nodes: Array<RunSessionNode>;
+  totals: {
+    sessions: number;
+    subagents: number;
+    tokens: number;
+    cost_usd: number | null;
+    truncated: boolean;
+  };
+}
+
 export interface NodeRun {
   id: string;
   workflow_run_id: string;
@@ -185,6 +239,8 @@ export interface WorkflowEngineInterface {
   // ── Node Runs ──────────────────────────────────────────────────────────
   listNodeRuns: (runId: string) => Promise<Array<NodeRun>>;
   findNodeRunById: (nodeRunId: string) => Promise<NodeRun | null>;
+  /** Sessions/sub-agents linked to a run; null when the backend lacks the endpoint (404). */
+  getRunSessions: (runId: string) => Promise<RunSessions | null>;
 
   // ── Events ─────────────────────────────────────────────────────────────
   appendWorkflowEvent: (event: RunEvent) => Promise<void>;

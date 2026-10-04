@@ -7,6 +7,11 @@
  * they never add or remove nodes/edges.
  */
 
+import type {
+  RunSessionNode,
+  RunSessions,
+  SessionChild,
+} from '@/server/workflow-engine/interface'
 import type { StageLabel } from '@/screens/workflows/run-status'
 import type { ParsedWorkflow } from '@/screens/workflows/types'
 import { phaseLabel, toEpochMs } from '@/screens/workflows/run-status'
@@ -15,6 +20,7 @@ export const DAG_NODE_CAP = 60
 
 /** Fields of a node_run row the canvas reads (NodeRunRow / engine NodeRun both fit). */
 export interface DagNodeRun {
+  id?: string
   dag_node_id: string
   status: string
   started_at?: string | number | null
@@ -47,7 +53,9 @@ export interface DagNode {
   loop: { n: number; max: number | null } | null
   tokens: number | null
   agent: string | null
-  /** Kept for C2/C3; not rendered in v2.10 (D4/D5). */
+  /** Linked session rows (wrapper node_runs only); empty when none. */
+  sessions: Array<RunSessionNode>
+  /** Kept for C2; tier bands are not rendered yet (D4/D5). */
   tier: Tier
 }
 
@@ -73,8 +81,10 @@ export function classifyTier(input: {
   agent: string | null
   loopIterations: number
   subgraph: boolean
+  linkedSessions?: boolean
 }): Tier {
-  if (input.loopIterations > 0 || input.subgraph) return 3
+  if (input.loopIterations > 0 || input.subgraph || input.linkedSessions)
+    return 3
   return input.agent ? 2 : 1
 }
 
@@ -138,9 +148,22 @@ function maxIterations(node: ParsedNode): number | null {
   return m ? Number(m[1]) : null
 }
 
+function countDescendants(children: Array<SessionChild>): number {
+  return children.reduce((n, c) => n + 1 + countDescendants(c.children), 0)
+}
+
+/** Agents linked to a DAG node: its session plus every nested child. */
+export function agentCount(sessions: Array<RunSessionNode>): number {
+  return sessions.reduce(
+    (n, s) => n + (s.session ? 1 : 0) + countDescendants(s.children),
+    0,
+  )
+}
+
 export function buildDag(
   parsed: ParsedWorkflow,
   nodeRuns: Array<DagNodeRun> = [],
+  runSessions: RunSessions | null = null,
 ): DagModel {
   const defNodes = parsed.nodes
   const ids = new Set(defNodes.map((n) => n.id))
@@ -195,6 +218,24 @@ export function buildDag(
     runsByNode.set(nr.dag_node_id, list)
   }
 
+  // Sessions attach to wrapper rows only: drop ones owned by iteration or
+  // subgraph-child rows (matched by node_run_id when known).
+  const nonWrapperIds = new Set(
+    nodeRuns
+      .filter(
+        (r) =>
+          r.id && (r.loop_iteration != null || r.parent_subgraph_node_run_id),
+      )
+      .map((r) => r.id!),
+  )
+  const sessionsByNode = new Map<string, Array<RunSessionNode>>()
+  for (const sn of runSessions?.nodes ?? []) {
+    if (nonWrapperIds.has(sn.node_run_id)) continue
+    const list = sessionsByNode.get(sn.dag_node_id) ?? []
+    list.push(sn)
+    sessionsByNode.set(sn.dag_node_id, list)
+  }
+
   const firstPromptIndex = defNodes.findIndex((n) => n.type === 'prompt')
   // "Last" = a sink (no successors); falls back to YAML order for a lone chain end.
   const sinks = defNodes.filter((n) => succs.get(n.id)!.length === 0)
@@ -218,6 +259,7 @@ export function buildDag(
       (r) => r.loop_iteration == null && r.total_tokens != null,
     )
     const isLoop = n.type === 'loop'
+    const sessions = sessionsByNode.get(n.id) ?? []
     return {
       id: n.id,
       label: n.label ?? n.id,
@@ -236,7 +278,9 @@ export function buildDag(
         ? tokenRows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0)
         : null,
       agent,
+      sessions,
       tier: classifyTier({
+        linkedSessions: agentCount(sessions) > 0,
         agent,
         loopIterations: iterations.size,
         subgraph: Boolean(n.subgraph) || n.type === 'subgraph',

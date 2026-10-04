@@ -8,7 +8,7 @@ import {
   fmtDuration,
   layoutDag,
 } from './dag-layout'
-import { loopBadge } from './dag-model'
+import { agentCount, loopBadge } from './dag-model'
 import { useRunDag } from './use-run-dag'
 import type { Point } from './dag-layout'
 import type { DagModel, DagNode } from './dag-model'
@@ -147,6 +147,7 @@ export function DagView({ dag, preview = false, onOpenNode }: DagViewProps) {
             const pos = layout.positions[n.id]
             const badge = loopBadge(n.loop)
             const cls = `dn ${nodeClass(n.status)}`
+            const nAgents = agentCount(n.sessions)
             const body = (
               <>
                 <span className="k">
@@ -160,6 +161,9 @@ export function DagView({ dag, preview = false, onOpenNode }: DagViewProps) {
                   )}
                 </span>
                 <span className="nm">{n.label}</span>
+                {nAgents > 0 && (
+                  <span className="agents-chip">◇ {nAgents} agents</span>
+                )}
                 <span className="s">
                   {preview ? n.type : statusLine(n, now)}
                 </span>

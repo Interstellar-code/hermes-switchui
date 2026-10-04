@@ -13,6 +13,7 @@ import type {
   NodeRun,
   PhaseTransition,
   RunEvent,
+  RunSessions,
   TriggerInfo,
   WorkflowDefinitionRow,
   WorkflowEngineInterface,
@@ -339,6 +340,17 @@ export class PluginClient implements WorkflowEngineInterface {
       '/node-runs/active',
     )
     return data.nodeRuns
+  }
+
+  async getRunSessions(runId: string): Promise<RunSessions | null> {
+    try {
+      return await _get<RunSessions>(
+        `/runs/${encodeURIComponent(runId)}/sessions`,
+      )
+    } catch (e) {
+      if (e instanceof Error && e.message.includes(': 404')) return null
+      throw e
+    }
   }
 
   async findNodeRunById(nodeRunId: string): Promise<NodeRun | null> {

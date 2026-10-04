@@ -254,6 +254,7 @@ import { Route as ApiHermesKanbanTasksTaskIdLogRouteImport } from './routes/api/
 import { Route as ApiHermesKanbanTasksTaskIdCommentsRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.comments'
 import { Route as ApiHermesKanbanBoardsSlugSwitchRouteImport } from './routes/api/hermes-kanban/boards.$slug.switch'
 import { Route as ApiHermesKanbanBoardsSlugSaveAsTemplateRouteImport } from './routes/api/hermes-kanban/boards.$slug.save-as-template'
+import { Route as ApiConductorRunsIdSessionsRouteImport } from './routes/api/conductor/runs.$id.sessions'
 import { Route as ApiConductorMissionsIdAbortRouteImport } from './routes/api/conductor/missions.$id.abort'
 import { Route as ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRouteImport } from './routes/api/hermes-kanban/tasks.$taskId.home-subscribe.$platform'
 import { Route as ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRouteImport } from './routes/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
@@ -1533,6 +1534,12 @@ const ApiHermesKanbanBoardsSlugSaveAsTemplateRoute =
     path: '/save-as-template',
     getParentRoute: () => ApiHermesKanbanBoardsSlugRoute,
   } as any)
+const ApiConductorRunsIdSessionsRoute =
+  ApiConductorRunsIdSessionsRouteImport.update({
+    id: '/api/conductor/runs/$id/sessions',
+    path: '/api/conductor/runs/$id/sessions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiConductorMissionsIdAbortRoute =
   ApiConductorMissionsIdAbortRouteImport.update({
     id: '/abort',
@@ -1783,6 +1790,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
+  '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
   '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
@@ -2031,6 +2039,7 @@ export interface FileRoutesByTo {
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
+  '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
   '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
@@ -2282,6 +2291,7 @@ export interface FileRoutesById {
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
+  '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
   '/api/hermes-kanban/boards/$slug/switch': typeof ApiHermesKanbanBoardsSlugSwitchRoute
   '/api/hermes-kanban/tasks/$taskId/comments': typeof ApiHermesKanbanTasksTaskIdCommentsRoute
@@ -2534,6 +2544,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
+    | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
     | '/api/hermes-kanban/boards/$slug/switch'
     | '/api/hermes-kanban/tasks/$taskId/comments'
@@ -2782,6 +2793,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
+    | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
     | '/api/hermes-kanban/boards/$slug/switch'
     | '/api/hermes-kanban/tasks/$taskId/comments'
@@ -3032,6 +3044,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
     | '/api/conductor/missions/$id/abort'
+    | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
     | '/api/hermes-kanban/boards/$slug/switch'
     | '/api/hermes-kanban/tasks/$taskId/comments'
@@ -3213,6 +3226,7 @@ export interface RootRouteChildren {
   ApiRunsRunIdStatusRoute: typeof ApiRunsRunIdStatusRoute
   ApiRunsRunIdStopRoute: typeof ApiRunsRunIdStopRoute
   ApiSelfImproveProfilesProfileRoute: typeof ApiSelfImproveProfilesProfileRouteWithChildren
+  ApiConductorRunsIdSessionsRoute: typeof ApiConductorRunsIdSessionsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -4932,6 +4946,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRouteImport
       parentRoute: typeof ApiHermesKanbanBoardsSlugRoute
     }
+    '/api/conductor/runs/$id/sessions': {
+      id: '/api/conductor/runs/$id/sessions'
+      path: '/api/conductor/runs/$id/sessions'
+      fullPath: '/api/conductor/runs/$id/sessions'
+      preLoaderRoute: typeof ApiConductorRunsIdSessionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/conductor/missions/$id/abort': {
       id: '/api/conductor/missions/$id/abort'
       path: '/abort'
@@ -5712,6 +5733,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiRunsRunIdStopRoute: ApiRunsRunIdStopRoute,
   ApiSelfImproveProfilesProfileRoute:
     ApiSelfImproveProfilesProfileRouteWithChildren,
+  ApiConductorRunsIdSessionsRoute: ApiConductorRunsIdSessionsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

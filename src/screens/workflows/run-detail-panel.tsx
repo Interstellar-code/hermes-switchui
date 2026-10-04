@@ -322,16 +322,25 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
                 fontSize: 13,
                 margin: '8px 0 12px',
                 whiteSpace: 'pre-wrap',
+                maxHeight: 240,
+                overflowY: 'auto',
                 fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
               }}
             >
               {pendingApprovalNode.approval_message || 'Approval required'}
             </div>
+            <label
+              htmlFor="wfrd-approval-reply"
+              style={{ display: 'block', fontSize: 12, marginBottom: 4 }}
+            >
+              Reply (optional)
+            </label>
             <textarea
+              id="wfrd-approval-reply"
               value={approvalText}
               onChange={(e) => setApprovalText(e.target.value)}
-              placeholder="Optional response / reason…"
-              rows={2}
+              placeholder="Reply to the prompt above, e.g. skip or 1,3,7"
+              rows={3}
               disabled={approveMutation.isPending}
               style={{
                 width: '100%',
