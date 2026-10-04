@@ -50,3 +50,28 @@ export function buildCompactionNotice({
   if (compactionCount === 1) return 'Context compacted during this chat'
   return `Context compacted ${compactionCount} times during this chat`
 }
+
+/** Inline divider copy for one compaction in the message flow (#364). */
+export function buildCompactionDividerLabel({
+  messagesBefore,
+  messagesAfter,
+  source = 'auto',
+}: {
+  messagesBefore: number | null
+  messagesAfter: number | null
+  source?: 'auto' | 'manual'
+}): string {
+  const head = source === 'manual' ? 'Context compressed' : 'Context compacted'
+  const counts = buildCompactionNotice({
+    compactionCount: 1,
+    messagesBefore,
+    messagesAfter,
+  })
+  if (counts && counts.includes('→')) {
+    return `${head} • ${counts.slice(counts.indexOf('•') + 1).trim()}`
+  }
+  return head
+}
+
+export const COMPACTION_DIVIDER_DETAIL =
+  'Older messages stay in the transcript and session memory; the model now works from a summary of them.'

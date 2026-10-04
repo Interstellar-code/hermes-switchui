@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { toast } from '@/components/ui/toast'
+import { useContextUsageStore } from '@/stores/context-usage-store'
 
 type CompressResponse = {
   ok?: boolean
@@ -9,6 +10,8 @@ type CompressResponse = {
   compressed?: boolean
   message?: string
   continuationKey?: string | null
+  beforeMessages?: number | null
+  afterMessages?: number | null
 }
 
 /**
@@ -42,6 +45,16 @@ export function useCompressSession(sessionKey: string | null | undefined) {
         type: data.compressed ? 'success' : 'info',
       })
       if (!data.compressed) return false
+      // Same inline divider as an auto-compaction (#364). A rotated session
+      // navigates away, so only an in-place compress gets one here.
+      if (!data.continuationKey) {
+        useContextUsageStore.getState().recordCompaction({
+          sessionKey,
+          messagesBefore: data.beforeMessages ?? undefined,
+          messagesAfter: data.afterMessages ?? undefined,
+          source: 'manual',
+        })
+      }
       void queryClient.invalidateQueries({ queryKey: ['chat'] })
       if (data.continuationKey) {
         void navigate({

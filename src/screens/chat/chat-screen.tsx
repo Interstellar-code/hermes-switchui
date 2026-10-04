@@ -193,10 +193,6 @@ export function ChatScreen({
   const { alertOpen, alertThreshold, alertPercent, dismissAlert } =
     useContextAlert(activeFriendlyId)
 
-  useEffect(() => {
-    useContextUsageStore.getState().setSessionKey(activeFriendlyId || null)
-  }, [activeFriendlyId])
-
   // Clear reply-to when the user navigates to a different session.
   useEffect(() => {
     setReplyTo(null)
@@ -796,6 +792,39 @@ export function ChatScreen({
 
   // Sync bridge ref for sendMessage (seam #4 PR 2)
   finalDisplayMessagesRef.current = finalDisplayMessages
+
+  // One chat answers to several keys (friendly id, canonical key, the stream's
+  // session id); register them all so compaction events aren't dropped.
+  useEffect(() => {
+    useContextUsageStore
+      .getState()
+      .setSessionKey(activeFriendlyId || null, [
+        activeSessionKey,
+        resolvedSessionKey,
+        activeCanonicalKey,
+        activeQueueSessionKey,
+      ])
+  }, [
+    activeFriendlyId,
+    activeSessionKey,
+    resolvedSessionKey,
+    activeCanonicalKey,
+    activeQueueSessionKey,
+  ])
+
+  // Live compaction (#364): the stream's `compaction` start event or the
+  // realtime "compacting context" text. Either clears once the turn ends —
+  // a completed compaction lands as a divider via `recordCompaction`.
+  const liveCompacting = useContextUsageStore((s) => s.compactingSince !== null)
+  const turnActive = waitingForResponse || activeIsRealtimeStreaming || sending
+  useEffect(() => {
+    if (turnActive) return
+    setIsCompacting(false)
+    const store = useContextUsageStore.getState()
+    store.endCompaction(store.sessionKey)
+  }, [turnActive])
+  const showCompacting = (isCompacting || liveCompacting) && turnActive
+  const compactionEvents = useContextUsageStore((s) => s.compactionEvents)
 
   const derivedStreamingInfo = useMemo(() => {
     if (activeIsRealtimeStreaming) {
@@ -1560,7 +1589,8 @@ export function ChatScreen({
                 hideSystemMessages={hideSystemMessages}
                 activeToolCalls={activeToolCalls}
                 liveToolActivity={liveToolActivity}
-                isCompacting={isCompacting}
+                isCompacting={showCompacting}
+                compactionEvents={compactionEvents}
                 liveProgressLabel={liveProgressLabel}
                 sending={sending}
                 toolDisplayMode={toolDisplayMode}
