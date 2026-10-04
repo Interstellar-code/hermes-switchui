@@ -3,6 +3,37 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.7.0] — 2026-10-04
+
+Session folders, a resizable sidebar and a redesigned Memory page.
+
+### Added
+
+- **Session Folders In The Sidebar**: A DATE | PROJECT toggle groups chats into folders backed by Hermes projects, with coloured headers, counts and an Unfiled section. Create, rename, recolour, archive or delete a folder from its header menu (deleting moves its chats to Unfiled; no chats are deleted). Move chats from the context menu's filterable "Move to project" list.
+- **Select And Act On Many Chats**: SELECT mode (or shift-click) adds checkboxes, range and per-folder select-all, and a bulk bar to move, archive or delete. Bulk delete confirms the exact count and focuses Cancel.
+- **Resizable Sessions Sidebar**: Drag its right edge between 260px and 560px, double-click to reset, or use the keyboard. The width is remembered per browser, and the file explorer overlay follows it.
+- **Connect A Chat To Telegram**: A channel chip in the chat meta bar hands the session off to a new Telegram topic, or continues it in an existing topic picked from a list labelled with session titles.
+- **Memory Map Clusters**: The Map colours nodes by topic cluster by default (Kind and Age modes too), keeps kind as the node shape, sizes nodes by connections and labels the hubs. A new left rail holds the colour switch, kind toggles, the named cluster list (click to highlight one), the connections slider and edge types.
+- **Memory Node Inspector**: Selecting a node shows its cluster, connections, first and last seen, deduplicated facts, linked entities, where it is mentioned and other neighbours, with Focus, Open in Browse and Ask about actions. Ask about fills in the memory chat without sending.
+- **Memory Focus Mode**: Focus on a node (or double-click an entity) to see its one- and two-hop neighbourhood in rings, with depth and edge-type filters and a breadcrumb back. The map returns exactly as you left it.
+- **Memory Map Minimap**: A minimap, zoom dock and an info pill for shown, junk and trimmed counts.
+- **Richer Memory Browse**: A 30-day writes chart in your local days doubles as a date filter (drag or keyboard), with kind chips, Fold duplicates and Hide junk toggles (junk can be revealed), and rows grouped by day with entity chips and ×N duplicate badges.
+
+### Changed
+
+- **Memory Header Tiles**: The header stats are one-line tiles with health shown by colour, shape and text, detail popovers and an Ask memory button.
+- **Source Chips Show Real Totals**: Sidebar source chips now show each source's full count instead of only the newest 200 loaded chats. Narrowing to a source loads it, and a Load more row pages through the rest, so older CLI and recovered sessions are reachable.
+- **Live Model List For Provider Endpoints**: The chat model dropdown lists a provider's live models when the endpoint lives under `providers.<name>` rather than `model.base_url`.
+
+### Fixed
+
+- **Deleted Chats Vanish Immediately**: Deleting chats while browsing a profile left them in the sidebar until a hard refresh.
+- **Binding A Chat To A Project Uses The Profile You Are Browsing**: It previously always wrote to the active profile.
+
+### Notes
+
+- Existing-topic Telegram handoff and the one-request folder lookup need two local patches to the Hermes agent (`~/.hermes/patches/handoff-target-existing-topic.patch` and `switchui-project-map.patch`). Without them the chip offers new topics only and folders use a slower per-project lookup.
+
 ## [2.6.1] — 2026-10-03
 
 ### Changed
