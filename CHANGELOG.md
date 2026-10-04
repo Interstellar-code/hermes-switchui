@@ -3,6 +3,30 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.8.0] — 2026-10-04
+
+Folders that follow your chats, with real totals.
+
+### Added
+
+- **Folders Follow Continued Chats**: A session that continues an earlier one takes its folder from the nearest filed session in its chain. Compression continuations count as the same chat (Remove from project works on them); branches show a "via earlier session" hint; chats started with /new begin unfiled. The chat header's project picker shows the folder that applies.
+
+### Changed
+
+- **Real Folder Totals**: Project mode folder headers show loaded / total (e.g. 38 / 58), and Unfiled shows a real total, counted from sessions you can actually open. Totals switch to loaded counts while a search, date, updates or source-chip filter is on.
+- **Honest Chat Badge**: The left-nav Chat badge showed the size of the first page (50); it now shows the profile's total, matching the sidebar header.
+
+### Fixed
+
+- **Bulk Remove Never Touches Other Chats**: Removing inherited chats from a folder no longer unfiles the session they inherit from.
+- **Project Picker Profile**: The chat header's project picker now reads and writes the same profile when browsing another one.
+- **Placeholder Keys**: The new-chat placeholder can no longer be filed into a folder.
+- **CI Lint**: Build & Lint is green again.
+
+### Notes
+
+- Folder totals and inheritance come from the hermes-switch-ui dashboard plugin (`~/.hermes/patches/switchui-project-map.patch`). Without it, folders still group but headers show loaded counts only.
+
 ## [2.7.0] — 2026-10-04
 
 Session folders, a resizable sidebar and a redesigned Memory page.
