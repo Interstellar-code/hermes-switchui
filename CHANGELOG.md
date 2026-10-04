@@ -3,6 +3,31 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.10.0] — 2026-10-04
+
+Conductor goes live: real mission graphs, timeline, grouped rail and a working New Mission dialog.
+
+### Added
+
+- **Live Mission Canvas**: Conductor draws the focused run's real workflow graph from its definition, with each step's status on top: running steps pulse, failures are red, waiting steps are dashed. It follows the run you select, otherwise the newest live or waiting run. Fullscreen, and Tab/Enter to open a run's inspector.
+- **Now Playing Strip**: The focused run's name, trigger, "node x of y", elapsed time and stage pills (only the stages the workflow has), with Inspect and Cancel.
+- **Node Timeline**: A bar per step from start to finish with a NOW line and 1m/5m/15m/fit zoom; long waits read "62d 10h".
+- **Grouped Mission Rail**: Needs you, Live, Today, Scheduled and Recent, with repeat runs folded into "×N". Every row shows its trigger and start time; cancelled runs get their own muted chip.
+- **Scheduled Workflows**: Cron jobs that start a workflow appear under Scheduled with their next and last run, and the header shows the profile and whether the workflow scheduler is alive. With nothing running, Conductor previews the next scheduled workflow.
+- **Approval Banner**: Runs paused for you show a banner that opens the inspector, where Approve and Reject now appear for every paused approval step.
+- **New Mission Dialog**: One dialog for Conductor and Workflows: pick a workflow (search, recent), fill its real inputs (defaults only when the workflow declares them, required inputs enforced), choose now or a set time (when the scheduler is running), confirm. The new run is selected on the canvas.
+
+### Fixed
+
+- **Live Updates**: The canvas, timeline and rail refresh while a run is moving, with one live connection per run.
+- **Workflow Run List**: Run limits and status filters are now passed to Hermes instead of being dropped.
+
+### Notes
+
+- Needs the workflow-engine patch `~/.hermes/patches/workflow-runs-query.patch` (run filters, scheduler health, model access for runs launched from SwitchUI).
+- Scheduled runs and "at a time" launches need the workflow scheduler service (`ai.hermes.workflow-dispatcher`). Repeat (cron) launches from the dialog aren't supported by the engine yet.
+- Token counts, the tier/org view, loop iterations and per-step profiles arrive with the next backend changes.
+
 ## [2.9.1] — 2026-10-04
 
 Conductor fixes, delegation cards and visible context compaction.
