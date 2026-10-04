@@ -1,28 +1,42 @@
 /**
  * conductor-store.ts — Live mission projection from workflow_runs.
  *
- * Each workflow_run row is projected to a Mission on-the-fly.
- * No file-backed seed data. createMission returns 501 (use /workflows).
- * abortMission returns 501 (engine abort not yet wired).
- *
- * NOTE: Previously read workflow_runs directly from the local SQLite file,
- * which caused split-brain when the workflow-engine plugin owns the DB.
- * Now delegates to getEngine() so plugin-backed deployments see live data.
+ * Each workflow_run row is projected to a Mission on-the-fly (no stored state).
+ * One listRuns per snapshot: missions and stats are derived from the same fetch.
  */
 
 import { getEngine } from './workflow-engine/factory'
+import { PluginClient } from './workflow-engine/clients/plugin-client'
 import type { WorkflowRun } from './workflow-engine/interface'
 
 export interface Mission {
   id: string
   title: string
   subtitle: string
-  status: 'live' | 'done' | 'err'
+  status: 'live' | 'waiting' | 'queued' | 'done' | 'err'
   elapsed: string
   tokens: string
   action?: 'focus' | 'replay' | 'retry'
-  dayGroup: 'now' | 'today' | 'yesterday'
+  dayGroup: 'now' | 'today' | 'yesterday' | 'earlier'
   createdAt: number
+  workflowId: string
+  triggerKind: string | null
+  inputs: Record<string, unknown>
+  userMessage: string
+  error: string | null
+}
+
+export interface ConductorStats {
+  live: number
+  needsYou: number
+  nodesRunning: number
+  oldestLiveElapsed: string
+  tokens: string
+}
+
+export interface ConductorSnapshot {
+  missions: Array<Mission>
+  stats: ConductorStats
 }
 
 // ---------------------------------------------------------------------------
@@ -38,16 +52,29 @@ function formatElapsed(ms: number): string {
   return `${mm}:${ss}`
 }
 
-function computeDayGroup(startedAtMs: number): Mission['dayGroup'] {
-  const now = Date.now()
-  const diffH = (now - startedAtMs) / 1000 / 3600
-  if (diffH < 1) return 'now'
-  if (diffH < 24) return 'today'
-  return 'yesterday'
+function startOfDay(ms: number): number {
+  const d = new Date(ms)
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+function computeDayGroup(
+  status: Mission['status'],
+  startedAtMs: number,
+): Mission['dayGroup'] {
+  if (status === 'live' || status === 'waiting' || status === 'queued')
+    return 'now'
+  const today = startOfDay(Date.now())
+  if (startedAtMs >= today) return 'today'
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  if (startedAtMs >= yesterday.getTime()) return 'yesterday'
+  return 'earlier'
 }
 
 function deriveAction(status: Mission['status']): Mission['action'] {
-  if (status === 'live') return 'focus'
+  if (status === 'live' || status === 'waiting' || status === 'queued')
+    return 'focus'
   if (status === 'done') return 'replay'
   return 'retry'
 }
@@ -55,7 +82,8 @@ function deriveAction(status: Mission['status']): Mission['action'] {
 // Map workflow_run.status → Mission.status
 function mapStatus(runStatus: string): Mission['status'] {
   if (runStatus === 'running') return 'live'
-  if (runStatus === 'completed' || runStatus === 'success') return 'done'
+  if (runStatus === 'paused') return 'waiting'
+  if (runStatus === 'pending') return 'queued'
   if (
     runStatus === 'failed' ||
     runStatus === 'error' ||
@@ -63,90 +91,111 @@ function mapStatus(runStatus: string): Mission['status'] {
   ) {
     return 'err'
   }
-  // pending | paused → surface as done so UI doesn't show as live
   return 'done'
 }
 
-function toMs(d: Date | number | undefined | null): number {
-  if (d == null) return Date.now()
-  return d instanceof Date ? d.getTime() : d
+/** Date | ISO string | epoch ms/s → epoch ms; `fallback` when missing or unparseable. */
+function toMs(
+  d: Date | string | number | undefined | null,
+  fallback: number,
+): number {
+  if (d == null || (typeof d === 'number' && d <= 0)) return fallback
+  const raw =
+    typeof d === 'number' ? (d < 1e12 ? d * 1000 : d) : new Date(d).getTime()
+  return Number.isFinite(raw) ? raw : fallback
 }
 
 function runToMission(run: WorkflowRun): Mission {
   const now = Date.now()
   const status = mapStatus(run.status)
-  const startedAtMs = toMs(run.started_at)
-  const completedAtMs = run.completed_at != null ? toMs(run.completed_at) : null
+  const startedAtMs = toMs(run.started_at, toMs(run.last_heartbeat, now))
+  const endedAtMs =
+    status === 'done' || status === 'err'
+      ? toMs(run.completed_at, toMs(run.last_heartbeat, now))
+      : now
 
-  let elapsedMs: number
-  if (status === 'live') {
-    elapsedMs = now - startedAtMs
-  } else if (completedAtMs != null) {
-    elapsedMs = completedAtMs - startedAtMs
-  } else {
-    elapsedMs = now - startedAtMs
-  }
-
-  // TODO: token_usage not yet in workflow_runs schema
-  const tokens = '—'
-
-  // Build a human subtitle from phase + workflow id
-  const subtitle = `${run.workflow_id} · ${run.current_phase}`
+  const meta = run.metadata ?? {}
+  const trigger = (meta.trigger ?? {}) as Record<string, unknown>
+  const triggerKind = trigger.kind ?? trigger.type
+  const inputs = meta.inputs as Record<string, unknown> | null | undefined
 
   return {
     id: run.id,
     title: run.workflow_id,
-    subtitle,
+    subtitle: `${run.workflow_id} · ${run.current_phase}`,
     status,
-    elapsed: formatElapsed(elapsedMs),
-    tokens,
+    elapsed: formatElapsed(endedAtMs - startedAtMs),
+    tokens: '—', // D7: real tokens arrive with B1
     action: deriveAction(status),
-    dayGroup: computeDayGroup(startedAtMs),
+    dayGroup: computeDayGroup(status, startedAtMs),
     createdAt: startedAtMs,
+    workflowId: run.workflow_id,
+    triggerKind: typeof triggerKind === 'string' ? triggerKind : null,
+    inputs: inputs ?? {},
+    userMessage: run.user_message,
+    error: run.error ?? null,
   }
 }
+
+const pluginClient = new PluginClient()
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export async function listMissions(request: Request): Promise<Array<Mission>> {
-  try {
-    const engine = getEngine()
-    const runs = await engine.listRuns({ limit: 200 })
-    return runs.map(runToMission)
-  } catch {
-    return []
+let memo: { at: number; value: Promise<ConductorSnapshot> } | null = null
+
+/**
+ * Missions + header stats from a single listRuns call. `maxAgeMs` > 0 reuses a
+ * snapshot taken within that window (state route); the default always refetches.
+ */
+export function getConductorSnapshot(maxAgeMs = 0): Promise<ConductorSnapshot> {
+  if (memo && Date.now() - memo.at < maxAgeMs) return memo.value
+  const value = buildSnapshot()
+  const entry = { at: Date.now(), value }
+  memo = entry
+  value.catch(() => {
+    if (memo === entry) memo = null
+  })
+  return value
+}
+
+async function buildSnapshot(): Promise<ConductorSnapshot> {
+  const [runs, active] = await Promise.all([
+    getEngine().listRuns({ limit: 200 }),
+    pluginClient.listActiveNodeRuns().catch(() => []),
+  ])
+  const missions = runs.map(runToMission)
+  const live = missions.filter((m) => m.status === 'live')
+  const oldest = live.reduce<number | null>(
+    (min, m) => (min == null || m.createdAt < min ? m.createdAt : min),
+    null,
+  )
+  return {
+    missions,
+    stats: {
+      live: live.length,
+      needsYou: missions.filter((m) => m.status === 'waiting').length,
+      nodesRunning: active.filter((n) => n.status === 'running').length,
+      oldestLiveElapsed:
+        oldest == null ? '—' : formatElapsed(Date.now() - oldest),
+      tokens: '—',
+    },
   }
 }
 
-export async function getMission(request: Request, id: string): Promise<Mission | null> {
+export async function getMission(
+  _request: Request,
+  id: string,
+): Promise<Mission | null> {
   try {
-    const engine = getEngine()
-    const run = await engine.getRun(id)
+    const run = await getEngine().getRun(id)
     return run ? runToMission(run) : null
   } catch {
     return null
   }
 }
 
-export function createMission(_input: {
-  title: string
-  subtitle?: string
-}): Promise<Mission> {
-  throw Object.assign(new Error('createMission: use /api/workflow-runs to start a run'), {
-    status: 501,
-  })
-}
-
-export function abortMission(_id: string): Promise<void> {
-  throw Object.assign(new Error('abortMission: engine abort not yet wired'), {
-    status: 501,
-  })
-}
-
-export function getConductorState(_request: Request): Promise<{
-  missions: Array<Mission>
-}> {
-  return { missions: [] }
+export async function abortMission(id: string): Promise<void> {
+  await getEngine().cancelRun(id)
 }

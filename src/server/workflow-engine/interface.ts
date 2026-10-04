@@ -182,7 +182,7 @@ export interface WorkflowEngineInterface {
   // ── Events ─────────────────────────────────────────────────────────────
   appendWorkflowEvent: (event: RunEvent) => Promise<void>;
   listRecentWorkflowEvents: (runId: string, limit?: number) => Promise<Array<RunEvent>>;
-  subscribeEvents: (runId?: string) => AsyncIterable<RunEvent>;
+  subscribeEvents: (runId?: string, signal?: AbortSignal) => AsyncIterable<RunEvent>;
 
   // ── Phase transitions ──────────────────────────────────────────────────
   recordPhaseTransition: (input: {

@@ -9,7 +9,7 @@ import { getEngine } from '../../server/workflow-engine/factory'
  *
  * Native path: streams WorkflowEmitterEvent objects filtered to the requested
  * run via emitter.subscribeForConversation() using the run's conversation_id.
- * Plugin path: delegates to engine.subscribeEvents(runId) and yields SSE frames.
+ * Plugin path: delegates to engine.subscribeEvents(runId, request.signal) and yields SSE frames.
  */
 export const Route = createFileRoute('/api/workflow-events')({
   server: {
@@ -27,7 +27,10 @@ export const Route = createFileRoute('/api/workflow-events')({
 
         if (!runId) {
           return new Response(
-            JSON.stringify({ ok: false, error: 'Missing required query param: runId' }),
+            JSON.stringify({
+              ok: false,
+              error: 'Missing required query param: runId',
+            }),
             { status: 400, headers: { 'Content-Type': 'application/json' } },
           )
         }
@@ -41,7 +44,11 @@ export const Route = createFileRoute('/api/workflow-events')({
             let streamClosed = false
             const send = (raw: string) => {
               if (streamClosed) return
-              try { controller.enqueue(encoder.encode(raw)) } catch { /* closed */ }
+              try {
+                controller.enqueue(encoder.encode(raw))
+              } catch {
+                /* closed */
+              }
             }
             const sendEvent = (type: string, data: unknown) => {
               send(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
@@ -49,7 +56,11 @@ export const Route = createFileRoute('/api/workflow-events')({
 
             request.signal.addEventListener('abort', () => {
               streamClosed = true
-              try { controller.close() } catch { /* ignore */ }
+              try {
+                controller.close()
+              } catch {
+                /* ignore */
+              }
             })
 
             try {
@@ -60,23 +71,35 @@ export const Route = createFileRoute('/api/workflow-events')({
                 return
               }
               sendEvent('connected', { runId })
-              for await (const evt of engine.subscribeEvents(runId)) {
+              for await (const evt of engine.subscribeEvents(
+                runId,
+                request.signal,
+              )) {
                 if (request.signal.aborted) break
                 sendEvent(evt.event_type, evt)
               }
             } catch (err) {
               const errorMsg = err instanceof Error ? err.message : String(err)
-              if (errorMsg.includes('404') || errorMsg.includes('run_not_found')) {
+              if (
+                errorMsg.includes('404') ||
+                errorMsg.includes('run_not_found')
+              ) {
                 sendEvent('error', { reason: 'run_not_found', runId })
               } else {
                 sendEvent('error', { message: errorMsg })
               }
             } finally {
               streamClosed = true
-              try { controller.close() } catch { /* ignore */ }
+              try {
+                controller.close()
+              } catch {
+                /* ignore */
+              }
             }
           },
-          cancel() { /* cleanup handled via abort signal */ },
+          cancel() {
+            /* cleanup handled via abort signal */
+          },
         })
 
         return new Response(stream, {

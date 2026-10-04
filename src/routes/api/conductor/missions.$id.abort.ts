@@ -18,12 +18,17 @@ export const Route = createFileRoute('/api/conductor/missions/$id/abort')({
           return Response.json({ error: 'id required' }, { status: 400 })
         }
         try {
-          const mission = await abortMission(id)
-          return Response.json({ ok: true, mission })
+          await abortMission(id)
+          return Response.json({ ok: true })
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error)
-          const status = msg.includes('not found') ? 404 : 500
-          return Response.json({ error: msg }, { status })
+          // PluginClient errors read "PluginClient POST /path: <status> <body>"
+          const upstream = Number(/: (\d{3})\b/.exec(msg)?.[1])
+          let status = upstream >= 400 && upstream < 600 ? upstream : 500
+          // Upstream auth failures are a gateway problem, not the caller's.
+          if (status === 401 || status === 403) status = 502
+          console.error('[conductor] abort failed:', msg)
+          return Response.json({ error: 'Failed to abort mission' }, { status })
         }
       },
     },

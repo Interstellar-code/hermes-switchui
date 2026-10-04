@@ -4,16 +4,16 @@
  * Runs in Node (forks pool per vite.config.ts poolMatchGlobs).
  * No real HTTP calls; no real plugin process required.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PluginClient } from './plugin-client.js';
+import { PluginClient } from './plugin-client.js'
 
 // ── Mock gateway-capabilities before importing PluginClient ──────────────────
 vi.mock('../../gateway-capabilities.js', () => ({
   dashboardFetch: vi.fn(),
-}));
+}))
 
-const PLUGIN_BASE = '/api/plugins/workflow-engine';
+const PLUGIN_BASE = '/api/plugins/workflow-engine'
 
 // ---------------------------------------------------------------------------
 // Helper: build a fake Response
@@ -22,30 +22,32 @@ function fakeResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
-  });
+  })
 }
 
 // ---------------------------------------------------------------------------
 // Setup: we run server-side (no window), so _proxyFetch uses dashboardFetch.
 // We intercept it via a module-level fetch mock.
 // ---------------------------------------------------------------------------
-let fetchMock: ReturnType<typeof vi.fn>;
+let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(async () => {
-  fetchMock = vi.fn();
-  const mod = await import('../../gateway-capabilities.js');
-  vi.mocked(mod.dashboardFetch).mockImplementation(fetchMock as never);
-});
+  fetchMock = vi.fn()
+  const mod = await import('../../gateway-capabilities.js')
+  vi.mocked(mod.dashboardFetch).mockImplementation(fetchMock as never)
+})
 
 // Helper to get the last call's URL
 function lastUrl(): string {
-  return fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string;
+  return fetchMock.mock.calls[fetchMock.mock.calls.length - 1][0] as string
 }
 function lastInit(): RequestInit | undefined {
-  return fetchMock.mock.calls[fetchMock.mock.calls.length - 1][1] as RequestInit | undefined;
+  return fetchMock.mock.calls[fetchMock.mock.calls.length - 1][1] as
+    | RequestInit
+    | undefined
 }
 
-const client = new PluginClient();
+const client = new PluginClient()
 
 // ---------------------------------------------------------------------------
 // Definitions
@@ -53,52 +55,52 @@ const client = new PluginClient();
 
 describe('PluginClient.listDefinitions', () => {
   it('calls GET /definitions', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ definitions: [] }));
-    const result = await client.listDefinitions();
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions`);
-    expect(result).toEqual([]);
-  });
+    fetchMock.mockResolvedValue(fakeResponse({ definitions: [] }))
+    const result = await client.listDefinitions()
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions`)
+    expect(result).toEqual([])
+  })
 
   it('passes source filter as query param', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ definitions: [] }));
-    await client.listDefinitions({ source: 'bundled' });
-    expect(lastUrl()).toContain('source=bundled');
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ definitions: [] }))
+    await client.listDefinitions({ source: 'bundled' })
+    expect(lastUrl()).toContain('source=bundled')
+  })
+})
 
 describe('PluginClient.getDefinition', () => {
   it('calls GET /definitions/{id}', async () => {
-    const def = { id: 'my-wf', name: 'My WF' };
-    fetchMock.mockResolvedValue(fakeResponse({ definition: def }));
-    const result = await client.getDefinition('my-wf');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions/my-wf`);
-    expect(result).toMatchObject({ id: 'my-wf' });
-  });
+    const def = { id: 'my-wf', name: 'My WF' }
+    fetchMock.mockResolvedValue(fakeResponse({ definition: def }))
+    const result = await client.getDefinition('my-wf')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions/my-wf`)
+    expect(result).toMatchObject({ id: 'my-wf' })
+  })
 
   it('returns null on 404', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ error: 'not found' }, 404));
+    fetchMock.mockResolvedValue(fakeResponse({ error: 'not found' }, 404))
     // _get throws with "404" in the message; getDefinition catches it
     // Actually _get throws — but getDefinition catches 404 → null
-    const result = await client.getDefinition('no-such');
-    expect(result).toBeNull();
-  });
-});
+    const result = await client.getDefinition('no-such')
+    expect(result).toBeNull()
+  })
+})
 
 describe('PluginClient.deleteWorkflowDefinition', () => {
   it('calls DELETE /definitions/{id} and returns 1', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
-    const n = await client.deleteWorkflowDefinition('my-wf');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions/my-wf`);
-    expect(lastInit()?.method).toBe('DELETE');
-    expect(n).toBe(1);
-  });
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }))
+    const n = await client.deleteWorkflowDefinition('my-wf')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions/my-wf`)
+    expect(lastInit()?.method).toBe('DELETE')
+    expect(n).toBe(1)
+  })
 
   it('returns 0 on 404', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ error: 'not found' }, 404));
-    const n = await client.deleteWorkflowDefinition('missing');
-    expect(n).toBe(0);
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ error: 'not found' }, 404))
+    const n = await client.deleteWorkflowDefinition('missing')
+    expect(n).toBe(0)
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Runs
@@ -106,78 +108,84 @@ describe('PluginClient.deleteWorkflowDefinition', () => {
 
 describe('PluginClient.listRuns', () => {
   it('calls GET /runs', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ runs: [] }));
-    await client.listRuns();
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs`);
-  });
+    fetchMock.mockResolvedValue(fakeResponse({ runs: [] }))
+    await client.listRuns()
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs`)
+  })
 
   it('passes workflowId as query param', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ runs: [] }));
-    await client.listRuns({ workflowId: 'hello-world' });
-    expect(lastUrl()).toContain('workflow_id=hello-world');
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ runs: [] }))
+    await client.listRuns({ workflowId: 'hello-world' })
+    expect(lastUrl()).toContain('workflow_id=hello-world')
+  })
+})
 
 describe('PluginClient.getRun', () => {
   it('calls GET /runs/{runId}', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r1' } }));
-    const run = await client.getRun('r1');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r1`);
-    expect(run).toMatchObject({ id: 'r1' });
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r1' } }))
+    const run = await client.getRun('r1')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r1`)
+    expect(run).toMatchObject({ id: 'r1' })
+  })
+})
 
 describe('PluginClient.startRun', () => {
   it('calls POST /runs with correct body', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r2' } }, 201));
-    await client.startRun('hello-world', { key: 'val' }, {
-      kind: 'manual',
-      conversation_id: 'conv-1',
-      user_message: 'go',
-    });
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs`);
-    const body = JSON.parse(lastInit()?.body as string);
-    expect(body.workflow_id).toBe('hello-world');
-    expect(body.conversation_id).toBe('conv-1');
-    expect(body.variables).toEqual({ key: 'val' });
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r2' } }, 201))
+    await client.startRun(
+      'hello-world',
+      { key: 'val' },
+      {
+        kind: 'manual',
+        conversation_id: 'conv-1',
+        user_message: 'go',
+      },
+    )
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs`)
+    const body = JSON.parse(lastInit()?.body as string)
+    expect(body.workflow_id).toBe('hello-world')
+    expect(body.conversation_id).toBe('conv-1')
+    expect(body.variables).toEqual({ key: 'val' })
+  })
+})
 
 describe('PluginClient.cancelRun', () => {
   it('calls POST /runs/{runId}/cancel', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
-    await client.cancelRun('r3');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r3/cancel`);
-    expect(lastUrl()).not.toContain('action=cancel');
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }))
+    await client.cancelRun('r3')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r3/cancel`)
+    expect(lastUrl()).not.toContain('action=cancel')
+  })
+})
 
 describe('PluginClient.resumeWorkflowRun', () => {
   it('calls POST /runs/{id}/resume', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r4' } }));
-    await client.resumeWorkflowRun('r4');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r4/resume`);
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r4' } }))
+    await client.resumeWorkflowRun('r4')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r4/resume`)
+  })
+})
 
 describe('PluginClient.findRunByConversationId', () => {
   it('calls GET /runs/by-conversation/{convId}', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ run: { conversation_id: 'conv-x' } }));
-    const run = await client.findRunByConversationId('conv-x');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/by-conversation/conv-x`);
-    expect(run).toMatchObject({ conversation_id: 'conv-x' });
-  });
-});
+    fetchMock.mockResolvedValue(
+      fakeResponse({ run: { conversation_id: 'conv-x' } }),
+    )
+    const run = await client.findRunByConversationId('conv-x')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/by-conversation/conv-x`)
+    expect(run).toMatchObject({ conversation_id: 'conv-x' })
+  })
+})
 
 describe('PluginClient.getActiveWorkflowRunByPath', () => {
   it('calls GET /runs/active?scope_path=...', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ run: null }));
-    const run = await client.getActiveWorkflowRunByPath('/my/project');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/active`);
-    expect(lastUrl()).toContain('scope_path=');
-    expect(run).toBeNull();
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ run: null }))
+    const run = await client.getActiveWorkflowRunByPath('/my/project')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/active`)
+    expect(lastUrl()).toContain('scope_path=')
+    expect(run).toBeNull()
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Node Runs
@@ -185,26 +193,26 @@ describe('PluginClient.getActiveWorkflowRunByPath', () => {
 
 describe('PluginClient.listNodeRuns', () => {
   it('calls GET /runs/{runId}/nodes', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ nodeRuns: [] }));
-    await client.listNodeRuns('r5');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r5/nodes`);
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ nodeRuns: [] }))
+    await client.listNodeRuns('r5')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r5/nodes`)
+  })
+})
 
 describe('PluginClient.findNodeRunById', () => {
   it('calls GET /node-runs/{id}', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ nodeRun: { id: 'nr1' } }));
-    const nr = await client.findNodeRunById('nr1');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/node-runs/nr1`);
-    expect(nr).toMatchObject({ id: 'nr1' });
-  });
+    fetchMock.mockResolvedValue(fakeResponse({ nodeRun: { id: 'nr1' } }))
+    const nr = await client.findNodeRunById('nr1')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/node-runs/nr1`)
+    expect(nr).toMatchObject({ id: 'nr1' })
+  })
 
   it('returns null on 404', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ error: 'not found' }, 404));
-    const nr = await client.findNodeRunById('missing');
-    expect(nr).toBeNull();
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ error: 'not found' }, 404))
+    const nr = await client.findNodeRunById('missing')
+    expect(nr).toBeNull()
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Events
@@ -212,29 +220,29 @@ describe('PluginClient.findNodeRunById', () => {
 
 describe('PluginClient.appendWorkflowEvent', () => {
   it('calls POST /runs/{runId}/events', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ ok: true }));
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }))
     await client.appendWorkflowEvent({
       workflow_run_id: 'r6',
       event_type: 'my_event',
       data: { x: 1 },
-    });
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r6/events`);
-    const body = JSON.parse(lastInit()?.body as string);
-    expect(body.event_type).toBe('my_event');
-    expect(body.data).toEqual({ x: 1 });
+    })
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r6/events`)
+    const body = JSON.parse(lastInit()?.body as string)
+    expect(body.event_type).toBe('my_event')
+    expect(body.data).toEqual({ x: 1 })
     // workflow_run_id should NOT be in body (stripped)
-    expect(body.workflow_run_id).toBeUndefined();
-  });
-});
+    expect(body.workflow_run_id).toBeUndefined()
+  })
+})
 
 describe('PluginClient.listRecentWorkflowEvents', () => {
   it('calls GET /runs/{runId}/events?limit=N', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ events: [] }));
-    await client.listRecentWorkflowEvents('r7', 50);
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r7/events`);
-    expect(lastUrl()).toContain('limit=50');
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ events: [] }))
+    await client.listRecentWorkflowEvents('r7', 50)
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r7/events`)
+    expect(lastUrl()).toContain('limit=50')
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Phase Transitions
@@ -242,28 +250,28 @@ describe('PluginClient.listRecentWorkflowEvents', () => {
 
 describe('PluginClient.recordPhaseTransition', () => {
   it('calls POST /runs/{runId}/phase-transitions', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ from: 'plan', to: 'execute' }));
+    fetchMock.mockResolvedValue(fakeResponse({ from: 'plan', to: 'execute' }))
     const result = await client.recordPhaseTransition({
       runId: 'r8',
       toPhase: 'execute',
       decidedBy: 'user',
-    });
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r8/phase-transitions`);
-    const body = JSON.parse(lastInit()?.body as string);
-    expect(body.toPhase).toBe('execute');
-    expect(body.decidedBy).toBe('user');
-    expect(result).toEqual({ from: 'plan', to: 'execute' });
-  });
-});
+    })
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r8/phase-transitions`)
+    const body = JSON.parse(lastInit()?.body as string)
+    expect(body.toPhase).toBe('execute')
+    expect(body.decidedBy).toBe('user')
+    expect(result).toEqual({ from: 'plan', to: 'execute' })
+  })
+})
 
 describe('PluginClient.listPhaseTransitions', () => {
   it('calls GET /runs/{runId}/phase-transitions', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ phaseTransitions: [] }));
-    const result = await client.listPhaseTransitions('r9');
-    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r9/phase-transitions`);
-    expect(result).toEqual([]);
-  });
-});
+    fetchMock.mockResolvedValue(fakeResponse({ phaseTransitions: [] }))
+    const result = await client.listPhaseTransitions('r9')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r9/phase-transitions`)
+    expect(result).toEqual([])
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Approvals
@@ -271,17 +279,24 @@ describe('PluginClient.listPhaseTransitions', () => {
 
 describe('PluginClient.tryClaimApprovalForResume', () => {
   it('calls POST /runs/.../approval-claim with correct body', async () => {
-    fetchMock.mockResolvedValue(fakeResponse({ claimed: true, terminalStatus: 'completed' }));
-    const result = await client.tryClaimApprovalForResume('run-42', 'nr-1', 'approved', 'lgtm');
-    expect(lastUrl()).toContain('/runs/run-42/approval-claim');
-    const body = JSON.parse(lastInit()?.body as string);
-    expect(body.nodeRunId).toBe('nr-1');
-    expect(body.decision).toBe('approved');
-    expect(body.approvalResponse).toBe('lgtm');
-    expect(result.claimed).toBe(true);
-    expect(result.terminalStatus).toBe('completed');
-  });
-});
+    fetchMock.mockResolvedValue(
+      fakeResponse({ claimed: true, terminalStatus: 'completed' }),
+    )
+    const result = await client.tryClaimApprovalForResume(
+      'run-42',
+      'nr-1',
+      'approved',
+      'lgtm',
+    )
+    expect(lastUrl()).toContain('/runs/run-42/approval-claim')
+    const body = JSON.parse(lastInit()?.body as string)
+    expect(body.nodeRunId).toBe('nr-1')
+    expect(body.decision).toBe('approved')
+    expect(body.approvalResponse).toBe('lgtm')
+    expect(result.claimed).toBe(true)
+    expect(result.terminalStatus).toBe('completed')
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Timeout — hung fetch must reject rather than hang forever
@@ -294,28 +309,147 @@ describe('PluginClient fetch timeout', () => {
     // signal forwarded to dashboardFetch carries a timeout (i.e. it is an
     // AbortSignal whose abortReason will eventually be a TimeoutError).
     fetchMock.mockImplementation((_url: string, init?: RequestInit) => {
-      const signal = init?.signal as AbortSignal | undefined;
+      const signal = init?.signal as AbortSignal | undefined
       // Signal must be present and must be an AbortSignal with a timeout.
-      expect(signal).toBeDefined();
-      expect(signal).toBeInstanceOf(AbortSignal);
+      expect(signal).toBeDefined()
+      expect(signal).toBeInstanceOf(AbortSignal)
       // AbortSignal.timeout() signals carry a "timeout" reason name when
       // aborted; checking that the signal object exists and is the right type
       // is sufficient to prove the timeout was wired up.
-      return new Promise<Response>(() => { /* never resolves */ });
-    });
+      return new Promise<Response>(() => {
+        /* never resolves */
+      })
+    })
 
     // Fire the request but don't await it — we just want to inspect the signal.
-    const pending = client.listDefinitions();
+    const pending = client.listDefinitions()
 
     // Flush microtasks so the mock is called synchronously.
-    await Promise.resolve();
+    await Promise.resolve()
 
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const signal = fetchMock.mock.calls[0][1]?.signal as AbortSignal | undefined;
-    expect(signal).toBeDefined();
-    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const signal = fetchMock.mock.calls[0][1]?.signal as AbortSignal | undefined
+    expect(signal).toBeDefined()
+    expect(signal).toBeInstanceOf(AbortSignal)
 
     // Clean up — abort the pending call so the test doesn't leak.
-    pending.catch(() => { /* expected rejection */ });
-  });
-});
+    pending.catch(() => {
+      /* expected rejection */
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// listActiveNodeRuns — plugin wraps the array in { nodeRuns }
+// ---------------------------------------------------------------------------
+
+describe('PluginClient.listActiveNodeRuns', () => {
+  it('unwraps the nodeRuns envelope', async () => {
+    const row = {
+      runId: 'r1',
+      nodeId: 'n1',
+      workflowId: 'w',
+      status: 'running',
+      startedAt: '2026-10-04T00:00:00Z',
+      workerId: null,
+    }
+    fetchMock.mockResolvedValue(fakeResponse({ nodeRuns: [row] }))
+    expect(await client.listActiveNodeRuns()).toEqual([row])
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/node-runs/active`)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// subscribeEvents — SSE stream lifecycle
+// ---------------------------------------------------------------------------
+
+function sseResponse(
+  chunks: Array<string>,
+  hold: boolean,
+  signal?: AbortSignal,
+): Response {
+  const enc = new TextEncoder()
+  const body = new ReadableStream<Uint8Array>({
+    start(c) {
+      for (const ch of chunks) c.enqueue(enc.encode(ch))
+      if (hold)
+        signal?.addEventListener('abort', () => c.error(new Error('aborted')))
+      else c.close()
+    },
+  })
+  return new Response(body, {
+    headers: { 'Content-Type': 'text/event-stream' },
+  })
+}
+
+describe('PluginClient.subscribeEvents', () => {
+  it('skips frames without event_type and malformed frames', async () => {
+    fetchMock.mockResolvedValue(
+      sseResponse(
+        [
+          'data: {"ping":1}\n\n',
+          'data: nope\n\n',
+          'data: {"event_type":"node_started","id":"e1"}\n\n',
+        ],
+        false,
+      ),
+    )
+    const got: Array<unknown> = []
+    for await (const e of client.subscribeEvents('r1')) got.push(e)
+    expect(got).toEqual([{ event_type: 'node_started', id: 'e1' }])
+  })
+
+  it('keeps the stream open past the connect timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockImplementation((_u: string, init?: RequestInit) =>
+        Promise.resolve(
+          sseResponse(
+            ['data: {"event_type":"a"}\n\n'],
+            true,
+            init?.signal ?? undefined,
+          ),
+        ),
+      )
+      const iter = client.subscribeEvents('r1')[Symbol.asyncIterator]()
+      expect((await iter.next()).value).toEqual({ event_type: 'a' })
+      const signal = fetchMock.mock.calls[0][1].signal as AbortSignal
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(signal.aborted).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels the body when the consumer breaks out early', async () => {
+    const cancel = vi.fn()
+    const enc = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('data: {"event_type":"a"}\n\n'))
+      },
+      cancel,
+    })
+    fetchMock.mockResolvedValue(new Response(body))
+    for await (const _e of client.subscribeEvents('r1')) break
+    await vi.waitFor(() => expect(cancel).toHaveBeenCalled())
+  })
+
+  it('closes the stream when the caller signal aborts', async () => {
+    fetchMock.mockImplementation((_u: string, init?: RequestInit) =>
+      Promise.resolve(
+        sseResponse(
+          ['data: {"event_type":"a"}\n\n'],
+          true,
+          init?.signal ?? undefined,
+        ),
+      ),
+    )
+    const ac = new AbortController()
+    const iter = client.subscribeEvents('r1', ac.signal)[Symbol.asyncIterator]()
+    await iter.next()
+    const pending = iter.next()
+    ac.abort()
+    await expect(pending).rejects.toThrow()
+  })
+})

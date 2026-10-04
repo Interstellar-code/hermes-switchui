@@ -1,22 +1,7 @@
 import { useConductorState } from './use-conductor-queries'
 
-interface ConductorTopBarData {
-  liveMissions: number
-  elapsed: string
-  workersActive: number
-  tokensUsed: string
-}
-
-const DEFAULT_DATA: ConductorTopBarData = {
-  liveMissions: 0,
-  elapsed: '00:00',
-  workersActive: 0,
-  tokensUsed: '0',
-}
-
 export function ConductorTopBar() {
-  const { data: serverData } = useConductorState()
-  const data = serverData ?? DEFAULT_DATA
+  const { data } = useConductorState()
   return (
     <header className="cnd-top">
       <div className="crumbs">
@@ -28,19 +13,23 @@ export function ConductorTopBar() {
       </div>
       <div className="health">
         <div className="stat">
-          <span className="v ok">{data.liveMissions}</span>
-          <span className="l">live mission</span>
+          <span className="v ok">{data?.live ?? '—'}</span>
+          <span className="l">live</span>
         </div>
         <div className="stat">
-          <span className="v">{data.elapsed}</span>
-          <span className="l">elapsed</span>
+          <span className="v">{data?.needsYou ?? '—'}</span>
+          <span className="l">needs you</span>
         </div>
         <div className="stat">
-          <span className="v">{data.workersActive}</span>
-          <span className="l">workers active</span>
+          <span className="v">{data?.nodesRunning ?? '—'}</span>
+          <span className="l">nodes running</span>
         </div>
         <div className="stat">
-          <span className="v">{data.tokensUsed}</span>
+          <span className="v">{data?.oldestLiveElapsed ?? '—'}</span>
+          <span className="l">oldest live</span>
+        </div>
+        <div className="stat">
+          <span className="v">{data?.tokens ?? '—'}</span>
           <span className="l">tok used</span>
         </div>
         <div className="right-actions">

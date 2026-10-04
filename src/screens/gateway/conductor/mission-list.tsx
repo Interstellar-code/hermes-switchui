@@ -7,6 +7,7 @@ import { useConductorUIStore } from '@/stores/conductor-ui-store'
 function filterMissions(missions: Array<Mission>, tab: FilterTab): Array<Mission> {
   if (tab === 'all') return missions
   if (tab === 'live') return missions.filter((m) => m.status === 'live')
+  if (tab === 'waiting') return missions.filter((m) => m.status === 'waiting')
   if (tab === 'done') return missions.filter((m) => m.status === 'done')
   return missions.filter((m) => m.status === 'err')
 }
@@ -19,6 +20,7 @@ export function MissionList() {
   const nowMissions = visible.filter((m) => m.dayGroup === 'now')
   const earlierMissions = visible.filter((m) => m.dayGroup === 'today')
   const yesterdayMissions = visible.filter((m) => m.dayGroup === 'yesterday')
+  const olderMissions = visible.filter((m) => m.dayGroup === 'earlier')
 
   return (
     <div className="h-list">
@@ -46,6 +48,15 @@ export function MissionList() {
         <>
           <div className="h-day">Yesterday</div>
           {yesterdayMissions.map((m) => (
+            <MissionCard key={m.id} mission={m} />
+          ))}
+        </>
+      )}
+
+      {olderMissions.length > 0 && (
+        <>
+          <div className="h-day">Older</div>
+          {olderMissions.map((m) => (
             <MissionCard key={m.id} mission={m} />
           ))}
         </>

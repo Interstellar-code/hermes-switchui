@@ -849,6 +849,10 @@
     background: var(--m-green-500, var(--theme-accent));
     border-color: var(--m-green-500, var(--theme-accent));
   }
+  .miss .b.waiting {
+    color: var(--m-warning, var(--theme-warning));
+    border-color: var(--m-warning, var(--theme-warning));
+  }
   .miss .b.err {
     color: var(--m-danger, var(--theme-danger));
     border-color: rgba(255, 95, 109, 0.4);

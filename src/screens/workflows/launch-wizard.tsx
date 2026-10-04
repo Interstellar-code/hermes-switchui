@@ -1,11 +1,27 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import '@/styles/workflow-ui.css'
 import { useLaunchWorkflowRun, useWorkflowParsed } from './use-workflows'
 import type { NodeType, WorkflowDagNode } from './types'
+import { useFocusTrap } from '@/components/ui/use-focus-trap'
 
 // ── Cron preview helper ───────────────────────────────────────────────────────
 
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTHS_SHORT = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 /** Best-effort human description of a 5-field cron expression. */
 function describeCron(expr: string): string {
@@ -42,22 +58,25 @@ function describeCron(expr: string): string {
       const n = Number(d)
       return isNaN(n) ? d : (DAYS_SHORT[n] ?? d)
     })
-    const monthStr = !isAnyMonth && /^\d+$/.test(month)
-      ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
-      : ''
+    const monthStr =
+      !isAnyMonth && /^\d+$/.test(month)
+        ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
+        : ''
     return `Every ${days.join('/')} at ${timeStr}${monthStr}`
   }
 
   if (!isAnyDom) {
-    const monthStr = !isAnyMonth && /^\d+$/.test(month)
-      ? ` ${MONTHS_SHORT[Number(month) - 1] ?? month}`
-      : ' (monthly)'
+    const monthStr =
+      !isAnyMonth && /^\d+$/.test(month)
+        ? ` ${MONTHS_SHORT[Number(month) - 1] ?? month}`
+        : ' (monthly)'
     return `Day ${dom}${monthStr} at ${timeStr}`
   }
 
-  const monthStr = !isAnyMonth && /^\d+$/.test(month)
-    ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
-    : ''
+  const monthStr =
+    !isAnyMonth && /^\d+$/.test(month)
+      ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
+      : ''
   return `Daily${monthStr} at ${timeStr}`
 }
 
@@ -82,7 +101,8 @@ const STEP_TITLES = ['Plan', 'Route', 'Schedule', 'Confirm'] as const
 
 function agentForNode(nodeId: string): Agent {
   let h = 0
-  for (let i = 0; i < nodeId.length; i++) h = (h * 31 + nodeId.charCodeAt(i)) & 0xffff
+  for (let i = 0; i < nodeId.length; i++)
+    h = (h * 31 + nodeId.charCodeAt(i)) & 0xffff
   return AGENTS[h % 4]
 }
 
@@ -99,7 +119,10 @@ function computeWizardLayout(
 
   const inDeg: Record<string, number> = {}
   const adj: Record<string, Array<string>> = {}
-  for (const n of nodes) { inDeg[n.id] = 0; adj[n.id] = [] }
+  for (const n of nodes) {
+    inDeg[n.id] = 0
+    adj[n.id] = []
+  }
   for (const [a, b] of edges) {
     adj[a] = adj[a] ?? []
     adj[a].push(b)
@@ -158,7 +181,9 @@ function Step1Plan({
   setUserMessage: (m: string) => void
 }) {
   const phases = Array.from(
-    new Set(wf.nodes.map((n) => n.phase).filter((p): p is string => Boolean(p))),
+    new Set(
+      wf.nodes.map((n) => n.phase).filter((p): p is string => Boolean(p)),
+    ),
   )
   const agentHints = Array.from(
     new Set(
@@ -190,7 +215,9 @@ function Step1Plan({
             ))}
             {wf.optional_inputs.map((inp) => (
               <div key={inp} className="wfw-input-item">
-                <span className="wfw-input-badge wfw-input-badge--opt">optional</span>
+                <span className="wfw-input-badge wfw-input-badge--opt">
+                  optional
+                </span>
                 <span className="wfw-input-name">{inp}</span>
               </div>
             ))}
@@ -200,7 +227,12 @@ function Step1Plan({
           <div className="wfw-inputs-label">Run context (optional)</div>
           <textarea
             className="wfw-chat-input"
-            style={{ minHeight: 80, padding: 8, resize: 'vertical', width: '100%' }}
+            style={{
+              minHeight: 80,
+              padding: 8,
+              resize: 'vertical',
+              width: '100%',
+            }}
             placeholder="Issue number, repo, or extra prompt context…"
             value={userMessage}
             onChange={(e) => setUserMessage(e.target.value)}
@@ -220,17 +252,23 @@ function Step1Plan({
             </div>
             {phases.length > 0 && (
               <div className="wfw-input-item">
-                <span className="wfw-input-name">Phases: {phases.join(' → ')}</span>
+                <span className="wfw-input-name">
+                  Phases: {phases.join(' → ')}
+                </span>
               </div>
             )}
             {agentHints.length > 0 && (
               <div className="wfw-input-item">
-                <span className="wfw-input-name">Agents: {agentHints.join(', ')}</span>
+                <span className="wfw-input-name">
+                  Agents: {agentHints.join(', ')}
+                </span>
               </div>
             )}
             {skillSet.length > 0 && (
               <div className="wfw-input-item">
-                <span className="wfw-input-name">Skills: {skillSet.join(', ')}</span>
+                <span className="wfw-input-name">
+                  Skills: {skillSet.join(', ')}
+                </span>
               </div>
             )}
           </div>
@@ -287,7 +325,9 @@ function Step2Route({
   const hasDag = wf.nodes.length > 0
   const posMap = hasDag ? computeWizardLayout(wf.nodes, wf.edges) : {}
 
-  const positions = Object.values(posMap).filter((p): p is { x: number; y: number } => Boolean(p))
+  const positions = Object.values(posMap).filter(
+    (p): p is { x: number; y: number } => Boolean(p),
+  )
   const allX = positions.map((p) => p.x)
   const allY = positions.map((p) => p.y)
   const svgW = hasDag ? Math.max(...allX) + W + PAD : 400
@@ -301,9 +341,14 @@ function Step2Route({
     <div className="wfw-step-2">
       <div className="wfw-dag-wrap">
         {!hasDag ? (
-          <div className="wfw-dag-empty">No DAG defined — nodes will run sequentially.</div>
+          <div className="wfw-dag-empty">
+            No DAG defined — nodes will run sequentially.
+          </div>
         ) : (
-          <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width: '100%', maxWidth: `${svgW}px` }}>
+          <svg
+            viewBox={`0 0 ${svgW} ${svgH}`}
+            style={{ width: '100%', maxWidth: `${svgW}px` }}
+          >
             <defs>
               <marker
                 id="wfw-arrow"
@@ -354,7 +399,11 @@ function Step2Route({
                     width={W}
                     height={H}
                     rx={R}
-                    fill={popupNode === n.id ? 'rgba(0,255,65,.1)' : 'rgba(4,16,8,.9)'}
+                    fill={
+                      popupNode === n.id
+                        ? 'rgba(0,255,65,.1)'
+                        : 'rgba(4,16,8,.9)'
+                    }
                     stroke={c}
                     strokeWidth="1"
                   />
@@ -362,7 +411,11 @@ function Step2Route({
                     x={pos.x + W / 2}
                     y={pos.y + H / 2 - 8}
                     textAnchor="middle"
-                    style={{ font: '600 10px var(--m-font-mono, ui-monospace, monospace)', fill: '#e8ffe8', letterSpacing: '.04em' }}
+                    style={{
+                      font: '600 10px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: '#e8ffe8',
+                      letterSpacing: '.04em',
+                    }}
                   >
                     {n.label}
                   </text>
@@ -370,7 +423,12 @@ function Step2Route({
                     x={pos.x + W / 2}
                     y={pos.y + H / 2 + 4}
                     textAnchor="middle"
-                    style={{ font: '500 8px var(--m-font-mono, ui-monospace, monospace)', fill: c, letterSpacing: '.1em', textTransform: 'uppercase' }}
+                    style={{
+                      font: '500 8px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: c,
+                      letterSpacing: '.1em',
+                      textTransform: 'uppercase',
+                    }}
                   >
                     {n.type}
                   </text>
@@ -378,7 +436,11 @@ function Step2Route({
                     x={pos.x + W / 2}
                     y={pos.y + H / 2 + 16}
                     textAnchor="middle"
-                    style={{ font: '500 8px var(--m-font-mono, ui-monospace, monospace)', fill: '#00c832', letterSpacing: '.04em' }}
+                    style={{
+                      font: '500 8px var(--m-font-mono, ui-monospace, monospace)',
+                      fill: '#00c832',
+                      letterSpacing: '.04em',
+                    }}
                   >
                     {agent}
                   </text>
@@ -391,19 +453,31 @@ function Step2Route({
         {/* Override popup */}
         {popupNode && (
           <div className="wfw-override-popup">
-            <div className="wfw-override-label">Override agent for <strong>{popupNode}</strong></div>
+            <div className="wfw-override-label">
+              Override agent for <strong>{popupNode}</strong>
+            </div>
             <select
               className="wfw-override-select"
               value={agentMap[popupNode] ?? agentForNode(popupNode)}
               onChange={(e) => {
-                setAgentMap((prev) => ({ ...prev, [popupNode]: e.target.value as Agent }))
+                setAgentMap((prev) => ({
+                  ...prev,
+                  [popupNode]: e.target.value as Agent,
+                }))
               }}
             >
               {AGENTS.map((a) => (
-                <option key={a} value={a}>{a}</option>
+                <option key={a} value={a}>
+                  {a}
+                </option>
               ))}
             </select>
-            <button className="wfw-override-close" onClick={() => setPopupNode(null)}>Done</button>
+            <button
+              className="wfw-override-close"
+              onClick={() => setPopupNode(null)}
+            >
+              Done
+            </button>
           </div>
         )}
       </div>
@@ -424,7 +498,9 @@ function Step2Route({
               {wf.optional_inputs.map((inp) => (
                 <tr key={inp}>
                   <td className="wfw-rv-key">{inp}</td>
-                  <td className="wfw-rv-val wfw-rv-val--opt">&lt;optional&gt;</td>
+                  <td className="wfw-rv-val wfw-rv-val--opt">
+                    &lt;optional&gt;
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -455,7 +531,10 @@ function Step3Schedule({
   schedule: ScheduleState
   setSchedule: React.Dispatch<React.SetStateAction<ScheduleState>>
 }) {
-  function update<TKey extends keyof ScheduleState>(k: TKey, v: ScheduleState[TKey]) {
+  function update<TKey extends keyof ScheduleState>(
+    k: TKey,
+    v: ScheduleState[TKey],
+  ) {
     setSchedule((prev) => ({ ...prev, [k]: v }))
   }
 
@@ -464,11 +543,23 @@ function Step3Schedule({
       <div className="wfw-field-group">
         <div className="wfw-field-label">When to run</div>
         <label className="wfw-radio">
-          <input type="radio" name="sched" value="now" checked={schedule.mode === 'now'} onChange={() => update('mode', 'now')} />
+          <input
+            type="radio"
+            name="sched"
+            value="now"
+            checked={schedule.mode === 'now'}
+            onChange={() => update('mode', 'now')}
+          />
           <span>Run now</span>
         </label>
         <label className="wfw-radio">
-          <input type="radio" name="sched" value="at" checked={schedule.mode === 'at'} onChange={() => update('mode', 'at')} />
+          <input
+            type="radio"
+            name="sched"
+            value="at"
+            checked={schedule.mode === 'at'}
+            onChange={() => update('mode', 'at')}
+          />
           <span>Run at</span>
           {schedule.mode === 'at' && (
             <input
@@ -480,7 +571,13 @@ function Step3Schedule({
           )}
         </label>
         <label className="wfw-radio">
-          <input type="radio" name="sched" value="cron" checked={schedule.mode === 'cron'} onChange={() => update('mode', 'cron')} />
+          <input
+            type="radio"
+            name="sched"
+            value="cron"
+            checked={schedule.mode === 'cron'}
+            onChange={() => update('mode', 'cron')}
+          />
           <span>Run on schedule</span>
           {schedule.mode === 'cron' && (
             <div className="wfw-cron-wrap">
@@ -491,14 +588,18 @@ function Step3Schedule({
                 value={schedule.cron}
                 onChange={(e) => update('cron', e.target.value)}
               />
-              <div className="wfw-cron-preview">{describeCron(schedule.cron)}</div>
+              <div className="wfw-cron-preview">
+                {describeCron(schedule.cron)}
+              </div>
             </div>
           )}
         </label>
       </div>
 
       <div className="wfw-field-group">
-        <label className="wfw-field-label" htmlFor="wfw-priority">Priority</label>
+        <label className="wfw-field-label" htmlFor="wfw-priority">
+          Priority
+        </label>
         <select
           id="wfw-priority"
           className="wfw-select"
@@ -513,7 +614,9 @@ function Step3Schedule({
       </div>
 
       <div className="wfw-field-group">
-        <label className="wfw-field-label" htmlFor="wfw-maxruntime">Max runtime (seconds)</label>
+        <label className="wfw-field-label" htmlFor="wfw-maxruntime">
+          Max runtime (seconds)
+        </label>
         <input
           id="wfw-maxruntime"
           type="number"
@@ -557,14 +660,29 @@ function Step4Confirm({
       <div className="wfw-confirm-grid">
         <div className="wfw-confirm-card">
           <div className="wfw-cc-title">Workflow</div>
-          <div className="wfw-cc-row"><span>ID</span><span>{wf.id}</span></div>
-          <div className="wfw-cc-row"><span>Name</span><span>{wf.name}</span></div>
+          <div className="wfw-cc-row">
+            <span>ID</span>
+            <span>{wf.id}</span>
+          </div>
+          <div className="wfw-cc-row">
+            <span>Name</span>
+            <span>{wf.name}</span>
+          </div>
         </div>
         <div className="wfw-confirm-card">
           <div className="wfw-cc-title">Execution</div>
-          <div className="wfw-cc-row"><span>Schedule</span><span>{scheduleLabel}</span></div>
-          <div className="wfw-cc-row"><span>Priority</span><span>{schedule.priority}</span></div>
-          <div className="wfw-cc-row"><span>Max runtime</span><span>{schedule.maxRuntime}s</span></div>
+          <div className="wfw-cc-row">
+            <span>Schedule</span>
+            <span>{scheduleLabel}</span>
+          </div>
+          <div className="wfw-cc-row">
+            <span>Priority</span>
+            <span>{schedule.priority}</span>
+          </div>
+          <div className="wfw-cc-row">
+            <span>Max runtime</span>
+            <span>{schedule.maxRuntime}s</span>
+          </div>
         </div>
         {wf.nodes.length > 0 && (
           <div className="wfw-confirm-card">
@@ -572,7 +690,9 @@ function Step4Confirm({
             {wf.nodes.map((n) => (
               <div key={n.id} className="wfw-cc-row">
                 <span>{n.label}</span>
-                <span className="wfw-agent-tag">{agentMap[n.id] ?? agentForNode(n.id)}</span>
+                <span className="wfw-agent-tag">
+                  {agentMap[n.id] ?? agentForNode(n.id)}
+                </span>
               </div>
             ))}
           </div>
@@ -583,7 +703,9 @@ function Step4Confirm({
             {wf.required_inputs.map((inp) => (
               <div key={inp} className="wfw-cc-row">
                 <span>{inp}</span>
-                <span className="wfw-rv-val">{variables[inp].trim() || '—'}</span>
+                <span className="wfw-rv-val">
+                  {variables[inp].trim() || '—'}
+                </span>
               </div>
             ))}
             {wf.optional_inputs.map((inp) => (
@@ -598,7 +720,11 @@ function Step4Confirm({
         )}
       </div>
 
-      <button className="wfw-submit-btn" onClick={onSubmit} disabled={isSubmitting}>
+      <button
+        className="wfw-submit-btn"
+        onClick={onSubmit}
+        disabled={isSubmitting}
+      >
         {isSubmitting ? 'Launching…' : 'Submit as Workflow Run'}
       </button>
     </div>
@@ -618,12 +744,15 @@ function VariablesForm({
   setVariables: React.Dispatch<React.SetStateAction<Record<string, string>>>
   onValidChange: (valid: boolean) => void
 }) {
-  const hasInputs = wf.required_inputs.length > 0 || wf.optional_inputs.length > 0
+  const hasInputs =
+    wf.required_inputs.length > 0 || wf.optional_inputs.length > 0
 
   function handleChange(name: string, value: string) {
     setVariables((prev) => {
       const next = { ...prev, [name]: value }
-      const allRequiredFilled = wf.required_inputs.every((inp) => next[inp].trim())
+      const allRequiredFilled = wf.required_inputs.every((inp) =>
+        next[inp].trim(),
+      )
       onValidChange(allRequiredFilled)
       return next
     })
@@ -631,23 +760,38 @@ function VariablesForm({
 
   // Validate on mount / when wf changes
   useEffect(() => {
-    const allRequiredFilled = wf.required_inputs.every((inp) => variables[inp].trim())
+    const allRequiredFilled = wf.required_inputs.every((inp) =>
+      variables[inp].trim(),
+    )
     onValidChange(allRequiredFilled)
   }, [wf.required_inputs])
 
   if (!hasInputs) {
     return (
       <div className="wfw-resolved-vars" style={{ marginTop: 16 }}>
-        <div className="wfw-rv-empty">No variables required for this workflow.</div>
+        <div className="wfw-rv-empty">
+          No variables required for this workflow.
+        </div>
       </div>
     )
   }
 
   return (
     <div className="wfw-resolved-vars" style={{ marginTop: 16 }}>
-      <div className="wfw-rv-label" style={{ marginBottom: 8 }}>Provide variables</div>
+      <div className="wfw-rv-label" style={{ marginBottom: 8 }}>
+        Provide variables
+      </div>
       {wf.required_inputs.map((inp) => (
-        <div key={inp} className="wfw-input-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4, marginBottom: 10 }}>
+        <div
+          key={inp}
+          className="wfw-input-item"
+          style={{
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 4,
+            marginBottom: 10,
+          }}
+        >
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span className="wfw-input-badge">required</span>
             <span className="wfw-input-name">{inp}</span>
@@ -662,9 +806,20 @@ function VariablesForm({
         </div>
       ))}
       {wf.optional_inputs.map((inp) => (
-        <div key={inp} className="wfw-input-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 4, marginBottom: 10 }}>
+        <div
+          key={inp}
+          className="wfw-input-item"
+          style={{
+            flexDirection: 'column',
+            alignItems: 'flex-start',
+            gap: 4,
+            marginBottom: 10,
+          }}
+        >
           <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="wfw-input-badge wfw-input-badge--opt">optional</span>
+            <span className="wfw-input-badge wfw-input-badge--opt">
+              optional
+            </span>
             <span className="wfw-input-name">{inp}</span>
           </label>
           <input
@@ -688,7 +843,11 @@ interface LaunchWizardProps {
   onRunLaunched?: (runId: string) => void
 }
 
-export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizardProps) {
+export function LaunchWizard({
+  workflowId,
+  onClose,
+  onRunLaunched,
+}: LaunchWizardProps) {
   const [step, setStep] = useState(1)
   const [canAdvance, setCanAdvance] = useState(true)
   const [agentMap, setAgentMap] = useState<Record<string, Agent>>({})
@@ -702,6 +861,10 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     maxRuntime: 3600,
   })
 
+  // Portal target (document.body) only exists after mount — keeps SSR safe.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const { data, isLoading } = useWorkflowParsed(workflowId)
   const launchMutation = useLaunchWorkflowRun()
 
@@ -712,20 +875,23 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
     setAgentMap({})
     setUserMessage('')
     setVariables({})
-    setSchedule({ mode: 'now', datetime: '', cron: '', priority: 'normal', maxRuntime: 3600 })
+    setSchedule({
+      mode: 'now',
+      datetime: '',
+      cron: '',
+      priority: 'normal',
+      maxRuntime: 3600,
+    })
   }, [workflowId])
 
-  // Keyboard dismiss
-  useEffect(() => {
-    if (!workflowId) return
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [workflowId, onClose])
+  // Focus trap + Escape dismiss. Loading and loaded modals are different
+  // elements, so each gets its own trap.
+  const modalRef = useRef<HTMLDivElement>(null)
+  const loadingRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(Boolean(workflowId) && mounted && !isLoading, modalRef, onClose)
+  useFocusTrap(Boolean(workflowId) && mounted && isLoading, loadingRef, onClose)
 
-  if (!workflowId) return null
+  if (!workflowId || !mounted) return null
 
   // Build wizard data from parsed response
   let wf: WizardData | null = null
@@ -748,14 +914,32 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
   }
 
   if (isLoading) {
-    return (
-      <div className="wfw-backdrop" onClick={onClose}>
-        <div className="wfw-modal" onClick={(e) => e.stopPropagation()}>
-          <div className="wfw-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200 }}>
-            <span style={{ opacity: 0.5 }}>Loading workflow…</span>
+    return createPortal(
+      <div data-wf-ui>
+        <div className="wfw-backdrop" onClick={onClose}>
+          <div
+            ref={loadingRef}
+            className="wfw-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Launch workflow"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className="wfw-body"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minHeight: 200,
+              }}
+            >
+              <span style={{ opacity: 0.5 }}>Loading workflow…</span>
+            </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body,
     )
   }
 
@@ -796,20 +980,32 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
       schedule.mode === 'now'
         ? { type: 'now' as const }
         : schedule.mode === 'at'
-          ? { type: 'at' as const, at: new Date(schedule.datetime).toISOString() }
+          ? {
+              type: 'at' as const,
+              at: new Date(schedule.datetime).toISOString(),
+            }
           : { type: 'cron' as const, cron: schedule.cron }
 
-    const priorityMap: Record<Priority, number> = { low: 0, normal: 50, high: 80, urgent: 100 }
+    const priorityMap: Record<Priority, number> = {
+      low: 0,
+      normal: 50,
+      high: 80,
+      urgent: 100,
+    }
 
     launchMutation.mutate(
       {
         workflow_id: wf.id,
         conversation_id: conversationId,
         user_message: summary,
-        variables: Object.keys(resolvedVariables).length > 0 ? resolvedVariables : undefined,
+        variables:
+          Object.keys(resolvedVariables).length > 0
+            ? resolvedVariables
+            : undefined,
         schedule: schedulePayload,
         priority: priorityMap[schedule.priority],
-        maxRuntimeSeconds: schedule.maxRuntime > 0 ? schedule.maxRuntime : undefined,
+        maxRuntimeSeconds:
+          schedule.maxRuntime > 0 ? schedule.maxRuntime : undefined,
       },
       {
         onSuccess: (result) => {
@@ -827,7 +1023,7 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
         onError: (err) => {
           window.dispatchEvent(
             new CustomEvent('wf-toast', {
-              detail: { msg: `Launch failed: ${(err).message}` },
+              detail: { msg: `Launch failed: ${err.message}` },
             }),
           )
         },
@@ -837,88 +1033,110 @@ export function LaunchWizard({ workflowId, onClose, onRunLaunched }: LaunchWizar
 
   const isLast = step === 4
 
-  return (
-    <div className="wfw-backdrop" onClick={onClose}>
-      <div className="wfw-modal" onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div className="wfw-header">
-          <div className="wfw-progress">
-            {STEP_TITLES.map((title, i) => {
-              const num = i + 1
-              const isActive = num === step
-              const isDone = num < step
-              return (
-                <div key={title} className="wfw-progress-item">
-                  <span
-                    className={`wfw-progress-dot ${isActive ? 'is-active' : ''} ${isDone ? 'is-done' : ''}`}
-                  >
-                    {num}
-                  </span>
-                  <span className="wfw-progress-title">{title}</span>
-                </div>
-              )
-            })}
-          </div>
-          <button className="wfw-close-btn" onClick={onClose} aria-label="Close wizard">✕</button>
-        </div>
-
-        {/* Body */}
-        <div className="wfw-body">
-          {step === 1 && (
-            <Step1Plan
-              wf={wf}
-              userMessage={userMessage}
-              setUserMessage={setUserMessage}
-            />
-          )}
-          {step === 2 && (
-            <>
-              <Step2Route wf={wf} agentMap={agentMap} setAgentMap={setAgentMap} />
-              <VariablesForm
-                wf={wf}
-                variables={variables}
-                setVariables={setVariables}
-                onValidChange={setCanAdvance}
-              />
-            </>
-          )}
-          {step === 3 && (
-            <Step3Schedule schedule={schedule} setSchedule={setSchedule} />
-          )}
-          {step === 4 && (
-            <Step4Confirm
-              wf={wf}
-              agentMap={agentMap}
-              schedule={schedule}
-              variables={variables}
-              onSubmit={submit}
-              isSubmitting={launchMutation.isPending}
-            />
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="wfw-footer">
-          <button
-            className="wfw-btn wfw-btn--secondary"
-            onClick={back}
-            disabled={step === 1}
-          >
-            Back
-          </button>
-          <div className="wfw-footer-spacer" />
-          <button className="wfw-btn wfw-btn--ghost" onClick={onClose}>Cancel</button>
-          {!isLast && (
+  return createPortal(
+    <div data-wf-ui>
+      <div className="wfw-backdrop" onClick={onClose}>
+        <div
+          ref={modalRef}
+          className="wfw-modal"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Launch ${wf.name}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="wfw-header">
+            <div className="wfw-progress">
+              {STEP_TITLES.map((title, i) => {
+                const num = i + 1
+                const isActive = num === step
+                const isDone = num < step
+                return (
+                  <div key={title} className="wfw-progress-item">
+                    <span
+                      className={`wfw-progress-dot ${isActive ? 'is-active' : ''} ${isDone ? 'is-done' : ''}`}
+                    >
+                      {num}
+                    </span>
+                    <span className="wfw-progress-title">{title}</span>
+                  </div>
+                )
+              })}
+            </div>
             <button
-              className="wfw-btn wfw-btn--primary"
-              onClick={next}
-              disabled={(step === 1 || step === 2) && !canAdvance}
+              className="wfw-close-btn"
+              onClick={onClose}
+              aria-label="Close wizard"
             >
-              {step === 3 ? 'Next — Review' : 'Next'}
+              ✕
             </button>
-          )}
+          </div>
+
+          {/* Body */}
+          <div className="wfw-body">
+            {step === 1 && (
+              <Step1Plan
+                wf={wf}
+                userMessage={userMessage}
+                setUserMessage={setUserMessage}
+              />
+            )}
+            {step === 2 && (
+              <>
+                <Step2Route
+                  wf={wf}
+                  agentMap={agentMap}
+                  setAgentMap={setAgentMap}
+                />
+                <VariablesForm
+                  wf={wf}
+                  variables={variables}
+                  setVariables={setVariables}
+                  onValidChange={setCanAdvance}
+                />
+              </>
+            )}
+            {step === 3 && (
+              <Step3Schedule schedule={schedule} setSchedule={setSchedule} />
+            )}
+            {step === 4 && (
+              <Step4Confirm
+                wf={wf}
+                agentMap={agentMap}
+                schedule={schedule}
+                variables={variables}
+                onSubmit={submit}
+                isSubmitting={launchMutation.isPending}
+              />
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="wfw-footer">
+            <button
+              className="wfw-btn wfw-btn--secondary"
+              onClick={back}
+              disabled={step === 1}
+            >
+              Back
+            </button>
+            <div className="wfw-footer-spacer" />
+            <button className="wfw-btn wfw-btn--ghost" onClick={onClose}>
+              Cancel
+            </button>
+            {!isLast && (
+              <button
+                className="wfw-btn wfw-btn--primary"
+                onClick={next}
+                disabled={(step === 1 || step === 2) && !canAdvance}
+              >
+                {step === 3 ? 'Next — Review' : 'Next'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }

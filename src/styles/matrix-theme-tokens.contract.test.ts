@@ -211,3 +211,21 @@ describe('memory map redesign tokens (per theme)', () => {
     }
   })
 })
+
+/**
+ * workflow-ui.css is shared by /workflows and /conductor, so it must be scoped
+ * by [data-wf-ui] and never depend on a [data-screen] ancestor (where the
+ * --wf-* layout vars live) — its --m-* uses already chain to --theme-* above.
+ */
+describe('workflow-ui.css shared scope', () => {
+  const css = stripComments(
+    readFileSync(resolve(ROOT, 'src/styles/workflow-ui.css'), 'utf8'),
+  )
+  it('is wrapped in [data-wf-ui] and has no [data-screen] selector', () => {
+    expect(css.trimStart().startsWith('[data-wf-ui]')).toBe(true)
+    expect(css).not.toContain('[data-screen')
+  })
+  it('does not use screen-scoped --wf-* layout vars', () => {
+    expect(css).not.toMatch(/var\(--wf-(lib|act)-w/)
+  })
+})

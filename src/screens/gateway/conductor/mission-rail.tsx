@@ -17,6 +17,7 @@ export function MissionRail({ onNewMission }: MissionRailProps) {
 
   const counts = {
     live: missions.filter((m) => m.status === 'live').length,
+    waiting: missions.filter((m) => m.status === 'waiting').length,
     done: missions.filter((m) => m.status === 'done').length,
     err: missions.filter((m) => m.status === 'err').length,
   }

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../../server/auth-middleware'
-import { getConductorState } from '../../../server/conductor-store'
+import { getConductorSnapshot } from '../../../server/conductor-store'
 
 export const Route = createFileRoute('/api/conductor/state')({
   server: {
@@ -10,8 +10,9 @@ export const Route = createFileRoute('/api/conductor/state')({
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         try {
-          const state = await getConductorState(request)
-          return Response.json(state)
+          // 1s memo: the top bar polls alongside the missions query.
+          const { stats } = await getConductorSnapshot(1000)
+          return Response.json(stats)
         } catch (error) {
           return Response.json(
             {

@@ -1,86 +1,36 @@
-import { useConductorMission } from './use-conductor-queries'
+import { useEffect, useRef } from 'react'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
-
-function formatDate(ts: number | undefined): string {
-  if (!ts) return '—'
-  try {
-    return new Date(ts).toLocaleString()
-  } catch {
-    return String(ts)
-  }
-}
-
-const CloseIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-    <path d="M18 6 6 18M6 6l12 12" />
-  </svg>
-)
+import { RunDetailPanel } from '@/screens/workflows/run-detail-panel'
 
 export function MissionDetailDrawer() {
-  const focusedMissionId = useConductorUIStore((s) => s.focusedMissionId)
-  const setFocusedMissionId = useConductorUIStore((s) => s.setFocusedMissionId)
-  const { data: mission, isLoading } = useConductorMission(focusedMissionId)
+  const drawerRunId = useConductorUIStore((s) => s.drawerRunId)
+  const setDrawerRunId = useConductorUIStore((s) => s.setDrawerRunId)
 
-  if (!focusedMissionId) return null
+  const panelRef = useRef<HTMLElement>(null)
+  const close = () => setDrawerRunId(null)
+
+  useEffect(() => {
+    if (!drawerRunId) return
+    panelRef.current?.focus()
+    const onKey = (e: KeyboardEvent) =>
+      e.key === 'Escape' && setDrawerRunId(null)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [drawerRunId, setDrawerRunId])
+
+  if (!drawerRunId) return null
 
   return (
-    <div className="mdd-backdrop" onClick={() => setFocusedMissionId(null)}>
-      <aside className="mdd" onClick={(e) => e.stopPropagation()}>
-        <div className="mdd-head">
-          <span className="mdd-title">Mission Detail</span>
-          <button
-            className="ico-btn mdd-close"
-            onClick={() => setFocusedMissionId(null)}
-            aria-label="Close drawer"
-          >
-            <CloseIcon />
-          </button>
-        </div>
-
-        {isLoading || !mission ? (
-          <div className="mdd-loading">loading…</div>
-        ) : (
-          <div className="mdd-body">
-            <div className="mdd-row">
-              <span className="mdd-lbl">ID</span>
-              <span className="mdd-val mdd-id">{mission.id}</span>
-            </div>
-            <div className="mdd-row">
-              <span className="mdd-lbl">Title</span>
-              <span className="mdd-val">{mission.title}</span>
-            </div>
-            {mission.subtitle && (
-              <div className="mdd-row">
-                <span className="mdd-lbl">Subtitle</span>
-                <span className="mdd-val mdd-sub">{mission.subtitle}</span>
-              </div>
-            )}
-            <div className="mdd-row">
-              <span className="mdd-lbl">Status</span>
-              <span className={`mdd-badge ${mission.status}`}>{mission.status}</span>
-            </div>
-            <div className="mdd-row">
-              <span className="mdd-lbl">Elapsed</span>
-              <span className="mdd-val">{mission.elapsed}</span>
-            </div>
-            <div className="mdd-row">
-              <span className="mdd-lbl">Tokens</span>
-              <span className="mdd-val">{mission.tokens}</span>
-            </div>
-            <div className="mdd-row">
-              <span className="mdd-lbl">Created</span>
-              <span className="mdd-val">{formatDate(mission.createdAt)}</span>
-            </div>
-
-            <div className="mdd-transcript-head">Transcript</div>
-            <div className="mdd-transcript">
-              <div className="mdd-t-line">{'// transcript not yet wired — coming soon'}</div>
-              <div className="mdd-t-line">{'// real transcript data is a future feature'}</div>
-              <div className="mdd-t-line">{'// beyond M7 scope'}</div>
-              <div className="mdd-t-line mdd-t-cursor">{'_'}</div>
-            </div>
-          </div>
-        )}
+    <div className="mdd-backdrop">
+      <aside
+        ref={panelRef}
+        className="mdd"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Mission detail"
+        tabIndex={-1}
+      >
+        <RunDetailPanel runId={drawerRunId} onClose={close} />
       </aside>
     </div>
   )

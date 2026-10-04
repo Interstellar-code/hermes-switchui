@@ -1,29 +1,21 @@
 /**
- * use-conductor-queries.ts — TanStack Query hooks for Conductor API (M6).
+ * use-conductor-queries.ts — TanStack Query hooks for Conductor API.
  */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Mission } from '../../../server/conductor-store'
+import type {
+  ConductorSnapshot,
+  Mission,
+} from '../../../server/conductor-store'
 
 // ---------------------------------------------------------------------------
 // Fetchers
 // ---------------------------------------------------------------------------
 
-async function fetchConductorState() {
-  const res = await fetch('/api/conductor/state')
-  if (!res.ok) throw new Error(`conductor/state: ${res.status}`)
-  return res.json() as Promise<{
-    liveMissions: number
-    elapsed: string
-    workersActive: number
-    tokensUsed: string
-  }>
-}
-
-async function fetchMissions(): Promise<Array<Mission>> {
+async function fetchSnapshot(): Promise<ConductorSnapshot> {
   const res = await fetch('/api/conductor/missions')
   if (!res.ok) throw new Error(`conductor/missions: ${res.status}`)
-  return res.json() as Promise<Array<Mission>>
+  return res.json() as Promise<ConductorSnapshot>
 }
 
 async function fetchMission(id: string): Promise<Mission> {
@@ -32,50 +24,53 @@ async function fetchMission(id: string): Promise<Mission> {
   return res.json() as Promise<Mission>
 }
 
-async function postAbortMission(id: string): Promise<{ ok: boolean; mission: Mission }> {
+async function postAbortMission(id: string): Promise<{ ok: boolean }> {
   const res = await fetch(`/api/conductor/missions/${id}/abort`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({}),
   })
   if (!res.ok) throw new Error(`abort ${id}: ${res.status}`)
-  return res.json() as Promise<{ ok: boolean; mission: Mission }>
-}
-
-async function postCreateMission(input: {
-  title: string
-  subtitle?: string
-}): Promise<Mission> {
-  const res = await fetch('/api/conductor/missions', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(input),
-  })
-  if (!res.ok) throw new Error(`create mission: ${res.status}`)
-  return res.json() as Promise<Mission>
+  return res.json() as Promise<{ ok: boolean }>
 }
 
 // ---------------------------------------------------------------------------
 // Hooks
 // ---------------------------------------------------------------------------
 
-export function useConductorState() {
+/** 2s while any run is live/waiting/queued, 10s when idle. */
+function adaptiveInterval(missions: Array<Mission> | undefined): number {
+  return missions?.some(
+    (m) =>
+      m.status === 'live' || m.status === 'waiting' || m.status === 'queued',
+  )
+    ? 2000
+    : 10_000
+}
+
+export function useConductorSnapshot() {
   return useQuery({
-    queryKey: ['conductor', 'state'],
-    queryFn: fetchConductorState,
-    refetchInterval: (query) => {
-      const data = query.state.data
-      if (data && data.liveMissions > 0) return 2000
-      return 5000
-    },
+    queryKey: ['conductor', 'missions'],
+    queryFn: fetchSnapshot,
+    refetchInterval: (query) => adaptiveInterval(query.state.data?.missions),
   })
 }
 
 export function useConductorMissions() {
   return useQuery({
     queryKey: ['conductor', 'missions'],
-    queryFn: fetchMissions,
-    refetchInterval: 2000,
+    queryFn: fetchSnapshot,
+    refetchInterval: (query) => adaptiveInterval(query.state.data?.missions),
+    select: (snapshot) => snapshot.missions,
+  })
+}
+
+export function useConductorState() {
+  return useQuery({
+    queryKey: ['conductor', 'missions'],
+    queryFn: fetchSnapshot,
+    refetchInterval: (query) => adaptiveInterval(query.state.data?.missions),
+    select: (snapshot) => snapshot.stats,
   })
 }
 
@@ -92,20 +87,8 @@ export function useAbortMission() {
   return useMutation({
     mutationFn: (id: string) => postAbortMission(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['conductor', 'missions'] })
-      void queryClient.invalidateQueries({ queryKey: ['conductor', 'state'] })
-    },
-  })
-}
-
-export function useCreateMission() {
-  const queryClient = useQueryClient()
-  return useMutation({
-    mutationFn: (input: { title: string; subtitle?: string }) =>
-      postCreateMission(input),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['conductor', 'missions'] })
-      void queryClient.invalidateQueries({ queryKey: ['conductor', 'state'] })
+      void queryClient.invalidateQueries({ queryKey: ['conductor'] })
+      void queryClient.invalidateQueries({ queryKey: ['workflow-runs'] })
     },
   })
 }

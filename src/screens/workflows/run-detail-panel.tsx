@@ -3,6 +3,7 @@
  * for a single workflow run. Opened by the LaunchWizard after a successful launch.
  */
 import { useMemo, useState } from 'react'
+import '@/styles/workflow-ui.css'
 import { useApproveRun, useCancelRun, useWorkflowRun } from './use-workflows'
 import { useWorkflowEvents } from './use-workflow-events'
 import type { NodeRunRow, WorkflowArtifactRef } from './api-client'
@@ -139,7 +140,15 @@ interface Props {
   onClose: () => void
 }
 
-export function RunDetailPanel({ runId, onClose }: Props) {
+export function RunDetailPanel(props: Props) {
+  return (
+    <div data-wf-ui style={{ display: 'contents' }}>
+      <RunDetailPanelInner {...props} />
+    </div>
+  )
+}
+
+function RunDetailPanelInner({ runId, onClose }: Props) {
   const { data, isLoading, isError, refetch } = useWorkflowRun(runId)
   const cancelMutation = useCancelRun(runId)
   const approveMutation = useApproveRun(runId)

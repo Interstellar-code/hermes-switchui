@@ -1,63 +1,41 @@
 /**
- * conductor-ui-store.ts — M5 UI state for the Conductor screen.
+ * conductor-ui-store.ts — UI state for the Conductor screen (session-only).
  *
- * Session-only except goalDraft which persists to localStorage.
- * localStorage key: `conductor:goal-draft`
+ * selectedRunId = what the canvas shows; drawerRunId = what the inspector shows.
  */
 
 import { create } from 'zustand'
 
 export type CanvasView = 'flow' | 'org'
 export type LaneScale = '1M' | '5M' | '15M' | '1H'
-export type FilterTab = 'all' | 'live' | 'done' | 'err'
+export type FilterTab = 'all' | 'live' | 'waiting' | 'done' | 'err'
 
 type ConductorUIState = {
   canvasView: CanvasView
   laneScale: LaneScale
   filterTab: FilterTab
-  focusedMissionId: string | null
-  goalDraft: string
+  selectedRunId: string | null
+  drawerRunId: string | null
 }
 
 type ConductorUIActions = {
   setCanvasView: (view: CanvasView) => void
   setLaneScale: (scale: LaneScale) => void
   setFilterTab: (tab: FilterTab) => void
-  setFocusedMissionId: (id: string | null) => void
-  setGoalDraft: (draft: string) => void
-}
-
-const GOAL_DRAFT_KEY = 'conductor:goal-draft'
-
-function loadGoalDraft(): string {
-  try {
-    return localStorage.getItem(GOAL_DRAFT_KEY) ?? ''
-  } catch {
-    return ''
-  }
-}
-
-function saveGoalDraft(draft: string): void {
-  try {
-    localStorage.setItem(GOAL_DRAFT_KEY, draft)
-  } catch {
-    // ignore
-  }
+  setSelectedRunId: (id: string | null) => void
+  setDrawerRunId: (id: string | null) => void
 }
 
 export const useConductorUIStore = create<ConductorUIState & ConductorUIActions>()((set) => ({
   canvasView: 'flow',
   laneScale: '5M',
   filterTab: 'all',
-  focusedMissionId: null,
-  goalDraft: loadGoalDraft(),
+  selectedRunId: null,
+  drawerRunId: null,
 
   setCanvasView: (canvasView) => set({ canvasView }),
   setLaneScale: (laneScale) => set({ laneScale }),
   setFilterTab: (filterTab) => set({ filterTab }),
-  setFocusedMissionId: (focusedMissionId) => set({ focusedMissionId }),
-  setGoalDraft: (goalDraft) => {
-    saveGoalDraft(goalDraft)
-    set({ goalDraft })
-  },
+  setSelectedRunId: (selectedRunId) => set({ selectedRunId }),
+  setDrawerRunId: (drawerRunId) => set({ drawerRunId }),
 }))

@@ -7,7 +7,7 @@
  * both in the browser (via /api/dashboard-proxy) and server-side (direct
  * dashboardFetch).
  */
-import { dashboardFetch } from '../../gateway-capabilities.js';
+import { dashboardFetch } from '../../gateway-capabilities.js'
 import type {
   ApprovalClaimResult,
   NodeRun,
@@ -17,61 +17,61 @@ import type {
   WorkflowDefinitionRow,
   WorkflowEngineInterface,
   WorkflowRun,
-} from '../interface.js';
+} from '../interface.js'
 
-const PLUGIN_BASE = '/api/plugins/workflow-engine';
+const PLUGIN_BASE = '/api/plugins/workflow-engine'
 
 /** Maximum time to wait for any single plugin API request before aborting. */
-const PLUGIN_REQUEST_TIMEOUT_MS = 15_000;
+const PLUGIN_REQUEST_TIMEOUT_MS = 15_000
 
 // ---------------------------------------------------------------------------
 // Typed errors
 // ---------------------------------------------------------------------------
 
 export class WorkflowConflictError extends Error {
-  status = 409;
-  code = 'conflict' as const;
+  status = 409
+  code = 'conflict' as const
   constructor(message: string) {
-    super(message);
-    this.name = 'WorkflowConflictError';
+    super(message)
+    this.name = 'WorkflowConflictError'
   }
 }
 
 export class WorkflowValidationError extends Error {
-  status = 422;
-  code = 'validation' as const;
+  status = 422
+  code = 'validation' as const
   constructor(message: string) {
-    super(message);
-    this.name = 'WorkflowValidationError';
+    super(message)
+    this.name = 'WorkflowValidationError'
   }
 }
 
 export class WorkflowNotFoundError extends Error {
-  status = 404;
-  code = 'not_found' as const;
+  status = 404
+  code = 'not_found' as const
   constructor(message: string) {
-    super(message);
-    this.name = 'WorkflowNotFoundError';
+    super(message)
+    this.name = 'WorkflowNotFoundError'
   }
 }
 
 export class WorkflowForbiddenError extends Error {
-  status = 403;
-  code = 'forbidden' as const;
+  status = 403
+  code = 'forbidden' as const
   constructor(message: string) {
-    super(message);
-    this.name = 'WorkflowForbiddenError';
+    super(message)
+    this.name = 'WorkflowForbiddenError'
   }
 }
 
 // Shape returned by GET /node-runs/active (hermes-agent#16)
 export interface ActiveNodeRunSummary {
-  runId: string;
-  nodeId: string;
-  workflowId: string;
-  status: 'running' | 'waiting';
-  startedAt: string; // ISO8601
-  workerId: string | null;
+  runId: string
+  nodeId: string
+  workflowId: string
+  status: 'running' | 'waiting'
+  startedAt: string // ISO8601
+  workerId: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -79,25 +79,24 @@ export interface ActiveNodeRunSummary {
 // ---------------------------------------------------------------------------
 
 function _proxyFetch(path: string, init?: RequestInit): Promise<Response> {
-  const timeoutSignal = AbortSignal.timeout(PLUGIN_REQUEST_TIMEOUT_MS);
-  const signal =
-    init?.signal
-      ? AbortSignal.any([init.signal, timeoutSignal])
-      : timeoutSignal;
+  const timeoutSignal = AbortSignal.timeout(PLUGIN_REQUEST_TIMEOUT_MS)
+  const signal = init?.signal
+    ? AbortSignal.any([init.signal, timeoutSignal])
+    : timeoutSignal
   if (typeof window !== 'undefined') {
-    const proxyPath = `/api/dashboard-proxy${path.startsWith('/') ? path : `/${path}`}`;
-    return fetch(proxyPath, { ...init, signal });
+    const proxyPath = `/api/dashboard-proxy${path.startsWith('/') ? path : `/${path}`}`
+    return fetch(proxyPath, { ...init, signal })
   }
-  return dashboardFetch(path, { ...init, signal });
+  return dashboardFetch(path, { ...init, signal })
 }
 
 async function _get<T>(path: string): Promise<T> {
-  const res = await _proxyFetch(`${PLUGIN_BASE}${path}`);
+  const res = await _proxyFetch(`${PLUGIN_BASE}${path}`)
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`PluginClient GET ${path}: ${res.status} ${body}`);
+    const body = await res.text().catch(() => '')
+    throw new Error(`PluginClient GET ${path}: ${res.status} ${body}`)
   }
-  return res.json() as Promise<T>;
+  return res.json() as Promise<T>
 }
 
 async function _send<T>(
@@ -109,19 +108,19 @@ async function _send<T>(
     method,
     headers: body != null ? { 'Content-Type': 'application/json' } : undefined,
     body: body != null ? JSON.stringify(body) : undefined,
-  });
+  })
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`PluginClient ${method} ${path}: ${res.status} ${text}`);
+    const text = await res.text().catch(() => '')
+    throw new Error(`PluginClient ${method} ${path}: ${res.status} ${text}`)
   }
-  return res.json() as Promise<T>;
+  return res.json() as Promise<T>
 }
 
 async function _delete(path: string): Promise<void> {
-  const res = await _proxyFetch(`${PLUGIN_BASE}${path}`, { method: 'DELETE' });
+  const res = await _proxyFetch(`${PLUGIN_BASE}${path}`, { method: 'DELETE' })
   if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`PluginClient DELETE ${path}: ${res.status} ${text}`);
+    const text = await res.text().catch(() => '')
+    throw new Error(`PluginClient DELETE ${path}: ${res.status} ${text}`)
   }
 }
 
@@ -132,19 +131,27 @@ async function _delete(path: string): Promise<void> {
 export class PluginClient implements WorkflowEngineInterface {
   // ── Definitions ──────────────────────────────────────────────────────────
 
-  async listDefinitions(filter?: { source?: string }): Promise<Array<WorkflowDefinitionRow>> {
-    const qs = filter?.source ? `?source=${encodeURIComponent(filter.source)}` : '';
-    const data = await _get<{ definitions: Array<WorkflowDefinitionRow> }>(`/definitions${qs}`);
-    return data.definitions;
+  async listDefinitions(filter?: {
+    source?: string
+  }): Promise<Array<WorkflowDefinitionRow>> {
+    const qs = filter?.source
+      ? `?source=${encodeURIComponent(filter.source)}`
+      : ''
+    const data = await _get<{ definitions: Array<WorkflowDefinitionRow> }>(
+      `/definitions${qs}`,
+    )
+    return data.definitions
   }
 
   async getDefinition(id: string): Promise<WorkflowDefinitionRow | null> {
     try {
-      const data = await _get<{ definition: WorkflowDefinitionRow }>(`/definitions/${encodeURIComponent(id)}`);
-      return data.definition;
+      const data = await _get<{ definition: WorkflowDefinitionRow }>(
+        `/definitions/${encodeURIComponent(id)}`,
+      )
+      return data.definition
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return null;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return null
+      throw e
     }
   }
 
@@ -161,72 +168,87 @@ export class PluginClient implements WorkflowEngineInterface {
         source_path: sourcePath,
         ...(opts?.id != null ? { id: opts.id } : {}),
         ...(opts?.name != null ? { name: opts.name } : {}),
-        ...(opts?.expected_checksum != null ? { expected_checksum: opts.expected_checksum } : {}),
+        ...(opts?.expected_checksum != null
+          ? { expected_checksum: opts.expected_checksum }
+          : {}),
       }),
-    });
+    })
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      if (res.status === 409) throw new WorkflowConflictError(text || 'Conflict: checksum mismatch');
-      if (res.status === 422) throw new WorkflowValidationError(text || 'Validation failed');
-      throw new Error(`PluginClient POST /definitions: ${res.status} ${text}`);
+      const text = await res.text().catch(() => '')
+      if (res.status === 409)
+        throw new WorkflowConflictError(text || 'Conflict: checksum mismatch')
+      if (res.status === 422)
+        throw new WorkflowValidationError(text || 'Validation failed')
+      throw new Error(`PluginClient POST /definitions: ${res.status} ${text}`)
     }
-    const data = (await res.json()) as { definition: WorkflowDefinitionRow };
-    return data.definition;
+    const data = (await res.json()) as { definition: WorkflowDefinitionRow }
+    return data.definition
   }
 
   async resetFactoryDefinition(id: string): Promise<WorkflowDefinitionRow> {
     const res = await _proxyFetch(
       `${PLUGIN_BASE}/definitions/${encodeURIComponent(id)}/reset-factory`,
       { method: 'POST' },
-    );
+    )
     if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      if (res.status === 404) throw new WorkflowNotFoundError(text || 'Not found');
-      if (res.status === 403) throw new WorkflowForbiddenError(text || 'Forbidden');
-      throw new Error(`PluginClient POST /definitions/${id}/reset-factory: ${res.status} ${text}`);
+      const text = await res.text().catch(() => '')
+      if (res.status === 404)
+        throw new WorkflowNotFoundError(text || 'Not found')
+      if (res.status === 403)
+        throw new WorkflowForbiddenError(text || 'Forbidden')
+      throw new Error(
+        `PluginClient POST /definitions/${id}/reset-factory: ${res.status} ${text}`,
+      )
     }
-    const data = (await res.json()) as { definition: WorkflowDefinitionRow };
-    return data.definition;
+    const data = (await res.json()) as { definition: WorkflowDefinitionRow }
+    return data.definition
   }
 
   async parseDefinition(id: string): Promise<Record<string, unknown> | null> {
     try {
-      const data = await _get<{ parsed: Record<string, unknown> }>(`/definitions/${encodeURIComponent(id)}/parsed`);
-      return data.parsed;
+      const data = await _get<{ parsed: Record<string, unknown> }>(
+        `/definitions/${encodeURIComponent(id)}/parsed`,
+      )
+      return data.parsed
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return null;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return null
+      throw e
     }
   }
 
   async deleteWorkflowDefinition(id: string): Promise<number> {
     try {
-      await _delete(`/definitions/${encodeURIComponent(id)}`);
-      return 1;
+      await _delete(`/definitions/${encodeURIComponent(id)}`)
+      return 1
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return 0;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return 0
+      throw e
     }
   }
 
   // ── Runs ─────────────────────────────────────────────────────────────────
 
-  async listRuns(opts?: { workflowId?: string; limit?: number }): Promise<Array<WorkflowRun>> {
-    const params = new URLSearchParams();
-    if (opts?.workflowId) params.set('workflow_id', opts.workflowId);
-    if (opts?.limit != null) params.set('limit', String(opts.limit));
-    const qs = params.toString() ? `?${params}` : '';
-    const data = await _get<{ runs: Array<WorkflowRun> }>(`/runs${qs}`);
-    return data.runs;
+  async listRuns(opts?: {
+    workflowId?: string
+    limit?: number
+  }): Promise<Array<WorkflowRun>> {
+    const params = new URLSearchParams()
+    if (opts?.workflowId) params.set('workflow_id', opts.workflowId)
+    if (opts?.limit != null) params.set('limit', String(opts.limit))
+    const qs = params.toString() ? `?${params}` : ''
+    const data = await _get<{ runs: Array<WorkflowRun> }>(`/runs${qs}`)
+    return data.runs
   }
 
   async getRun(runId: string): Promise<WorkflowRun | null> {
     try {
-      const data = await _get<{ run: WorkflowRun }>(`/runs/${encodeURIComponent(runId)}`);
-      return data.run;
+      const data = await _get<{ run: WorkflowRun }>(
+        `/runs/${encodeURIComponent(runId)}`,
+      )
+      return data.run
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return null;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return null
+      throw e
     }
   }
 
@@ -245,85 +267,118 @@ export class PluginClient implements WorkflowEngineInterface {
       codebase_id: trigger.codebase_id,
       ...(trigger.schedule != null && { schedule: trigger.schedule }),
       ...(trigger.priority != null && { priority: trigger.priority }),
-      ...(trigger.maxRuntimeSeconds != null && { maxRuntimeSeconds: trigger.maxRuntimeSeconds }),
-    });
-    return data.run;
+      ...(trigger.maxRuntimeSeconds != null && {
+        maxRuntimeSeconds: trigger.maxRuntimeSeconds,
+      }),
+    })
+    return data.run
   }
 
   async cancelRun(runId: string): Promise<void> {
-    await _send('POST', `/runs/${encodeURIComponent(runId)}/cancel`);
+    await _send('POST', `/runs/${encodeURIComponent(runId)}/cancel`)
   }
 
   async resumeWorkflowRun(id: string): Promise<WorkflowRun> {
-    const data = await _send<{ run: WorkflowRun }>('POST', `/runs/${encodeURIComponent(id)}/resume`);
-    return data.run;
+    const data = await _send<{ run: WorkflowRun }>(
+      'POST',
+      `/runs/${encodeURIComponent(id)}/resume`,
+    )
+    return data.run
   }
 
-  async findRunByConversationId(conversationId: string): Promise<WorkflowRun | null> {
+  async findRunByConversationId(
+    conversationId: string,
+  ): Promise<WorkflowRun | null> {
     try {
-      const data = await _get<{ run: WorkflowRun | null }>(`/runs/by-conversation/${encodeURIComponent(conversationId)}`);
-      return data.run;
+      const data = await _get<{ run: WorkflowRun | null }>(
+        `/runs/by-conversation/${encodeURIComponent(conversationId)}`,
+      )
+      return data.run
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return null;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return null
+      throw e
     }
   }
 
   async getActiveWorkflowRunByPath(path: string): Promise<WorkflowRun | null> {
     try {
-      const data = await _get<{ run: WorkflowRun | null }>(`/runs/active?scope_path=${encodeURIComponent(path)}`);
-      return data.run;
+      const data = await _get<{ run: WorkflowRun | null }>(
+        `/runs/active?scope_path=${encodeURIComponent(path)}`,
+      )
+      return data.run
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return null;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return null
+      throw e
     }
   }
 
   // ── Node Runs ────────────────────────────────────────────────────────────
 
   async listNodeRuns(runId: string): Promise<Array<NodeRun>> {
-    const data = await _get<{ nodeRuns: Array<NodeRun> }>(`/runs/${encodeURIComponent(runId)}/nodes`);
-    return data.nodeRuns;
+    const data = await _get<{ nodeRuns: Array<NodeRun> }>(
+      `/runs/${encodeURIComponent(runId)}/nodes`,
+    )
+    return data.nodeRuns
   }
 
   async listActiveNodeRuns(): Promise<Array<ActiveNodeRunSummary>> {
-    return _get<Array<ActiveNodeRunSummary>>('/node-runs/active');
+    const data = await _get<{ nodeRuns: Array<ActiveNodeRunSummary> }>(
+      '/node-runs/active',
+    )
+    return data.nodeRuns
   }
 
   async findNodeRunById(nodeRunId: string): Promise<NodeRun | null> {
     try {
-      const data = await _get<{ nodeRun: NodeRun }>(`/node-runs/${encodeURIComponent(nodeRunId)}`);
-      return data.nodeRun;
+      const data = await _get<{ nodeRun: NodeRun }>(
+        `/node-runs/${encodeURIComponent(nodeRunId)}`,
+      )
+      return data.nodeRun
     } catch (e: unknown) {
-      if (e instanceof Error && e.message.includes('404')) return null;
-      throw e;
+      if (e instanceof Error && e.message.includes('404')) return null
+      throw e
     }
   }
 
   // ── Events ───────────────────────────────────────────────────────────────
 
   async appendWorkflowEvent(event: RunEvent): Promise<void> {
-    const { workflow_run_id, ...rest } = event;
-    await _send('POST', `/runs/${encodeURIComponent(workflow_run_id)}/events`, rest);
+    const { workflow_run_id, ...rest } = event
+    await _send(
+      'POST',
+      `/runs/${encodeURIComponent(workflow_run_id)}/events`,
+      rest,
+    )
   }
 
-  async listRecentWorkflowEvents(runId: string, limit = 200): Promise<Array<RunEvent>> {
-    const data = await _get<{ events: Array<RunEvent> }>(`/runs/${encodeURIComponent(runId)}/events?limit=${limit}`);
-    return data.events;
+  async listRecentWorkflowEvents(
+    runId: string,
+    limit = 200,
+  ): Promise<Array<RunEvent>> {
+    const data = await _get<{ events: Array<RunEvent> }>(
+      `/runs/${encodeURIComponent(runId)}/events?limit=${limit}`,
+    )
+    return data.events
   }
 
-  subscribeEvents(runId?: string): AsyncIterable<RunEvent> {
+  subscribeEvents(
+    runId?: string,
+    signal?: AbortSignal,
+  ): AsyncIterable<RunEvent> {
     // Pass relative path only — pluginSseStream prepends PLUGIN_BASE internally.
-    return pluginSseStream(`/events${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`);
+    return pluginSseStream(
+      `/events${runId ? `?runId=${encodeURIComponent(runId)}` : ''}`,
+      signal,
+    )
   }
 
   // ── Phase Transitions ────────────────────────────────────────────────────
 
   async recordPhaseTransition(input: {
-    runId: string;
-    toPhase: string;
-    decidedBy: string;
-    decisionData?: Record<string, unknown>;
+    runId: string
+    toPhase: string
+    decidedBy: string
+    decisionData?: Record<string, unknown>
   }): Promise<{ from: string; to: string }> {
     return _send<{ from: string; to: string }>(
       'POST',
@@ -333,12 +388,14 @@ export class PluginClient implements WorkflowEngineInterface {
         decidedBy: input.decidedBy,
         decisionData: input.decisionData,
       },
-    );
+    )
   }
 
   async listPhaseTransitions(runId: string): Promise<Array<PhaseTransition>> {
-    const data = await _get<{ phaseTransitions: Array<PhaseTransition> }>(`/runs/${encodeURIComponent(runId)}/phase-transitions`);
-    return data.phaseTransitions;
+    const data = await _get<{ phaseTransitions: Array<PhaseTransition> }>(
+      `/runs/${encodeURIComponent(runId)}/phase-transitions`,
+    )
+    return data.phaseTransitions
   }
 
   // ── Approvals ────────────────────────────────────────────────────────────
@@ -353,7 +410,7 @@ export class PluginClient implements WorkflowEngineInterface {
       node_run_id: nodeRunId,
       decision: decision === 'approve' ? 'approved' : 'rejected',
       response: comment,
-    });
+    })
   }
 
   async tryClaimApprovalForResume(
@@ -370,7 +427,7 @@ export class PluginClient implements WorkflowEngineInterface {
         decision,
         approvalResponse,
       },
-    );
+    )
   }
 }
 
@@ -378,33 +435,56 @@ export class PluginClient implements WorkflowEngineInterface {
 // SSE stream helper (imported by subscribeEvents above)
 // ---------------------------------------------------------------------------
 
-async function* pluginSseStream(url: string): AsyncGenerator<RunEvent> {
+async function* pluginSseStream(
+  url: string,
+  signal?: AbortSignal,
+): AsyncGenerator<RunEvent> {
   // Server-side: use undici fetch with streaming body
-  // Browser-side: this path is not expected (SSE handled by plugin-client.sse.ts in UI layer)
+  // Browser-side: this path is not expected (use EventSource directly)
   if (typeof window !== 'undefined') {
-    throw new Error('pluginSseStream must not be called in browser context — use EventSource directly');
+    throw new Error(
+      'pluginSseStream must not be called in browser context — use EventSource directly',
+    )
   }
-  const { dashboardFetch: df } = await import('../../gateway-capabilities.js');
-  const res = await df(PLUGIN_BASE + url, { signal: AbortSignal.timeout(PLUGIN_REQUEST_TIMEOUT_MS) });
-  if (!res.ok) throw new Error(`Plugin SSE stream had no body`);
-  if (!res.body) throw new Error(`Plugin SSE stream had no body`);
-  const reader = (res.body as ReadableStream<Uint8Array>).getReader();
-  const decoder = new TextDecoder();
-  let buf = '';
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop() ?? '';
-    for (const line of lines) {
-      if (line.startsWith('data: ')) {
-        try {
-          yield JSON.parse(line.slice(6)) as RunEvent;
-        } catch {
-          // skip malformed
+  const { dashboardFetch: df } = await import('../../gateway-capabilities.js')
+  // The timeout covers connecting only; a live stream must outlive it.
+  const connect = new AbortController()
+  const timer = setTimeout(() => connect.abort(), PLUGIN_REQUEST_TIMEOUT_MS)
+  let res: Response
+  try {
+    res = await df(PLUGIN_BASE + url, {
+      signal: signal
+        ? AbortSignal.any([signal, connect.signal])
+        : connect.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+  if (!res.ok) throw new Error(`Plugin SSE stream failed: ${res.status}`)
+  if (!res.body) throw new Error(`Plugin SSE stream had no body`)
+  const reader = (res.body as ReadableStream<Uint8Array>).getReader()
+  const decoder = new TextDecoder()
+  let buf = ''
+  try {
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() ?? ''
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          try {
+            const evt = JSON.parse(line.slice(6)) as RunEvent
+            if (!evt.event_type) continue // keep-alive / non-event frame
+            yield evt
+          } catch {
+            // skip malformed
+          }
         }
       }
     }
+  } finally {
+    reader.cancel().catch(() => {})
   }
 }

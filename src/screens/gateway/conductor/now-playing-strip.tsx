@@ -48,10 +48,10 @@ function renderEmptyStrip() {
 
 export function NowPlayingStrip() {
   const { data: missions = [] } = useConductorMissions()
-  const focusedMissionId = useConductorUIStore((state) => state.focusedMissionId)
+  const selectedRunId = useConductorUIStore((state) => state.selectedRunId)
 
   const mission =
-    missions.find((entry) => entry.id === focusedMissionId) ??
+    missions.find((entry) => entry.id === selectedRunId) ??
     missions.find((entry) => entry.status === 'live') ??
     null
 
