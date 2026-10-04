@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { ChatSourceTabsV2 } from './chat-source-tabs-v2'
 import { ChatHeaderActionsV2 } from './chat-header-actions-v2'
-import type { SidebarPanel } from './chat-source-tabs-v2'
+import type { PanelCount, SidebarPanel } from './chat-source-tabs-v2'
 import type { SessionSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd } from '@/lib/format'
@@ -22,7 +22,7 @@ type ChatHeaderV2Props = {
   approvalBypassSessionKey?: string
   activePanel: SidebarPanel | null
   onTogglePanel: (panel: SidebarPanel) => void
-  panelCounts?: Partial<Record<SidebarPanel, number>>
+  panelCounts?: Partial<Record<SidebarPanel, PanelCount>>
   /** Hide the files toggle where the explorer has no sidebar to open in. */
   hideFiles?: boolean
   sourceKind?: SessionSource

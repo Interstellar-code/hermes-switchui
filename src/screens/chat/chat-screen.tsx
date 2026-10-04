@@ -10,7 +10,11 @@ import {
   advanceStickyStreamingText,
   scrollChatToBottom as scrollChatToBottomImpl,
 } from './chat-screen-utils'
-import { appendHistoryMessage, chatQueryKeys } from './chat-queries'
+import {
+  DEFAULT_CHAT_HISTORY_LIMIT,
+  appendHistoryMessage,
+  chatQueryKeys,
+} from './chat-queries'
 import { ChatMessageList } from './components/chat-message-list'
 import { ChatNoticeBanners } from './components/chat-notice-banners'
 import { StreamingTextContext } from './components/streaming-text-context'
@@ -558,34 +562,52 @@ export function ChatScreen({
     category: 'All',
     search: '',
   })
+  const mcpServers = mcpServersQuery.data?.servers
+  // Bare MCP tool name (lower-case) → its server, from discovered tools.
+  const mcpToolServers = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const server of mcpServers ?? [])
+      for (const tool of server.discoveredTools)
+        map.set(tool.name.toLowerCase(), server.name)
+    return map
+  }, [mcpServers])
   const mcpToolNames = useMemo(
-    () =>
-      new Set(
-        (mcpServersQuery.data?.servers ?? [])
-          .flatMap((server) => server.discoveredTools)
-          .map((tool) => tool.name.toLowerCase()),
-      ),
-    [mcpServersQuery.data],
+    () => new Set(mcpToolServers.keys()),
+    [mcpToolServers],
+  )
+  const mcpServerNames = useMemo(
+    () => (mcpServers ?? []).map((server) => server.name),
+    [mcpServers],
   )
 
-  const {
-    toolDisplayMode,
-    cycleToolDisplayMode,
-    toolEntries,
-    totalToolCount,
-    totalTodoCount,
-    totalMcpCount,
-    totalSkillCount,
-  } = useToolDisplay({ realtimeMessages, activeToolCalls, mcpToolNames })
-  const panelCounts = useMemo(
-    () => ({
-      tool: totalToolCount,
-      todos: totalTodoCount,
-      mcp: totalMcpCount,
-      skills: totalSkillCount,
-    }),
-    [totalToolCount, totalTodoCount, totalMcpCount, totalSkillCount],
-  )
+  const { toolDisplayMode, cycleToolDisplayMode, toolEntries, panelCounts } =
+    useToolDisplay({
+      realtimeMessages,
+      activeToolCalls,
+      mcpToolNames,
+      mcpServerNames,
+      mcpToolServers,
+    })
+  // History is fetched with a fixed limit; a full first page means older
+  // messages (and their tool calls) are not loaded. Captured once per session
+  // from the first fetch, before live messages get appended to the cache.
+  const [historyPage, setHistoryPage] = useState<{
+    key: string
+    length: number
+  } | null>(null)
+  if (
+    historyQuery.isFetchedAfterMount &&
+    historyQuery.data &&
+    historyPage?.key !== sessionKeyForHistory
+  ) {
+    setHistoryPage({
+      key: sessionKeyForHistory,
+      length: historyQuery.data.messages.length,
+    })
+  }
+  const historyCapped =
+    historyPage?.key === sessionKeyForHistory &&
+    historyPage.length >= DEFAULT_CHAT_HISTORY_LIMIT
 
   const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
   const streamingDelegations = useChatStore(
@@ -1435,6 +1457,9 @@ export function ChatScreen({
           entries={toolEntries}
           events={realtimeLifecycleEvents}
           mcpToolNames={mcpToolNames}
+          mcpServers={mcpServers}
+          mcpToolServers={mcpToolServers}
+          historyCapped={historyCapped}
           counts={panelCounts}
           fileExplorer={
             <FileExplorerSidebar

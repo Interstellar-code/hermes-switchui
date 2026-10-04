@@ -34,19 +34,9 @@ export {
 } from './tool-entries'
 export type { FlatToolEntry, ToolHistoryView } from './tool-entries'
 
-type LifecycleEvent = {
-  text: string
-  emoji: string
-  timestamp: number
-  isError: boolean
-}
-
 type ToolTabViewProps = {
   messages?: Array<ChatMessage>
-  /** Pre-merged entries (e.g. from useToolDisplay); skips re-deriving from messages. */
-  entries?: Array<FlatToolEntry>
   streamingToolCalls?: Array<StreamingToolCall>
-  events?: Array<LifecycleEvent>
   view?: ToolHistoryView
   mcpToolNames?: ReadonlySet<string>
 }
@@ -60,7 +50,6 @@ const cardStyle: React.CSSProperties = {
 }
 const greenStyle: React.CSSProperties = { color: 'var(--m-green-500)' }
 const NO_STREAMING_CALLS: Array<StreamingToolCall> = []
-const NO_EVENTS: Array<LifecycleEvent> = []
 const NO_MESSAGES: Array<ChatMessage> = []
 
 function TodoChecklist({ items }: { items: Array<TodoItem> }) {
@@ -307,37 +296,24 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
 
 type MixedRow =
   | { kind: 'tool'; entry: FlatToolEntry; ts: number }
-  | { kind: 'lifecycle'; event: LifecycleEvent; ts: number }
   | { kind: 'gap'; minutes: number; id: string }
 
-function buildMixedRows(
-  entries: Array<FlatToolEntry>,
-  events: Array<LifecycleEvent>,
-): Array<MixedRow> {
+function buildMixedRows(entries: Array<FlatToolEntry>): Array<MixedRow> {
   // Sort tool entries chronologically (stable — entries without timestamps last)
   const sortedEntries = [...entries].sort(
     (a, b) => (a.timestamp ?? Infinity) - (b.timestamp ?? Infinity),
   )
 
-  const items: Array<{ kind: 'tool' | 'lifecycle'; ts: number; entry?: FlatToolEntry; event?: LifecycleEvent }> = [
-    ...sortedEntries.map((e) => ({ kind: 'tool' as const, ts: e.timestamp ?? Infinity, entry: e })),
-    ...events.map((ev) => ({ kind: 'lifecycle' as const, ts: ev.timestamp, event: ev })),
-  ]
-  items.sort((a, b) => a.ts - b.ts)
-
   const rows: Array<MixedRow> = []
   let prevTs: number | null = null
-  for (const item of items) {
-    if (prevTs !== null && item.ts !== Infinity && item.ts - prevTs > 60_000) {
-      const minutes = Math.round((item.ts - prevTs) / 60_000)
-      rows.push({ kind: 'gap', minutes, id: `gap-${prevTs}-${item.ts}` })
+  for (const entry of sortedEntries) {
+    const ts = entry.timestamp ?? Infinity
+    if (prevTs !== null && ts !== Infinity && ts - prevTs > 60_000) {
+      const minutes = Math.round((ts - prevTs) / 60_000)
+      rows.push({ kind: 'gap', minutes, id: `gap-${prevTs}-${ts}` })
     }
-    if (item.kind === 'tool') {
-      rows.push({ kind: 'tool', entry: item.entry!, ts: item.ts })
-    } else {
-      rows.push({ kind: 'lifecycle', event: item.event!, ts: item.ts })
-    }
-    if (item.ts !== Infinity) prevTs = item.ts
+    rows.push({ kind: 'tool', entry, ts })
+    if (ts !== Infinity) prevTs = ts
   }
   return rows
 }
@@ -355,9 +331,7 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
 
 export function ToolTabView({
   messages = NO_MESSAGES,
-  entries: entriesProp,
   streamingToolCalls = NO_STREAMING_CALLS,
-  events = NO_EVENTS,
   view = 'all',
   mcpToolNames,
 }: ToolTabViewProps) {
@@ -368,24 +342,19 @@ export function ToolTabView({
 
   const entries = useMemo(
     () =>
-      entriesProp ??
       mergeToolEntries(
         extractStreamingEntries(streamingToolCalls),
         extractStreamToolCallsFromMessages(messages, buildResultTsMap(messages)),
         extractToolEntries(messages),
       ),
-    [entriesProp, messages, streamingToolCalls],
+    [messages, streamingToolCalls],
   )
 
   const scopedEntries = useMemo(
     () => filterToolEntries(entries, view, mcpToolNames),
     [entries, mcpToolNames, view],
   )
-  const scopedEvents = view === 'all' ? events : []
-  const allRows = useMemo(
-    () => buildMixedRows(scopedEntries, scopedEvents),
-    [scopedEntries, scopedEvents],
-  )
+  const allRows = useMemo(() => buildMixedRows(scopedEntries), [scopedEntries])
 
   // Derive the set of categories present in the current tool entries
   const categoriesPresent = useMemo(
@@ -402,15 +371,11 @@ export function ToolTabView({
           `${e.name} ${e.callId} ${e.input ? JSON.stringify(e.input) : ''} ${e.output ?? ''}`.toLowerCase()
         return hay.includes(q)
       }
-      if (row.kind === 'lifecycle') {
-        return row.event.text.toLowerCase().includes(q)
-      }
       return true
     }
     return allRows.filter((row) => {
       if (!matchesQuery(row)) return false
       if (filter === 'all') return true
-      if (filter === 'events') return row.kind !== 'tool'
       if (row.kind === 'tool') return categorizeEntry(row.entry, mcpToolNames) === filter
       return false
     })
@@ -420,7 +385,7 @@ export function ToolTabView({
     [filteredRows, sortDir],
   )
 
-  const isEmpty = scopedEntries.length === 0 && scopedEvents.length === 0
+  const isEmpty = scopedEntries.length === 0
   const noMatches = !isEmpty && !visibleRows.some((row) => row.kind !== 'gap')
   const emptyMessage =
     view === 'todos'
@@ -435,7 +400,7 @@ export function ToolTabView({
     <div className="m-mono flex-1 min-h-0 overflow-y-auto flex flex-col" style={toolViewStyle}>
       {/* Filter pill row + sort */}
       <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0 flex-wrap">
-        {(['all', ...categoriesPresent, 'events'] as const).map((f) => (
+        {(['all', ...categoriesPresent] as const).map((f) => (
           <button
             key={f}
             type="button"
@@ -503,7 +468,7 @@ export function ToolTabView({
         </div>
       ) : (
         <div className="flex-1 min-h-0 p-4 pt-1 space-y-2">
-          {visibleRows.map((row, i) => {
+          {visibleRows.map((row) => {
             if (row.kind === 'gap') {
               return (
                 <div
@@ -515,40 +480,10 @@ export function ToolTabView({
                 </div>
               )
             }
-            if (row.kind === 'lifecycle') {
-              const ev = row.event
-              return (
-                <div key={`lc-${i}`} className="flex items-center gap-2" style={{ fontSize: '9px' }}>
-                  <ActivityDot isError={ev.isError} />
-                  <span className={ev.isError ? 'text-red-400 min-w-0 break-words' : 'opacity-70 min-w-0 break-words'}>
-                    {ev.text}
-                  </span>
-                  <span className="opacity-40 ml-auto shrink-0 tabular-nums">
-                    {new Date(ev.timestamp).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                    })}
-                  </span>
-                </div>
-              )
-            }
             return <ExpandableToolCard key={row.entry.key} entry={row.entry} />
           })}
         </div>
       )}
     </div>
-  )
-}
-
-function ActivityDot({ isError }: { isError?: boolean }) {
-  const color = isError
-    ? 'var(--theme-danger, #ef4444)'
-    : 'var(--theme-success, #22c55e)'
-  return (
-    <span
-      className="shrink-0 size-1.5 rounded-full mt-1.5"
-      style={{ background: color, display: 'inline-block' }}
-    />
   )
 }

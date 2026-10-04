@@ -8,16 +8,37 @@ import {
   filterToolEntries,
   mergeToolEntries,
 } from '../components/v2/tool-entries'
-import { countSkillEntries } from '../components/v2/chat-skills-tab-v2'
+import { todoProgress } from '../components/v2/todos-panel-v2'
+import { mcpServerCount } from '../components/v2/mcp-panel-v2'
+import { distinctSkillCount } from '../components/v2/skills-panel-v2'
 import type { ToolDisplayMode } from '../components/message-item'
+import type {
+  PanelCount,
+  SidebarPanel,
+} from '../components/v2/sidebar-panel-v2'
 import type { ChatMessage, StreamingToolCall } from '../types'
+
+const NO_NAMES: ReadonlyArray<string> = []
+
+function plural(n: number, unit: string): string {
+  return `${n} ${unit}${n === 1 ? '' : 's'}`
+}
 
 export function useToolDisplay(params: {
   realtimeMessages: Array<ChatMessage>
   activeToolCalls: Array<StreamingToolCall>
   mcpToolNames?: ReadonlySet<string>
+  mcpServerNames?: ReadonlyArray<string>
+  /** Bare MCP tool name (lower-case) → server name. */
+  mcpToolServers?: ReadonlyMap<string, string>
 }) {
-  const { realtimeMessages, activeToolCalls, mcpToolNames } = params
+  const {
+    realtimeMessages,
+    activeToolCalls,
+    mcpToolNames,
+    mcpServerNames = NO_NAMES,
+    mcpToolServers,
+  } = params
 
   // Tool-display mode: expanded | collapsed | hidden (persisted across sessions)
   const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>(
@@ -59,33 +80,39 @@ export function useToolDisplay(params: {
     return mergeToolEntries(streamingEntries, completedEntries, messageEntries)
   }, [realtimeMessages, activeToolCalls])
 
-  // Same rows the Tools panel lists (file-touching calls included).
-  const totalToolCount = useMemo(
-    () => filterToolEntries(toolEntries, 'all', mcpToolNames).length,
-    [mcpToolNames, toolEntries],
-  )
-  const totalTodoCount = useMemo(
-    () => filterToolEntries(toolEntries, 'todos').length,
-    [toolEntries],
-  )
-  const totalMcpCount = useMemo(
-    () => filterToolEntries(toolEntries, 'mcp', mcpToolNames).length,
-    [mcpToolNames, toolEntries],
-  )
-
-  const totalSkillCount = useMemo(
-    () => countSkillEntries(toolEntries),
-    [toolEntries],
-  )
+  // Header + panel-title counts. Tools = the rows the Tools panel lists
+  // (file-touching calls included) plus their errors.
+  const panelCounts = useMemo(() => {
+    const counts: Partial<Record<SidebarPanel, PanelCount>> = {}
+    const rows = filterToolEntries(toolEntries, 'all', mcpToolNames)
+    const errors = rows.filter((e) => e.isError).length
+    if (rows.length > 0) {
+      counts.tool = {
+        value: rows.length,
+        label: `${plural(rows.length, 'call')}${errors ? `, ${plural(errors, 'error')}` : ''}`,
+        errors,
+      }
+    }
+    const todos = todoProgress(toolEntries)
+    if (todos && todos.total > 0) {
+      counts.todos = {
+        value: `${todos.done}/${todos.total}`,
+        label: `${todos.done} of ${todos.total} done`,
+      }
+    }
+    const servers = mcpServerCount(toolEntries, mcpServerNames, mcpToolServers)
+    if (servers > 0)
+      counts.mcp = { value: servers, label: plural(servers, 'server') }
+    const skills = distinctSkillCount(toolEntries)
+    if (skills > 0) counts.skills = { value: skills, label: `${skills} used` }
+    return counts
+  }, [mcpServerNames, mcpToolNames, mcpToolServers, toolEntries])
 
   return {
     toolDisplayMode,
     setToolDisplayMode,
     cycleToolDisplayMode,
     toolEntries,
-    totalToolCount,
-    totalTodoCount,
-    totalMcpCount,
-    totalSkillCount,
+    panelCounts,
   }
 }

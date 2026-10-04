@@ -123,115 +123,89 @@ describe('useToolDisplay', () => {
 
   // ── count memos ────────────────────────────────────────────────────────────
 
-  describe('totalToolCount', () => {
-    it('is 0 with empty messages and tool calls', () => {
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls: EMPTY_TOOL_CALLS,
-        }),
-      )
-      expect(result.current.totalToolCount).toBe(0)
+  describe('panelCounts', () => {
+    const counts = (
+      activeToolCalls: Array<StreamingToolCall>,
+      extra: {
+        mcpToolNames?: ReadonlySet<string>
+        mcpServerNames?: Array<string>
+        mcpToolServers?: ReadonlyMap<string, string>
+      } = {},
+      realtimeMessages: Array<ChatMessage> = EMPTY_MESSAGES,
+    ) =>
+      renderHook(() =>
+        useToolDisplay({ realtimeMessages, activeToolCalls, ...extra }),
+      ).result.current.panelCounts
+
+    it('omits zero counts entirely', () => {
+      expect(counts(EMPTY_TOOL_CALLS)).toEqual({})
     })
 
-    it('counts file calls as tools (same rows as the Tools panel)', () => {
-      const activeToolCalls: Array<StreamingToolCall> = [
-        { id: 'tc1', name: 'Bash', phase: 'streaming' },
-        { id: 'tc2', name: 'Read', phase: 'streaming' },
-      ]
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls,
-        }),
-      )
-      expect(result.current.totalToolCount).toBe(2)
+    it('empty todo list gives no todos badge', () => {
+      const c = counts([
+        { id: 't1', name: 'todo', phase: 'complete', args: { todos: [] } },
+      ])
+      expect(c.todos).toBeUndefined()
     })
 
-    it('excludes to-dos and MCP calls represented in their own tabs', () => {
-      const activeToolCalls: Array<StreamingToolCall> = [
-        { id: 'todo-1', name: 'todo', phase: 'streaming' },
-        { id: 'mcp-1', name: 'mcp__github__search', phase: 'streaming' },
-        { id: 'exec-1', name: 'exec', phase: 'streaming' },
-      ]
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls,
-        }),
-      )
-
-      expect(result.current.totalToolCount).toBe(1)
-      expect(result.current.totalTodoCount).toBe(1)
-      expect(result.current.totalMcpCount).toBe(1)
+    it('mcp counts bare tool names through the tool→server map', () => {
+      const c = counts([{ id: 'b1', name: 'web_search_prime', phase: 'complete' }], {
+        mcpToolNames: new Set(['web_search_prime']),
+        mcpServerNames: ['zai'],
+        mcpToolServers: new Map([['web_search_prime', 'zai']]),
+      })
+      expect(c.mcp).toEqual({ value: 1, label: '1 server' })
     })
 
-    it('includes file calls in the tool count', () => {
-      const activeToolCalls: Array<StreamingToolCall> = [
-        { id: 'read-1', name: 'read_file', phase: 'streaming', args: { file_path: 'src/app.tsx' } },
-        { id: 'exec-1', name: 'exec', phase: 'streaming' },
-      ]
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls,
-        }),
-      )
-
-      expect(result.current.totalToolCount).toBe(2)
+    it('tools = calls incl. files, with a separate error count', () => {
+      const c = counts([
+        { id: 'tc1', name: 'Bash', phase: 'complete', result: 'ok' },
+        { id: 'tc2', name: 'read_file', phase: 'complete', args: { path: 'a' }, result: 'ok' },
+        { id: 'tc3', name: 'exec', phase: 'error', result: 'boom' },
+      ])
+      expect(c.tool?.value).toBe(3)
+      expect(c.tool?.errors).toBe(1)
+      expect(c.tool?.label).toBe('3 calls, 1 error')
     })
 
-    it('counts completed general and file calls as tools', () => {
-      const realtimeMessages: Array<ChatMessage> = [
+    it('todos = done/total of the latest snapshot', () => {
+      const c = counts([
         {
-          role: 'assistant',
-          content: [
-            { type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} },
-            { type: 'toolCall', id: 'm2', name: 'Read', arguments: {} },
-          ],
-        },
-      ]
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages,
-          activeToolCalls: EMPTY_TOOL_CALLS,
-        }),
-      )
-      expect(result.current.totalToolCount).toBe(2)
-    })
-
-    it('recomputes when realtimeMessages prop changes', () => {
-      const oneCall: Array<ChatMessage> = [
-        {
-          role: 'assistant',
-          content: [{ type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} }],
-        },
-      ]
-      const twoCalls: Array<ChatMessage> = [
-        {
-          role: 'assistant',
-          content: [
-            { type: 'toolCall', id: 'm1', name: 'Bash', arguments: {} },
-            { type: 'toolCall', id: 'm2', name: 'Read', arguments: {} },
-          ],
-        },
-      ]
-      const { result, rerender } = renderHook(
-        (props: {
-          realtimeMessages: Array<ChatMessage>
-          activeToolCalls: Array<StreamingToolCall>
-        }) => useToolDisplay(props),
-        {
-          initialProps: {
-            realtimeMessages: oneCall,
-            activeToolCalls: EMPTY_TOOL_CALLS,
+          id: 't1',
+          name: 'todo',
+          phase: 'complete',
+          args: {
+            todos: [
+              { id: '1', content: 'a', status: 'completed' },
+              { id: '2', content: 'b', status: 'in_progress' },
+              { id: '3', content: 'c', status: 'pending' },
+            ],
           },
         },
-      )
-      expect(result.current.totalToolCount).toBe(1)
+      ])
+      expect(c.todos).toEqual({ value: '1/3', label: '1 of 3 done' })
+    })
 
-      rerender({ realtimeMessages: twoCalls, activeToolCalls: EMPTY_TOOL_CALLS })
-      expect(result.current.totalToolCount).toBe(2)
+    it('mcp = distinct servers used', () => {
+      const c = counts(
+        [
+          { id: 'm1', name: 'mcp__github__search', phase: 'complete' },
+          { id: 'm2', name: 'mcp__github__get', phase: 'complete' },
+          { id: 'm3', name: 'mcp__trek__list', phase: 'complete' },
+        ],
+        { mcpServerNames: ['github', 'trek'] },
+      )
+      expect(c.mcp).toEqual({ value: 2, label: '2 servers' })
+    })
+
+    it('skills = distinct skills used (skills_list excluded)', () => {
+      const c = counts([
+        { id: 's1', name: 'skill_view', phase: 'complete', args: { name: 'a' } },
+        { id: 's2', name: 'skill_view', phase: 'complete', args: { name: 'a' } },
+        { id: 's3', name: 'skill_view', phase: 'complete', args: { name: 'b' } },
+        { id: 's4', name: 'skills_list', phase: 'complete' },
+      ])
+      expect(c.skills).toEqual({ value: 2, label: '2 used' })
     })
 
     it('recomputes when activeToolCalls prop changes', () => {
@@ -247,79 +221,12 @@ describe('useToolDisplay', () => {
           },
         },
       )
-      expect(result.current.totalToolCount).toBe(0)
-
+      expect(result.current.panelCounts.tool).toBeUndefined()
       rerender({
         realtimeMessages: EMPTY_MESSAGES,
         activeToolCalls: [{ id: 'tc1', name: 'Bash', phase: 'streaming' }],
       })
-      expect(result.current.totalToolCount).toBe(1)
-    })
-  })
-
-  describe('totalSkillCount', () => {
-    it('is 0 with empty messages and tool calls', () => {
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls: EMPTY_TOOL_CALLS,
-        }),
-      )
-      expect(result.current.totalSkillCount).toBe(0)
-    })
-
-    it('counts streaming skill tool calls by name', () => {
-      const activeToolCalls: Array<StreamingToolCall> = [
-        { id: 'sk1', name: 'skill', phase: 'streaming' },
-        { id: 'sk2', name: 'skills_list', phase: 'streaming' },
-      ]
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls,
-        }),
-      )
-      expect(result.current.totalSkillCount).toBe(2)
-    })
-
-    it('recomputes when props change', () => {
-      const { result, rerender } = renderHook(
-        (props: {
-          realtimeMessages: Array<ChatMessage>
-          activeToolCalls: Array<StreamingToolCall>
-        }) => useToolDisplay(props),
-        {
-          initialProps: {
-            realtimeMessages: EMPTY_MESSAGES,
-            activeToolCalls: EMPTY_TOOL_CALLS,
-          },
-        },
-      )
-      expect(result.current.totalSkillCount).toBe(0)
-
-      rerender({
-        realtimeMessages: EMPTY_MESSAGES,
-        activeToolCalls: [{ id: 'sk1', name: 'skill', phase: 'streaming' }],
-      })
-      expect(result.current.totalSkillCount).toBe(1)
-    })
-  })
-
-  describe('todo and MCP counts', () => {
-    it('separates todo and configured MCP calls', () => {
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls: [
-            { id: 'todo-1', name: 'todo', phase: 'complete' },
-            { id: 'mcp-1', name: 'github_search', phase: 'complete' },
-            { id: 'bash-1', name: 'bash', phase: 'complete' },
-          ],
-          mcpToolNames: new Set(['github_search']),
-        }),
-      )
-      expect(result.current.totalTodoCount).toBe(1)
-      expect(result.current.totalMcpCount).toBe(1)
+      expect(result.current.panelCounts.tool?.value).toBe(1)
     })
   })
 
@@ -335,8 +242,8 @@ describe('useToolDisplay', () => {
       })
       expect(spy).toHaveBeenCalledTimes(1)
       expect(result.current.toolEntries).toHaveLength(2)
-      expect(result.current.totalSkillCount).toBe(1)
-      expect(result.current.totalToolCount).toBe(2)
+      expect(result.current.panelCounts.skills?.value).toBe(1)
+      expect(result.current.panelCounts.tool?.value).toBe(2)
 
       rerender({ realtimeMessages: EMPTY_MESSAGES, activeToolCalls: calls1 })
       expect(spy).toHaveBeenCalledTimes(1)

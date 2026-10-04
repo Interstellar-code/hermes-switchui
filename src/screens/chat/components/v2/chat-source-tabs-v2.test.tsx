@@ -53,14 +53,40 @@ describe('ChatSourceTabsV2', () => {
     expect(onTogglePanel.mock.calls.map((a) => a[0])).toEqual(['files', 'skills'])
   })
 
-  it('puts counts in the aria-label and badge only when > 0', () => {
+  it('puts count labels in the aria-label and badges only when non-empty', () => {
     const c = renderInto(
-      <ChatSourceTabsV2 activePanel={null} onTogglePanel={() => {}} counts={{ tool: 12, todos: 0 }} />,
+      <ChatSourceTabsV2
+        activePanel={null}
+        onTogglePanel={() => {}}
+        counts={{
+          tool: { value: 66, label: '66 calls, 4 errors', errors: 4 },
+          todos: { value: '3/7', label: '3 of 7 done' },
+          mcp: { value: 3, label: '3 servers' },
+          skills: { value: 0, label: '0 used' },
+        }}
+      />,
     )
-    expect(btn(c, 'Tools')?.getAttribute('aria-label')).toBe('Tools, 12 calls')
-    expect(c.querySelector('[data-testid="tab-count-tool"]')?.textContent).toBe('12')
-    expect(btn(c, 'Todos')?.getAttribute('aria-label')).toBe('Todos')
-    expect(c.querySelector('[data-testid="tab-count-todos"]')).toBeNull()
+    expect(btn(c, 'Tools')?.getAttribute('aria-label')).toBe('Tools, 66 calls, 4 errors')
+    expect(c.querySelector('[data-testid="tab-count-tool"]')?.textContent).toBe('66')
+    expect(c.querySelector('[data-testid="tab-errors-tool"]')?.textContent).toBe('4')
+    expect(btn(c, 'Todos')?.getAttribute('aria-label')).toBe('Todos, 3 of 7 done')
+    expect(c.querySelector('[data-testid="tab-count-todos"]')?.textContent).toBe('3/7')
+    expect(btn(c, 'MCP')?.getAttribute('aria-label')).toBe('MCP, 3 servers')
+    expect(btn(c, 'Skills')?.getAttribute('aria-label')).toBe('Skills')
+    expect(c.querySelector('[data-testid="tab-count-skills"]')).toBeNull()
+    expect(c.querySelector('[data-testid="tab-errors-mcp"]')).toBeNull()
+  })
+
+  it('no error number when a tool count has no errors', () => {
+    const c = renderInto(
+      <ChatSourceTabsV2
+        activePanel={null}
+        onTogglePanel={() => {}}
+        counts={{ tool: { value: 2, label: '2 calls', errors: 0 } }}
+      />,
+    )
+    expect(btn(c, 'Tools')?.getAttribute('aria-label')).toBe('Tools, 2 calls')
+    expect(c.querySelector('[data-testid="tab-errors-tool"]')).toBeNull()
   })
 
   it('hideFiles omits the files button', () => {

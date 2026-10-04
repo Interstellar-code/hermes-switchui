@@ -12,7 +12,7 @@ const SHELL_SELECTOR = '[data-testid="sidebar-shell-v2"]'
 
 type SidebarPanelHostV2Props = Omit<
   SidebarPanelV2Props,
-  'panel' | 'onClose' | 'variant' | 'returnFocusRef'
+  'panel' | 'onClose'
 > & {
   activePanel: SidebarPanel | null
   onClose: () => void
@@ -26,7 +26,12 @@ type SidebarPanelHostV2Props = Omit<
 function escBelongsElsewhere(target: EventTarget | null): boolean {
   const selection = window.getSelection()
   if (selection && !selection.isCollapsed) return true // quote bubble
-  if (document.querySelector('[role="menu"]')) return true // open menu
+  // Open menu: only one that is rendered (closed menus may stay mounted
+  // hidden, display:none or inert).
+  for (const menu of document.querySelectorAll('[role="menu"]')) {
+    if (menu.getClientRects().length > 0 && !menu.closest('[inert]'))
+      return true
+  }
   if (!(target instanceof HTMLElement)) return false
   return Boolean(
     target.isContentEditable ||
@@ -147,7 +152,6 @@ export function SidebarPanelHostV2({
                 {...panelProps}
                 panel={contentPanel}
                 onClose={onClose}
-                variant="sidebar"
               />
             </div>,
             portalNode,
@@ -174,7 +178,6 @@ export function SidebarPanelHostV2({
                 {...panelProps}
                 panel={sheetPanel}
                 onClose={onClose}
-                variant="sidebar"
               />
             ) : null}
           </Dialog.Popup>

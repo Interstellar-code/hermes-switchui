@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act } from 'react'
+import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { SidebarPanelHostV2 } from './sidebar-panel-host-v2'
 import type { Root } from 'react-dom/client'
@@ -8,6 +8,11 @@ import type { SidebarPanel } from './sidebar-panel-v2'
 
 vi.mock('../streaming-activity-ui', () => ({
   formatStreamingActivityLabel: (name: string) => name,
+}))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
+    <a href={to}>{children}</a>
+  ),
 }))
 
 let root: Root | null = null
@@ -123,6 +128,8 @@ describe('SidebarPanelHostV2', () => {
     const { onClose } = render('tool')
     const menu = document.createElement('div')
     menu.setAttribute('role', 'menu')
+    // jsdom has no layout; a rendered menu has client rects.
+    menu.getClientRects = () => [{}] as unknown as DOMRectList
     document.body.appendChild(menu)
     const menuEsc = vi.fn()
     document.addEventListener('keydown', menuEsc)
@@ -133,6 +140,22 @@ describe('SidebarPanelHostV2', () => {
     } finally {
       document.removeEventListener('keydown', menuEsc)
     }
+  })
+
+  it('Esc still closes the panel when the only menus are hidden or inert', () => {
+    const { onClose } = render('tool')
+    const hidden = document.createElement('div')
+    hidden.setAttribute('role', 'menu') // no client rects: display:none
+    document.body.appendChild(hidden)
+    const inertWrap = document.createElement('div')
+    inertWrap.setAttribute('inert', '')
+    const inertMenu = document.createElement('div')
+    inertMenu.setAttribute('role', 'menu')
+    inertMenu.getClientRects = () => [{}] as unknown as DOMRectList
+    inertWrap.appendChild(inertMenu)
+    document.body.appendChild(inertWrap)
+    pressEsc()
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('Esc in a text input is left alone', () => {

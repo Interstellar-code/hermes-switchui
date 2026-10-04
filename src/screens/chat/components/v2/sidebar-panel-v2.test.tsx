@@ -14,6 +14,11 @@ const { formatLabel } = vi.hoisted(() => ({
 vi.mock('../streaming-activity-ui', () => ({
   formatStreamingActivityLabel: formatLabel,
 }))
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
+    <a href={to}>{children}</a>
+  ),
+}))
 
 const ENTRIES: Array<FlatToolEntry> = [
   {
@@ -22,7 +27,15 @@ const ENTRIES: Array<FlatToolEntry> = [
     name: 'exec',
     callId: 'c1',
     input: { command: 'ls' },
-    output: 'RAW_OUTPUT_MARKER',
+    output: 'ok',
+  },
+  {
+    key: 'e2',
+    isCall: true,
+    name: 'mcp__github__search',
+    callId: 'c2',
+    input: { q: 'x' },
+    output: 'ok',
   },
 ]
 
@@ -35,13 +48,14 @@ afterEach(() => {
 
 function render(props: Partial<SidebarPanelV2Props> = {}) {
   const container = document.createElement('div')
+  container.style.width = '258px'
   document.body.appendChild(container)
   root = createRoot(container)
   const base: SidebarPanelV2Props = {
     panel: 'tool',
     sessionKey: 's1',
     entries: ENTRIES,
-    counts: { tool: 7 },
+    counts: { tool: { value: 7, label: '7 calls, 1 error', errors: 1 } },
     onClose: () => {},
   }
   const draw = (next: Partial<SidebarPanelV2Props> = {}) =>
@@ -52,20 +66,11 @@ function render(props: Partial<SidebarPanelV2Props> = {}) {
 
 const back = () =>
   document.querySelector<HTMLButtonElement>('[aria-label="Back to sessions"]')!
-
-function typeSearch(container: HTMLElement, value: string) {
-  act(() =>
-    fireEvent.click(container.querySelector('[aria-label="Open search"]')!),
-  )
-  const input = container.querySelector<HTMLInputElement>(
-    '[aria-label="Search tool calls"]',
-  )!
-  act(() => fireEvent.change(input, { target: { value } }))
-  return input
-}
+const search = (c: HTMLElement) =>
+  c.querySelector<HTMLInputElement>('[aria-label="Search tools"]')
 
 describe('SidebarPanelV2', () => {
-  it('renders title, count and back button inside a labelled region', () => {
+  it('renders title, count label and back button inside a labelled region', () => {
     const { container } = render()
     const region = container.querySelector('[role="region"]')!
     const title = document.getElementById(
@@ -76,9 +81,8 @@ describe('SidebarPanelV2', () => {
     expect(
       container.querySelector('[data-testid="sidebar-panel-count"]')
         ?.textContent,
-    ).toBe('7')
+    ).toBe('7 calls, 1 error')
     expect(back()).not.toBeNull()
-    expect(container.textContent).toContain('exec')
   })
 
   it('back button calls onClose', () => {
@@ -88,119 +92,76 @@ describe('SidebarPanelV2', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('renders the skills body for the skills panel', () => {
-    const { container } = render({ panel: 'skills', counts: {} })
-    expect(container.textContent).toContain('Skills')
-    expect(container.textContent).toContain('No skills loaded')
+  it('renders the matching body for each panel', () => {
+    const { container, rerender } = render()
+    expect(search(container)).not.toBeNull()
+    expect(container.textContent).toContain('exec')
+
+    rerender({ panel: 'todos' })
+    expect(container.textContent).toContain('No to-do list in this session')
+    expect(search(container)).toBeNull()
+
+    rerender({ panel: 'mcp' })
+    expect(container.querySelector('[aria-label="MCP servers"]')).not.toBeNull()
+    expect(container.textContent).toContain('github')
+
+    rerender({ panel: 'skills' })
+    expect(container.textContent).toContain('No skills used in this session')
   })
 
-  it('shows a filtered-empty message distinct from the real empty state', () => {
-    const { container, rerender } = render()
-    typeSearch(container, 'zzz-no-match')
-    expect(container.textContent).toContain('No matches for this filter')
-    expect(container.textContent).not.toContain('No tool invocations yet')
+  it('passes MCP server status through to the MCP panel', () => {
+    const { container } = render({
+      panel: 'mcp',
+      mcpServers: [{ name: 'github', status: 'connected', enabled: true }],
+    })
+    expect(container.textContent).toContain('connected')
+  })
 
-    rerender({ entries: [] })
-    expect(container.textContent).toContain('No tool invocations yet')
-    expect(container.textContent).not.toContain('No matches for this filter')
+  it('shows the history-capped note in the Tools panel only when capped', () => {
+    const { container, rerender } = render()
+    expect(container.textContent).not.toContain('latest 150 messages')
+    rerender({ historyCapped: true })
+    expect(container.textContent).toContain('Covers the latest 150 messages')
+  })
+
+  it('fits a 258px sidebar: no fixed min-width anywhere in any panel', () => {
+    const { container, rerender } = render()
+    for (const panel of ['tool', 'todos', 'mcp', 'skills'] as const) {
+      rerender({ panel })
+      const fixed = [...container.querySelectorAll('[class]')].filter((el) =>
+        /(^|\s)min-w-\[/.test(el.getAttribute('class') ?? ''),
+      )
+      expect(fixed, panel).toEqual([])
+    }
   })
 
   it('Esc in search clears it and prevents default so the panel stays open', () => {
     const onClose = vi.fn()
     const { container } = render({ onClose })
-    const input = typeSearch(container, 'zzz')
+    const input = search(container)!
+    act(() => fireEvent.change(input, { target: { value: 'zzz' } }))
     const ev = new KeyboardEvent('keydown', {
       key: 'Escape',
       bubbles: true,
       cancelable: true,
     })
-    const windowSpy = vi.fn()
-    window.addEventListener('keydown', windowSpy)
     act(() => {
       input.dispatchEvent(ev)
     })
-    window.removeEventListener('keydown', windowSpy)
     expect(ev.defaultPrevented).toBe(true)
-    expect(windowSpy).not.toHaveBeenCalled()
-    expect(
-      container.querySelector('[aria-label="Search tool calls"]'),
-    ).toBeNull()
-    expect(container.textContent).toContain('exec')
+    expect(search(container)!.value).toBe('')
     expect(onClose).not.toHaveBeenCalled()
   })
 
-  it('resets filters when the session or panel changes (keyed body)', () => {
+  it('resets search when the session or panel changes (keyed body)', () => {
     const { container, rerender } = render()
-    typeSearch(container, 'zzz-no-match')
-    expect(container.textContent).toContain('No matches for this filter')
+    act(() =>
+      fireEvent.change(search(container)!, { target: { value: 'zzz' } }),
+    )
+    expect(container.textContent).toContain('No matches')
 
     rerender({ sessionKey: 's2' })
-    expect(
-      container.querySelector('[aria-label="Search tool calls"]'),
-    ).toBeNull()
+    expect(search(container)!.value).toBe('')
     expect(container.textContent).toContain('exec')
-
-    typeSearch(container, 'zzz-no-match')
-    rerender({ sessionKey: 's2', panel: 'mcp' })
-    rerender({ sessionKey: 's2', panel: 'tool' })
-    expect(
-      container.querySelector('[aria-label="Search tool calls"]'),
-    ).toBeNull()
-  })
-
-  it('does not render raw output until its details element is opened', () => {
-    const { container } = render()
-    act(() =>
-      fireEvent.click(container.querySelector('button[aria-expanded]')!),
-    )
-    expect(container.textContent).toContain('Raw output')
-    expect(container.querySelector('pre')).toBeNull()
-
-    const details = Array.from(container.querySelectorAll('details')).find(
-      (d) => d.textContent.includes('Raw output'),
-    )!
-    act(() => {
-      details.open = true
-      details.dispatchEvent(new Event('toggle'))
-    })
-    expect(container.querySelector('pre')?.textContent).toBe(
-      'RAW_OUTPUT_MARKER',
-    )
-  })
-
-  describe('sheet variant', () => {
-    it('is a modal dialog that focuses back on open and restores focus on close', () => {
-      const opener = document.createElement('button')
-      document.body.appendChild(opener)
-      opener.focus()
-
-      const { container } = render({ variant: 'sheet' })
-      const dialog = container.querySelector('[role="dialog"]')!
-      expect(dialog.getAttribute('aria-modal')).toBe('true')
-      expect(dialog.className).toContain('fixed')
-      expect(document.activeElement).toBe(back())
-
-      act(() => root!.unmount())
-      root = null
-      expect(document.activeElement).toBe(opener)
-    })
-
-    it('returns focus to returnFocusRef when provided', () => {
-      const toggle = document.createElement('button')
-      document.body.appendChild(toggle)
-      render({ variant: 'sheet', returnFocusRef: { current: toggle } })
-      expect(document.activeElement).toBe(back())
-      act(() => root!.unmount())
-      root = null
-      expect(document.activeElement).toBe(toggle)
-    })
-
-    it('sidebar variant does not steal focus', () => {
-      const opener = document.createElement('button')
-      document.body.appendChild(opener)
-      opener.focus()
-      render()
-      expect(document.activeElement).toBe(opener)
-    })
   })
 })
