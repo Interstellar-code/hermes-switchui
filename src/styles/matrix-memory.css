@@ -21,6 +21,7 @@
     border-bottom: 1px solid var(--m-border, var(--theme-border));
     background: var(--m-sidebar, var(--theme-card));
     min-height: 56px;
+    min-width: 0;
     flex-wrap: wrap;
   }
   .mem-header h1 {
@@ -69,12 +70,13 @@
     order: 9;
     flex: 1 0 100%;
     margin-left: 0;
-    overflow-x: auto;
+    min-width: 0;
     padding: 3px;
     margin: -3px;
   }
   .mem-tiles {
     display: flex;
+    flex-wrap: wrap;
     gap: 6px;
     min-width: 0;
   }
