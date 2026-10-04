@@ -129,6 +129,16 @@ async function _delete(path: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export class PluginClient implements WorkflowEngineInterface {
+  async health(): Promise<{
+    ok: boolean
+    version?: string
+    profile?: string
+    scheduler_alive?: boolean
+    scheduler_heartbeat_at?: string | number | null
+  }> {
+    return _get('/health')
+  }
+
   // ── Definitions ──────────────────────────────────────────────────────────
 
   async listDefinitions(filter?: {

@@ -1,11 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { abortMission, getConductorSnapshot } from './conductor-store'
+import {
+  abortMission,
+  getConductorSnapshot,
+  listScheduledWorkflows,
+} from './conductor-store'
 
-const { listRuns, listActiveNodeRuns, cancelRun } = vi.hoisted(() => ({
-  listRuns: vi.fn(),
-  listActiveNodeRuns: vi.fn(),
-  cancelRun: vi.fn(),
-}))
+const { listRuns, listActiveNodeRuns, cancelRun, health, getCronJobs } =
+  vi.hoisted(() => ({
+    health: vi.fn(),
+    getCronJobs: vi.fn(),
+    listRuns: vi.fn(),
+    listActiveNodeRuns: vi.fn(),
+    cancelRun: vi.fn(),
+  }))
 
 vi.mock('./workflow-engine/factory', () => ({
   getEngine: () => ({ listRuns, cancelRun, getRun: vi.fn() }),
@@ -13,8 +20,10 @@ vi.mock('./workflow-engine/factory', () => ({
 vi.mock('./workflow-engine/clients/plugin-client', () => ({
   PluginClient: class {
     listActiveNodeRuns = listActiveNodeRuns
+    health = health
   },
 }))
+vi.mock('./claude-dashboard-api', () => ({ getCronJobs }))
 
 const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
 
@@ -135,5 +144,106 @@ describe('abortMission', () => {
     cancelRun.mockResolvedValue(undefined)
     await abortMission('r9')
     expect(cancelRun).toHaveBeenCalledWith('r9')
+  })
+})
+
+describe('formatElapsed via snapshot', () => {
+  it.each([
+    [3599, '59:59'],
+    [3600, '1h 0m'],
+    [86399, '23h 59m'],
+    [86400, '1d 0h'],
+  ])('formats %is', async (s, out) => {
+    listRuns.mockResolvedValue([
+      run({ status: 'paused', started_at: iso(s * 1000), completed_at: null }),
+    ])
+    const { missions } = await getConductorSnapshot()
+    expect(missions[0].elapsed).toBe(out)
+  })
+  it('uses h/d for long waits', async () => {
+    const ms = (62 * 24 + 9) * 3_600_000
+    listRuns.mockResolvedValue([
+      run({ status: 'paused', started_at: iso(ms), completed_at: null }),
+    ])
+    const { missions } = await getConductorSnapshot()
+    expect(missions[0].elapsed).toBe('62d 9h')
+  })
+})
+
+describe('listScheduledWorkflows', () => {
+  it('filters cron jobs by switchui_workflow_id and reports liveness', async () => {
+    health.mockResolvedValue({ ok: true, profile: 'p', scheduler_alive: true })
+    getCronJobs.mockResolvedValue([
+      {
+        id: 'a',
+        enabled: true,
+        schedule: { expr: '0 9 * * 1' },
+        payload: { switchui_workflow_id: 'wf' },
+        next_run_at: '2026-10-05T09:00:00+02:00',
+        last_run_at: null,
+        last_status: 'ok',
+      },
+      { id: 'b', enabled: true, schedule: { expr: '* * * * *' } },
+    ])
+    const r = await listScheduledWorkflows()
+    expect(r.schedulerAlive).toBe(true)
+    expect(r.profile).toBe('p')
+    expect(getCronJobs).toHaveBeenCalledWith('p', expect.anything())
+    expect(r.scheduled).toEqual([
+      {
+        id: 'a',
+        workflowId: 'wf',
+        cron: '0 9 * * 1',
+        scheduleLabel: 'cron 0 9 * * 1',
+        nextRunAt: Date.parse('2026-10-05T09:00:00+02:00'),
+        enabled: true,
+        lastRunAt: null,
+        lastStatus: 'ok',
+      },
+    ])
+  })
+  it('parses string payloads and labels non-cron schedules', async () => {
+    health.mockResolvedValue({ ok: true, scheduler_alive: true })
+    getCronJobs.mockResolvedValue([
+      {
+        id: 'c',
+        enabled: true,
+        schedule: { kind: 'interval', expr: '30', display: 'every 30m' },
+        payload: '{"switchui_workflow_id":"wf2"}',
+      },
+      { id: 'd', enabled: true, payload: '{bad' },
+    ])
+    const r = await listScheduledWorkflows()
+    expect(r.scheduled).toHaveLength(1)
+    expect(r.scheduled[0]).toMatchObject({
+      id: 'c',
+      workflowId: 'wf2',
+      scheduleLabel: 'every 30m',
+    })
+  })
+  it('degrades when the cron fetch is aborted by timeout', async () => {
+    health.mockResolvedValue({ ok: true, scheduler_alive: true })
+    getCronJobs.mockImplementation((_p: unknown, signal: AbortSignal) =>
+      signal.aborted
+        ? Promise.reject(new Error('abort'))
+        : new Promise(() => {}),
+    )
+    const spy = vi
+      .spyOn(AbortSignal, 'timeout')
+      .mockImplementation(() => AbortSignal.abort())
+    const r = await listScheduledWorkflows()
+    expect(spy).toHaveBeenCalledWith(8000)
+    spy.mockRestore()
+    expect(r.scheduled).toEqual([])
+    expect(r.schedulerAlive).toBe(true)
+  })
+  it('degrades on upstream failure', async () => {
+    health.mockRejectedValue(new Error('x'))
+    getCronJobs.mockRejectedValue(new Error('x'))
+    expect(await listScheduledWorkflows()).toEqual({
+      schedulerAlive: false,
+      profile: null,
+      scheduled: [],
+    })
   })
 })

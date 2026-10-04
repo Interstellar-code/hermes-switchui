@@ -5,6 +5,7 @@
  * One listRuns per snapshot: missions and stats are derived from the same fetch.
  */
 
+import { getCronJobs } from './claude-dashboard-api'
 import { getEngine } from './workflow-engine/factory'
 import { PluginClient } from './workflow-engine/clients/plugin-client'
 import type { WorkflowRun } from './workflow-engine/interface'
@@ -45,6 +46,9 @@ export interface ConductorSnapshot {
 
 function formatElapsed(ms: number): string {
   const totalS = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(totalS / 3600)
+  if (h >= 24) return `${Math.floor(h / 24)}d ${h % 24}h`
+  if (h >= 1) return `${h}h ${Math.floor((totalS % 3600) / 60)}m`
   const mm = Math.floor(totalS / 60)
     .toString()
     .padStart(2, '0')
@@ -198,4 +202,81 @@ export async function getMission(
 
 export async function abortMission(id: string): Promise<void> {
   await getEngine().cancelRun(id)
+}
+
+// ---------------------------------------------------------------------------
+// Scheduled workflows (D1: cron jobs carrying payload.switchui_workflow_id)
+// ---------------------------------------------------------------------------
+
+export interface ScheduledWorkflow {
+  id: string
+  workflowId: string
+  cron: string | null
+  /** Human label incl. kind, e.g. "cron 0 9 * * 1" / "every 30m". */
+  scheduleLabel: string
+  nextRunAt: number | null
+  enabled: boolean
+  lastRunAt: number | null
+  lastStatus: string | null
+}
+
+export interface ScheduledResponse {
+  schedulerAlive: boolean
+  profile: string | null
+  scheduled: Array<ScheduledWorkflow>
+}
+
+const CRON_FETCH_TIMEOUT_MS = 8000
+
+const optMs = (d: string | null | undefined): number | null =>
+  d ? toMs(d, 0) || null : null
+
+/** Never throws: upstream failure degrades to offline / empty. */
+export async function listScheduledWorkflows(): Promise<ScheduledResponse> {
+  const health = await pluginClient.health().catch(() => null)
+  const profile = typeof health?.profile === 'string' ? health.profile : null
+  const jobs = await getCronJobs(
+    profile ?? undefined,
+    AbortSignal.timeout(CRON_FETCH_TIMEOUT_MS),
+  ).catch(() => [])
+  const scheduled = (Array.isArray(jobs) ? jobs : []).flatMap((j) => {
+    let payload = (j as { payload?: unknown }).payload
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload)
+      } catch {
+        payload = null
+      }
+    }
+    const workflowId = (payload as Record<string, unknown> | null)
+      ?.switchui_workflow_id
+    if (typeof workflowId !== 'string' || !workflowId) return []
+    const last = j as {
+      schedule?: { kind?: string; expr?: string; display?: string }
+      last_status?: string | null
+    }
+    return [
+      {
+        id: j.id,
+        workflowId,
+        cron: last.schedule?.expr ?? j.schedule_display ?? null,
+        scheduleLabel:
+          last.schedule?.kind === 'cron' || !last.schedule?.kind
+            ? `cron ${last.schedule?.expr ?? j.schedule_display ?? '—'}`
+            : (last.schedule.display ??
+              j.schedule_display ??
+              last.schedule.expr ??
+              '—'),
+        nextRunAt: optMs(j.next_run_at),
+        enabled: j.enabled,
+        lastRunAt: optMs(j.last_run_at),
+        lastStatus: last.last_status ?? null,
+      },
+    ]
+  })
+  return {
+    schedulerAlive: health?.scheduler_alive === true,
+    profile,
+    scheduled,
+  }
 }

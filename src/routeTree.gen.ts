@@ -192,6 +192,7 @@ import { Route as ApiDashboardOverviewRouteImport } from './routes/api/dashboard
 import { Route as ApiDashboardProxySplatRouteImport } from './routes/api/dashboard-proxy/$'
 import { Route as ApiConductorWorkersRouteImport } from './routes/api/conductor/workers'
 import { Route as ApiConductorStateRouteImport } from './routes/api/conductor/state'
+import { Route as ApiConductorScheduledRouteImport } from './routes/api/conductor/scheduled'
 import { Route as ApiConductorMissionsRouteImport } from './routes/api/conductor/missions'
 import { Route as ApiCommandsIdRouteImport } from './routes/api/commands.$id'
 import { Route as ApiClaudeTasksTaskIdRouteImport } from './routes/api/claude-tasks.$taskId'
@@ -1182,6 +1183,11 @@ const ApiConductorStateRoute = ApiConductorStateRouteImport.update({
   path: '/api/conductor/state',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiConductorScheduledRoute = ApiConductorScheduledRouteImport.update({
+  id: '/api/conductor/scheduled',
+  path: '/api/conductor/scheduled',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiConductorMissionsRoute = ApiConductorMissionsRouteImport.update({
   id: '/api/conductor/missions',
   path: '/api/conductor/missions',
@@ -1651,6 +1657,7 @@ export interface FileRoutesByFullPath {
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
   '/api/commands/$id': typeof ApiCommandsIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
+  '/api/conductor/scheduled': typeof ApiConductorScheduledRoute
   '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
@@ -1898,6 +1905,7 @@ export interface FileRoutesByTo {
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
   '/api/commands/$id': typeof ApiCommandsIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
+  '/api/conductor/scheduled': typeof ApiConductorScheduledRoute
   '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
@@ -2148,6 +2156,7 @@ export interface FileRoutesById {
   '/api/claude-tasks/$taskId': typeof ApiClaudeTasksTaskIdRoute
   '/api/commands/$id': typeof ApiCommandsIdRoute
   '/api/conductor/missions': typeof ApiConductorMissionsRouteWithChildren
+  '/api/conductor/scheduled': typeof ApiConductorScheduledRoute
   '/api/conductor/state': typeof ApiConductorStateRoute
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
@@ -2399,6 +2408,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks/$taskId'
     | '/api/commands/$id'
     | '/api/conductor/missions'
+    | '/api/conductor/scheduled'
     | '/api/conductor/state'
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
@@ -2646,6 +2656,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks/$taskId'
     | '/api/commands/$id'
     | '/api/conductor/missions'
+    | '/api/conductor/scheduled'
     | '/api/conductor/state'
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
@@ -2895,6 +2906,7 @@ export interface FileRouteTypes {
     | '/api/claude-tasks/$taskId'
     | '/api/commands/$id'
     | '/api/conductor/missions'
+    | '/api/conductor/scheduled'
     | '/api/conductor/state'
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
@@ -3137,6 +3149,7 @@ export interface RootRouteChildren {
   ApiBackupsRestoreUploadRoute: typeof ApiBackupsRestoreUploadRoute
   ApiClaudeProxySplatRoute: typeof ApiClaudeProxySplatRoute
   ApiConductorMissionsRoute: typeof ApiConductorMissionsRouteWithChildren
+  ApiConductorScheduledRoute: typeof ApiConductorScheduledRoute
   ApiConductorStateRoute: typeof ApiConductorStateRoute
   ApiConductorWorkersRoute: typeof ApiConductorWorkersRoute
   ApiDashboardProxySplatRoute: typeof ApiDashboardProxySplatRoute
@@ -4485,6 +4498,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiConductorStateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/conductor/scheduled': {
+      id: '/api/conductor/scheduled'
+      path: '/api/conductor/scheduled'
+      fullPath: '/api/conductor/scheduled'
+      preLoaderRoute: typeof ApiConductorScheduledRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/conductor/missions': {
       id: '/api/conductor/missions'
       path: '/api/conductor/missions'
@@ -5626,6 +5646,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiBackupsRestoreUploadRoute: ApiBackupsRestoreUploadRoute,
   ApiClaudeProxySplatRoute: ApiClaudeProxySplatRoute,
   ApiConductorMissionsRoute: ApiConductorMissionsRouteWithChildren,
+  ApiConductorScheduledRoute: ApiConductorScheduledRoute,
   ApiConductorStateRoute: ApiConductorStateRoute,
   ApiConductorWorkersRoute: ApiConductorWorkersRoute,
   ApiDashboardProxySplatRoute: ApiDashboardProxySplatRoute,

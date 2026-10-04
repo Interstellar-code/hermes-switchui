@@ -20,6 +20,24 @@ const ACTIVE: ReadonlySet<MissionStatus> = new Set([
   'queued',
 ])
 
+const TIME_FMT: Intl.DateTimeFormatOptions = {
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: false,
+}
+
+/** HH:MM today, otherwise "Mon 09:00" / "Aug 3 09:00". */
+export function formatClock(ms: number, now = Date.now()): string {
+  const d = new Date(ms)
+  const time = d.toLocaleTimeString([], TIME_FMT)
+  if (d.toDateString() === new Date(now).toDateString()) return time
+  const sameWeek = Math.abs(ms - now) < 6 * 86_400_000
+  const day = sameWeek
+    ? d.toLocaleDateString([], { weekday: 'short' })
+    : d.toLocaleDateString([], { month: 'short', day: 'numeric' })
+  return `${day} ${time}`
+}
+
 const actionBtn = {
   background: 'none',
   border: 'none',
@@ -67,6 +85,8 @@ export function MissionCard({ mission }: MissionCardProps) {
           ) : (
             <span className={`b ${status}`}>{status}</span>
           )}
+          <span className="b trig">{mission.triggerKind ?? '—'}</span>
+          <span className="b">{formatClock(mission.createdAt)}</span>
           <span className="b">{elapsed}</span>
         </div>
       </div>

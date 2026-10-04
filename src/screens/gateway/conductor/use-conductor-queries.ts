@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   ConductorSnapshot,
   Mission,
+  ScheduledResponse,
 } from '../../../server/conductor-store'
 
 // ---------------------------------------------------------------------------
@@ -16,6 +17,12 @@ async function fetchSnapshot(): Promise<ConductorSnapshot> {
   const res = await fetch('/api/conductor/missions')
   if (!res.ok) throw new Error(`conductor/missions: ${res.status}`)
   return res.json() as Promise<ConductorSnapshot>
+}
+
+async function fetchScheduled(): Promise<ScheduledResponse> {
+  const res = await fetch('/api/conductor/scheduled')
+  if (!res.ok) throw new Error(`conductor/scheduled: ${res.status}`)
+  return res.json() as Promise<ScheduledResponse>
 }
 
 async function fetchMission(id: string): Promise<Mission> {
@@ -71,6 +78,14 @@ export function useConductorState() {
     queryFn: fetchSnapshot,
     refetchInterval: (query) => adaptiveInterval(query.state.data?.missions),
     select: (snapshot) => snapshot.stats,
+  })
+}
+
+export function useConductorScheduled() {
+  return useQuery({
+    queryKey: ['conductor', 'scheduled'],
+    queryFn: fetchScheduled,
+    refetchInterval: 60_000,
   })
 }
 

@@ -497,8 +497,12 @@ export async function validateCustomEndpoint(body: {
   })
 }
 
-export async function getCronJobs(): Promise<Array<CronJob>> {
-  return dashboardJson('/api/cron/jobs')
+export async function getCronJobs(
+  profile?: string,
+  signal?: AbortSignal,
+): Promise<Array<CronJob>> {
+  const q = profile ? `?profile=${encodeURIComponent(profile)}` : ''
+  return dashboardJson(`/api/cron/jobs${q}`, { signal })
 }
 
 export async function createCronJob(job: {

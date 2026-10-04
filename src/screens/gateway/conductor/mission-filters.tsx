@@ -8,7 +8,11 @@ interface MissionFiltersProps {
   onSelect: (tab: FilterTab) => void
 }
 
-export function MissionFilters({ active, counts, onSelect }: MissionFiltersProps) {
+export function MissionFilters({
+  active,
+  counts,
+  onSelect,
+}: MissionFiltersProps) {
   const tabs: Array<{ id: FilterTab; label: string }> = [
     { id: 'all', label: 'all' },
     { id: 'live', label: `live · ${counts.live}` },
@@ -22,6 +26,8 @@ export function MissionFilters({ active, counts, onSelect }: MissionFiltersProps
       {tabs.map((tab) => (
         <button
           key={tab.id}
+          type="button"
+          aria-pressed={active === tab.id}
           className={active === tab.id ? 'on' : undefined}
           onClick={() => onSelect(tab.id)}
         >

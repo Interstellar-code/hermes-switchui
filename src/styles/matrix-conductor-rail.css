@@ -1,0 +1,104 @@
+/* matrix-conductor-rail.css — rail sections, folds, scheduled, approval banner, top-bar chips */
+
+[data-screen='conductor'] {
+  .h-day .sched-state {
+    margin-left: auto;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .h-day .sched-state::before {
+    content: '●';
+    margin-right: 4px;
+  }
+  .h-day .sched-state.on {
+    color: var(--m-green-500, var(--theme-accent));
+  }
+  .h-day .sched-state.off {
+    color: var(--m-danger, var(--theme-danger));
+  }
+
+  button.miss.fold > span,
+  button.miss.fold .body > span.ttl {
+    display: block;
+  }
+  button.miss.fold .body > span.badges {
+    display: flex;
+  }
+
+  button.miss.fold {
+    width: 100%;
+    text-align: left;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  .miss .b.trig {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .miss.sched {
+    cursor: default;
+  }
+  .miss.sched.off {
+    opacity: 0.55;
+  }
+
+  /* approval banner */
+  .cnd-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 20px;
+    background: color-mix(
+      in srgb,
+      var(--m-warning, var(--theme-accent)) 10%,
+      transparent
+    );
+    border-bottom: 1px solid
+      color-mix(in srgb, var(--m-warning, var(--theme-accent)) 45%, transparent);
+    font: 500 12px var(--m-font-mono, ui-monospace, monospace);
+  }
+  .cnd-banner .bt {
+    color: var(--m-text-strong, var(--theme-text));
+  }
+  .cnd-banner .meta {
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+  .cnd-banner button {
+    margin-left: auto;
+    padding: 4px 12px;
+    cursor: pointer;
+    font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--m-text-strong, var(--theme-text));
+    background: transparent;
+    border: 1px solid var(--m-warning, var(--theme-accent));
+  }
+
+  /* top-bar profile chip + scheduler dot */
+  .cnd-top .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px;
+    border: 1px solid var(--m-border, var(--theme-border));
+    font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+  .cnd-top .chip .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--m-danger, var(--theme-danger));
+  }
+  .cnd-top .chip .dot.on {
+    background: var(--m-green-500, var(--theme-accent));
+  }
+}

@@ -1,5 +1,6 @@
 'use client'
 
+import '@/styles/matrix-conductor-rail.css'
 import { useConductorMissions } from './use-conductor-queries'
 import { MissionFilters } from './mission-filters'
 import { MissionList } from './mission-list'
@@ -27,7 +28,7 @@ export function MissionRail({ onNewMission }: MissionRailProps) {
     <aside className="cnd-rail">
       <div className="h-head">
         <h3>Missions</h3>
-        <span className="ct">· {total} today</span>
+        <span className="ct">· {total}</span>
         <div className="actions">
           <span className="ico-btn" aria-label="Search">
             <svg
@@ -42,7 +43,11 @@ export function MissionRail({ onNewMission }: MissionRailProps) {
         </div>
       </div>
 
-      <MissionFilters active={filterTab} counts={counts} onSelect={setFilterTab} />
+      <MissionFilters
+        active={filterTab}
+        counts={counts}
+        onSelect={setFilterTab}
+      />
 
       <MissionList />
 
