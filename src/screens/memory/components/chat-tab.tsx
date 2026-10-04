@@ -18,7 +18,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast as showToast } from '@/components/ui/toast'
-import { useBrowseFocusStore, useMemoryScreenStore } from '@/stores/memory-screen-store'
+import {
+  useBrowseFocusStore,
+  useMemoryChatStore,
+  useMemoryScreenStore,
+} from '@/stores/memory-screen-store'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -231,6 +235,14 @@ export function ChatTab({ onNavigate }: { onNavigate?: () => void } = {}) {
   const [sending, setSending] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
+
+  // "Ask about" hand-off: PREFILL the input, never send. Runs on mount (the
+  // drawer may open this tab after the request) and on every new request.
+  const chatSeq = useMemoryChatStore((st) => st.chatRequest?.seq)
+  useEffect(() => {
+    const seed = useMemoryChatStore.getState().consumeChatSeed()
+    if (seed) setInput(seed)
+  }, [chatSeq])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })

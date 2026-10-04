@@ -8,7 +8,7 @@ import {
 import { isMemoryProfile } from '../../../server/memory-profile'
 
 // Read-only, paginated, recent-first list of mnemosyne rows for the Browse tab.
-// ?type=gist|fact|entity|episodic|working &q= &since=ISO &limit= &cursor=<nextCursor>
+// ?type=gist|fact|entity|episodic|working &q= &since=ISO &until=ISO &fold=0|1 &junk=0|1 &limit= &cursor=<nextCursor>
 export const Route = createFileRoute('/api/memory/browse')({
   server: {
     handlers: {
@@ -40,6 +40,13 @@ export const Route = createFileRoute('/api/memory/browse')({
             { status: 400 },
           )
         }
+        const until = url.searchParams.get('until')
+        if (until && Number.isNaN(Date.parse(until))) {
+          return Response.json(
+            { error: 'until must be an ISO date' },
+            { status: 400 },
+          )
+        }
         const profile = url.searchParams.get('profile')
         if (profile !== null && !isMemoryProfile(profile)) {
           return Response.json({ error: 'unknown profile' }, { status: 400 })
@@ -50,6 +57,9 @@ export const Route = createFileRoute('/api/memory/browse')({
               type: type && isMnemosyneBrowseType(type) ? type : null,
               q: url.searchParams.get('q') ?? '',
               since,
+              until,
+              fold: url.searchParams.get('fold') !== '0',
+              junk: url.searchParams.get('junk') !== '0',
               limit,
               cursor,
               profile: profile ?? undefined,

@@ -9,7 +9,8 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryScreen, healthItems, nextTabId } from './memory-screen'
+import { headerTiles } from './components/memory-header-tiles'
+import { MemoryScreen, nextTabId } from './memory-screen'
 import {
   useMemoryChatStore,
   useMemoryScreenStore,
@@ -190,7 +191,7 @@ describe('nextTabId', () => {
   })
 })
 
-describe('MemoryScreen — header health', () => {
+describe('MemoryScreen — header tiles', () => {
   const day = 24 * 60 * 60_000
   const health = (ageDays: number, method: string, covered: number) => ({
     lastConsolidation: {
@@ -201,36 +202,72 @@ describe('MemoryScreen — header health', () => {
     backlog: { rows: 2410, sessions: 325, backoff: 0 },
     embeddings: { covered, total: 100 },
   })
+  const state = (name: RegExp) =>
+    screen.getByRole('button', { name }).getAttribute('data-state')
 
-  it('renders consolidation, backlog and embeddings without warnings when healthy', async () => {
-    mockStats(true, 42, { health: health(2, 'llm', 100) })
-    renderScreen()
-    const c = await screen.findByText('consolidated 2d ago (llm)')
-    expect(c.className).not.toMatch(/warn/)
-    expect(c.getAttribute('title')).toMatch(/aaak/)
-    expect(screen.getByText(/backlog 2,410 in 325 sessions/)).toBeTruthy()
-    expect(screen.getByText('embeddings 100%').className).not.toMatch(/warn/)
-  })
-
-  it('flags stale consolidation and low embedding coverage', async () => {
-    mockStats(true, 42, { health: health(4, 'llm', 90) })
-    renderScreen()
-    const c = await screen.findByText('consolidated 4d ago (llm)')
-    expect(c.className).toBe('mem-header-warn')
-    expect(screen.getByText('embeddings 90%').className).toBe('mem-header-warn')
-  })
-
-  it('flags aaak consolidation and skips absent parts', () => {
-    const items = healthItems({
-      lastConsolidation: {
-        at: new Date().toISOString(),
-        method: 'aaak',
-        items: 1,
-      },
-      backlog: null,
-      embeddings: null,
+  it('renders tiles with popover wiring and health states', async () => {
+    mockStats(true, 42, {
+      lastWriteAt: new Date().toISOString(),
+      health: health(2, 'llm', 100),
     })
-    expect(items.map((i) => [i.key, i.warn])).toEqual([['consolidation', true]])
-    expect(healthItems(undefined)).toEqual([])
+    renderScreen()
+    await screen.findByRole('button', { name: /^consolidated 2d · LLM, ok$/ })
+    expect(state(/^consolidated/)).toBe('ok')
+    expect(state(/^embeddings 100%, ok$/)).toBe('ok')
+    expect(state(/^backlog 2,410 · 325 sess, warning$/)).toBe('warn')
+    expect(state(/^last write now, ok$/)).toBe('ok')
+    const tile = screen.getByRole('button', { name: /^embeddings/ })
+    expect(tile.getAttribute('aria-describedby')).toBe(
+      tile.getAttribute('popovertarget'),
+    )
+    const pop = document.getElementById(tile.getAttribute('popovertarget')!)!
+    expect(pop.hasAttribute('popover')).toBe(true)
+    expect(pop.textContent).toMatch(/vector embedding/)
+  })
+
+  it('flags stale consolidation, aaak and low embeddings', async () => {
+    mockStats(true, 42, { health: health(4, 'llm', 40) })
+    renderScreen()
+    await screen.findByRole('button', { name: /^consolidated/ })
+    expect(state(/^consolidated/)).toBe('bad')
+    expect(state(/^embeddings 40%, problem$/)).toBe('bad')
+  })
+
+  it('handles unparsable and ancient dates', () => {
+    const t = headerTiles({
+      counts: { total: 1, triples: 0 },
+      lastWriteAt: 'garbage',
+    }).find((x) => x.key === 'last-write')!
+    expect([t.value, t.state]).toEqual(['—', undefined])
+    const old = headerTiles({
+      counts: { total: 1, triples: 0 },
+      lastWriteAt: new Date(Date.now() - 40 * day).toISOString(),
+    }).find((x) => x.key === 'last-write')!
+    expect(old.state).toBe('bad')
+  })
+
+  it('skips absent parts and Ask memory opens the drawer', async () => {
+    const items = headerTiles({
+      counts: { total: 1, triples: 0 },
+      health: {
+        lastConsolidation: {
+          at: new Date().toISOString(),
+          method: 'aaak',
+          items: 1,
+        },
+        backlog: null,
+        embeddings: null,
+      },
+    })
+    expect(items.map((i) => [i.key, i.state])).toEqual([
+      ['memories', undefined],
+      ['triples', undefined],
+      ['consolidation', 'warn'],
+    ])
+    mockStats(true, 42)
+    useMemoryChatStore.setState({ chatRequest: null })
+    renderScreen()
+    fireEvent.click(await screen.findByRole('button', { name: /ask memory/i }))
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
   })
 })

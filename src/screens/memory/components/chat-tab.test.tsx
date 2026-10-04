@@ -1,8 +1,19 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ChatTab } from './chat-tab'
-import { useBrowseFocusStore, useMemoryScreenStore } from '@/stores/memory-screen-store'
+import {
+  useBrowseFocusStore,
+  useMemoryChatStore,
+  useMemoryScreenStore,
+} from '@/stores/memory-screen-store'
 
 vi.mock('@/components/ui/toast', () => ({ toast: vi.fn() }))
 
@@ -10,7 +21,11 @@ vi.mock('@/components/ui/toast', () => ({ toast: vi.fn() }))
 Element.prototype.scrollIntoView = vi.fn()
 
 type FileMatch = { path: string; line: number; text: string }
-type MnemoMatch = { kind: 'gist' | 'fact' | 'episodic'; text: string; score: number }
+type MnemoMatch = {
+  kind: 'gist' | 'fact' | 'episodic'
+  text: string
+  score: number
+}
 
 function makeStream(str: string) {
   return new ReadableStream({
@@ -21,14 +36,24 @@ function makeStream(str: string) {
   })
 }
 
-function mockFetch(fileResults: Array<FileMatch>, mnemoResults: Array<MnemoMatch>, sseText: string) {
+function mockFetch(
+  fileResults: Array<FileMatch>,
+  mnemoResults: Array<MnemoMatch>,
+  sseText: string,
+) {
   return vi.fn((url: string) => {
     const u = String(url)
     if (u.includes('/api/memory/mnemosyne-search')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: mnemoResults }) })
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ results: mnemoResults }),
+      })
     }
     if (u.includes('/api/memory/search')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ results: fileResults }) })
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ results: fileResults }),
+      })
     }
     if (u.includes('/api/memory/chat')) {
       return Promise.resolve({ ok: true, body: makeStream(sseText) })
@@ -66,7 +91,9 @@ describe('ChatTab', () => {
       expect(screen.getByText("I don't have that in my memory.")).toBeTruthy()
     })
     expect(
-      fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/memory/chat')),
+      fetchMock.mock.calls.some((call) =>
+        String(call[0]).includes('/api/memory/chat'),
+      ),
     ).toBe(false)
   })
 
@@ -87,7 +114,9 @@ describe('ChatTab', () => {
       expect(screen.getByText('SubsHero')).toBeTruthy()
     })
     expect(
-      fetchMock.mock.calls.some((call) => String(call[0]).includes('/api/memory/chat')),
+      fetchMock.mock.calls.some((call) =>
+        String(call[0]).includes('/api/memory/chat'),
+      ),
     ).toBe(true)
   })
 
@@ -95,14 +124,56 @@ describe('ChatTab', () => {
     const SSE_TEXT = 'event: chunk\ndata: {"text":"ok"}\n\n'
     vi.stubGlobal(
       'fetch',
-      mockFetch([], [{ kind: 'fact', text: 'Rohit likes fox', score: 2 }], SSE_TEXT),
+      mockFetch(
+        [],
+        [{ kind: 'fact', text: 'Rohit likes fox', score: 2 }],
+        SSE_TEXT,
+      ),
     )
     const onNavigate = vi.fn()
     render(<ChatTab onNavigate={onNavigate} />)
     send('fox?')
-    fireEvent.click(await screen.findByRole('button', { name: 'matrix-memory:fact' }))
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'matrix-memory:fact' }),
+    )
     expect(useMemoryScreenStore.getState().activeTab).toBe('browse')
-    expect(useBrowseFocusStore.getState().focus).toEqual({ type: 'fact', q: '' })
+    expect(useBrowseFocusStore.getState().focus).toEqual({
+      type: 'fact',
+      q: '',
+    })
     expect(onNavigate).toHaveBeenCalled()
+  })
+
+  it('prefills the input from a chat seed without sending; same question re-prefills', () => {
+    const fetchMock = vi.fn(() => Promise.reject(new Error('should not fetch')))
+    vi.stubGlobal('fetch', fetchMock)
+    useMemoryChatStore.setState({ chatRequest: null })
+    render(<ChatTab />)
+    const box = () =>
+      screen.getByPlaceholderText(
+        /Ask about your memory/i,
+      ) as HTMLTextAreaElement
+    act(() => useMemoryChatStore.getState().askMemory('what is fox?'))
+    expect(box().value).toBe('what is fox?')
+    expect(fetchMock).not.toHaveBeenCalled()
+    fireEvent.change(box(), { target: { value: 'edited' } })
+    act(() => useMemoryChatStore.getState().askMemory('what is fox?'))
+    expect(box().value).toBe('what is fox?')
+    act(() => useMemoryChatStore.getState().askMemory(null))
+    expect(box().value).toBe('what is fox?')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('consumes a seed set before mount', () => {
+    vi.stubGlobal('fetch', vi.fn())
+    useMemoryChatStore.setState({ chatRequest: { seed: 'early', seq: 3 } })
+    render(<ChatTab />)
+    expect(
+      (
+        screen.getByPlaceholderText(
+          /Ask about your memory/i,
+        ) as HTMLTextAreaElement
+      ).value,
+    ).toBe('early')
   })
 })

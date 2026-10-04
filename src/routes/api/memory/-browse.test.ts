@@ -34,6 +34,8 @@ type Page = {
     type: string
     text: string
     createdAt: string | null
+    dupCount: number
+    junk?: boolean
   }>
   nextCursor: string | null
 }
@@ -62,7 +64,7 @@ beforeAll(() => {
     CREATE TABLE episodic_memory (rowid INTEGER PRIMARY KEY AUTOINCREMENT, id TEXT UNIQUE NOT NULL, content TEXT NOT NULL, created_at TIMESTAMP);
     CREATE VIRTUAL TABLE fts_episodes USING fts5(content, content='episodic_memory', content_rowid='rowid');
     CREATE TABLE gists (id TEXT PRIMARY KEY, text TEXT NOT NULL, created_at TIMESTAMP);
-    CREATE TABLE facts (fact_id TEXT PRIMARY KEY, subject TEXT, predicate TEXT, object TEXT, timestamp TEXT, created_at TIMESTAMP);
+    CREATE TABLE facts (fact_id TEXT PRIMARY KEY, subject TEXT, predicate TEXT, object TEXT, timestamp TEXT, created_at TIMESTAMP, source_msg_id TEXT);
     CREATE VIRTUAL TABLE fts_facts USING fts5(subject, predicate, object, content='facts');
     CREATE TABLE annotations (id INTEGER PRIMARY KEY AUTOINCREMENT, memory_id TEXT, kind TEXT, value TEXT, created_at TIMESTAMP);
   `)
@@ -84,7 +86,9 @@ beforeAll(() => {
     'gist with 100% fox',
     '2026-03-01 10:00:00',
   )
-  const fact = db.prepare('INSERT INTO facts VALUES (?, ?, ?, ?, ?, ?)')
+  const fact = db.prepare(
+    'INSERT INTO facts (fact_id, subject, predicate, object, timestamp, created_at, source_msg_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  )
   // f0 is first by (timestamp, fact_id) → canonical id/text; the row's date
   // is the group's newest created_at (f1's)
   fact.run(
@@ -94,6 +98,7 @@ beforeAll(() => {
     'fox',
     '2026-01-15T12:00:00',
     '2026-01-15 10:00:00',
+    null,
   )
   fact.run(
     'f0',
@@ -102,6 +107,7 @@ beforeAll(() => {
     ' Fox',
     '2026-01-09T12:00:00',
     '2026-01-10 10:00:00',
+    'w1',
   )
   // junk fragment → hidden, like on the Map
   fact.run(
@@ -111,6 +117,7 @@ beforeAll(() => {
     'genuinely',
     '2026-01-16T12:00:00',
     '2026-01-16 10:00:00',
+    null,
   )
   db.exec(
     `INSERT INTO fts_facts (rowid, subject, predicate, object) SELECT rowid, subject, predicate, object FROM facts`,
@@ -166,8 +173,30 @@ describe('GET /api/memory/browse', () => {
         type: 'fact',
         text: 'rohit likes Fox', // f0's own text (whitespace collapsed)
         createdAt: '2026-01-15T10:00:00.000Z',
+        dupCount: 2,
+        entities: ['Fox'],
       },
     ])
+  })
+
+  it('fold=0 returns the duplicate rows', async () => {
+    const { body } = await browse('type=fact&fold=0')
+    expect(body.items.map((i) => i.id).sort()).toEqual(['f0', 'f1'])
+    expect(body.items.every((i) => i.dupCount === 1)).toBe(true)
+  })
+
+  it('junk=0 returns junk facts, flagged', async () => {
+    const { body } = await browse('type=fact&junk=0')
+    const j = body.items.find((i) => i.id === 'j1')
+    expect(j).toMatchObject({ junk: true, dupCount: 1 })
+  })
+
+  it('until is exclusive and since inclusive', async () => {
+    const { body } = await browse(
+      'type=working&since=2026-01-02T00:00:00Z&until=2026-01-04T00:00:00Z',
+    )
+    expect(body.items.map((i) => i.id)).toEqual(['w2', 'w1'])
+    expect((await browse('until=nope')).status).toBe(400)
   })
 
   it('paginates with an opaque keyset cursor', async () => {

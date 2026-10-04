@@ -461,6 +461,12 @@ export type MnemosyneBrowseItem = {
   type: MnemosyneBrowseType
   text: string
   createdAt: string | null
+  /** Identical facts folded into this row (1 = unique / not folded). */
+  dupCount: number
+  /** Up to 3 entities mentioned by the fact's source message (facts only). */
+  entities?: Array<string>
+  /** True for facts the junk filter would hide (only with junk=0). */
+  junk?: boolean
 }
 
 export type MnemosyneBrowsePage = {
@@ -474,6 +480,12 @@ export type MnemosyneBrowseOptions = {
   q?: string
   /** ISO date/time; only rows written at or after it. */
   since?: string | null
+  /** ISO date/time; only rows written strictly before it. */
+  until?: string | null
+  /** Fold identical facts into one row (default true). */
+  fold?: boolean
+  /** Hide junk facts (default true); false reveals them. */
+  junk?: boolean
   limit?: number
   /** `nextCursor` from the previous page. */
   cursor?: string | null
@@ -542,8 +554,8 @@ function sqliteTsToIso(ts: string | null): string | null {
 type BrowseSource = {
   type: MnemosyneBrowseType
   table: string
-  /** SELECT … yielding (id, type, text, ts); `f` is the q clause (or ''). */
-  sql: (f: string) => string
+  /** SELECT … yielding (id, type, text, ts, dup, junk); `f` is the q clause (or ''). */
+  sql: (f: string, o: { fold: boolean; junk: boolean }) => string
   /** q clause via an FTS table, when that table exists. */
   fts?: { table: string; clause: string }
   /** text expression for the per-word LIKE fallback. */
@@ -555,24 +567,26 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
     type: 'gist',
     table: 'gists',
     sql: (f) =>
-      `SELECT g.id AS id, 'gist' AS type, g.text AS text, g.created_at AS ts FROM gists g WHERE 1=1 ${f}`,
+      `SELECT g.id AS id, 'gist' AS type, g.text AS text, g.created_at AS ts, 1 AS dup, 0 AS junk FROM gists g WHERE 1=1 ${f}`,
     likeExpr: 'g.text',
   },
   {
     type: 'fact',
     table: 'facts',
-    sql: (f) =>
-      // Same view as the Map: junk facts hidden (isJunkFact in SQL), identical
-      // facts (case/trim-insensitive) folded into their first row by
-      // (timestamp, fact_id) — the graph's canonical id/text — dated by the
-      // group's newest created_at.
-      `SELECT id, 'fact' AS type, text, ts FROM (
+    sql: (f, o) =>
+      // Default view matches the Map: junk facts hidden, identical facts
+      // (case/trim-insensitive) folded into their first row by (timestamp,
+      // fact_id) — the graph's canonical id/text — dated by the group's newest
+      // created_at, with dup = group size. fold/junk=false show the raw rows.
+      `SELECT id, 'fact' AS type, text, ts, dup, junk FROM (
          SELECT f.fact_id AS id, f.subject || ' ' || f.predicate || ' ' || f.object AS text,
-           MAX(f.created_at) OVER grp AS ts,
+           ${o.fold ? 'MAX(f.created_at) OVER grp' : 'f.created_at'} AS ts,
+           ${o.fold ? 'COUNT(*) OVER grp' : '1'} AS dup,
+           CASE WHEN ${JUNK_FACT_SQL} THEN 1 ELSE 0 END AS junk,
            ROW_NUMBER() OVER (grp ORDER BY f.timestamp, f.fact_id) AS rn
-         FROM facts f WHERE NOT ${JUNK_FACT_SQL} ${f}
+         FROM facts f WHERE (${o.junk ? '' : '1 OR '}NOT ${JUNK_FACT_SQL}) ${f}
          WINDOW grp AS (PARTITION BY lower(trim(f.subject)), lower(trim(f.predicate)), lower(trim(f.object)))
-       ) WHERE rn = 1`,
+       ) WHERE ${o.fold ? 'rn = 1' : '1=1'}`,
     fts: {
       table: 'fts_facts',
       clause:
@@ -584,14 +598,14 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
     type: 'entity',
     table: 'annotations',
     sql: (f) =>
-      `SELECT 'entity:' || a.value AS id, 'entity' AS type, a.value AS text, MAX(a.created_at) AS ts FROM annotations a WHERE a.kind = 'mentions' ${f} GROUP BY a.value`,
+      `SELECT 'entity:' || a.value AS id, 'entity' AS type, a.value AS text, MAX(a.created_at) AS ts, 1 AS dup, 0 AS junk FROM annotations a WHERE a.kind = 'mentions' ${f} GROUP BY a.value`,
     likeExpr: 'a.value',
   },
   {
     type: 'episodic',
     table: 'episodic_memory',
     sql: (f) =>
-      `SELECT e.id AS id, 'episodic' AS type, e.content AS text, e.created_at AS ts FROM episodic_memory e WHERE 1=1 ${f}`,
+      `SELECT e.id AS id, 'episodic' AS type, e.content AS text, e.created_at AS ts, 1 AS dup, 0 AS junk FROM episodic_memory e WHERE 1=1 ${f}`,
     fts: {
       table: 'fts_episodes',
       clause:
@@ -603,7 +617,7 @@ const BROWSE_SOURCES: Array<BrowseSource> = [
     type: 'working',
     table: 'working_memory',
     sql: (f) =>
-      `SELECT w.id AS id, 'working' AS type, w.content AS text, w.created_at AS ts FROM working_memory w WHERE 1=1 ${f}`,
+      `SELECT w.id AS id, 'working' AS type, w.content AS text, w.created_at AS ts, 1 AS dup, 0 AS junk FROM working_memory w WHERE 1=1 ${f}`,
     fts: {
       table: 'fts_working',
       clause:
@@ -635,22 +649,24 @@ export function browseMnemosyne(
 
   const db = openReadonlyDb(dbPath)
   try {
+    const view = { fold: opts.fold !== false, junk: opts.junk !== false }
     const parts = BROWSE_SOURCES.filter(
       (s) => (!opts.type || s.type === opts.type) && tableExists(db, s.table),
     ).map((s) => {
-      if (words.length === 0) return s.sql('')
+      if (words.length === 0) return s.sql('', view)
       const clause =
         s.fts && tableExists(db, s.fts.table)
           ? s.fts.clause
           : words
               .map((_, i) => `${s.likeExpr} LIKE @w${i} ESCAPE '\\'`)
               .join(' AND ')
-      return s.sql(`AND ${clause}`)
+      return s.sql(`AND ${clause}`, view)
     })
     if (parts.length === 0) return empty
 
     const params: Record<string, string | number | null> = {
       since: opts.since ? toSqliteTs(opts.since) : null,
+      until: opts.until ? toSqliteTs(opts.until) : null,
       limit: limit + 1,
       cts: cursor?.[0] ?? null,
       ctype: cursor?.[1] ?? null,
@@ -668,10 +684,11 @@ export function browseMnemosyne(
     // k-way merge if the bank grows to 100k+.
     const rows = db
       .prepare(
-        `SELECT id, type, text, ts FROM (
-            SELECT id, type, text, COALESCE(ts, '') AS ts FROM (${parts.join(' UNION ALL ')})
+        `SELECT id, type, text, ts, dup, junk FROM (
+            SELECT id, type, text, COALESCE(ts, '') AS ts, dup, junk FROM (${parts.join(' UNION ALL ')})
           )
           WHERE (@since IS NULL OR ts >= @since)
+            AND (@until IS NULL OR ts < @until)
             AND (@cts IS NULL OR (ts, type, id) < (@cts, @ctype, @cid))
           ORDER BY ts DESC, type DESC, id DESC
           LIMIT @limit`,
@@ -681,22 +698,158 @@ export function browseMnemosyne(
       type: MnemosyneBrowseType
       text: string | null
       ts: string
+      dup: number
+      junk: number
     }>
 
     const page = rows.slice(0, limit)
     const last = page.at(-1)
+    const entities = factEntities(
+      db,
+      page.filter((r) => r.type === 'fact').map((r) => String(r.id)),
+    )
     return {
       items: page.map((r) => ({
         id: String(r.id),
         type: r.type,
         text: snippet(r.text),
         createdAt: sqliteTsToIso(r.ts),
+        dupCount: r.dup,
+        ...(r.type === 'fact' && entities.has(String(r.id))
+          ? { entities: entities.get(String(r.id)) }
+          : {}),
+        ...(r.junk ? { junk: true } : {}),
       })),
       nextCursor:
         rows.length > limit && last
           ? encodeCursor([last.ts, last.type, String(last.id)])
           : null,
     }
+  } finally {
+    db.close()
+  }
+}
+
+/** Entities (annotations kind='mentions') of each fact's source message, max 3. */
+function factEntities(
+  db: Database.Database,
+  ids: Array<string>,
+): Map<string, Array<string>> {
+  const out = new Map<string, Array<string>>()
+  if (
+    ids.length === 0 ||
+    !tableExists(db, 'annotations') ||
+    !hasColumn(db, 'facts', 'source_msg_id')
+  )
+    return out
+  const rows = db
+    .prepare(
+      `SELECT f.fact_id AS id, a.value AS value FROM facts f
+       JOIN annotations a ON a.memory_id = f.source_msg_id AND a.kind = 'mentions'
+       WHERE f.fact_id IN (${ids.map(() => '?').join(',')})
+       ORDER BY a.value`,
+    )
+    .all(...ids) as Array<{ id: string; value: string }>
+  for (const r of rows) {
+    const list = out.get(r.id) ?? []
+    if (list.length < 3 && r.value && !list.includes(r.value))
+      list.push(r.value)
+    out.set(r.id, list)
+  }
+  return out
+}
+
+// ── Activity (Browse sparkline + kind counts) ─────────────────────────────────
+
+export type MnemosyneActivity = {
+  days: Array<{
+    date: string
+    count: number
+    byType: Record<'gist' | 'fact' | 'episodic' | 'working', number>
+  }>
+  totals: Record<'gist' | 'fact' | 'entity' | 'episodic' | 'working', number>
+  /** Facts the junk filter hides. */
+  junkFacts: number
+}
+
+const ACTIVITY_TABLES = [
+  ['gist', 'gists'],
+  ['fact', 'facts'],
+  ['episodic', 'episodic_memory'],
+  ['working', 'working_memory'],
+] as const
+
+/**
+ * Per-day write counts for the last `days` LOCAL days (`tzMin` = minutes east
+ * of UTC) + per-kind totals.
+ */
+// ponytail: no created_at index, so each table is scanned once (~10k rows,
+// ~15 ms). Add per-table created_at indexes if a bank reaches 100k+ rows.
+export function getMnemosyneActivity(
+  days = 30,
+  bankId = getDefaultBankId(),
+  profile?: string,
+  tzMin = 0,
+): MnemosyneActivity {
+  const n = Math.min(Math.max(1, Math.floor(days)), 365)
+  const tz = Math.min(840, Math.max(-840, Math.trunc(tzMin) || 0))
+  const localNow = Date.now() + tz * 60_000
+  const out: MnemosyneActivity = {
+    days: Array.from({ length: n }, (_, i) => ({
+      date: new Date(localNow - (n - 1 - i) * 86_400_000)
+        .toISOString()
+        .slice(0, 10),
+      count: 0,
+      byType: { gist: 0, fact: 0, episodic: 0, working: 0 },
+    })),
+    totals: { gist: 0, fact: 0, entity: 0, episodic: 0, working: 0 },
+    junkFacts: 0,
+  }
+  const dbPath = getMnemosyneDbPath(bankId, profile)
+  if (!fs.existsSync(dbPath)) return out
+  // First local midnight, expressed in UTC sqlite-timestamp form.
+  const from = toSqliteTs(
+    new Date(
+      Date.parse(`${out.days[0].date}T00:00:00Z`) - tz * 60_000,
+    ).toISOString(),
+  )
+  const tzmod = `${tz >= 0 ? '+' : '-'}${Math.abs(tz)} minutes`
+
+  const byDate = new Map(out.days.map((d) => [d.date, d]))
+  const db = openReadonlyDb(dbPath)
+  try {
+    for (const [type, table] of ACTIVITY_TABLES) {
+      if (!tableExists(db, table)) continue
+      out.totals[type] = countRows(db, table)
+      if (!hasColumn(db, table, 'created_at')) continue
+      const rows = db
+        .prepare(
+          `SELECT substr(datetime(created_at, @tzmod), 1, 10) AS d, COUNT(*) AS c FROM ${table}
+           WHERE created_at >= @from GROUP BY d`,
+        )
+        .all({ from, tzmod }) as Array<{ d: string; c: number }>
+      for (const r of rows) {
+        const day = byDate.get(r.d)
+        if (!day) continue
+        day.byType[type] = r.c
+        day.count += r.c
+      }
+    }
+    if (tableExists(db, 'annotations'))
+      out.totals.entity = (
+        db
+          .prepare(
+            "SELECT COUNT(DISTINCT value) AS c FROM annotations WHERE kind = 'mentions'",
+          )
+          .get() as { c: number }
+      ).c
+    if (tableExists(db, 'facts'))
+      out.junkFacts = (
+        db
+          .prepare(`SELECT COUNT(*) AS c FROM facts f WHERE ${JUNK_FACT_SQL}`)
+          .get(junkFactSqlParams()) as { c: number }
+      ).c
+    return out
   } finally {
     db.close()
   }

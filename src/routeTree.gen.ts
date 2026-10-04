@@ -154,6 +154,7 @@ import { Route as ApiMemoryGetRouteImport } from './routes/api/memory/get'
 import { Route as ApiMemoryChatRouteImport } from './routes/api/memory/chat'
 import { Route as ApiMemoryBrowseRouteImport } from './routes/api/memory/browse'
 import { Route as ApiMemoryAgentFilesRouteImport } from './routes/api/memory/agent-files'
+import { Route as ApiMemoryActivityRouteImport } from './routes/api/memory/activity'
 import { Route as ApiMcpTestRouteImport } from './routes/api/mcp/test'
 import { Route as ApiMcpPresetsRouteImport } from './routes/api/mcp/presets'
 import { Route as ApiMcpHubSourcesRouteImport } from './routes/api/mcp/hub-sources'
@@ -982,6 +983,11 @@ const ApiMemoryAgentFilesRoute = ApiMemoryAgentFilesRouteImport.update({
   path: '/agent-files',
   getParentRoute: () => ApiMemoryRoute,
 } as any)
+const ApiMemoryActivityRoute = ApiMemoryActivityRouteImport.update({
+  id: '/activity',
+  path: '/activity',
+  getParentRoute: () => ApiMemoryRoute,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/test',
   path: '/test',
@@ -1667,6 +1673,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp/hub-sources': typeof ApiMcpHubSourcesRouteWithChildren
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
+  '/api/memory/activity': typeof ApiMemoryActivityRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
   '/api/memory/browse': typeof ApiMemoryBrowseRoute
   '/api/memory/chat': typeof ApiMemoryChatRoute
@@ -1911,6 +1918,7 @@ export interface FileRoutesByTo {
   '/api/mcp/hub-sources': typeof ApiMcpHubSourcesRouteWithChildren
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
+  '/api/memory/activity': typeof ApiMemoryActivityRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
   '/api/memory/browse': typeof ApiMemoryBrowseRoute
   '/api/memory/chat': typeof ApiMemoryChatRoute
@@ -2158,6 +2166,7 @@ export interface FileRoutesById {
   '/api/mcp/hub-sources': typeof ApiMcpHubSourcesRouteWithChildren
   '/api/mcp/presets': typeof ApiMcpPresetsRoute
   '/api/mcp/test': typeof ApiMcpTestRoute
+  '/api/memory/activity': typeof ApiMemoryActivityRoute
   '/api/memory/agent-files': typeof ApiMemoryAgentFilesRoute
   '/api/memory/browse': typeof ApiMemoryBrowseRoute
   '/api/memory/chat': typeof ApiMemoryChatRoute
@@ -2406,6 +2415,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources'
     | '/api/mcp/presets'
     | '/api/mcp/test'
+    | '/api/memory/activity'
     | '/api/memory/agent-files'
     | '/api/memory/browse'
     | '/api/memory/chat'
@@ -2650,6 +2660,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources'
     | '/api/mcp/presets'
     | '/api/mcp/test'
+    | '/api/memory/activity'
     | '/api/memory/agent-files'
     | '/api/memory/browse'
     | '/api/memory/chat'
@@ -2896,6 +2907,7 @@ export interface FileRouteTypes {
     | '/api/mcp/hub-sources'
     | '/api/mcp/presets'
     | '/api/mcp/test'
+    | '/api/memory/activity'
     | '/api/memory/agent-files'
     | '/api/memory/browse'
     | '/api/memory/chat'
@@ -4181,6 +4193,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiMemoryAgentFilesRouteImport
       parentRoute: typeof ApiMemoryRoute
     }
+    '/api/memory/activity': {
+      id: '/api/memory/activity'
+      path: '/activity'
+      fullPath: '/api/memory/activity'
+      preLoaderRoute: typeof ApiMemoryActivityRouteImport
+      parentRoute: typeof ApiMemoryRoute
+    }
     '/api/mcp/test': {
       id: '/api/mcp/test'
       path: '/test'
@@ -5035,6 +5054,7 @@ const ApiMemoryGraphRouteWithChildren = ApiMemoryGraphRoute._addFileChildren(
 )
 
 interface ApiMemoryRouteChildren {
+  ApiMemoryActivityRoute: typeof ApiMemoryActivityRoute
   ApiMemoryAgentFilesRoute: typeof ApiMemoryAgentFilesRoute
   ApiMemoryBrowseRoute: typeof ApiMemoryBrowseRoute
   ApiMemoryChatRoute: typeof ApiMemoryChatRoute
@@ -5051,6 +5071,7 @@ interface ApiMemoryRouteChildren {
 }
 
 const ApiMemoryRouteChildren: ApiMemoryRouteChildren = {
+  ApiMemoryActivityRoute: ApiMemoryActivityRoute,
   ApiMemoryAgentFilesRoute: ApiMemoryAgentFilesRoute,
   ApiMemoryBrowseRoute: ApiMemoryBrowseRoute,
   ApiMemoryChatRoute: ApiMemoryChatRoute,
