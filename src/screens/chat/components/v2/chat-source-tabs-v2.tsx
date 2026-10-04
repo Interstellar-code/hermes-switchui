@@ -128,6 +128,9 @@ export function ChatSourceTabsV2({ activePanel, onTogglePanel, counts, hideFiles
             }
           >
             {tab.icon}
+            <span aria-hidden className="hidden sm:inline">
+              {tab.label}
+            </span>
             {shown && (
               <span
                 data-testid={`tab-count-${tab.id}`}
