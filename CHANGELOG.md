@@ -3,6 +3,25 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.9.1] — 2026-10-04
+
+Conductor fixes, delegation cards and visible context compaction.
+
+### Added
+
+- **Background Delegation Card**: When a background delegation finishes, its result shows as a collapsed card ("Background delegation finished · 3/3 tasks · 10m 56s") instead of a wall of text. Expand it or copy it. The latest card offers Continue, and an opt-in per-chat auto-continue sends one nudge per completion.
+- **Context Compaction In The Chat**: When a long chat is compacted, a divider shows where it happened and how many messages were kept. The context ring gets a badge and pulses while compaction runs. (#365)
+- **Labels On Panel Toggles**: The sidebar panel toggles show their names next to the icons on wider screens.
+
+### Fixed
+
+- **Conductor Stats And Times**: The header shows real live, needs-you and running-node counts, and mission times no longer read NaN. Missions group by calendar day.
+- **Needs You**: Runs waiting for approval get a "needs you" chip and their own filter instead of showing as done.
+- **New Mission Wizard On Conductor**: The wizard opens as a styled dialog on Conductor; its styles now load on every page.
+- **Live Run Updates**: Run event streams no longer drop after 15 seconds, and closing a run panel closes its stream.
+- **Cancel And Run Again**: Cancel asks for confirmation and really cancels the run. Run again relaunches with the original request and appears in the list straight away.
+- **Keyboard Access**: Conductor's inspector, the workflow picker and the launch wizard close with Escape and keep focus inside while open.
+
 ## [2.9.0] — 2026-10-04
 
 Chat panels in the sidebar and smarter folders.
