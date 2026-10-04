@@ -4,6 +4,7 @@ import {
   cleanLabel,
   computeVisibleGraph,
   degreeMap,
+  deriveInspector,
   nodeDates,
   searchNodes,
   shortLabel,
@@ -248,5 +249,73 @@ describe('labels + lookups', () => {
     expect(
       searchNodes(buildSearchIndex(NODES), '  ', degreeMap(EDGES)).total,
     ).toBe(0)
+  })
+})
+
+describe('deriveInspector', () => {
+  const nodes = [
+    node('e:rohit', 'entity', 'Rohit'),
+    node('e:neo', 'entity', 'Neo'),
+    node('e:blr', 'entity', 'BLR'),
+    node('f1', 'fact'),
+    node('g1', 'gist'),
+    node('g2', 'gist'),
+    node('w1', 'wiki'),
+  ]
+  const edges = [
+    edge('g1', 'e:rohit', 'mentions', '2026-01-02T00:00:00Z'),
+    edge('g2', 'e:rohit', 'mentions', '2026-03-05T00:00:00Z'),
+    edge('w1', 'e:rohit', 'references', '2026-02-01T00:00:00Z'),
+    edge('f1', 'e:rohit', 'about', '2026-01-01T00:00:00Z'),
+    edge('f1', 'e:neo', 'about', '2026-01-01T00:00:00Z'),
+    edge('g1', 'e:blr', 'mentions', '2026-01-02T00:00:00Z'),
+    edge('g2', 'e:blr', 'mentions', '2026-01-03T00:00:00Z'),
+  ]
+  const adj = new Map<string, Set<string>>()
+  for (const e of edges) {
+    for (const [a, b] of [
+      [e.source, e.target],
+      [e.target, e.source],
+    ]) {
+      if (!adj.has(a)) adj.set(a, new Set())
+      adj.get(a)!.add(b)
+    }
+  }
+  const model = {
+    byId: new Map(nodes.map((n) => [n.id, n])),
+    deg: degreeMap(edges),
+    dates: nodeDates(edges),
+    adj,
+  }
+  const clusters = {
+    clusterOf: new Map([['e:rohit', 3]]),
+    clusters: [{ id: 3, name: 'Personal', size: 9, slot: 3 }],
+  }
+
+  it('returns undefined for unknown ids', () => {
+    expect(deriveInspector(model, 'nope', null)).toBeUndefined()
+  })
+
+  it('derives connections, first/last, cluster', () => {
+    const d = deriveInspector(model, 'e:rohit', clusters)!
+    expect(d.connections).toBe(4)
+    expect(d.firstSeen).toBe('2026-01-01T00:00:00Z')
+    expect(d.lastSeen).toBe('2026-03-05T00:00:00Z')
+    expect(d.clusterId).toBe(3)
+    expect(deriveInspector(model, 'e:rohit', null)!.clusterId).toBeNull()
+  })
+
+  it('links entities directly and via a fact, excluding self, by degree', () => {
+    const d = deriveInspector(model, 'e:rohit', null)!
+    // Neo is reached 2-hop through f1; BLR is not linked to Rohit.
+    expect(d.linkedEntities.map((n) => n.id)).toEqual(['e:neo'])
+    const g = deriveInspector(model, 'g1', null)!
+    expect(g.linkedEntities.map((n) => n.id)).toEqual(['e:rohit', 'e:blr'])
+  })
+
+  it('lists gist/wiki mentions newest first', () => {
+    const d = deriveInspector(model, 'e:rohit', null)!
+    expect(d.mentionedIn.map((m) => m.node.id)).toEqual(['g2', 'w1', 'g1'])
+    expect(d.mentionedIn[0].at).toBe('2026-03-05T00:00:00Z')
   })
 })

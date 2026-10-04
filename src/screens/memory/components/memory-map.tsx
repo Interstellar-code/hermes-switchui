@@ -334,7 +334,6 @@ function MemoryMapCanvas({
   const showAll = nodeLimit == null
   // the status-line toggle returns here from "Show all"
   const [lastLimit, setLastLimit] = useState(nodeLimit ?? DEFAULT_NODE_LIMIT)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeResult, setActiveResult] = useState(0)
   const [focusReq, setFocusReq] = useState<{ id: string; seq: number } | null>(
@@ -784,12 +783,17 @@ function MemoryMapCanvas({
       }
       if (!Number.isFinite(minX)) return
       const pad = 48
+      // keep the graph clear of the left rail (MapRail sets --mm-rail-w)
+      const railW =
+        parseFloat(getComputedStyle(wrapEl!).getPropertyValue('--mm-rail-w')) ||
+        0
+      const fitW = width - railW
       const k = Math.max(
         0.05,
         Math.min(
           4,
           Math.min(
-            width / (maxX - minX + pad * 2),
+            fitW / (maxX - minX + pad * 2),
             height / (maxY - minY + pad * 2),
           ),
         ),
@@ -798,7 +802,7 @@ function MemoryMapCanvas({
       const cy = (minY + maxY) / 2
       moveTo(
         zoomIdentity
-          .translate(width / 2 - k * cx, height / 2 - k * cy)
+          .translate(railW + fitW / 2 - k * cx, height / 2 - k * cy)
           .scale(k),
         animate,
       )
@@ -972,10 +976,6 @@ function MemoryMapCanvas({
     setVisibleKinds(DEFAULT_KINDS)
     setMinConnections(0)
   }
-  const filtersActive =
-    minConnections > 0 ||
-    EDGE_ORDER.some((t) => visibleTypes[t] !== DEFAULT_TYPES[t]) ||
-    KIND_ORDER.some((k) => visibleKinds[k] !== DEFAULT_KINDS[k])
 
   const selected = selectedId ? model.byId.get(selectedId) : undefined
 
@@ -1071,14 +1071,6 @@ function MemoryMapCanvas({
             </div>
           )}
         </div>
-        <button
-          type="button"
-          className={`mm-toggle mm-filter-btn ${filtersActive ? 'is-on' : ''}`}
-          aria-expanded={filtersOpen}
-          onClick={() => setFiltersOpen((o) => !o)}
-        >
-          Filters{filtersActive ? ' •' : ''}
-        </button>
         <select
           className="mm-toggle mm-limit"
           aria-label="Maximum nodes shown"
@@ -1137,7 +1129,13 @@ function MemoryMapCanvas({
       </div>
 
       <MapRail
-        filtersOpen={filtersOpen}
+        colourBy={colourBy}
+        clusters={null /* Lane C computes clusters */}
+        defaultTypes={DEFAULT_TYPES}
+        defaultKinds={DEFAULT_KINDS}
+        selectedCluster={selectedCluster}
+        onColourBy={setColourBy}
+        onSelectCluster={setSelectedCluster}
         byType={data.meta.byType}
         counts={model.counts}
         maxConn={model.maxConn}
@@ -1152,6 +1150,7 @@ function MemoryMapCanvas({
 
       <canvas
         ref={canvasRef}
+        tabIndex={-1}
         className="mm-canvas"
         role="img"
         aria-label={`Memory map: showing ${shown} of ${data.meta.nodeCount} nodes`}
@@ -1171,8 +1170,18 @@ function MemoryMapCanvas({
           profile={profile}
           selected={selected}
           model={model}
-          onClose={() => setSelectedId(null)}
+          onClose={() => {
+            setSelectedId(null)
+            canvasRef.current?.focus({ preventScroll: true })
+          }}
           onFocusNode={focusNode}
+          onFocus={(id) =>
+            setFocus({
+              id,
+              hops: 2,
+              types: new Set(EDGE_ORDER.filter((t) => visibleTypes[t])),
+            })
+          }
           onOpenInWiki={openInWiki}
         />
       )}

@@ -177,7 +177,7 @@ export interface InspectorModel {
   adj: Map<string, Set<string>>
 }
 
-/** Stub — Lane D fills it from `model.adj`. */
+/** Selected-node summary, derived client-side from the full-dataset `model`. */
 export function deriveInspector(
   model: InspectorModel,
   id: string,
@@ -185,12 +185,38 @@ export function deriveInspector(
 ): InspectorData | undefined {
   const node = model.byId.get(id)
   if (!node) return undefined
+  const dates = model.dates.get(id)
+  const entities = new Map<string, GraphNode>()
+  const mentions: Array<{ node: GraphNode; at?: string }> = []
+  const addEntity = (n: GraphNode | undefined) => {
+    if (n && n.kind === 'entity' && n.id !== id) entities.set(n.id, n)
+  }
+  for (const nid of model.adj.get(id) ?? []) {
+    const n = model.byId.get(nid)
+    if (!n) continue
+    addEntity(n)
+    // 2-hop: entities this node reaches through a fact (`about` edges)
+    if (n.kind === 'fact')
+      for (const mid of model.adj.get(nid) ?? []) addEntity(model.byId.get(mid))
+    if (n.kind === 'gist' || n.kind === 'wiki')
+      mentions.push({ node: n, at: model.dates.get(nid)?.last })
+  }
+  const deg = (n: GraphNode) => model.deg.get(n.id) ?? 0
   return {
     node,
     clusterId: clusters?.clusterOf.get(id) ?? null,
     connections: model.deg.get(id) ?? 0,
-    linkedEntities: [],
-    mentionedIn: [],
+    firstSeen: dates?.first ?? node.firstAt ?? undefined,
+    lastSeen: dates?.last ?? node.lastAt ?? undefined,
+    linkedEntities: [...entities.values()].sort(
+      (a, b) => deg(b) - deg(a) || (a.id < b.id ? -1 : 1),
+    ),
+    // newest first, undated last; the UI caps the preview
+    mentionedIn: mentions.sort(
+      (a, b) =>
+        (b.at ?? '').localeCompare(a.at ?? '') ||
+        (a.node.id < b.node.id ? -1 : 1),
+    ),
   }
 }
 

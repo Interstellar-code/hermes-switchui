@@ -198,7 +198,9 @@ describe('MemoryMap', () => {
     vi.stubGlobal('fetch', okFetch(GRAPH))
     renderMap()
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /filters/i })).toBeTruthy(),
+      expect(
+        screen.getByRole('slider', { name: /minimum connections/i }),
+      ).toBeTruthy(),
     )
     // legend chips are the node-kind toggles; episodic is off by default
     for (const k of ['gist', 'working', 'fact', 'entity', 'episodic', 'wiki']) {
@@ -207,7 +209,6 @@ describe('MemoryMap', () => {
         k === 'episodic' ? 'false' : 'true',
       )
     }
-    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     for (const t of [
       'ctx',
       'references',
@@ -324,9 +325,10 @@ describe('MemoryMap', () => {
     vi.stubGlobal('fetch', okFetch(GRAPH))
     renderMap()
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /filters/i })).toBeTruthy(),
+      expect(
+        screen.getByRole('slider', { name: /minimum connections/i }),
+      ).toBeTruthy(),
     )
-    fireEvent.click(screen.getByRole('button', { name: /filters/i }))
     mockCtx.arc.mockClear()
     fireEvent.click(screen.getByRole('button', { name: 'mentions' }))
     await waitFor(() => expect(mockCtx.arc).toHaveBeenCalled())
