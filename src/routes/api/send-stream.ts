@@ -57,6 +57,10 @@ import {
 } from '../../server/hermes-api'
 import { resolveOrphanedToolCards } from './-send-stream-orphan-tools'
 import {
+  buildUsageUpdatePayload,
+  isCompactionStartSignal,
+} from './-send-stream-compaction'
+import {
   collectSyntheticLiveToolEvents,
   createSyntheticLiveToolTracker,
 } from './-send-stream-live-tools'
@@ -1249,6 +1253,16 @@ export const Route = createFileRoute('/api/send-stream')({
                         })
                       }
 
+                      // Live "compacting…" chip (#364). Additive: the event
+                      // still falls through to its own handler below.
+                      if (isCompactionStartSignal(event, data)) {
+                        sendEvent('compaction', {
+                          phase: 'start',
+                          sessionKey: sessionKeyFromEvent,
+                          runId,
+                        })
+                      }
+
                       if (event === 'run.started') {
                         // The EFFECTIVE model for this run, straight from the
                         // gateway. This is the only trustworthy confirmation
@@ -1767,25 +1781,14 @@ export const Route = createFileRoute('/api/send-stream')({
                       }
 
                       if (event === 'usage.update') {
-                        const contextPercent =
-                          typeof data.context_percent === 'number'
-                            ? data.context_percent
-                            : undefined
-                        if (contextPercent !== undefined) {
-                          const usagePayload = {
-                            contextPercent,
-                            compacted: data.compacted === true,
-                            messagesBefore:
-                              typeof data.messages_before === 'number'
-                                ? data.messages_before
-                                : undefined,
-                            messagesAfter:
-                              typeof data.messages_after === 'number'
-                                ? data.messages_after
-                                : undefined,
-                            sessionKey: sessionKeyFromEvent,
-                            runId,
-                          }
+                        // Forward compactions even without `context_percent`
+                        // — the chat divider doesn't need a percent (#364).
+                        const usagePayload = buildUsageUpdatePayload(
+                          data,
+                          sessionKeyFromEvent,
+                          runId,
+                        )
+                        if (usagePayload) {
                           sendEvent('usage_update', usagePayload)
                         }
                         return

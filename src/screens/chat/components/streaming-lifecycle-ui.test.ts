@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildCompactionDividerLabel,
   buildCompactionNotice,
   selectVisibleLifecycleEvents,
 } from './streaming-lifecycle-ui'
@@ -56,5 +57,32 @@ describe('buildCompactionNotice', () => {
         messagesAfter: null,
       }),
     ).toBe('Context compacted 2 times during this chat')
+  })
+})
+
+describe('buildCompactionDividerLabel (#364)', () => {
+  it('shows kept-message counts when known', () => {
+    expect(
+      buildCompactionDividerLabel({ messagesBefore: 42, messagesAfter: 18 }),
+    ).toBe('Context compacted • 42 → 18 messages kept')
+  })
+
+  it('falls back to a bare label without counts', () => {
+    expect(
+      buildCompactionDividerLabel({
+        messagesBefore: null,
+        messagesAfter: null,
+      }),
+    ).toBe('Context compacted')
+  })
+
+  it('distinguishes a manual compress', () => {
+    expect(
+      buildCompactionDividerLabel({
+        messagesBefore: 30,
+        messagesAfter: 6,
+        source: 'manual',
+      }),
+    ).toBe('Context compressed • 30 → 6 messages kept')
   })
 })

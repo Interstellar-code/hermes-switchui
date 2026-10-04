@@ -16,7 +16,10 @@ import {
 } from '@/components/ui/preview-card'
 import { useCompressSession } from '@/screens/chat/hooks/use-compress-session'
 import { useSessionStatus } from '@/hooks/use-session-status'
-import { useContextUsageStore } from '@/stores/context-usage-store'
+import {
+  isTrackedContextSession,
+  useContextUsageStore,
+} from '@/stores/context-usage-store'
 import { chatQueryKeys, fetchSessions } from '@/screens/chat/chat-queries'
 import { useChatStore } from '@/stores/chat-store'
 import { activeScopeKey } from '@/lib/session-scope'
@@ -117,16 +120,19 @@ function ContextBarComponent({
   // Live percent pushed from the SSE stream (usage.update / compaction events).
   // Updates instantly during a turn; the 15s status poll only refreshes between.
   const liveContextPercent = useContextUsageStore((s) =>
-    s.sessionKey === sessionId ? s.contextPercent : 0,
+    isTrackedContextSession(s, sessionId) ? s.contextPercent : 0,
   )
   const compactionCount = useContextUsageStore((s) =>
-    s.sessionKey === sessionId ? s.compactionCount : 0,
+    isTrackedContextSession(s, sessionId) ? s.compactionCount : 0,
   )
   const messagesBefore = useContextUsageStore((s) =>
-    s.sessionKey === sessionId ? s.messagesBefore : null,
+    isTrackedContextSession(s, sessionId) ? s.messagesBefore : null,
   )
   const messagesAfter = useContextUsageStore((s) =>
-    s.sessionKey === sessionId ? s.messagesAfter : null,
+    isTrackedContextSession(s, sessionId) ? s.messagesAfter : null,
+  )
+  const liveCompacting = useContextUsageStore(
+    (s) => isTrackedContextSession(s, sessionId) && s.compactingSince !== null,
   )
   const sessionsQuery = useQuery({
     queryKey: chatQueryKeys.sessionsRaw,
@@ -319,14 +325,26 @@ function ContextBarComponent({
         ? Math.max(0, Math.round(effectiveMax * threshold - effectiveUsed))
         : null
 
+    const ringLabel = [
+      `Context window: ${compactLabel}% used`,
+      liveCompacting ? 'Compacting context…' : compactionNotice,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+
     return (
       <Popover open={menuOpen} onOpenChange={setMenuOpen}>
         <PopoverTrigger
           className="group inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full text-primary-500 transition hover:-translate-y-px hover:bg-primary-100/70 dark:hover:bg-primary-800/60"
-          aria-label={`Context window: ${compactLabel}% used`}
-          title={`Context window: ${compactLabel}% used`}
+          aria-label={ringLabel}
+          title={ringLabel}
         >
-          <span className="relative inline-flex h-10 w-10 items-center justify-center">
+          <span
+            className={cn(
+              'relative inline-flex h-10 w-10 items-center justify-center',
+              liveCompacting && 'animate-pulse',
+            )}
+          >
             <svg
               className="absolute inset-0 h-10 w-10 overflow-visible"
               viewBox="0 0 24 24"
@@ -368,6 +386,17 @@ function ContextBarComponent({
             <span className="relative flex h-[22px] min-w-[22px] items-center justify-center rounded-full border border-primary-500/15 bg-[var(--theme-bg)] px-[2px] text-[10px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]">
               {compactLabel}
             </span>
+            {compactionCount > 0 || liveCompacting ? (
+              // #364: compaction is visible without opening the popover.
+              <span
+                className="absolute -right-0.5 -top-0.5 inline-flex h-[15px] min-w-[15px] items-center justify-center gap-px rounded-full border border-[var(--theme-border)] bg-[var(--theme-bg)] px-[3px] text-[8px] font-bold leading-none text-primary-600 shadow-sm tabular-nums dark:bg-[var(--theme-card)]"
+                aria-hidden="true"
+                data-testid="context-ring-compaction-badge"
+              >
+                <span className="text-[8px]">🗜️</span>
+                {compactionCount > 1 ? compactionCount : null}
+              </span>
+            ) : null}
           </span>
         </PopoverTrigger>
 
@@ -448,8 +477,15 @@ function ContextBarComponent({
                   : 'off'}
               </dd>
             </dl>
+            {liveCompacting ? (
+              <p className="text-[11px] font-medium text-primary-600">
+                🗜️ Compacting context…
+              </p>
+            ) : null}
             {compactionNotice ? (
-              <p className="text-[11px] text-primary-500">{compactionNotice}</p>
+              <p className="text-[11px] text-primary-500">
+                🗜️ {compactionNotice}
+              </p>
             ) : null}
             <div className="flex gap-2 pt-1">
               <button

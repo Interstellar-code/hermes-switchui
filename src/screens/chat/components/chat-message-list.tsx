@@ -19,8 +19,13 @@ import {
   parseInteractionReceipt,
 } from './inline-clarify-card'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
+import {
+  COMPACTION_DIVIDER_DETAIL,
+  buildCompactionDividerLabel,
+} from './streaming-lifecycle-ui'
 import type { ToolDisplayMode } from './message-item'
 import type { ChatMessage } from '../types'
+import type { CompactionEvent } from '@/stores/context-usage-store'
 import {
   ChatContainerContent,
   ChatContainerRoot,
@@ -374,6 +379,84 @@ export function computeCollapsedHeadCount(params: {
   return Math.max(0, totalEntries - keepTail)
 }
 
+/**
+ * Where each compaction divider goes (#364): keyed by the entry index it
+ * renders *before* (`entries.length` = after the last entry).
+ *
+ * A compaction belongs to the turn that triggered it, so the divider sits
+ * right after the newest user message sent before it fired — the reply below
+ * was generated from the compacted context. Anchoring on the user message
+ * keeps the divider still while the streaming reply is swapped for the
+ * persisted one. With no timestamped user message to anchor on it falls to
+ * the end of the list (the "it just happened" case).
+ */
+export function placeCompactionDividers(
+  entries: Array<{ message: ChatMessage }>,
+  events: Array<CompactionEvent>,
+): Map<number, Array<CompactionEvent>> {
+  const placements = new Map<number, Array<CompactionEvent>>()
+  if (events.length === 0) return placements
+
+  const userTimes: Array<{ index: number; at: number }> = []
+  entries.forEach((entry, index) => {
+    if (entry.message.role !== 'user') return
+    const at = getRawMessageTimestamp(entry.message)
+    if (at !== null) userTimes.push({ index, at })
+  })
+
+  for (const event of events) {
+    let insertAt = entries.length
+    for (let i = userTimes.length - 1; i >= 0; i -= 1) {
+      if (userTimes[i].at <= event.at) {
+        insertAt = userTimes[i].index + 1
+        break
+      }
+    }
+    const bucket = placements.get(insertAt)
+    if (bucket) bucket.push(event)
+    else placements.set(insertAt, [event])
+  }
+  return placements
+}
+
+function CompactionDivider({ event }: { event: CompactionEvent }) {
+  const label = buildCompactionDividerLabel(event)
+  const time = new Date(event.at).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return (
+    <div
+      className="my-2 flex items-center gap-3 md:my-3"
+      role="note"
+      aria-label={`${label}. ${COMPACTION_DIVIDER_DETAIL}`}
+      data-testid="compaction-divider"
+    >
+      <span
+        className="h-px flex-1 bg-gradient-to-r from-transparent to-primary-300 dark:to-primary-700"
+        aria-hidden="true"
+      />
+      <span
+        className="inline-flex max-w-[min(100%,32rem)] items-center gap-1.5 rounded-full border border-primary-200 bg-primary-50/90 px-3 py-1 text-[11px] font-medium text-primary-600 dark:border-primary-800 dark:bg-primary-900/80 dark:text-primary-300"
+        title={COMPACTION_DIVIDER_DETAIL}
+      >
+        <span aria-hidden="true">🗜️</span>
+        <span className="truncate">{label}</span>
+        <span
+          className="shrink-0 tabular-nums text-primary-400 dark:text-primary-500"
+          aria-hidden="true"
+        >
+          · {time}
+        </span>
+      </span>
+      <span
+        className="h-px flex-1 bg-gradient-to-l from-transparent to-primary-300 dark:to-primary-700"
+        aria-hidden="true"
+      />
+    </div>
+  )
+}
+
 function ShowEarlierMessagesButton({
   hiddenCount,
   onExpand,
@@ -665,6 +748,8 @@ type ChatMessageListProps = {
   sending?: boolean
   /** Controls how tool-call sections render: expanded, collapsed (default), or hidden. */
   toolDisplayMode?: ToolDisplayMode
+  /** Compactions in this chat, rendered as inline dividers (#364). */
+  compactionEvents?: Array<CompactionEvent>
 }
 
 export function isThinkingIndicatorSurfaceVisible({
@@ -694,6 +779,8 @@ export function isThinkingIndicatorSurfaceVisible({
     (isStreaming && activeToolCallCount > 0)
   )
 }
+
+const EMPTY_COMPACTION_EVENTS: Array<CompactionEvent> = []
 
 function ChatMessageListComponent({
   messages,
@@ -727,6 +814,7 @@ function ChatMessageListComponent({
   liveProgressLabel = '',
   sending = false,
   toolDisplayMode = 'collapsed',
+  compactionEvents = EMPTY_COMPACTION_EVENTS,
 }: ChatMessageListProps) {
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const lastUserRef = useRef<HTMLDivElement | null>(null)
@@ -1375,6 +1463,26 @@ function ChatMessageListComponent({
     setHeadExpanded(true)
   }, [])
 
+  // Search narrows the list to matches; a divider between two unrelated hits
+  // would point at the wrong place, so dividers sit out while searching.
+  const compactionPlacements = useMemo(
+    () =>
+      isMessageSearchActive
+        ? new Map<number, Array<CompactionEvent>>()
+        : placeCompactionDividers(visibleEntries, compactionEvents),
+    [compactionEvents, isMessageSearchActive, visibleEntries],
+  )
+
+  function renderCompactionDividers(beforeEntryIndex: number) {
+    // Dividers inside the collapsed head stay hidden with it.
+    if (beforeEntryIndex < hiddenHeadCount) return []
+    const events = compactionPlacements.get(beforeEntryIndex)
+    if (!events) return []
+    return events.map((event) => (
+      <CompactionDivider key={event.id} event={event} />
+    ))
+  }
+
   function isMessageStreaming(message: ChatMessage, index: number) {
     if (!isStreaming || !streamingMessageId) return false
     const messageId = message.__optimisticId || (message as any).id
@@ -1874,9 +1982,10 @@ function ChatMessageListComponent({
                 ) : null}
                 {visibleEntries
                   .slice(hiddenHeadCount, groupStartIndex)
-                  .map((entry, index) =>
+                  .flatMap((entry, index) => [
+                    ...renderCompactionDividers(hiddenHeadCount + index),
                     renderMessage(entry, hiddenHeadCount + index),
-                  )}
+                  ])}
                 {/* // Keep the last exchange pinned without extra tail gap. // Account
               for space-y-6 (24px) when pinning. */}
                 <div
@@ -1885,61 +1994,70 @@ function ChatMessageListComponent({
                     minHeight: `${Math.max(0, pinGroupMinHeight - 12)}px`,
                   }}
                 >
-                  {visibleEntries.slice(groupStartIndex).map((entry, index) => {
-                    const chatMessage = entry.message
-                    const realIndex = entry.sourceIndex
-                    const entryIndex = groupStartIndex + index
-                    const messageIsStreaming = isMessageStreaming(
-                      chatMessage,
-                      realIndex,
-                    )
-                    const stableId = getStableMessageId(chatMessage, realIndex)
-                    const forceActionsVisible =
-                      typeof lastAssistantIndex === 'number' &&
-                      realIndex === lastAssistantIndex
-                    const wrapperRef =
-                      entryIndex === lastUserIndex ? lastUserRef : undefined
-                    const wrapperClassName = cn(
-                      getMessageSpacingClass(visibleEntries, entryIndex),
-                      getToolGroupClass(visibleEntries, entryIndex),
-                      entryIndex === lastUserIndex ? 'scroll-mt-0' : '',
-                    )
-                    const wrapperScrollMarginTop =
-                      entryIndex === lastUserIndex ? headerHeight : undefined
-                    const hasToolCalls =
-                      chatMessage.role === 'assistant' &&
-                      (getToolCallsFromMessage(chatMessage).length > 0 ||
-                        entry.attachedToolMessages.length > 0)
-                    const sharedItemProps = {
-                      message: chatMessage,
-                      attachedToolMessages: entry.attachedToolMessages,
-                      onRetryMessage: onRetryMessage,
-                      toolResultsByCallId: hasToolCalls
-                        ? toolResultsByCallId
-                        : undefined,
-                      forceActionsVisible: forceActionsVisible,
-                      wrapperRef: wrapperRef,
-                      wrapperClassName: wrapperClassName,
-                      wrapperScrollMarginTop: wrapperScrollMarginTop,
-                      isStreaming: messageIsStreaming,
-                      streamingThinking: messageIsStreaming
-                        ? streamingThinking
-                        : undefined,
-                      lifecycleEvents: messageIsStreaming
-                        ? lifecycleEvents
-                        : undefined,
-                      toolDisplayMode: toolDisplayMode,
-                      isLastAssistant: forceActionsVisible,
-                    }
-                    return messageIsStreaming ? (
-                      <StreamingMessageItem
-                        key={LIVE_STREAM_KEY}
-                        {...sharedItemProps}
-                      />
-                    ) : (
-                      <MessageItem key={stableId} {...sharedItemProps} />
-                    )
-                  })}
+                  {visibleEntries
+                    .slice(groupStartIndex)
+                    .flatMap((entry, index) => {
+                      const chatMessage = entry.message
+                      const realIndex = entry.sourceIndex
+                      const entryIndex = groupStartIndex + index
+                      const messageIsStreaming = isMessageStreaming(
+                        chatMessage,
+                        realIndex,
+                      )
+                      const stableId = getStableMessageId(
+                        chatMessage,
+                        realIndex,
+                      )
+                      const forceActionsVisible =
+                        typeof lastAssistantIndex === 'number' &&
+                        realIndex === lastAssistantIndex
+                      const wrapperRef =
+                        entryIndex === lastUserIndex ? lastUserRef : undefined
+                      const wrapperClassName = cn(
+                        getMessageSpacingClass(visibleEntries, entryIndex),
+                        getToolGroupClass(visibleEntries, entryIndex),
+                        entryIndex === lastUserIndex ? 'scroll-mt-0' : '',
+                      )
+                      const wrapperScrollMarginTop =
+                        entryIndex === lastUserIndex ? headerHeight : undefined
+                      const hasToolCalls =
+                        chatMessage.role === 'assistant' &&
+                        (getToolCallsFromMessage(chatMessage).length > 0 ||
+                          entry.attachedToolMessages.length > 0)
+                      const sharedItemProps = {
+                        message: chatMessage,
+                        attachedToolMessages: entry.attachedToolMessages,
+                        onRetryMessage: onRetryMessage,
+                        toolResultsByCallId: hasToolCalls
+                          ? toolResultsByCallId
+                          : undefined,
+                        forceActionsVisible: forceActionsVisible,
+                        wrapperRef: wrapperRef,
+                        wrapperClassName: wrapperClassName,
+                        wrapperScrollMarginTop: wrapperScrollMarginTop,
+                        isStreaming: messageIsStreaming,
+                        streamingThinking: messageIsStreaming
+                          ? streamingThinking
+                          : undefined,
+                        lifecycleEvents: messageIsStreaming
+                          ? lifecycleEvents
+                          : undefined,
+                        toolDisplayMode: toolDisplayMode,
+                        isLastAssistant: forceActionsVisible,
+                      }
+                      return [
+                        ...renderCompactionDividers(entryIndex),
+                        messageIsStreaming ? (
+                          <StreamingMessageItem
+                            key={LIVE_STREAM_KEY}
+                            {...sharedItemProps}
+                          />
+                        ) : (
+                          <MessageItem key={stableId} {...sharedItemProps} />
+                        ),
+                      ]
+                    })}
+                  {renderCompactionDividers(visibleEntries.length)}
                 </div>
               </>
             ) : (
@@ -1952,9 +2070,11 @@ function ChatMessageListComponent({
                 ) : null}
                 {visibleEntries
                   .slice(hiddenHeadCount)
-                  .map((entry, index) =>
+                  .flatMap((entry, index) => [
+                    ...renderCompactionDividers(hiddenHeadCount + index),
                     renderMessage(entry, hiddenHeadCount + index),
-                  )}
+                  ])}
+                {renderCompactionDividers(visibleEntries.length)}
               </>
             )}
             {/* Bottom shimmer + branch TUI card. Hide as soon as the
@@ -2192,7 +2312,8 @@ function areChatMessageListEqual(
     prev.isCompacting === next.isCompacting &&
     prev.liveProgressLabel === next.liveProgressLabel &&
     prev.sending === next.sending &&
-    prev.toolDisplayMode === next.toolDisplayMode
+    prev.toolDisplayMode === next.toolDisplayMode &&
+    prev.compactionEvents === next.compactionEvents
   )
 }
 

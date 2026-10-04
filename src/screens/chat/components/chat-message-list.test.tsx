@@ -10,8 +10,10 @@ import {
   computeCollapsedHeadCount,
   getTrailingToolOnlyTurnSummary,
   isThinkingIndicatorSurfaceVisible,
+  placeCompactionDividers,
 } from './chat-message-list'
 import type { ChatMessage } from '../types'
+import type { CompactionEvent } from '@/stores/context-usage-store'
 
 // Shared across every describe block below — `configurable: true` lets this
 // run more than once safely regardless of test declaration order (jsdom's
@@ -348,5 +350,90 @@ describe('ChatMessageList clarifyCard placement (non-approval, unchanged by task
     )
 
     expect(queryByText('CLARIFY_MARKER')).toBeNull()
+  })
+})
+
+// #364: compaction must be visible in the message flow itself.
+describe('compaction dividers', () => {
+  function timed(
+    id: string,
+    role: 'user' | 'assistant',
+    text: string,
+    timestamp: number,
+  ): ChatMessage {
+    return { id, role, content: [{ type: 'text', text }], timestamp }
+  }
+
+  function compaction(
+    at: number,
+    overrides: Partial<CompactionEvent> = {},
+  ): CompactionEvent {
+    return {
+      id: `c-${at}`,
+      at,
+      messagesBefore: 42,
+      messagesAfter: 18,
+      contextPercent: 22,
+      source: 'auto',
+      ...overrides,
+    }
+  }
+
+  const thread = [
+    timed('u1', 'user', 'first', 1_000_000_000_000),
+    timed('a1', 'assistant', 'one', 1_000_000_001_000),
+    timed('u2', 'user', 'second', 1_000_000_002_000),
+    timed('a2', 'assistant', 'two', 1_000_000_009_000),
+  ]
+
+  it('anchors a divider right after the user message of the turn that compacted', () => {
+    const entries = thread.map((message) => ({ message }))
+    const placements = placeCompactionDividers(entries, [
+      compaction(1_000_000_003_000),
+    ])
+    // Before entry 3 (a2): the reply was generated from compacted context.
+    expect([...placements.keys()]).toEqual([3])
+  })
+
+  it('falls to the end of the list when no user message is timestamped', () => {
+    const entries = [
+      { message: { role: 'user', content: [{ type: 'text', text: 'x' }] } },
+    ] as Array<{ message: ChatMessage }>
+    const placements = placeCompactionDividers(entries, [compaction(5)])
+    expect([...placements.keys()]).toEqual([1])
+  })
+
+  it('renders an inline compaction divider with the kept-message counts', () => {
+    ensureMatchMedia()
+    const { getByText, getAllByTestId } = render(
+      <ChatMessageList
+        messages={thread}
+        loading={false}
+        empty={false}
+        waitingForResponse={false}
+        pinToTop={false}
+        pinGroupMinHeight={0}
+        headerHeight={0}
+        compactionEvents={[compaction(1_000_000_003_000)]}
+      />,
+    )
+    expect(getAllByTestId('compaction-divider')).toHaveLength(1)
+    expect(getByText(/Context compacted • 42 → 18 messages kept/)).toBeTruthy()
+  })
+
+  it('renders no divider without compaction events', () => {
+    ensureMatchMedia()
+    const { queryByTestId } = render(
+      <ChatMessageList
+        messages={thread}
+        loading={false}
+        empty={false}
+        waitingForResponse={false}
+        pinToTop={false}
+        pinGroupMinHeight={0}
+        headerHeight={0}
+      />,
+    )
+    expect(queryByTestId('compaction-divider')).toBeNull()
   })
 })

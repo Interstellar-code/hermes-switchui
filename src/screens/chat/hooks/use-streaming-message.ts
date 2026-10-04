@@ -285,6 +285,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
   const updateContextPercent = useContextUsageStore(
     (s) => s.updateContextPercent,
   )
+  const startCompaction = useContextUsageStore((s) => s.startCompaction)
   const addGoalStatus = useGoalProgressStore((s) => s.addGoalStatus)
   const clearGoalProgress = useGoalProgressStore((s) => s.clearGoalProgress)
 
@@ -961,24 +962,30 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
           const pct =
             typeof payload.contextPercent === 'number'
               ? payload.contextPercent
-              : null
-          if (pct !== null) {
-            if (payload.compacted === true) {
-              recordCompaction({
-                sessionKey: activeSessionKeyRef.current,
-                contextPercent: pct,
-                messagesBefore:
-                  typeof payload.messagesBefore === 'number'
-                    ? payload.messagesBefore
-                    : undefined,
-                messagesAfter:
-                  typeof payload.messagesAfter === 'number'
-                    ? payload.messagesAfter
-                    : undefined,
-              })
-            } else {
-              updateContextPercent(activeSessionKeyRef.current, pct)
-            }
+              : undefined
+          // A compaction is recorded even without a percent — the inline
+          // divider only needs the message counts (#364).
+          if (payload.compacted === true) {
+            recordCompaction({
+              sessionKey: activeSessionKeyRef.current,
+              contextPercent: pct,
+              messagesBefore:
+                typeof payload.messagesBefore === 'number'
+                  ? payload.messagesBefore
+                  : undefined,
+              messagesAfter:
+                typeof payload.messagesAfter === 'number'
+                  ? payload.messagesAfter
+                  : undefined,
+            })
+          } else if (pct !== undefined) {
+            updateContextPercent(activeSessionKeyRef.current, pct)
+          }
+          break
+        }
+        case 'compaction': {
+          if ((payload as { phase?: string }).phase === 'start') {
+            startCompaction(activeSessionKeyRef.current)
           }
           break
         }
@@ -1228,6 +1235,7 @@ export function useStreamingMessage(options: UseStreamingMessageOptions = {}) {
       pushTargetText,
       recordCompaction,
       registerSendStreamRun,
+      startCompaction,
       transitionToHandoff,
       updateContextPercent,
     ],
