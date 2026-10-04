@@ -119,10 +119,10 @@ function pillStatus(nodes: Array<DagNode>): StagePill['status'] {
   return 'pending'
 }
 
-/** Pills in canonical order; ROUTE only when a router node exists. */
+/** Pills in canonical order; only stages that have at least one node. */
 export function deriveStages(nodes: Array<DagNode>): Array<StagePill> {
-  return STAGE_ORDER.filter(
-    (stage) => stage !== 'ROUTE' || nodes.some((n) => n.stage === 'ROUTE'),
+  return STAGE_ORDER.filter((stage) =>
+    nodes.some((n) => n.stage === stage),
   ).map((stage) => {
     const inStage = nodes.filter((n) => n.stage === stage)
     return {

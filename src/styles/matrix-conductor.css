@@ -852,6 +852,9 @@
   .miss.ok .rail {
     background: var(--m-green-700, var(--theme-accent));
   }
+  .miss.cancelled .rail {
+    background: var(--m-border, var(--theme-border));
+  }
   .miss.err .rail {
     background: var(--m-danger, var(--theme-danger));
   }
@@ -909,6 +912,10 @@
   .miss .b.waiting {
     color: var(--m-warning, var(--theme-warning));
     border-color: var(--m-warning, var(--theme-warning));
+  }
+  .miss .b.cancelled {
+    text-transform: uppercase;
+    color: var(--m-text-faint, var(--theme-muted));
   }
   .miss .b.err {
     color: var(--m-danger, var(--theme-danger));
@@ -1132,6 +1139,9 @@
   .mdd-badge.err {
     color: var(--m-danger, var(--theme-danger));
     border-color: rgba(255, 95, 109, 0.4);
+  }
+  .mdd-badge.cancelled {
+    color: var(--m-text-faint, var(--theme-muted));
   }
 
   .mdd-transcript-head {

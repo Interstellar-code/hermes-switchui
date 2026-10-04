@@ -16,7 +16,10 @@ function filterMissions(
   if (tab === 'all') return missions
   if (tab === 'live') return missions.filter((m) => m.status === 'live')
   if (tab === 'waiting') return missions.filter((m) => m.status === 'waiting')
-  if (tab === 'done') return missions.filter((m) => m.status === 'done')
+  if (tab === 'done')
+    return missions.filter(
+      (m) => m.status === 'done' || m.status === 'cancelled',
+    )
   return missions.filter((m) => m.status === 'err')
 }
 

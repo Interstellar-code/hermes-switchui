@@ -14,7 +14,7 @@ export interface Mission {
   id: string
   title: string
   subtitle: string
-  status: 'live' | 'waiting' | 'queued' | 'done' | 'err'
+  status: 'live' | 'waiting' | 'queued' | 'done' | 'err' | 'cancelled'
   elapsed: string
   tokens: string
   action?: 'focus' | 'replay' | 'retry'
@@ -88,13 +88,8 @@ function mapStatus(runStatus: string): Mission['status'] {
   if (runStatus === 'running') return 'live'
   if (runStatus === 'paused') return 'waiting'
   if (runStatus === 'pending') return 'queued'
-  if (
-    runStatus === 'failed' ||
-    runStatus === 'error' ||
-    runStatus === 'cancelled'
-  ) {
-    return 'err'
-  }
+  if (runStatus === 'cancelled') return 'cancelled'
+  if (runStatus === 'failed' || runStatus === 'error') return 'err'
   return 'done'
 }
 
@@ -114,7 +109,7 @@ function runToMission(run: WorkflowRun): Mission {
   const status = mapStatus(run.status)
   const startedAtMs = toMs(run.started_at, toMs(run.last_heartbeat, now))
   const endedAtMs =
-    status === 'done' || status === 'err'
+    status === 'done' || status === 'err' || status === 'cancelled'
       ? toMs(run.completed_at, toMs(run.last_heartbeat, now))
       : now
 

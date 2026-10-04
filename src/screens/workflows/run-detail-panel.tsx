@@ -232,7 +232,11 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
   const last20Events = sseEvents.slice(-20)
   const pendingApprovalNode =
     run.status === 'paused'
-      ? nodeRuns.find((nr) => nr.status === 'paused' && nr.approval_message)
+      ? nodeRuns.find(
+          (nr) =>
+            nr.status === 'paused' &&
+            (nr.approval_message || nr.node_type === 'approval'),
+        )
       : undefined
 
   // ── Subgraph tree helpers ─────────────────────────────────────────────────
@@ -254,9 +258,11 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
     for (const c of children) {
       counts[c.status] = (counts[c.status] ?? 0) + 1
     }
-    if (counts['running']) return `${counts['running']}/${children.length} running`
+    if (counts['running'])
+      return `${counts['running']}/${children.length} running`
     if (counts['failed']) return `${counts['failed']}/${children.length} failed`
-    if (counts['pending']) return `${children.length - (counts['completed'] ?? 0)}/${children.length} pending`
+    if (counts['pending'])
+      return `${children.length - (counts['completed'] ?? 0)}/${children.length} pending`
     return `${counts['completed'] ?? 0}/${children.length} completed`
   }
 
@@ -314,7 +320,7 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
                 fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
               }}
             >
-              {pendingApprovalNode.approval_message}
+              {pendingApprovalNode.approval_message || 'Approval required'}
             </div>
             <textarea
               value={approvalText}
@@ -446,7 +452,9 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
                                 onClick={() => toggleSubgraphRow(nr.id)}
                                 aria-expanded={isExpanded}
                                 aria-label={
-                                  isExpanded ? 'Collapse children' : 'Expand children'
+                                  isExpanded
+                                    ? 'Collapse children'
+                                    : 'Expand children'
                                 }
                               >
                                 {isExpanded ? '▾' : '▸'}
@@ -476,7 +484,10 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
                               nr.summary.length > 80 ? (
                                 <details style={{ cursor: 'pointer' }}>
                                   <summary
-                                    style={{ listStyle: 'none', outline: 'none' }}
+                                    style={{
+                                      listStyle: 'none',
+                                      outline: 'none',
+                                    }}
                                   >
                                     {nr.summary.slice(0, 80)}&hellip;
                                   </summary>
@@ -566,14 +577,11 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
         {/* ── Live events feed ── */}
         <section className="wfrd-section">
           <div className="wfrd-section-title">
-            Live Events{' '}
-            {runId && <span className="wfrd-phase-pill">SSE</span>}
+            Live Events {runId && <span className="wfrd-phase-pill">SSE</span>}
           </div>
           {last20Events.length === 0 ? (
             <div className="wfrd-empty">
-              {runId
-                ? 'Waiting for events…'
-                : 'No run ID yet.'}
+              {runId ? 'Waiting for events…' : 'No run ID yet.'}
             </div>
           ) : (
             <ol className="wfrd-events-list">

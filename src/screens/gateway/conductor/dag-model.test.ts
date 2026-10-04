@@ -84,6 +84,15 @@ describe('stages (D3)', () => {
     expect(pill('REVIEW').nodeIds).toEqual(['approval'])
   })
 
+  it('renders only stages that have at least one node', () => {
+    const def = parsed(improveLoop)
+    const dag = buildDag({
+      ...def,
+      nodes: def.nodes.filter((n) => n.id !== 'approval'),
+    })
+    expect(dag.stages.map((s) => s.stage)).not.toContain('REVIEW')
+  })
+
   it('derives from type/position when phase is missing; ROUTE only with a router', () => {
     const def: ParsedWorkflow = {
       ...parsed(loopDag),

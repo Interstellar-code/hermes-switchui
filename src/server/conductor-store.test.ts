@@ -123,6 +123,18 @@ describe('getConductorSnapshot', () => {
     expect(missions[0].userMessage).toBe('go')
   })
 
+  it('maps cancelled to its own status, failed to err', async () => {
+    listRuns.mockResolvedValue([
+      run({ id: 'c', status: 'cancelled' }),
+      run({ id: 'f', status: 'failed' }),
+    ])
+    const { missions } = await getConductorSnapshot()
+    expect(Object.fromEntries(missions.map((m) => [m.id, m.status]))).toEqual({
+      c: 'cancelled',
+      f: 'err',
+    })
+  })
+
   it('calls listRuns exactly once per snapshot and memoises within maxAge', async () => {
     listRuns.mockResolvedValue([run({ status: 'running', completed_at: null })])
     listActiveNodeRuns.mockResolvedValue([

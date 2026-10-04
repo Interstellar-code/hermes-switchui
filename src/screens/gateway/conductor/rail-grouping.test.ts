@@ -85,6 +85,16 @@ describe('groupRail', () => {
     expect(today.rows).toHaveLength(2)
   })
 
+  it('treats cancelled as finished and never folds it', () => {
+    const [today] = groupRail(
+      [m('a'), m('b', { status: 'cancelled', createdAt: NOW - 2 * H })],
+      [],
+      NOW,
+    )
+    expect(today.label).toBeTruthy()
+    expect(today.rows).toHaveLength(2)
+  })
+
   it('omits empty groups', () => {
     expect(groupRail([], [], NOW)).toEqual([])
   })

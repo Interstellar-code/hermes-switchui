@@ -64,7 +64,8 @@ export function groupRail(
   const startOfDay = new Date(now).setHours(0, 0, 0, 0)
   const sorted = [...missions].sort((a, b) => b.createdAt - a.createdAt)
   const finished = sorted.filter(
-    (m) => m.status === 'done' || m.status === 'err',
+    (m) =>
+      m.status === 'done' || m.status === 'err' || m.status === 'cancelled',
   )
   const plain = (list: Array<Mission>): Array<RailRow> =>
     list.map((mission) => ({ kind: 'run', key: mission.id, mission }))

@@ -12,9 +12,11 @@ const badgeTone = (status: string) =>
     ? 'live'
     : status === 'completed'
       ? 'done'
-      : status === 'failed' || status === 'cancelled'
+      : status === 'failed'
         ? 'err'
-        : ''
+        : status === 'cancelled'
+          ? 'cancelled'
+          : ''
 
 export function MissionDetailDrawer() {
   const drawerRunId = useConductorUIStore((s) => s.drawerRunId)
