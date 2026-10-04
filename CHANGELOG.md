@@ -3,6 +3,29 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.9.0] — 2026-10-04
+
+Chat panels in the sidebar and smarter folders.
+
+### Added
+
+- **Chat Panels Live In The Sidebar**: The chat header's tabs become a row of toggles: files, tools, todos, MCP and skills. Each opens its panel in the sidebar, where the file explorer already lives, and the chat canvas always shows the chat. Back, Esc or the toggle returns to your sessions. On mobile and in focus mode panels open as a full-screen sheet, and Esc closes only the sheet.
+- **Redesigned Panels**: Tools groups calls by tool with error counts and a Needs attention section. Todos shows the latest checklist with a progress bar. MCP shows one card per server with its last error. Skills lists the distinct skills used with loaded, edited and error badges. Header badges now read calls (plus errors), done/total, servers and skills used.
+- **New Chat In A Folder**: A + on a folder header (or "New chat here" in its menu) opens a chat that is filed in that folder when you send the first message.
+- **Make A Folder A Real Project**: Folder-only headers get "Make it a project…" to attach a path or kanban board. Linked projects show a link icon, git repositories a branch icon, and "Project settings…" opens the project.
+- **Load A Folder's Chats**: Folder headers show their total, with a load icon that fetches exactly that folder's missing chats. A failed load becomes a retry.
+
+### Fixed
+
+- **Tool Output On Reloaded Chats**: Reloaded sessions showed no tool output because an empty value overwrote the real result. Outputs are back, and tool errors are now detected from the output so failures show on reloaded chats.
+- **Tool Categories**: `execute_code` and other snake_case tools are categorised correctly, and MCP tools always count as MCP.
+- **Panel Filters**: Filters and search no longer leak between panels or chats, and a filter with no matches says so.
+
+### Notes
+
+- Folder totals, per-folder loading and folder inheritance rely on the hermes-switch-ui dashboard plugin (`~/.hermes/patches/switchui-project-map.patch`).
+- The git icon only checks for a `.git` folder and reads its HEAD file; it skips network drives under `/Volumes`.
+
 ## [2.8.0] — 2026-10-04
 
 Folders that follow your chats, with real totals.
