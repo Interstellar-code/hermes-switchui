@@ -33,6 +33,7 @@ import { useNavCounts } from '@/hooks/use-nav-counts'
 import { useSelfImproveAvailable } from '@/hooks/use-self-improve-available'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 import { useOnboardingChecklist } from '@/screens/onboarding/hooks/use-onboarding-checklist'
+import { clearPendingFolder } from '@/screens/chat/pending-folder'
 
 // ── Icons (inline SVG) ────────────────────────────────────────────────────────
 
@@ -429,6 +430,7 @@ export function PrimaryNavV2() {
    *  profile, leaving the open one in the profile it belongs to. */
   const openNewSessionInProfile = useCallback(
     (profile: string | null) => {
+      clearPendingFolder()
       navigate({
         to: '/chat/$sessionKey',
         params: { sessionKey: 'new' },
@@ -733,6 +735,7 @@ export function PrimaryNavV2() {
             // be sticky on the current URL — which is right on the chat surface
             // and wrong everywhere else.
             search={newSessionSearch(resolvedProfile)}
+            onClick={clearPendingFolder}
             className="m-mono"
             style={{
               display: 'flex',

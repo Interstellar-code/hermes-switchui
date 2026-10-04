@@ -7,6 +7,7 @@ import {
   addUnloadedSourceCounts,
   classifySessionSource,
   sessionWindowFilter,
+  useFolderPages,
   useSessionWindowPages,
   visibleSourceProgress,
 } from './sessions-feed'
@@ -247,6 +248,141 @@ describe('useSessionWindowPages', () => {
       expect.objectContaining({
         pages: [[expect.objectContaining({ key: 'kept' })]],
       }),
+    )
+  })
+})
+
+describe('useFolderPages', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  /** `/api/sessions/listable` answering the asked ids that are in `rows`. */
+  function stubListable(
+    rows: Partial<Record<string, ReturnType<typeof session>>>,
+  ) {
+    const fetchMock = vi.fn(async (url: string) => {
+      const ids = new URL(url, 'http://x').searchParams.get('ids')!.split(',')
+      return {
+        ok: true,
+        json: async () => ({ sessions: ids.flatMap((id) => rows[id] ?? []) }),
+      }
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    return fetchMock
+  }
+  const asked = (fetchMock: ReturnType<typeof stubListable>, call = 0) =>
+    new URL(fetchMock.mock.calls[call][0], 'http://x')
+
+  it('asks for exactly the folder ids, for the browsed profile, and merges the rows', async () => {
+    const fetchMock = stubListable({ a: session('a', 'telegram') })
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useFolderPages('work', 'v1'), {
+      wrapper,
+    })
+    act(() => result.current.load('p1', ['a', 'child']))
+    expect(result.current.loading.has('p1')).toBe(true)
+    await waitFor(() => expect(result.current.loading.size).toBe(0))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const url = asked(fetchMock)
+    expect(url.pathname).toBe('/api/sessions/listable')
+    expect(url.searchParams.get('ids')).toBe('a,child')
+    expect(url.searchParams.get('profile')).toBe('work')
+    expect(result.current.items.map((i) => i.id)).toEqual(['chat:a'])
+    // Something arrived, so not exhausted yet; the next click has nothing
+    // untried left and ends it.
+    expect(result.current.exhausted.has('p1')).toBe(false)
+    act(() => result.current.load('p1', ['child']))
+    await waitFor(() => expect(result.current.exhausted.has('p1')).toBe(true))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('a fetch that adds nothing exhausts the folder; a new map version resets', async () => {
+    stubListable({})
+    const { wrapper } = setup()
+    const { result, rerender } = renderHook(
+      ({ v }: { v: string }) => useFolderPages(null, v),
+      { wrapper, initialProps: { v: 'v1' } },
+    )
+    act(() => result.current.load('p1', ['gone']))
+    await waitFor(() => expect(result.current.exhausted.has('p1')).toBe(true))
+    expect(result.current.items).toEqual([])
+    rerender({ v: 'v2' })
+    expect(result.current.exhausted.size).toBe(0)
+  })
+
+  it('a failed fetch stays retryable: nothing tried, not exhausted, marked failed', async () => {
+    let fail = true
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        fail
+          ? { ok: false, status: 503, text: async () => 'down' }
+          : {
+              ok: true,
+              json: async () => ({ sessions: [session('a', 'cli')] }),
+            },
+      ),
+    )
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useFolderPages(null, 'v1'), {
+      wrapper,
+    })
+    act(() => result.current.load('p1', ['a']))
+    await waitFor(() => expect(result.current.failed.has('p1')).toBe(true))
+    expect(result.current.loading.size).toBe(0)
+    expect(result.current.exhausted.has('p1')).toBe(false)
+    fail = false
+    act(() => result.current.load('p1', ['a']))
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    expect(result.current.failed.has('p1')).toBe(false)
+  })
+
+  it('ignores a second click while the folder is in flight', async () => {
+    const fetchMock = stubListable({ a: session('a', 'cli') })
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useFolderPages(null, 'v1'), {
+      wrapper,
+    })
+    act(() => {
+      result.current.load('p1', ['a'])
+      result.current.load('p1', ['a'])
+    })
+    await waitFor(() => expect(result.current.items).toHaveLength(1))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('caps one click at 100 ids, then continues with the untried rest', async () => {
+    const rows = Object.fromEntries(
+      Array.from({ length: 105 }, (_, i) => [`s${i}`, session(`s${i}`, 'cli')]),
+    )
+    const fetchMock = stubListable(rows)
+    const { wrapper } = setup()
+    const { result } = renderHook(() => useFolderPages(null, 'v1'), {
+      wrapper,
+    })
+    act(() => result.current.load('p1', Object.keys(rows)))
+    await waitFor(() => expect(result.current.items).toHaveLength(100))
+    expect(asked(fetchMock).searchParams.get('ids')!.split(',')).toHaveLength(
+      100,
+    )
+    expect(result.current.exhausted.has('p1')).toBe(false)
+    act(() => result.current.load('p1', Object.keys(rows)))
+    await waitFor(() => expect(result.current.items).toHaveLength(105))
+    expect(asked(fetchMock, 1).searchParams.get('ids')).toBe(
+      's100,s101,s102,s103,s104',
+    )
+  })
+
+  it('folder rows live in the window pages, so delete helpers reach them', async () => {
+    stubListable({ gone: session('gone', 'cli'), kept: session('kept', 'cli') })
+    const { wrapper, queryClient } = setup()
+    const { result } = renderHook(() => useFolderPages(null, 'v1'), {
+      wrapper,
+    })
+    act(() => result.current.load('p1', ['gone', 'kept']))
+    await waitFor(() => expect(result.current.items).toHaveLength(2))
+    act(() => removeSessionFromCache(queryClient, 'gone', 'gone'))
+    await waitFor(() =>
+      expect(result.current.items.map((i) => i.id)).toEqual(['chat:kept']),
     )
   })
 })

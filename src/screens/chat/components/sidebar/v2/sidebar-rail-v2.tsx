@@ -11,6 +11,7 @@ import { Link } from '@tanstack/react-router'
 import type { FilterAndDecorateResult } from '@/screens/chat/apply-filters-and-decorate'
 import type { SessionSource, SessionSourceResult } from '@/screens/chat/sessions-feed-types'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
+import { clearPendingFolder } from '@/screens/chat/pending-folder'
 
 interface SidebarRailV2Props {
   collapsed: boolean
@@ -237,6 +238,7 @@ export function SidebarRailV2({
         <Link
           to="/chat/$sessionKey"
           params={{ sessionKey: 'new' }}
+          onClick={clearPendingFolder}
           aria-label="New chat"
           style={{ textDecoration: 'none' }}
         >

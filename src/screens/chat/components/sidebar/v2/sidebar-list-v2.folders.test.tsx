@@ -3,9 +3,11 @@ import { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarListV2, isGroupCollapsed } from './sidebar-list-v2'
+import type { FolderSupport } from './sidebar-list-v2'
 import type { SessionGroup } from '@/screens/chat/apply-filters-and-decorate'
 import type { SessionFeedItem } from '@/screens/chat/sessions-feed-types'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
+import { usePendingFolderStore } from '@/stores/pending-folder-store'
 
 const { deleteSessions, navigate, toast } = vi.hoisted(() => ({
   deleteSessions: vi.fn(),
@@ -348,22 +350,27 @@ describe('SidebarListV2 — folder server counts', () => {
       `[data-testid="group-header-${key}"] [data-testid="group-count"]`,
     )!
 
-  it('shows "loaded / total" only when the server knows more than is loaded', () => {
+  it('shows only the server total, with "x of y loaded" for AT when partial', () => {
     mount([
       { ...projectGroups[0], total: 41 },
       { ...projectGroups[1], total: 1 },
       projectGroups[2],
     ])
     const alpha = countOf('project:p1')
-    expect(alpha.querySelector('[aria-hidden]')!.textContent).toBe('2 / 41')
-    expect(alpha.querySelector('.sr-only')!.textContent).toBe('2 of 41 loaded')
+    expect(alpha.textContent).toBe('41')
     expect(alpha.getAttribute('title')).toBe('2 of 41 loaded')
+    const name = (key: string) =>
+      q(
+        `[data-testid="group-header-${key}"] button[aria-expanded]`,
+      )!.getAttribute('aria-label')
+    expect(name('project:p1')).toBe('Alpha, 2 of 41 loaded')
+    expect(name('project:p2')).toBe('Old, archived, 1 chat')
+    expect(name('unfiled')).toBe('Unfiled, 1 chat')
     expect(countOf('project:p2').textContent).toBe('1')
-    expect(countOf('project:p2').querySelector('.sr-only')).toBeNull()
     expect(countOf('unfiled').textContent).toBe('1')
   })
 
-  it('an empty folder with a server total shows 0 / N and a Load button that pages more', () => {
+  it('an empty folder with a server total shows N and a Load button that pages more', () => {
     const onLoadMore = vi.fn()
     act(() =>
       root.render(
@@ -373,7 +380,7 @@ describe('SidebarListV2 — folder server counts', () => {
         />,
       ),
     )
-    expect(countOf('project:p1').textContent).toContain('0 / 5')
+    expect(countOf('project:p1').textContent).toBe('5')
     const load = q<HTMLButtonElement>(
       '[aria-label="Load older sessions (all folders)"]',
     )!
@@ -395,5 +402,179 @@ describe('SidebarListV2 — folder server counts', () => {
     expect(busy.getAttribute('aria-busy')).toBe('true')
     click(busy)
     expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+
+  const folderSupport = (over: Partial<FolderSupport> = {}): FolderSupport => ({
+    info: {},
+    loading: new Set(),
+    exhausted: new Set(),
+    failed: new Set(),
+    onLoad: vi.fn(),
+    ...over,
+  })
+  const loadBtn = (key: string) =>
+    q<HTMLButtonElement>(
+      `[data-testid="group-header-${key}"] [data-testid="folder-load-more"]`,
+    )
+
+  it('per-folder load icon only while total > loaded; click loads that folder', () => {
+    const folders = folderSupport()
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={[
+            { ...projectGroups[0], total: 41 },
+            { ...projectGroups[1], total: 1 },
+            { ...projectGroups[2], total: 9 },
+          ]}
+          folders={folders}
+        />,
+      ),
+    )
+    const btn = loadBtn('project:p1')!
+    expect(btn.getAttribute('aria-label')).toBe('Load 39 more chats in Alpha')
+    expect(btn.getAttribute('title')).toBe('Load 39 more chats in Alpha')
+    expect(loadBtn('project:p2')).toBeNull()
+    // Unfiled stays on the global "Load older".
+    expect(loadBtn('unfiled')).toBeNull()
+    click(btn)
+    expect(folders.onLoad).toHaveBeenCalledWith('p1')
+  })
+
+  it('load icon is busy while loading and hidden once exhausted', () => {
+    const groups = [{ ...projectGroups[0], total: 41 }]
+    const folders = folderSupport({ loading: new Set(['p1']) })
+    act(() => root.render(<SidebarListV2 groups={groups} folders={folders} />))
+    const busy = loadBtn('project:p1')!
+    expect(busy.getAttribute('aria-busy')).toBe('true')
+    click(busy)
+    expect(folders.onLoad).not.toHaveBeenCalled()
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={groups}
+          folders={folderSupport({ exhausted: new Set(['p1']) })}
+        />,
+      ),
+    )
+    expect(loadBtn('project:p1')).toBeNull()
+  })
+
+  it('link icon only for board/path projects; git icon names the branch', () => {
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={projectGroups}
+          folders={folderSupport({
+            info: {
+              p1: { board: 'ops', paths: 2, git: { branch: 'main' } },
+              p2: { board: null, paths: 0 },
+            },
+          })}
+        />,
+      ),
+    )
+    const header = (key: string) =>
+      q<HTMLElement>(`[data-testid="group-header-${key}"]`)!
+    const link = header('project:p1').querySelector(
+      '[data-testid="folder-link-icon"]',
+    )!
+    expect(link.getAttribute('title')).toBe(
+      'Linked project · board: ops · 2 paths',
+    )
+    // Icon meanings describe the toggle; they are not part of its name.
+    const toggle = header('project:p1').querySelector('button')!
+    expect(toggle.textContent).not.toContain('Linked project')
+    const desc = document.getElementById(
+      toggle.getAttribute('aria-describedby')!,
+    )!
+    expect(desc.textContent).toBe(
+      'Linked project · board: ops · 2 paths. Git repo · main',
+    )
+    const git = header('project:p1').querySelector(
+      '[data-testid="folder-git-icon"]',
+    )!
+    expect(git.getAttribute('title')).toBe('Git repo · main')
+    expect(
+      header('project:p2').querySelector('[data-testid="folder-link-icon"]'),
+    ).toBeNull()
+    expect(
+      header('project:p2').querySelector('[data-testid="folder-git-icon"]'),
+    ).toBeNull()
+  })
+
+  it('a failed folder load offers Retry', () => {
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={[{ ...projectGroups[0], total: 41 }]}
+          folders={folderSupport({ failed: new Set(['p1']) })}
+        />,
+      ),
+    )
+    const btn = loadBtn('project:p1')!
+    expect(btn.getAttribute('title')).toBe('Retry')
+    expect(btn.getAttribute('aria-label')).toBe(
+      'Retry: load 39 more chats in Alpha',
+    )
+  })
+})
+
+describe('SidebarListV2 — new chat in folder', () => {
+  beforeEach(() => {
+    navigate.mockReset()
+    usePendingFolderStore.getState().clear()
+  })
+
+  it('only project folders get the + button', () => {
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={[
+            {
+              key: 'pinned',
+              label: 'Pinned',
+              kind: 'pinned',
+              items: [item('x')],
+            },
+            {
+              key: 'day:Today',
+              label: 'Today',
+              kind: 'day',
+              items: [item('y')],
+            },
+            { ...projectGroups[0], slug: 'alpha' },
+            // Archived folder: no new chats there.
+            { ...projectGroups[1], slug: 'old' },
+            projectGroups[2],
+          ]}
+        />,
+      ),
+    )
+    const btns = [
+      ...container.querySelectorAll('[data-testid="folder-new-chat"]'),
+    ]
+    expect(btns).toHaveLength(1)
+    expect(btns[0].getAttribute('aria-label')).toBe('New chat in Alpha')
+    expect(btns[0].getAttribute('title')).toBe('New chat in Alpha')
+  })
+
+  it('records the pending folder for the browsed profile and opens a new chat', () => {
+    act(() =>
+      root.render(
+        <SidebarListV2 groups={[{ ...projectGroups[0], slug: 'alpha' }]} />,
+      ),
+    )
+    click(q('[data-testid="folder-new-chat"]')!)
+    expect(usePendingFolderStore.getState().pending).toEqual({
+      projectId: 'p1',
+      projectSlug: 'alpha',
+      name: 'Alpha',
+      profile: null,
+    })
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/chat/$sessionKey',
+      params: { sessionKey: 'new' },
+    })
   })
 })

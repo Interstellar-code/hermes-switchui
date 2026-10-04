@@ -14,6 +14,11 @@ import type { ChatAttachment, ChatMessage } from '../types'
 import type { ActiveSendRecord } from './use-send-message-state'
 import { useChatStore } from '@/stores/chat-store'
 import { hapticTap } from '@/lib/haptics'
+import {
+  fileChatInFolder,
+  takePendingFolderForSend,
+} from '@/screens/chat/pending-folder'
+import { usePendingFolderStore } from '@/stores/pending-folder-store'
 
 /**
  * useComposerSend — owns the composer onSubmit handler ("send").
@@ -205,6 +210,10 @@ export function useComposerSend(params: {
       )
 
       if (isNewChat) {
+        // "New chat in this folder": the intent belongs to this send from
+        // here on — leaving the page or picking another folder meanwhile can
+        // no longer change where this chat is filed.
+        const folder = isPortableMode ? null : takePendingFolderForSend()
         // Create/resolve the concrete session before first send. The old flow
         // generated a UUID, fired createSession() in the background, and then
         // immediately streamed against the UUID. If registration lagged or the
@@ -235,10 +244,13 @@ export function useComposerSend(params: {
           // The 500ms identical-content guard above would otherwise swallow an
           // immediate retry of the message that just failed.
           lastSendKeyRef.current = ''
+          // Nothing was created: give the folder intent back for the retry.
+          if (folder) usePendingFolderStore.getState().set(folder)
           onError(err instanceof Error ? err.message : String(err))
           return
         }
         const { sessionKey: threadId, friendlyId: routeFriendlyId } = bootstrap
+        if (folder) fileChatInFolder(queryClient, threadId, folder)
         const { optimisticMessage } = createOptimisticMessage(
           messageBody,
           attachmentPayload,

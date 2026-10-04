@@ -6,7 +6,11 @@ import { ProjectsScreen } from '@/screens/projects/projects-screen'
 
 export const Route = createFileRoute('/projects')({
   ssr: false,
-  validateSearch: z.object({ profile: z.string().trim().min(1).optional() }),
+  validateSearch: z.object({
+    profile: z.string().trim().min(1).optional(),
+    /** Opens that project's drawer (sidebar "Project settings…"). */
+    project: z.string().trim().min(1).optional(),
+  }),
   component: ProjectsRoute,
 })
 

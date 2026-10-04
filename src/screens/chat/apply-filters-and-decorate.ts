@@ -27,6 +27,8 @@ export type SessionGroup = {
   kind: SessionGroupKind
   color?: string | null
   icon?: string | null
+  /** Project slug (project groups only). */
+  slug?: string
   archived?: boolean
   items: Array<SessionFeedItem>
   /** Server count of listable sessions in this folder (project/unfiled only, unfiltered views only). */
@@ -287,6 +289,7 @@ function groupByProject(
         key: `project:${p.id}`,
         label: p.name,
         kind: 'project',
+        slug: p.slug,
         color: p.color,
         icon: p.icon,
         archived: p.archived,

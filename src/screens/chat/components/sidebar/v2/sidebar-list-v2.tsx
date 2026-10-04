@@ -11,9 +11,17 @@
  * Phase 6: virtualized grouped list via @tanstack/react-virtual.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router'
 import { defaultRangeExtractor, useVirtualizer } from '@tanstack/react-virtual'
+import {
+  ArrowDownToLine,
+  GitBranch,
+  Link2,
+  Loader2,
+  MessageSquarePlus,
+  RotateCw,
+} from 'lucide-react'
 import { SidebarCardV2 } from './sidebar-card-v2'
 import { SidebarBulkActionsV2 } from './sidebar-bulk-actions-v2'
 import {
@@ -25,6 +33,11 @@ import type { Range } from '@tanstack/react-virtual'
 import type { SessionGroup } from '@/screens/chat/apply-filters-and-decorate'
 import { isChatSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
+import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import {
+  clearPendingFolder,
+  startChatInFolder,
+} from '@/screens/chat/pending-folder'
 
 const COLLAPSED_KEY = 'hermes.sessions.groups.collapsed'
 const HEADER_ESTIMATE = 36
@@ -103,6 +116,25 @@ interface SidebarListV2Props {
   onMarkAllRead?: () => void
   /** Present while more sessions exist server-side than are loaded. */
   loadMore?: LoadMoreState
+  /** Project mode: per-folder metadata and the per-folder loader. */
+  folders?: FolderSupport
+}
+
+/** What the sidebar knows about one folder's backing project. */
+export type FolderInfo = {
+  board: string | null
+  paths: number
+  /** Set when a folder path is a git checkout. */
+  git?: { branch?: string }
+}
+
+export type FolderSupport = {
+  info: Record<string, FolderInfo | undefined>
+  loading: ReadonlySet<string>
+  exhausted: ReadonlySet<string>
+  /** Folders whose last load request failed (retryable). */
+  failed: ReadonlySet<string>
+  onLoad: (projectId: string) => void
 }
 
 type LoadMoreState = {
@@ -120,6 +152,7 @@ export function SidebarListV2({
   onToggleUpdatesOnly,
   onMarkAllRead,
   loadMore,
+  folders,
 }: SidebarListV2Props) {
   const [collapsedMap, setCollapsedMap] =
     useState<Record<string, boolean>>(readCollapsedMap)
@@ -344,6 +377,7 @@ export function SidebarListV2({
                     selected={selected}
                     onToggle={() => toggleGroup(row.group)}
                     loadMore={loadMore}
+                    folders={folders}
                     onSelectAll={(on) =>
                       setMany(
                         row.group.items.map((i) => i.id),
@@ -452,6 +486,7 @@ function GroupHeader({
   onToggle,
   onSelectAll,
   loadMore,
+  folders,
 }: {
   row: Extract<RowModel, { type: 'header' }>
   projectMode: boolean
@@ -460,12 +495,55 @@ function GroupHeader({
   onToggle: () => void
   onSelectAll: (on: boolean) => void
   loadMore?: LoadMoreState
+  folders?: FolderSupport
 }) {
   const { group } = row
-  // "loaded / total" only while the server knows more than is loaded.
+  // The server total shows whenever known; "x of y loaded" only for AT.
   const partial = group.total !== undefined && group.total > row.count
   const isProject = group.kind === 'project'
   const projectId = group.key.slice('project:'.length)
+  const info = isProject ? folders?.info[projectId] : undefined
+  const linked = Boolean(info && (info.board || info.paths > 0))
+  const linkLabel = info
+    ? [
+        'Linked project',
+        info.board && `board: ${info.board}`,
+        info.paths > 0 && `${info.paths} path${info.paths === 1 ? '' : 's'}`,
+      ]
+        .filter(Boolean)
+        .join(' · ')
+    : ''
+  const gitLabel = info?.git
+    ? `Git repo${info.git.branch ? ` · ${info.git.branch}` : ''}`
+    : ''
+  const folderLoad =
+    isProject && partial && folders && !folders.exhausted.has(projectId)
+      ? folders
+      : undefined
+  const folderLoading = folderLoad?.loading.has(projectId) ?? false
+  const folderFailed = folderLoad?.failed.has(projectId) ?? false
+  const missing = partial ? group.total! - row.count : 0
+  const loadLabel = `${folderFailed ? 'Retry: load' : 'Load'} ${missing} more chat${missing === 1 ? '' : 's'} in ${group.label}`
+  // Icon meanings for AT: described by, not part of, the toggle's name.
+  const describeId = useId()
+  const iconText = [linked && linkLabel, gitLabel].filter(Boolean).join('. ')
+  const navigate = useNavigate()
+  const browsedProfile = useResolvedProfile()
+  const toggleLabel = `${group.label}${group.archived ? ', archived' : ''}, ${
+    partial
+      ? `${row.count} of ${group.total} loaded`
+      : `${row.count} chat${row.count === 1 ? '' : 's'}`
+  }`
+  const newChatHere = () =>
+    startChatInFolder(
+      {
+        projectId,
+        projectSlug: group.slug,
+        name: group.label,
+        profile: browsedProfile,
+      },
+      navigate,
+    )
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
   const menuBtnRef = useRef<HTMLButtonElement>(null)
   const closeMenu = () => {
@@ -524,7 +602,9 @@ function GroupHeader({
           type="button"
           onClick={onToggle}
           aria-expanded={!row.collapsed}
-          className="flex flex-1 min-w-0 items-center gap-2 px-3 pt-3 pb-1 z-10"
+          aria-label={toggleLabel}
+          aria-describedby={iconText ? describeId : undefined}
+          className="flex min-w-0 items-center gap-2 pl-3 pt-3 pb-1 z-10"
           style={{
             background: 'transparent',
             border: 'none',
@@ -562,6 +642,28 @@ function GroupHeader({
               }}
             />
           )}
+          {linked && (
+            <span
+              data-testid="folder-link-icon"
+              aria-hidden
+              title={linkLabel}
+              className="flex flex-shrink-0"
+              style={{ color: 'var(--theme-muted)' }}
+            >
+              <Link2 size={11} aria-hidden />
+            </span>
+          )}
+          {gitLabel && (
+            <span
+              data-testid="folder-git-icon"
+              aria-hidden
+              title={gitLabel}
+              className="flex flex-shrink-0"
+              style={{ color: 'var(--theme-muted)' }}
+            >
+              <GitBranch size={11} aria-hidden />
+            </span>
+          )}
           <span
             className="m-label truncate"
             style={{ ...GROUP_LABEL_STYLE[group.kind], opacity: 0.7 }}
@@ -584,27 +686,68 @@ function GroupHeader({
               partial ? `${row.count} of ${group.total} loaded` : undefined
             }
           >
-            {partial ? (
-              <>
-                <span aria-hidden>{`${row.count} / ${group.total}`}</span>
-                <span className="sr-only">{`${row.count} of ${group.total} loaded`}</span>
-              </>
-            ) : (
-              row.count
-            )}
+            {partial ? group.total : row.count}
           </span>
-          <span
-            aria-hidden
-            style={{
-              flex: 1,
-              height: 1,
-              background: 'var(--theme-border-subtle, var(--theme-border))',
-              opacity: 0.5,
-            }}
-          />
         </button>
       )}
-      {row.count === 0 && partial && loadMore && (
+      {iconText && (
+        <span
+          id={describeId}
+          className="sr-only"
+          data-testid="folder-icons-desc"
+        >
+          {iconText}
+        </span>
+      )}
+      {!renaming && folderLoad && (
+        <button
+          type="button"
+          // aria-disabled, not disabled: keeps focus while the folder loads.
+          aria-disabled={folderLoading}
+          aria-busy={folderLoading}
+          aria-label={loadLabel}
+          title={folderFailed ? 'Retry' : loadLabel}
+          data-testid="folder-load-more"
+          onClick={() => {
+            if (!folderLoading) folderLoad.onLoad(projectId)
+          }}
+          className="flex flex-shrink-0 items-center pt-2"
+          style={{
+            color: 'var(--m-green-400, var(--theme-accent))',
+            background: 'transparent',
+            border: 'none',
+            cursor: folderLoading ? 'default' : 'pointer',
+            padding: '8px 0 0 0',
+          }}
+        >
+          {folderLoading ? (
+            <Loader2 size={11} className="animate-spin" aria-hidden />
+          ) : folderFailed ? (
+            <RotateCw size={11} aria-hidden />
+          ) : (
+            <ArrowDownToLine size={11} aria-hidden />
+          )}
+        </button>
+      )}
+      {!renaming && (
+        <span
+          aria-hidden
+          onClick={onToggle}
+          className="mt-2 ml-1"
+          style={{
+            flex: 1,
+            alignSelf: 'stretch',
+            backgroundImage:
+              'linear-gradient(var(--theme-border-subtle, var(--theme-border)), var(--theme-border-subtle, var(--theme-border)))',
+            backgroundSize: '100% 1px',
+            backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat',
+            opacity: 0.5,
+            cursor: 'pointer',
+          }}
+        />
+      )}
+      {row.count === 0 && partial && loadMore && !folderLoad && (
         <button
           type="button"
           // Pages the shared feed, not this folder; stays mounted (aria-busy)
@@ -626,6 +769,25 @@ function GroupHeader({
           }}
         >
           {loadMore.loading ? 'Loading…' : 'Load older'}
+        </button>
+      )}
+      {isProject && !renaming && !group.archived && (
+        <button
+          type="button"
+          aria-label={`New chat in ${group.label}`}
+          title={`New chat in ${group.label}`}
+          data-testid="folder-new-chat"
+          onClick={newChatHere}
+          className="flex flex-shrink-0 items-center opacity-0 group-hover/hdr:opacity-100 focus:opacity-100"
+          style={{
+            color: 'var(--theme-muted)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            padding: '8px 0 0 0',
+          }}
+        >
+          <MessageSquarePlus size={11} aria-hidden />
         </button>
       )}
       {isProject && (
@@ -659,6 +821,7 @@ function GroupHeader({
           position={menuAt}
           onClose={closeMenu}
           onRename={() => setRenaming(true)}
+          onNewChat={group.archived ? undefined : newChatHere}
         />
       )}
     </div>
@@ -733,6 +896,8 @@ function NewChatFooter() {
       <Link
         to="/chat/$sessionKey"
         params={{ sessionKey: 'new' }}
+        // A plain new chat is not filed anywhere.
+        onClick={clearPendingFolder}
         style={{ textDecoration: 'none', display: 'block' }}
       >
         <button

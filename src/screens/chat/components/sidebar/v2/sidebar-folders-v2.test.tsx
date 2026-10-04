@@ -18,6 +18,9 @@ const {
   deleteProject,
   archiveProject,
   updateProject,
+  addFolder,
+  navigate,
+  activeProfile,
   folderMap,
   projectsList,
 } = vi.hoisted(() => {
@@ -34,6 +37,9 @@ const {
     deleteProject: vi.fn(),
     archiveProject: vi.fn(),
     updateProject: vi.fn(),
+    addFolder: vi.fn(),
+    navigate: vi.fn(),
+    activeProfile: { current: 'work' },
     folderMap: { current: emptyMap() },
     projectsList: { current: noList },
   }
@@ -59,9 +65,23 @@ vi.mock('@/lib/projects-api', () => ({
   useSessionProjectMap: () => ({ data: folderMap.current }),
   useProjects: () => ({ data: projectsList.current }),
   useUpdateProject: () => mutation(updateProject),
+  useAddProjectFolder: () => mutation(addFolder),
   useArchiveProject: () => mutation(archiveProject),
   useRestoreProject: () => mutation(vi.fn()),
   useDeleteProject: () => mutation(deleteProject),
+}))
+vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
+vi.mock('@/hooks/use-agent-profiles', () => ({
+  useAgentProfiles: () => ({
+    profiles: ['work', 'other'],
+    activeProfile: activeProfile.current,
+    isLoading: false,
+  }),
+}))
+vi.mock('@/lib/boards-api', () => ({
+  useBoards: () => ({
+    data: { boards: [{ slug: 'ops', name: 'Ops' }], current: 'ops' },
+  }),
 }))
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -420,6 +440,187 @@ describe('FolderHeaderMenu', () => {
     expect(updateProject).toHaveBeenCalledWith({
       idOrSlug: 'p1',
       input: { color: '#3b82f6' },
+    })
+  })
+
+  describe('Make it a project', () => {
+    const setValue = (el: HTMLInputElement | HTMLSelectElement, v: string) =>
+      act(() => {
+        const proto =
+          el instanceof HTMLSelectElement
+            ? HTMLSelectElement.prototype
+            : HTMLInputElement.prototype
+        Object.getOwnPropertyDescriptor(proto, 'value')!.set!.call(el, v)
+        el.dispatchEvent(
+          new Event(el instanceof HTMLSelectElement ? 'change' : 'input', {
+            bubbles: true,
+          }),
+        )
+      })
+    const form = () =>
+      document.querySelector<HTMLFormElement>(
+        '[data-testid="make-project-form"]',
+      )
+    const submit = () =>
+      act(async () => {
+        form()!.dispatchEvent(
+          new Event('submit', { bubbles: true, cancelable: true }),
+        )
+      })
+
+    beforeEach(() => {
+      addFolder.mockReset()
+      navigate.mockReset()
+      activeProfile.current = 'work'
+      projectsList.current = { projects: [{ id: 'p1', folder_count: 0 }] }
+    })
+
+    it('name-only folder offers "Make it a project…", not settings', () => {
+      openMenu()
+      expect(menuItem(/Make it a project/)).toBeDefined()
+      expect(menuItem(/Project settings/)).toBeUndefined()
+    })
+
+    it('linked folder offers "Project settings…" that opens its drawer', () => {
+      folderMap.current.projects = [mapProject({ board_slug: 'kb' })]
+      openMenu()
+      expect(menuItem(/Make it a project/)).toBeUndefined()
+      act(() => menuItem(/Project settings/).click())
+      expect(navigate).toHaveBeenCalledWith({
+        to: '/projects',
+        search: { profile: 'work', project: 'p1' },
+      })
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it('needs a path or a board, and the path must be absolute', async () => {
+      openMenu()
+      act(() => menuItem(/Make it a project/).click())
+      const input = document.querySelector<HTMLInputElement>(
+        'input[aria-label="Folder path"]',
+      )!
+      expect(document.activeElement).toBe(input)
+      await submit()
+      expect(form()!.querySelector('[role="alert"]')!.textContent).toBe(
+        'Add a folder path or pick a board.',
+      )
+      setValue(input, 'relative/dir')
+      await submit()
+      expect(form()!.querySelector('[role="alert"]')!.textContent).toContain(
+        'absolute',
+      )
+      expect(addFolder).not.toHaveBeenCalled()
+      expect(updateProject).not.toHaveBeenCalled()
+    })
+
+    it('submits the folder and board for this project, then closes', async () => {
+      addFolder.mockResolvedValue({})
+      updateProject.mockResolvedValue({})
+      openMenu()
+      act(() => menuItem(/Make it a project/).click())
+      setValue(
+        document.querySelector<HTMLInputElement>(
+          'input[aria-label="Folder path"]',
+        )!,
+        ' /src/alpha ',
+      )
+      setValue(
+        document.querySelector<HTMLSelectElement>(
+          'select[aria-label="Kanban board"]',
+        )!,
+        'ops',
+      )
+      await submit()
+      expect(addFolder).toHaveBeenCalledWith({
+        idOrSlug: 'p1',
+        input: { path: '/src/alpha', is_primary: true },
+      })
+      expect(updateProject).toHaveBeenCalledWith({
+        idOrSlug: 'p1',
+        input: { board_slug: 'ops' },
+      })
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it('shows a server error inline and stays open; Esc closes', async () => {
+      addFolder.mockRejectedValue(new Error('folder path too broad'))
+      openMenu()
+      act(() => menuItem(/Make it a project/).click())
+      setValue(
+        document.querySelector<HTMLInputElement>(
+          'input[aria-label="Folder path"]',
+        )!,
+        '/',
+      )
+      await submit()
+      expect(form()!.querySelector('[role="alert"]')!.textContent).toBe(
+        'folder path too broad',
+      )
+      expect(onClose).not.toHaveBeenCalled()
+      act(() => {
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      })
+      expect(onClose).toHaveBeenCalled()
+    })
+
+    it('accepts home and drive paths, rejects relative ones', async () => {
+      addFolder.mockResolvedValue({})
+      for (const ok of ['~/repo', '~', 'C:\\repo', 'D:/x']) {
+        addFolder.mockClear()
+        onClose.mockReset()
+        act(() => root.unmount())
+        root = createRoot(container)
+        openMenu()
+        act(() => menuItem(/Make it a project/).click())
+        setValue(
+          document.querySelector<HTMLInputElement>(
+            'input[aria-label="Folder path"]',
+          )!,
+          ok,
+        )
+        await submit()
+        expect(addFolder).toHaveBeenCalledWith({
+          idOrSlug: 'p1',
+          input: { path: ok, is_primary: true },
+        })
+      }
+    })
+
+    it('hides the board picker when browsing a non-active profile', async () => {
+      activeProfile.current = 'other'
+      openMenu()
+      act(() => menuItem(/Make it a project/).click())
+      expect(
+        document.querySelector('select[aria-label="Kanban board"]'),
+      ).toBeNull()
+      expect(
+        document.querySelector('[data-testid="boards-active-only"]')!
+          .textContent,
+      ).toContain('active profile only')
+      await submit()
+      expect(form()!.querySelector('[role="alert"]')!.textContent).toBe(
+        'Add a folder path.',
+      )
+    })
+
+    it('"New chat here" runs the folder\'s new-chat action and closes', () => {
+      const onNewChat = vi.fn()
+      act(() =>
+        root.render(
+          <FolderHeaderMenu
+            projectId="p1"
+            name="Alpha"
+            archived={false}
+            position={{ x: 10, y: 10 }}
+            onClose={onClose}
+            onRename={vi.fn()}
+            onNewChat={onNewChat}
+          />,
+        ),
+      )
+      act(() => menuItem(/New chat here/).click())
+      expect(onNewChat).toHaveBeenCalledTimes(1)
+      expect(onClose).toHaveBeenCalled()
     })
   })
 })

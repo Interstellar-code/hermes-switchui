@@ -90,6 +90,7 @@ import {
   useUnbindSessionProject,
 } from '@/lib/projects-api'
 import { useSessionModelStore } from '@/stores/session-model-store'
+import { usePendingFolderStore } from '@/stores/pending-folder-store'
 import { useChatStore } from '@/stores/chat-store'
 import {
   activeScopeKey,
@@ -671,7 +672,16 @@ function SessionSelectorsV2Component({
     selectedProject && hasProjectVisuals(selectedProject)
       ? selectedProject
       : null
-  const projectButtonLabel = selectedProject?.name || 'No project'
+  // "New chat in this folder": shown until the first send files the chat.
+  const pendingFolder = usePendingFolderStore((s) => s.pending)
+  const pendingHere =
+    pendingFolder &&
+    (!sessionKey || isPlaceholderSessionKey(sessionKey)) &&
+    pendingFolder.profile === (browseProfile ?? null)
+      ? pendingFolder
+      : null
+  const projectButtonLabel =
+    pendingHere?.name || selectedProject?.name || 'No project'
   // A compressed continuation counts as filed (Clear removes the owner's
   // binding); a truly inherited folder can only be overridden by picking one.
   const projectSelectionIsBinding =
@@ -1360,11 +1370,13 @@ function SessionSelectorsV2Component({
               onClick={() => setProjectMenuOpen((open) => !open)}
               disabled={projectSelectorDisabled}
               title={
-                !sessionKey
-                  ? 'Send a message first to link this chat to a project.'
-                  : selectedProject
-                    ? `${selectedProject.name}${'primary_path' in selectedProject && selectedProject.primary_path ? ` · ${selectedProject.primary_path}` : ''}`
-                    : 'Link this chat to a project'
+                pendingHere
+                  ? `Will be filed in ${pendingHere.name}`
+                  : !sessionKey
+                    ? 'Send a message first to link this chat to a project.'
+                    : selectedProject
+                      ? `${selectedProject.name}${'primary_path' in selectedProject && selectedProject.primary_path ? ` · ${selectedProject.primary_path}` : ''}`
+                      : 'Link this chat to a project'
               }
               className="hidden max-w-32 items-center gap-1 rounded-md border border-[var(--theme-accent-border)] bg-[var(--theme-accent-subtle)] px-2 py-0.5 text-[11px] font-medium uppercase tracking-wider text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50 sm:inline-flex"
               data-testid="project-selector"
@@ -1383,7 +1395,12 @@ function SessionSelectorsV2Component({
                   }
                 />
               )}
-              <span className="truncate">{projectButtonLabel}</span>
+              <span
+                className="truncate"
+                data-testid={pendingHere ? 'project-pending' : undefined}
+              >
+                {projectButtonLabel}
+              </span>
               {projectInherited && (
                 <span
                   className="shrink-0 normal-case opacity-60"

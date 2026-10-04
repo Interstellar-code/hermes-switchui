@@ -39,6 +39,7 @@ import { useEnabledUserCommands } from '@/lib/commands-api'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 import { useOnboardingChecklist } from '@/screens/onboarding/hooks/use-onboarding-checklist'
 import { cn } from '@/lib/utils'
+import { clearPendingFolder } from '@/screens/chat/pending-folder'
 
 type CommandPaletteProps = {
   pathname: string
@@ -135,6 +136,7 @@ export function CommandPalette({ pathname, sessions }: CommandPaletteProps) {
     if (command === '/new') {
       // /chat index redirects to last session via localStorage — use the
       // explicit 'new' sentinel so /new actually opens a fresh chat. See #300.
+      clearPendingFolder()
       void navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
       return
     }

@@ -14,6 +14,7 @@ import type { RefObject } from 'react'
 import type { ChatMessage } from '../types'
 import type { ActiveSendRecord } from './use-send-message-state'
 import { hapticTap } from '@/lib/haptics'
+import { usePendingFolderStore } from '@/stores/pending-folder-store'
 
 // --- Mocks ---
 
@@ -59,6 +60,18 @@ vi.mock('@/stores/chat-store', () => ({
 
 vi.mock('@/lib/haptics', () => ({
   hapticTap: vi.fn(),
+}))
+
+const { bindSessionProject } = vi.hoisted(() => ({
+  bindSessionProject: vi.fn(() => Promise.resolve({})),
+}))
+vi.mock('@/lib/projects-api', () => ({
+  bindSessionProject,
+  projectsKeys: { all: ['hermes-projects'] },
+}))
+vi.mock('@/lib/session-scope', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getSessionProfile: () => 'work',
 }))
 
 // --- Helpers ---
@@ -272,6 +285,88 @@ describe('useComposerSend', () => {
       to: '/chat/$sessionKey',
       params: { sessionKey: 'friendly-1' },
       replace: true,
+    })
+  })
+
+  describe('new chat in a folder', () => {
+    const folderA = {
+      projectId: 'pA',
+      projectSlug: 'alpha',
+      name: 'Alpha',
+      profile: 'work',
+    }
+    const newChat = () =>
+      makeParams({
+        isNewChat: true,
+        queryClient: {
+          setQueryData: vi.fn(),
+          invalidateQueries: vi.fn(),
+        } as any,
+      })
+
+    beforeEach(() => usePendingFolderStore.getState().clear())
+
+    it('files the created session in the folder picked before the send', async () => {
+      usePendingFolderStore.getState().set(folderA)
+      const { result } = renderHook(() => useComposerSend(newChat()))
+      await act(async () => {
+        await result.current.send('first message', [], makeHelpers())
+      })
+      expect(bindSessionProject).toHaveBeenCalledTimes(1)
+      expect(bindSessionProject).toHaveBeenCalledWith({
+        sessionKey: 'thread-1',
+        projectSlug: 'alpha',
+        profile: 'work',
+      })
+      expect(usePendingFolderStore.getState().pending).toBeNull()
+    })
+
+    it('send then "+" on folder B: the first chat is still filed in A', async () => {
+      usePendingFolderStore.getState().set(folderA)
+      let release!: () => void
+      ;(
+        resolveNewChatBootstrapSession as unknown as ReturnType<typeof vi.fn>
+      ).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            release = () =>
+              resolve({ sessionKey: 'thread-1', friendlyId: 'friendly-1' })
+          }),
+      )
+      const { result } = renderHook(() => useComposerSend(newChat()))
+      let sending!: Promise<unknown>
+      act(() => {
+        sending = result.current.send('first message', [], makeHelpers())
+      })
+      // Mid-send: the user starts another chat in folder B, then leaves.
+      usePendingFolderStore
+        .getState()
+        .set({ ...folderA, projectId: 'pB', projectSlug: 'beta', name: 'B' })
+      usePendingFolderStore.getState().clear()
+      await act(async () => {
+        release()
+        await sending
+      })
+      expect(bindSessionProject).toHaveBeenCalledTimes(1)
+      expect(bindSessionProject).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sessionKey: 'thread-1',
+          projectSlug: 'alpha',
+        }),
+      )
+    })
+
+    it('a refused session creation gives the folder intent back', async () => {
+      usePendingFolderStore.getState().set(folderA)
+      ;(
+        resolveNewChatBootstrapSession as unknown as ReturnType<typeof vi.fn>
+      ).mockRejectedValueOnce(new Error('nope'))
+      const { result } = renderHook(() => useComposerSend(newChat()))
+      await act(async () => {
+        await result.current.send('first message', [], makeHelpers())
+      })
+      expect(bindSessionProject).not.toHaveBeenCalled()
+      expect(usePendingFolderStore.getState().pending).toEqual(folderA)
     })
   })
 

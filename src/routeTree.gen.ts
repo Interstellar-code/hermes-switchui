@@ -113,6 +113,7 @@ import { Route as ApiSkillsInstallRouteImport } from './routes/api/skills/instal
 import { Route as ApiSkillsHubSearchRouteImport } from './routes/api/skills/hub-search'
 import { Route as ApiSessionsSourceTotalsRouteImport } from './routes/api/sessions/source-totals'
 import { Route as ApiSessionsSendRouteImport } from './routes/api/sessions/send'
+import { Route as ApiSessionsListableRouteImport } from './routes/api/sessions/listable'
 import { Route as ApiSelfImproveScenariosRouteImport } from './routes/api/self-improve/scenarios'
 import { Route as ApiSelfImproveProposeRouteImport } from './routes/api/self-improve/propose'
 import { Route as ApiSelfImproveMetricsRouteImport } from './routes/api/self-improve/metrics'
@@ -169,6 +170,7 @@ import { Route as ApiKnowledgeReadRouteImport } from './routes/api/knowledge/rea
 import { Route as ApiKnowledgeListRouteImport } from './routes/api/knowledge/list'
 import { Route as ApiKnowledgeConfigRouteImport } from './routes/api/knowledge/config'
 import { Route as ApiHermesProjectsSessionRouteImport } from './routes/api/hermes-projects/session'
+import { Route as ApiHermesProjectsGitStatusRouteImport } from './routes/api/hermes-projects/git-status'
 import { Route as ApiHermesProjectsIdRouteImport } from './routes/api/hermes-projects/$id'
 import { Route as ApiHermesPluginSettingsRouteImport } from './routes/api/hermes-plugin.settings'
 import { Route as ApiHermesKanbanTemplatesRouteImport } from './routes/api/hermes-kanban/templates'
@@ -776,6 +778,11 @@ const ApiSessionsSendRoute = ApiSessionsSendRouteImport.update({
   path: '/send',
   getParentRoute: () => ApiSessionsRoute,
 } as any)
+const ApiSessionsListableRoute = ApiSessionsListableRouteImport.update({
+  id: '/listable',
+  path: '/listable',
+  getParentRoute: () => ApiSessionsRoute,
+} as any)
 const ApiSelfImproveScenariosRoute = ApiSelfImproveScenariosRouteImport.update({
   id: '/api/self-improve/scenarios',
   path: '/api/self-improve/scenarios',
@@ -1057,6 +1064,12 @@ const ApiHermesProjectsSessionRoute =
   ApiHermesProjectsSessionRouteImport.update({
     id: '/api/hermes-projects/session',
     path: '/api/hermes-projects/session',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiHermesProjectsGitStatusRoute =
+  ApiHermesProjectsGitStatusRouteImport.update({
+    id: '/api/hermes-projects/git-status',
+    path: '/api/hermes-projects/git-status',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiHermesProjectsIdRoute = ApiHermesProjectsIdRouteImport.update({
@@ -1659,6 +1672,7 @@ export interface FileRoutesByFullPath {
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
+  '/api/hermes-projects/git-status': typeof ApiHermesProjectsGitStatusRoute
   '/api/hermes-projects/session': typeof ApiHermesProjectsSessionRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1715,6 +1729,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
   '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/self-improve/scenarios': typeof ApiSelfImproveScenariosRouteWithChildren
+  '/api/sessions/listable': typeof ApiSessionsListableRoute
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/sessions/source-totals': typeof ApiSessionsSourceTotalsRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
@@ -1904,6 +1919,7 @@ export interface FileRoutesByTo {
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
+  '/api/hermes-projects/git-status': typeof ApiHermesProjectsGitStatusRoute
   '/api/hermes-projects/session': typeof ApiHermesProjectsSessionRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -1960,6 +1976,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
   '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/self-improve/scenarios': typeof ApiSelfImproveScenariosRouteWithChildren
+  '/api/sessions/listable': typeof ApiSessionsListableRoute
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/sessions/source-totals': typeof ApiSessionsSourceTotalsRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
@@ -2152,6 +2169,7 @@ export interface FileRoutesById {
   '/api/hermes-kanban/templates': typeof ApiHermesKanbanTemplatesRouteWithChildren
   '/api/hermes-plugin/settings': typeof ApiHermesPluginSettingsRoute
   '/api/hermes-projects/$id': typeof ApiHermesProjectsIdRouteWithChildren
+  '/api/hermes-projects/git-status': typeof ApiHermesProjectsGitStatusRoute
   '/api/hermes-projects/session': typeof ApiHermesProjectsSessionRoute
   '/api/knowledge/config': typeof ApiKnowledgeConfigRoute
   '/api/knowledge/list': typeof ApiKnowledgeListRoute
@@ -2208,6 +2226,7 @@ export interface FileRoutesById {
   '/api/self-improve/metrics': typeof ApiSelfImproveMetricsRouteWithChildren
   '/api/self-improve/propose': typeof ApiSelfImproveProposeRoute
   '/api/self-improve/scenarios': typeof ApiSelfImproveScenariosRouteWithChildren
+  '/api/sessions/listable': typeof ApiSessionsListableRoute
   '/api/sessions/send': typeof ApiSessionsSendRoute
   '/api/sessions/source-totals': typeof ApiSessionsSourceTotalsRoute
   '/api/skills/hub-search': typeof ApiSkillsHubSearchRoute
@@ -2401,6 +2420,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
+    | '/api/hermes-projects/git-status'
     | '/api/hermes-projects/session'
     | '/api/knowledge/config'
     | '/api/knowledge/list'
@@ -2457,6 +2477,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/metrics'
     | '/api/self-improve/propose'
     | '/api/self-improve/scenarios'
+    | '/api/sessions/listable'
     | '/api/sessions/send'
     | '/api/sessions/source-totals'
     | '/api/skills/hub-search'
@@ -2646,6 +2667,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
+    | '/api/hermes-projects/git-status'
     | '/api/hermes-projects/session'
     | '/api/knowledge/config'
     | '/api/knowledge/list'
@@ -2702,6 +2724,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/metrics'
     | '/api/self-improve/propose'
     | '/api/self-improve/scenarios'
+    | '/api/sessions/listable'
     | '/api/sessions/send'
     | '/api/sessions/source-totals'
     | '/api/skills/hub-search'
@@ -2893,6 +2916,7 @@ export interface FileRouteTypes {
     | '/api/hermes-kanban/templates'
     | '/api/hermes-plugin/settings'
     | '/api/hermes-projects/$id'
+    | '/api/hermes-projects/git-status'
     | '/api/hermes-projects/session'
     | '/api/knowledge/config'
     | '/api/knowledge/list'
@@ -2949,6 +2973,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/metrics'
     | '/api/self-improve/propose'
     | '/api/self-improve/scenarios'
+    | '/api/sessions/listable'
     | '/api/sessions/send'
     | '/api/sessions/source-totals'
     | '/api/skills/hub-search'
@@ -3131,6 +3156,7 @@ export interface RootRouteChildren {
   ApiHermesKanbanTasksRoute: typeof ApiHermesKanbanTasksRouteWithChildren
   ApiHermesKanbanTemplatesRoute: typeof ApiHermesKanbanTemplatesRouteWithChildren
   ApiHermesProjectsIdRoute: typeof ApiHermesProjectsIdRouteWithChildren
+  ApiHermesProjectsGitStatusRoute: typeof ApiHermesProjectsGitStatusRoute
   ApiHermesProjectsSessionRoute: typeof ApiHermesProjectsSessionRoute
   ApiKnowledgeConfigRoute: typeof ApiKnowledgeConfigRoute
   ApiKnowledgeListRoute: typeof ApiKnowledgeListRoute
@@ -3906,6 +3932,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSendRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/sessions/listable': {
+      id: '/api/sessions/listable'
+      path: '/listable'
+      fullPath: '/api/sessions/listable'
+      preLoaderRoute: typeof ApiSessionsListableRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/self-improve/scenarios': {
       id: '/api/self-improve/scenarios'
       path: '/api/self-improve/scenarios'
@@ -4296,6 +4329,13 @@ declare module '@tanstack/react-router' {
       path: '/api/hermes-projects/session'
       fullPath: '/api/hermes-projects/session'
       preLoaderRoute: typeof ApiHermesProjectsSessionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/hermes-projects/git-status': {
+      id: '/api/hermes-projects/git-status'
+      path: '/api/hermes-projects/git-status'
+      fullPath: '/api/hermes-projects/git-status'
+      preLoaderRoute: typeof ApiHermesProjectsGitStatusRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/hermes-projects/$id': {
@@ -5092,6 +5132,7 @@ const ApiMemoryRouteWithChildren = ApiMemoryRoute._addFileChildren(
 )
 
 interface ApiSessionsRouteChildren {
+  ApiSessionsListableRoute: typeof ApiSessionsListableRoute
   ApiSessionsSendRoute: typeof ApiSessionsSendRoute
   ApiSessionsSourceTotalsRoute: typeof ApiSessionsSourceTotalsRoute
   ApiSessionsSessionKeyActiveRunRoute: typeof ApiSessionsSessionKeyActiveRunRoute
@@ -5106,6 +5147,7 @@ interface ApiSessionsRouteChildren {
 }
 
 const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
+  ApiSessionsListableRoute: ApiSessionsListableRoute,
   ApiSessionsSendRoute: ApiSessionsSendRoute,
   ApiSessionsSourceTotalsRoute: ApiSessionsSourceTotalsRoute,
   ApiSessionsSessionKeyActiveRunRoute: ApiSessionsSessionKeyActiveRunRoute,
@@ -5604,6 +5646,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHermesKanbanTasksRoute: ApiHermesKanbanTasksRouteWithChildren,
   ApiHermesKanbanTemplatesRoute: ApiHermesKanbanTemplatesRouteWithChildren,
   ApiHermesProjectsIdRoute: ApiHermesProjectsIdRouteWithChildren,
+  ApiHermesProjectsGitStatusRoute: ApiHermesProjectsGitStatusRoute,
   ApiHermesProjectsSessionRoute: ApiHermesProjectsSessionRoute,
   ApiKnowledgeConfigRoute: ApiKnowledgeConfigRoute,
   ApiKnowledgeListRoute: ApiKnowledgeListRoute,

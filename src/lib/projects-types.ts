@@ -170,4 +170,6 @@ export type SessionProjectMap = {
   listable_total?: number
   /** listable_total − listable bound sessions. */
   unfiled?: number
+  /** Filed session ids the list shows (compression tips, not segments) — exactly the rows behind `counts`. */
+  listable?: Array<string>
 }

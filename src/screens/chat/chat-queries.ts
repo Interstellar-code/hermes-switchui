@@ -209,6 +209,22 @@ export async function fetchSession(
   return normalizeSessions(data.sessions)[0] ?? null
 }
 
+/**
+ * The sessions among `ids` (≤100) that the list would show for `profile`
+ * (null = active), as list rows. Unknown or unlisted ids are left out.
+ */
+export async function fetchListableSessions(
+  ids: Array<string>,
+  profile: string | null,
+): Promise<Array<SessionMeta>> {
+  const query = new URLSearchParams({ ids: ids.join(',') })
+  if (profile) query.set('profile', profile)
+  const res = await fetch(`/api/sessions/listable?${query.toString()}`)
+  if (!res.ok) throw new Error(await readError(res))
+  const data = (await res.json()) as SessionListResponse
+  return normalizeSessions(data.sessions)
+}
+
 export async function searchSessions(
   queryText: string,
 ): Promise<Array<SessionMeta>> {

@@ -12,6 +12,7 @@ const {
   useSessionWindowPages,
   filterState,
   captured,
+  folderLoad,
 } = vi.hoisted(() => {
   const rec = (): Record<string, any> => ({})
   return {
@@ -22,11 +23,16 @@ const {
   useSessionWindowPages: vi.fn(),
   filterState: rec(),
   captured: { chips: rec(), list: rec() },
+  folderLoad: vi.fn(),
   }
 })
 const folderMap = { version: 'v', projects: [], sessions: {} }
 
-vi.mock('@/lib/projects-api', () => ({ useSessionProjectMap }))
+vi.mock('@/lib/projects-api', () => ({
+  useSessionProjectMap,
+  useProjects: () => ({ data: undefined }),
+  useProjectGitStatus: () => ({ data: undefined }),
+}))
 vi.mock('@/hooks/use-resolved-profile', () => ({
   useResolvedProfile: () => 'work',
 }))
@@ -38,6 +44,12 @@ vi.mock('@/screens/chat/sessions-feed', async (importOriginal) => {
     useSessionsFeed,
     useSessionSourceTotals,
     useSessionWindowPages,
+    useFolderPages: () => ({
+      items: [],
+      loading: new Set(),
+      exhausted: new Set(),
+      load: folderLoad,
+    }),
     addUnloadedSourceCounts: actual.addUnloadedSourceCounts,
     mergeSessionFeedItems: actual.mergeSessionFeedItems,
     visibleSourceProgress: actual.visibleSourceProgress,
@@ -300,4 +312,23 @@ describe('server source totals', () => {
     render(<SidebarShellV2 />)
     expect(captured.list.loadMore).toBeUndefined()
   })
+})
+
+it('per-folder load asks for listable ids of that folder not yet loaded', () => {
+  useSessionProjectMap.mockReturnValue({
+    data: {
+      version: 'v',
+      projects: [{ id: 'p1', name: 'Alpha', board_slug: null }],
+      // `seg` is a bound compression segment: filed, but not a listed row.
+      sessions: { a: 'p1', seg: 'p1', tip: 'p1', other: 'p2' },
+      listable: ['a', 'tip', 'other'],
+    },
+  })
+  render(<SidebarShellV2 />)
+  const folders = captured.list.folders as {
+    onLoad: (projectId: string) => void
+  }
+  act(() => folders.onLoad('p1'))
+  // `a` is loaded (feed item chat:a); `seg` is not listable; `other` is another folder.
+  expect(folderLoad).toHaveBeenCalledWith('p1', ['tip'])
 })

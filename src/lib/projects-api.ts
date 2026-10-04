@@ -75,6 +75,8 @@ export const projectsKeys = {
   sessionMapAll: ['hermes-projects', 'session-map'] as const,
   sessionMap: (profile?: string) =>
     ['hermes-projects', 'session-map', { profile }] as const,
+  gitStatus: (profile?: string) =>
+    ['hermes-projects', 'git-status', { profile }] as const,
 }
 
 export async function fetchProjects(
@@ -568,6 +570,19 @@ export function useProjects(
     queryKey: projectsKeys.list(includeArchived, profile),
     queryFn: () => fetchProjects(includeArchived, profile),
     enabled,
+  })
+}
+
+/** project id → whether its folder paths are a git checkout (+ branch). */
+export function useProjectGitStatus(profile?: string, enabled = true) {
+  return useQuery({
+    queryKey: projectsKeys.gitStatus(profile),
+    queryFn: () =>
+      projectsJson<Record<string, { git: boolean; branch?: string }>>(
+        withProfile('/api/hermes-projects/git-status', profile),
+      ),
+    enabled,
+    staleTime: 60_000,
   })
 }
 

@@ -12,6 +12,7 @@ import {
   reconcileSessionDraft,
 } from '../../screens/chat/chat-queries'
 import { invalidateSessionLists } from '../../screens/chat/sessions-feed'
+import { useClearPendingFolderOffNewChat } from '../../screens/chat/pending-folder'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { setSessionProfile } from '@/lib/session-scope'
 
@@ -107,6 +108,9 @@ function ChatRoute() {
   const activeFriendlyId =
     typeof params.sessionKey === 'string' ? params.sessionKey : 'main'
   const isNewChat = activeFriendlyId === 'new'
+  // "New chat in this folder": an unsent intent is dropped on leaving (the
+  // send itself snapshots and files it — see use-send-message-state).
+  useClearPendingFolderOffNewChat(isNewChat)
   const forcedSessionKey =
     forcedSession?.friendlyId === activeFriendlyId
       ? forcedSession.sessionKey

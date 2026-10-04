@@ -19,8 +19,13 @@ import {
   clampSidebarWidth,
 } from './sidebar-resize-handle-v2'
 import { SidebarGroupToggleV2 } from './sidebar-folders-v2'
+import type { FolderSupport } from './sidebar-list-v2'
 import { useResolvedProfile } from '@/hooks/use-resolved-profile'
-import { useSessionProjectMap } from '@/lib/projects-api'
+import {
+  useProjectGitStatus,
+  useProjects,
+  useSessionProjectMap,
+} from '@/lib/projects-api'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
 import {
   isSessionUpdateUnseen,
@@ -30,6 +35,7 @@ import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import {
   addUnloadedSourceCounts,
   mergeSessionFeedItems,
+  useFolderPages,
   useProfileSessionTotals,
   useSessionSourceTotals,
   useSessionWindowPages,
@@ -57,10 +63,11 @@ export function SidebarShellV2() {
 
   // Folders = the browsed profile's projects; map only fetched in project mode.
   const profile = useResolvedProfile() ?? undefined
-  const { data: folderMap } = useSessionProjectMap(
-    profile,
-    groupBy === 'project',
-  )
+  const projectMode = groupBy === 'project'
+  const { data: folderMap } = useSessionProjectMap(profile, projectMode)
+  // Board/paths (link icon) and git checkouts (git icon) per folder.
+  const { data: projectList } = useProjects(true, projectMode, profile)
+  const { data: gitStatus } = useProjectGitStatus(profile, projectMode)
   const exitSelect = useSessionsSelectionStore((s) => s.exit)
   useEffect(() => exitSelect(), [profile, exitSelect])
 
@@ -116,13 +123,58 @@ export function SidebarShellV2() {
     windowSources,
     autoLoad,
   )
-  const items = useMemo(
-    () =>
-      windowPages.items.length > 0
-        ? mergeSessionFeedItems(windowPages.items, baseItems)
-        : baseItems,
-    [baseItems, windowPages.items],
-  )
+  // Content signal for the folder loader: changes whenever a folder's listed
+  // rows or totals do (the map's `version` is the plugin's, not the data's).
+  const folderSignal = useMemo(() => {
+    if (!folderMap) return `${profile ?? ''}|-`
+    const ids = folderMap.listable ?? Object.keys(folderMap.sessions)
+    return [
+      profile ?? '',
+      JSON.stringify(folderMap.counts ?? {}),
+      ids.map((id) => `${id}=${folderMap.sessions[id]}`).join(','),
+    ].join('|')
+  }, [folderMap, profile])
+  const folderPages = useFolderPages(profile ?? null, folderSignal)
+  const items = useMemo(() => {
+    const extra = [...folderPages.items, ...windowPages.items]
+    return extra.length > 0
+      ? mergeSessionFeedItems(extra, baseItems)
+      : baseItems
+  }, [baseItems, windowPages.items, folderPages.items])
+
+  const folders = useMemo((): FolderSupport | undefined => {
+    if (!projectMode || !folderMap) return undefined
+    const listed = new Map(projectList?.projects.map((p) => [p.id, p]))
+    const info: FolderSupport['info'] = {}
+    for (const p of folderMap.projects) {
+      const full = listed.get(p.id)
+      const git = gitStatus?.[p.id]
+      info[p.id] = {
+        board: p.board_slug ?? full?.board_slug ?? null,
+        paths: full?.folder_count ?? (full?.primary_path ? 1 : 0),
+        git: git?.git ? { branch: git.branch } : undefined,
+      }
+    }
+    return {
+      info,
+      loading: folderPages.loading,
+      exhausted: folderPages.exhausted,
+      failed: folderPages.failed,
+      onLoad: (projectId) => {
+        const loaded = new Set(
+          items.map((item) => item.id.split(':').slice(1).join(':')),
+        )
+        // `listable` = the rows behind the folder totals; older maps lack it.
+        const ids = folderMap.listable ?? Object.keys(folderMap.sessions)
+        folderPages.load(
+          projectId,
+          ids.filter(
+            (id) => folderMap.sessions[id] === projectId && !loaded.has(id),
+          ),
+        )
+      },
+    }
+  }, [projectMode, folderMap, projectList, gitStatus, folderPages, items])
 
   useEffect(() => {
     if (!sources.some((source) => source.src === 'chat' && source.available))
@@ -296,6 +348,7 @@ export function SidebarShellV2() {
               onToggleUpdatesOnly={toggleUpdatesOnly}
               onMarkAllRead={() => markSessionsSeen(items)}
               loadMore={loadMore}
+              folders={folders}
             />
           </div>
           <SidebarResizeHandleV2

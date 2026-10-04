@@ -12,11 +12,16 @@
  *   - IDs are namespaced: `{src}:{rawId}` (e.g. `chat:abc`, `task:t-1`).
  */
 
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import {
+  useInfiniteQuery,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import {
   DEFAULT_SESSION_LIST_LIMIT,
   chatQueryKeys,
+  fetchListableSessions,
   fetchProfileSessions,
   fetchSessionWindow,
   fetchSessions,
@@ -25,7 +30,7 @@ import {
 import { filterSessionsWithTombstones } from './session-tombstones'
 import { matchesSessionSearch } from './session-search'
 import type { SessionMeta } from './types'
-import type { QueryClient } from '@tanstack/react-query'
+import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { ClaudeJob } from '@/lib/jobs-api'
 import type {
   SessionDayBucket,
@@ -718,6 +723,148 @@ export function useSessionWindowPages(
       else setRequested(keyString)
     },
   }
+}
+
+/** Most session rows one folder "load" click fetches. */
+export const FOLDER_LOAD_CAP = 100
+
+type FolderLoadState = {
+  signal: string
+  tried: ReadonlySet<string>
+  exhausted: ReadonlySet<string>
+  failed: ReadonlySet<string>
+}
+
+const withAdded = (set: ReadonlySet<string>, value: string) =>
+  new Set(set).add(value)
+const without = (set: ReadonlySet<string>, value: string) => {
+  const next = new Set(set)
+  next.delete(value)
+  return next
+}
+
+/**
+ * Per-folder "load the rest": fetches a folder's missing listable sessions by
+ * id (`/api/sessions/listable`, ≤100 per click) and parks them as pages of ONE
+ * window-pages entry (`sessionWindow(profile, 'folders')`), so the rename /
+ * delete / invalidate helpers that walk `['sessions-feed','window',profile]`
+ * cover them too.
+ *
+ * `signal` must change whenever the folder map's content does (and include the
+ * profile): ids tried and folders exhausted are remembered per signal. A folder
+ * is exhausted once its last untried ids came back with nothing new. A failed
+ * request records nothing — the folder stays loadable and is reported in
+ * `failed` so the UI can offer a retry.
+ */
+export function useFolderPages(
+  profile: string | null,
+  signal: string,
+): {
+  items: Array<SessionFeedItem>
+  loading: ReadonlySet<string>
+  exhausted: ReadonlySet<string>
+  failed: ReadonlySet<string>
+  load: (projectId: string, missingIds: Array<string>) => void
+} {
+  const queryClient = useQueryClient()
+  const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
+  const pageProfile = profile ?? ACTIVE_PROFILE
+  const queryKey = useMemo(
+    () => chatQueryKeys.sessionWindow(pageProfile, 'folders'),
+    [pageProfile],
+  )
+  // Cache-only: pages are written by `load`, never fetched by this query.
+  const query = useQuery<InfiniteData<Array<SessionMeta>>>({
+    queryKey,
+    queryFn: () =>
+      queryClient.getQueryData<InfiniteData<Array<SessionMeta>>>(queryKey) ?? {
+        pages: [],
+        pageParams: [],
+      },
+    enabled: false,
+    staleTime: Infinity,
+  })
+  const fresh = useMemo(
+    (): FolderLoadState => ({
+      signal,
+      tried: new Set(),
+      exhausted: new Set(),
+      failed: new Set(),
+    }),
+    [signal],
+  )
+  const [state, setState] = useState<FolderLoadState>(fresh)
+  const current = state.signal === signal ? state : fresh
+  const currentRef = useRef(current)
+  currentRef.current = current
+  const inFlight = useRef(new Set<string>())
+  const [loading, setLoading] = useState<ReadonlySet<string>>(new Set())
+
+  const load = useCallback(
+    (projectId: string, missingIds: Array<string>) => {
+      if (inFlight.current.has(projectId)) return
+      const untried = missingIds.filter(
+        (id) => !currentRef.current.tried.has(id),
+      )
+      const batch = untried.slice(0, FOLDER_LOAD_CAP)
+      const update = (fn: (prev: FolderLoadState) => FolderLoadState) =>
+        setState((prev) => fn(prev.signal === signal ? prev : fresh))
+      const done = (rows: Array<SessionMeta>) => {
+        update((prev) => ({
+          ...prev,
+          tried: new Set([...prev.tried, ...batch]),
+          exhausted:
+            rows.length === 0 && untried.length === batch.length
+              ? withAdded(prev.exhausted, projectId)
+              : prev.exhausted,
+          failed: without(prev.failed, projectId),
+        }))
+        if (rows.length > 0)
+          queryClient.setQueryData<InfiniteData<Array<SessionMeta>>>(
+            queryKey,
+            (data) => ({
+              pages: [...(data?.pages ?? []), rows],
+              pageParams: [...(data?.pageParams ?? []), projectId],
+            }),
+          )
+      }
+      if (batch.length === 0) return done([])
+      inFlight.current.add(projectId)
+      setLoading((prev) => withAdded(prev, projectId))
+      void fetchListableSessions(batch, profile)
+        .then(done, () =>
+          update((prev) => ({
+            ...prev,
+            failed: withAdded(prev.failed, projectId),
+          })),
+        )
+        .finally(() => {
+          inFlight.current.delete(projectId)
+          setLoading((prev) => without(prev, projectId))
+        })
+    },
+    [signal, fresh, profile, queryClient, queryKey],
+  )
+
+  const items = useMemo(
+    () =>
+      sessionsToFeedItems(
+        query.data?.pages.flat() ?? [],
+        [],
+        waitingSessionKeys,
+      ),
+    [query.data, waitingSessionKeys],
+  )
+  return useMemo(
+    () => ({
+      items,
+      loading,
+      exhausted: current.exhausted,
+      failed: current.failed,
+      load,
+    }),
+    [items, loading, current.exhausted, current.failed, load],
+  )
 }
 
 // ── Cross-profile browse totals (P3 sidebar lane) ─────────────────────────────

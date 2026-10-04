@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import type {
   Project,
@@ -1250,11 +1250,24 @@ export function ProjectsScreen() {
   const [view, setView] = useState<ViewMode>(readInitialView)
   const [filter, setFilter] = useState<FilterMode>('all')
   const [search, setSearch] = useState('')
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(
+    searchParams.project ?? null,
+  )
   const [draft, setDraft] = useState<CreateDraft | null>(null)
   const [editing, setEditing] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<ConfirmState | null>(null)
   const navigate = useNavigate()
+  // `?project=` (sidebar "Project settings…") only opens the drawer; once it
+  // closes or moves on, drop it so a reload doesn't reopen it.
+  useEffect(() => {
+    if (!searchParams.project || activeProjectId === searchParams.project)
+      return
+    void navigate({
+      to: '/projects',
+      search: searchParams.profile ? { profile: searchParams.profile } : {},
+      replace: true,
+    })
+  }, [activeProjectId, navigate, searchParams.profile, searchParams.project])
   const createMutation = useCreateProject(selectedProfile)
   const updateMutation = useUpdateProject(selectedProfile)
   const addFolderMutation = useAddProjectFolder(selectedProfile)

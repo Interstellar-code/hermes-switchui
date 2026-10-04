@@ -9,9 +9,11 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useNavigate } from '@tanstack/react-router'
 import { create } from 'zustand'
 import type { SessionProjectMap } from '@/lib/projects-types'
 import {
+  useAddProjectFolder,
   useArchiveProject,
   useBulkMoveSessions,
   useCreateProject,
@@ -25,6 +27,8 @@ import { clampContextMenuPosition } from '@/lib/context-menu'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/toast'
 import { useResolvedProfile } from '@/hooks/use-resolved-profile'
+import { useBoards } from '@/lib/boards-api'
+import { useAgentProfiles } from '@/hooks/use-agent-profiles'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
 
@@ -600,9 +604,10 @@ export function FolderRenameInput({
 const MENU_W = 180
 
 /**
- * ⋯ / right-click menu on a folder header: Rename…, Colour ▸, Archive /
- * Restore, Delete folder…. Deleting a project only drops its bindings
- * (project_sessions cascades) — sessions fall back to Unfiled.
+ * ⋯ / right-click menu on a folder header: Rename…, Colour ▸, Make it a
+ * project… / Project settings…, Archive / Restore, Delete folder…. Deleting a
+ * project only drops its bindings (project_sessions cascades) — sessions fall
+ * back to Unfiled.
  */
 export function FolderHeaderMenu({
   projectId,
@@ -611,6 +616,7 @@ export function FolderHeaderMenu({
   position,
   onClose,
   onRename,
+  onNewChat,
 }: {
   projectId: string
   name: string
@@ -618,6 +624,8 @@ export function FolderHeaderMenu({
   position: { x: number; y: number }
   onClose: () => void
   onRename: () => void
+  /** "New chat here": opens a new chat that is filed here on first send. */
+  onNewChat?: () => void
 }) {
   const profile = useResolvedProfile() ?? undefined
   const { data: map } = useSessionProjectMap(profile)
@@ -625,10 +633,12 @@ export function FolderHeaderMenu({
   const archive = useArchiveProject(profile)
   const restore = useRestoreProject(profile)
   const del = useDeleteProject(profile)
+  const navigate = useNavigate()
   const [colourOpen, setColourOpen] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  // Paths/board details only matter for the delete warning — fetch lazily.
-  const { data: list } = useProjects(true, confirmOpen, profile)
+  const [linkOpen, setLinkOpen] = useState(false)
+  // Same key the sidebar shell already holds in project mode.
+  const { data: list } = useProjects(true, true, profile)
   const ref = useRef<HTMLDivElement>(null)
   useDismiss(ref, !confirmOpen, onClose)
 
@@ -706,6 +716,24 @@ export function FolderHeaderMenu({
       />
     )
 
+  if (linkOpen)
+    return createPortal(
+      <div
+        ref={ref}
+        style={{ position: 'fixed', top: pos.y, left: pos.x, zIndex: 1200 }}
+      >
+        <MakeProjectForm
+          projectId={projectId}
+          name={name}
+          profile={profile}
+          onDone={onClose}
+        />
+      </div>,
+      document.body,
+    )
+
+  // Unknown until the project list (or the map's board) answers.
+  const typeKnown = Boolean(mapProject?.board_slug) || list !== undefined
   return createPortal(
     <div
       ref={ref}
@@ -725,6 +753,9 @@ export function FolderHeaderMenu({
         boxShadow: 'var(--theme-shadow-2)',
       }}
     >
+      {onNewChat && (
+        <PickerItem onClick={() => run(onNewChat)}>＋ New chat here</PickerItem>
+      )}
       <PickerItem onClick={() => run(onRename)}>✎ Rename…</PickerItem>
       <PickerItem onClick={() => setColourOpen((v) => !v)}>
         <span className="flex-1">◐ Colour</span>
@@ -762,6 +793,26 @@ export function FolderHeaderMenu({
           ))}
         </div>
       )}
+      {typeKnown &&
+        (isRealProject ? (
+          <PickerItem
+            onClick={() =>
+              run(
+                () =>
+                  void navigate({
+                    to: '/projects',
+                    search: { profile, project: projectId },
+                  }),
+              )
+            }
+          >
+            ⚙ Project settings…
+          </PickerItem>
+        ) : (
+          <PickerItem onClick={() => setLinkOpen(true)}>
+            ⧉ Make it a project…
+          </PickerItem>
+        ))}
       <PickerItem
         onClick={() =>
           run(() =>
@@ -783,5 +834,194 @@ export function FolderHeaderMenu({
       </PickerItem>
     </div>,
     document.body,
+  )
+}
+
+/**
+ * Turns a name-only folder into a linked project: a filesystem path and/or a
+ * kanban board. Both go through the existing project mutations, which
+ * invalidate every `hermes-projects` query (session map, list, git status).
+ * The boards list is the server's active profile (`/api/hermes-kanban/boards`
+ * takes no `?profile=`), so the board picker only shows while the browsed
+ * profile IS the active one.
+ */
+/** `/…`, `~` or `~/…`, or a Windows drive path (`C:\…`, `C:/…`). */
+export function isAbsoluteFolderPath(path: string): boolean {
+  return (
+    path.startsWith('/') ||
+    path === '~' ||
+    path.startsWith('~/') ||
+    /^[A-Za-z]:[\\/]/.test(path)
+  )
+}
+
+function MakeProjectForm({
+  projectId,
+  name,
+  profile,
+  onDone,
+}: {
+  projectId: string
+  name: string
+  profile?: string
+  onDone: () => void
+}) {
+  const addFolder = useAddProjectFolder(profile)
+  const update = useUpdateProject(profile)
+  const { activeProfile } = useAgentProfiles()
+  const boardsHere = !profile || profile === activeProfile
+  const { data: boards } = useBoards(false, boardsHere)
+  const [path, setPath] = useState('')
+  const [board, setBoard] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  async function submit() {
+    if (busy) return
+    const folder = path.trim()
+    if (!folder && !board)
+      return setError(
+        boardsHere
+          ? 'Add a folder path or pick a board.'
+          : 'Add a folder path.',
+      )
+    if (folder && !isAbsoluteFolderPath(folder))
+      return setError(
+        'Folder path must be absolute (/…, ~/… or a drive like C:\\…).',
+      )
+    setError(null)
+    setBusy(true)
+    try {
+      if (folder)
+        await addFolder.mutateAsync({
+          idOrSlug: projectId,
+          input: { path: folder, is_primary: true },
+        })
+      if (board)
+        await update.mutateAsync({
+          idOrSlug: projectId,
+          input: { board_slug: board },
+        })
+      onDone()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+      setBusy(false)
+    }
+  }
+
+  const field = {
+    width: '100%',
+    padding: '4px 8px',
+    fontSize: 11,
+    borderRadius: 4,
+    background: 'var(--theme-card)',
+    border: '1px solid var(--theme-border)',
+    color: 'var(--theme-text)',
+    outline: 'none',
+  } as const
+  return (
+    <form
+      role="dialog"
+      aria-label={`Make ‘${name}’ a project`}
+      data-testid="make-project-form"
+      onSubmit={(e) => {
+        e.preventDefault()
+        void submit()
+      }}
+      className="flex flex-col gap-1.5 p-3"
+      style={{
+        width: 260,
+        background: 'var(--theme-card)',
+        border: '1px solid var(--theme-border)',
+        borderRadius: 6,
+        boxShadow: 'var(--theme-shadow-2)',
+      }}
+    >
+      <span className="m-label" style={{ color: 'var(--theme-text)' }}>
+        Make ‘{name}’ a project
+      </span>
+      <label className="m-mono flex flex-col gap-0.5" style={{ fontSize: 10 }}>
+        <span style={{ color: 'var(--theme-muted)' }}>Folder path</span>
+        <input
+          autoFocus
+          aria-label="Folder path"
+          placeholder="/path/to/repo"
+          value={path}
+          disabled={busy}
+          onChange={(e) => setPath(e.target.value)}
+          className="m-mono"
+          style={field}
+        />
+      </label>
+      {boardsHere ? (
+        <label
+          className="m-mono flex flex-col gap-0.5"
+          style={{ fontSize: 10 }}
+        >
+          <span style={{ color: 'var(--theme-muted)' }}>Kanban board</span>
+          <select
+            aria-label="Kanban board"
+            value={board}
+            disabled={busy}
+            onChange={(e) => setBoard(e.target.value)}
+            className="m-mono"
+            style={field}
+          >
+            <option value="">No board</option>
+            {boards?.boards.map((b) => (
+              <option key={b.slug} value={b.slug}>
+                {b.name || b.slug}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <span
+          className="m-mono"
+          data-testid="boards-active-only"
+          style={{ fontSize: 10, color: 'var(--theme-muted)' }}
+        >
+          Boards available on the active profile only.
+        </span>
+      )}
+      {error && (
+        <span
+          role="alert"
+          className="m-mono"
+          style={{ fontSize: 10, color: 'var(--theme-danger)' }}
+        >
+          {error}
+        </span>
+      )}
+      <div className="flex items-center justify-end gap-1.5">
+        <button
+          type="button"
+          onClick={onDone}
+          className="m-chip rounded px-2 py-0.5"
+          style={{
+            background: 'transparent',
+            border: '1px solid var(--theme-border)',
+            color: 'var(--theme-muted)',
+            cursor: 'pointer',
+          }}
+        >
+          CANCEL
+        </button>
+        <button
+          type="submit"
+          aria-busy={busy}
+          className="m-chip rounded px-2 py-0.5"
+          style={{
+            background: 'var(--theme-accent-subtle)',
+            border: '1px solid var(--theme-accent-border, var(--theme-accent))',
+            color: 'var(--theme-accent)',
+            cursor: busy ? 'default' : 'pointer',
+            opacity: busy ? 0.6 : 1,
+          }}
+        >
+          {busy ? 'SAVING…' : 'LINK'}
+        </button>
+      </div>
+    </form>
   )
 }
