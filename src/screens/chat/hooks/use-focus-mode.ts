@@ -1,36 +1,82 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { RefObject } from 'react'
 
 import type { ChatComposerHandle } from '../components/chat-composer-types'
+import type { SidebarPanel } from '../components/v2/sidebar-panel-v2'
 import { SEARCH_MODAL_EVENTS } from '@/hooks/use-search-modal'
 import { SIDEBAR_TOGGLE_EVENT } from '@/hooks/use-global-shortcuts'
+import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+
+const FILE_EXPLORER_KEY = 'claude-file-explorer-collapsed'
 
 export function useFocusMode(params: {
   compact: boolean
   composerHandleRef: RefObject<ChatComposerHandle | null>
+  /** Mobile has no sessions sidebar; panels open as sheets there. */
+  isMobile?: boolean
 }): {
   chatFocusMode: boolean
   isFocusMode: boolean
-  fileExplorerCollapsed: boolean
+  activePanel: SidebarPanel | null
+  openPanel: (panel: SidebarPanel) => void
+  closePanel: () => void
+  togglePanel: (panel: SidebarPanel) => void
   handleToggleFocusMode: () => void
   handleToggleSidebarCollapse: () => void
-  handleToggleFileExplorer: () => void
   handleInsertFileReference: (reference: string) => void
   handleAttachWorkspaceImage: (path: string) => Promise<void>
   handleAttachWorkspaceFile: (path: string) => Promise<void>
 } {
-  const { compact, composerHandleRef } = params
+  const { compact, composerHandleRef, isMobile = false } = params
 
   const chatFocusMode = useWorkspaceStore((s) => s.chatFocusMode)
   const setChatFocusMode = useWorkspaceStore((s) => s.setChatFocusMode)
   const toggleSidebar = useWorkspaceStore((s) => s.toggleSidebar)
 
-  const [fileExplorerCollapsed, setFileExplorerCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return true
-    const stored = localStorage.getItem('claude-file-explorer-collapsed')
-    return stored === null ? true : stored === 'true'
+  // Only 'files' persists across reloads; other panels always start closed.
+  // A collapsed sessions sidebar wins over a persisted open explorer.
+  const [activePanel, setActivePanel] = useState<SidebarPanel | null>(() => {
+    if (typeof window === 'undefined') return null
+    if (useSessionsFilterStore.getState().collapsed) return null
+    return localStorage.getItem(FILE_EXPLORER_KEY) === 'false' ? 'files' : null
   })
+  const activePanelRef = useRef(activePanel)
+  activePanelRef.current = activePanel
+
+  // Panels use the sessions sidebar only on desktop outside focus mode;
+  // elsewhere they are sheets, which must not touch the sidebar or the
+  // persisted files-open flag.
+  const usesSidebarRef = useRef(false)
+  usesSidebarRef.current = !isMobile && !(chatFocusMode && !compact)
+
+  const setPanel = useCallback((panel: SidebarPanel | null) => {
+    setActivePanel(panel)
+    if (!usesSidebarRef.current) return
+    localStorage.setItem(FILE_EXPLORER_KEY, String(panel !== 'files'))
+    if (panel) useSessionsFilterStore.getState().setCollapsed(false)
+  }, [])
+
+  const openPanel = useCallback(
+    (panel: SidebarPanel) => setPanel(panel),
+    [setPanel],
+  )
+
+  const closePanel = useCallback(() => setPanel(null), [setPanel])
+
+  const togglePanel = useCallback(
+    (panel: SidebarPanel) =>
+      setPanel(panel === activePanelRef.current ? null : panel),
+    [setPanel],
+  )
+
+  // Sessions sidebar collapsing (true transition only) closes the open panel.
+  const sidebarCollapsed = useSessionsFilterStore((s) => s.collapsed)
+  const prevCollapsedRef = useRef(sidebarCollapsed)
+  useEffect(() => {
+    if (sidebarCollapsed && !prevCollapsedRef.current) setPanel(null)
+    prevCollapsedRef.current = sidebarCollapsed
+  }, [sidebarCollapsed, setPanel])
 
   const isFocusMode = !compact && chatFocusMode
 
@@ -82,15 +128,10 @@ export function useFocusMode(params: {
     toggleSidebar()
   }, [toggleSidebar])
 
-  const handleToggleFileExplorer = useCallback(() => {
-    setFileExplorerCollapsed((prev) => {
-      const next = !prev
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('claude-file-explorer-collapsed', String(next))
-      }
-      return next
-    })
-  }, [])
+  const handleToggleFileExplorer = useCallback(
+    () => togglePanel('files'),
+    [togglePanel],
+  )
 
   // Window toggle events — wires custom events to the handlers
   useEffect(() => {
@@ -167,10 +208,12 @@ export function useFocusMode(params: {
   return {
     chatFocusMode,
     isFocusMode,
-    fileExplorerCollapsed,
+    activePanel,
+    openPanel,
+    closePanel,
+    togglePanel,
     handleToggleFocusMode,
     handleToggleSidebarCollapse,
-    handleToggleFileExplorer,
     handleInsertFileReference,
     handleAttachWorkspaceImage,
     handleAttachWorkspaceFile,

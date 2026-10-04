@@ -9,13 +9,6 @@ import {
 import type { FlatToolEntry } from './tool-entries'
 import type { ChatMessage } from '../../types'
 
-type LifecycleEvent = {
-  text: string
-  emoji: string
-  timestamp: number
-  isError: boolean
-}
-
 type StreamingToolCall = {
   id: string
   name: string
@@ -27,9 +20,10 @@ type StreamingToolCall = {
 }
 
 type ChatSkillsTabV2Props = {
-  messages: Array<ChatMessage>
+  messages?: Array<ChatMessage>
+  /** Pre-merged entries (e.g. from useToolDisplay); skips re-deriving from messages. */
+  entries?: Array<FlatToolEntry>
   streamingToolCalls?: Array<StreamingToolCall>
-  events?: Array<LifecycleEvent>
 }
 
 // Skill-system tool names per Hermes Agent canonical taxonomy:
@@ -159,7 +153,7 @@ function SkillCard({ group }: { group: SkillGroup }) {
         style={{ cursor: 'pointer', background: 'transparent', border: 'none' }}
       >
         <span style={greenStyle}>{open ? '▼' : '▶'}</span>
-        <span className="font-semibold" style={greenStyle}>{group.skillName}</span>
+        <span className="min-w-0 truncate font-semibold" style={greenStyle} title={group.skillName}>{group.skillName}</span>
         <span
           className="text-[10px] px-1.5 py-0.5 rounded tabular-nums"
           style={{
@@ -250,17 +244,19 @@ function SkillCard({ group }: { group: SkillGroup }) {
 }
 
 const NO_STREAMING_CALLS: Array<StreamingToolCall> = []
+const NO_MESSAGES: Array<ChatMessage> = []
 
-export function ChatSkillsTabV2({ messages, streamingToolCalls = NO_STREAMING_CALLS, events: _events = [] }: ChatSkillsTabV2Props) {
+export function ChatSkillsTabV2({ messages = NO_MESSAGES, entries, streamingToolCalls = NO_STREAMING_CALLS }: ChatSkillsTabV2Props) {
   const [filter, setFilter] = useState<SkillFilter>('all')
   const allEntries = useMemo(
     () =>
+      entries ??
       mergeToolEntries(
         extractStreamingEntries(streamingToolCalls),
         extractStreamToolCallsFromMessages(messages, buildResultTsMap(messages)),
         extractToolEntries(messages),
       ),
-    [messages, streamingToolCalls],
+    [entries, messages, streamingToolCalls],
   )
 
   // Filter to skill-system entries per Hermes Agent canonical taxonomy:
@@ -355,7 +351,7 @@ export function ChatSkillsTabV2({ messages, streamingToolCalls = NO_STREAMING_CA
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto flex flex-col font-mono text-xs" style={tabStyle}>
-      <div className="flex items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
+      <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3 pb-2 shrink-0">
         {(['all', 'loaded', 'edited', 'enumerate', 'errored'] as const).map((f) => (
           <button
             key={f}

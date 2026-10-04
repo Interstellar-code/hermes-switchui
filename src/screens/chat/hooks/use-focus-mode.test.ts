@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 
+import { useSessionsFilterStore } from '../../../stores/sessions-filter-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { SEARCH_MODAL_EVENTS } from '../../../hooks/use-search-modal'
 import { SIDEBAR_TOGGLE_EVENT } from '../../../hooks/use-global-shortcuts'
@@ -143,38 +144,118 @@ describe('useFocusMode', () => {
     expect(useWorkspaceStore.getState().chatFocusMode).toBe(false)
   })
 
-  it('fileExplorerCollapsed toggles and persists to localStorage', () => {
+  it('togglePanel(files) toggles and persists to localStorage', () => {
     const { result } = renderHook(() =>
       useFocusMode({ compact: false, composerHandleRef: makeComposerRef() }),
     )
-    expect(result.current.fileExplorerCollapsed).toBe(true) // default
+    expect(result.current.activePanel).toBeNull() // default
     act(() => {
-      result.current.handleToggleFileExplorer()
+      result.current.togglePanel('files')
     })
-    expect(result.current.fileExplorerCollapsed).toBe(false)
+    expect(result.current.activePanel).toBe('files')
     expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('false')
     act(() => {
-      result.current.handleToggleFileExplorer()
+      result.current.togglePanel('files')
     })
-    expect(result.current.fileExplorerCollapsed).toBe(true)
+    expect(result.current.activePanel).toBeNull()
     expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('true')
   })
 
-  it('TOGGLE_FILE_EXPLORER window event fires handleToggleFileExplorer', () => {
+  it('TOGGLE_FILE_EXPLORER window event toggles the files panel', () => {
     const { result } = renderHook(() =>
       useFocusMode({ compact: false, composerHandleRef: makeComposerRef() }),
     )
-    expect(result.current.fileExplorerCollapsed).toBe(true)
+    expect(result.current.activePanel).toBeNull()
     act(() => {
       window.dispatchEvent(
         new CustomEvent(SEARCH_MODAL_EVENTS.TOGGLE_FILE_EXPLORER),
       )
     })
-    expect(result.current.fileExplorerCollapsed).toBe(false)
+    expect(result.current.activePanel).toBe('files')
     expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('false')
   })
 
-  it('SIDEBAR_TOGGLE_EVENT window event calls toggleSidebar', () => {
+  describe('sidebar panels', () => {
+  const mk = () =>
+    renderHook(() =>
+      useFocusMode({ compact: false, composerHandleRef: makeComposerRef() }),
+    )
+
+  beforeEach(() => {
+    useSessionsFilterStore.setState({ collapsed: false })
+  })
+
+  it('toggle opens then closes; only one panel at a time', () => {
+    const { result } = mk()
+    expect(result.current.activePanel).toBeNull()
+    act(() => result.current.togglePanel('tool'))
+    expect(result.current.activePanel).toBe('tool')
+    act(() => result.current.togglePanel('mcp'))
+    expect(result.current.activePanel).toBe('mcp')
+    act(() => result.current.togglePanel('mcp'))
+    expect(result.current.activePanel).toBeNull()
+    act(() => result.current.openPanel('skills'))
+    act(() => result.current.closePanel())
+    expect(result.current.activePanel).toBeNull()
+  })
+
+  it('files panel restores from and writes the persistence key', () => {
+    localStorage.setItem('claude-file-explorer-collapsed', 'false')
+    const { result } = mk()
+    expect(result.current.activePanel).toBe('files')
+    act(() => result.current.closePanel())
+    expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('true')
+    act(() => result.current.openPanel('files'))
+    expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('false')
+  })
+
+  it('non-files panels are not persisted', () => {
+    const { result } = mk()
+    act(() => result.current.openPanel('todos'))
+    expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('true')
+    cleanup()
+    expect(mk().result.current.activePanel).toBeNull()
+  })
+
+  it('collapsing the sessions sidebar closes the open panel', () => {
+    const { result } = mk()
+    act(() => result.current.openPanel('tool'))
+    act(() => useSessionsFilterStore.setState({ collapsed: true }))
+    expect(result.current.activePanel).toBeNull()
+  })
+
+  it('a collapsed sidebar on reload wins over persisted files-open', () => {
+    localStorage.setItem('claude-file-explorer-collapsed', 'false')
+    useSessionsFilterStore.setState({ collapsed: true })
+    expect(mk().result.current.activePanel).toBeNull()
+  })
+
+  it('on mobile a sheet neither expands the sidebar nor clears files-open', () => {
+    localStorage.setItem('claude-file-explorer-collapsed', 'false')
+    useSessionsFilterStore.setState({ collapsed: true })
+    const { result } = renderHook(() =>
+      useFocusMode({
+        compact: false,
+        composerHandleRef: makeComposerRef(),
+        isMobile: true,
+      }),
+    )
+    act(() => result.current.openPanel('tool'))
+    act(() => result.current.closePanel())
+    expect(useSessionsFilterStore.getState().collapsed).toBe(true)
+    expect(localStorage.getItem('claude-file-explorer-collapsed')).toBe('false')
+  })
+
+  it('opening a panel expands a collapsed sidebar', () => {
+    useSessionsFilterStore.setState({ collapsed: true })
+    const { result } = mk()
+    act(() => result.current.openPanel('tool'))
+    expect(useSessionsFilterStore.getState().collapsed).toBe(false)
+    expect(result.current.activePanel).toBe('tool')
+  })
+})
+
+it('SIDEBAR_TOGGLE_EVENT window event calls toggleSidebar', () => {
     const before = useWorkspaceStore.getState().sidebarCollapsed
     renderHook(() =>
       useFocusMode({ compact: false, composerHandleRef: makeComposerRef() }),

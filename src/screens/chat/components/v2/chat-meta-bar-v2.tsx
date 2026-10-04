@@ -24,8 +24,6 @@ type ChatMetaBarV2Props = {
   selectorSessionKey?: string | null | undefined
   /** True only while composing a not-yet-created chat session. */
   profileMutable?: boolean
-  /** Number of tool_use blocks visible in message list */
-  toolCount?: number
   /** Profile/model override label */
   profile?: string
   /** Current thinking level (controlled by chat-screen) for the selectors */

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { Bot } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
@@ -68,8 +67,7 @@ import { useThinkingLevel } from './hooks/use-thinking-level'
 import { rekeySessionModel } from './components/chat-composer-services'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
-import { ChatSkillsTabV2 } from './components/v2/chat-skills-tab-v2'
-import { ToolTabView } from './components/v2/chat-tab-views-v2'
+import { SidebarPanelHostV2 } from './components/v2/sidebar-panel-host-v2'
 import { DelegationSidebarOverlay } from './components/v2/delegation-tab-view'
 import type { QuoteRef } from './quote-markers'
 import type {
@@ -202,40 +200,18 @@ export function ChatScreen({
   }, [activeFriendlyId, isNewChat])
 
   const composerHandleRef = useRef<ChatComposerHandle | null>(null)
+  const { isMobile } = useChatMobile(queryClient)
   const {
     chatFocusMode,
     isFocusMode,
-    fileExplorerCollapsed,
-    handleToggleFileExplorer,
+    activePanel,
+    closePanel,
+    togglePanel,
     handleInsertFileReference,
     handleAttachWorkspaceImage,
     handleAttachWorkspaceFile,
-  } = useFocusMode({ compact, composerHandleRef })
-  const { isMobile } = useChatMobile(queryClient)
+  } = useFocusMode({ compact, composerHandleRef, isMobile })
 
-  // File explorer overlays the sessions-sidebar footprint (portal-into-node).
-  // It renders into the sidebar-shell-v2 DOM node so it lands exactly over the
-  // 320px sessions panel with zero coordinate math; the panel stays mounted
-  // underneath. Resolve the target once the explorer opens (the sidebar shell
-  // is a sibling rendered by WorkspaceShell, so it may not exist on first paint).
-  const fileExplorerOpen = !fileExplorerCollapsed && !isMobile
-  const [fileExplorerNode, setFileExplorerNode] = useState<HTMLElement | null>(
-    null,
-  )
-  useEffect(() => {
-    if (!fileExplorerOpen) return
-    setFileExplorerNode(
-      document.querySelector<HTMLElement>('[data-testid="sidebar-shell-v2"]'),
-    )
-  }, [fileExplorerOpen])
-  useEffect(() => {
-    if (!fileExplorerOpen) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') handleToggleFileExplorer()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [fileExplorerOpen, handleToggleFileExplorer])
   const mobileKeyboardInset = useWorkspaceStore((s) => s.mobileKeyboardInset)
   const mobileComposerFocused = useWorkspaceStore(
     (s) => s.mobileComposerFocused,
@@ -593,16 +569,23 @@ export function ChatScreen({
   )
 
   const {
-    activeTab,
-    setActiveTab,
     toolDisplayMode,
     cycleToolDisplayMode,
+    toolEntries,
     totalToolCount,
     totalTodoCount,
     totalMcpCount,
-    totalFileCount,
     totalSkillCount,
   } = useToolDisplay({ realtimeMessages, activeToolCalls, mcpToolNames })
+  const panelCounts = useMemo(
+    () => ({
+      tool: totalToolCount,
+      todos: totalTodoCount,
+      mcp: totalMcpCount,
+      skills: totalSkillCount,
+    }),
+    [totalToolCount, totalTodoCount, totalMcpCount, totalSkillCount],
+  )
 
   const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
   const streamingDelegations = useChatStore(
@@ -1444,39 +1427,26 @@ export function ChatScreen({
               : 'grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)]',
         )}
       >
-        {/* File explorer overlays the sessions-sidebar footprint via a portal
-            into the sidebar-shell-v2 node. Kept mounted once opened so the tree
-            and expanded state persist; toggled invisible when collapsed. The
-            sessions panel stays mounted underneath. When the sessions sidebar is
-            collapsed to its rail, this anchors to the (narrow) rail region. */}
-        {fileExplorerNode &&
-          !hideUi &&
-          !compact &&
-          !isFocusMode &&
-          !isMobile &&
-          createPortal(
-            <div
-              className={cn(
-                'absolute inset-0 z-20 m-2 flex flex-col overflow-hidden rounded-md border transition-opacity duration-150',
-                fileExplorerCollapsed && 'pointer-events-none opacity-0',
-              )}
-              style={{
-                borderColor: 'var(--theme-border)',
-                background: 'var(--theme-sidebar)',
-              }}
-              aria-hidden={fileExplorerCollapsed}
-            >
-              <FileExplorerSidebar
-                collapsed={false}
-                className="!w-full !min-w-0"
-                onToggle={handleToggleFileExplorer}
-                onInsertReference={handleInsertFileReference}
-                onAttachImage={handleAttachWorkspaceImage}
-                onAttachFile={handleAttachWorkspaceFile}
-              />
-            </div>,
-            fileExplorerNode,
-          )}
+        <SidebarPanelHostV2
+          activePanel={hideUi || compact ? null : activePanel}
+          onClose={closePanel}
+          sidebarAvailable={!isFocusMode && !isMobile}
+          sessionKey={activeSessionKey || activeFriendlyId}
+          entries={toolEntries}
+          events={realtimeLifecycleEvents}
+          mcpToolNames={mcpToolNames}
+          counts={panelCounts}
+          fileExplorer={
+            <FileExplorerSidebar
+              collapsed={false}
+              className="!w-full !min-w-0"
+              onToggle={closePanel}
+              onInsertReference={handleInsertFileReference}
+              onAttachImage={handleAttachWorkspaceImage}
+              onAttachFile={handleAttachWorkspaceFile}
+            />
+          }
+        />
 
         <main
           className={cn(
@@ -1497,24 +1467,15 @@ export function ChatScreen({
                 sessionKey={activeSessionKey || activeFriendlyId}
                 approvalBypassSessionKey={approvalBypassSessionKey}
                 sourceKind={activeSourceKind}
-                fileExplorerCollapsed={fileExplorerCollapsed}
-                onToggleFileExplorer={handleToggleFileExplorer}
-                activeTab={activeTab}
-                onTabChange={setActiveTab}
-                tabCounts={{
-                  chat: finalDisplayMessages.length,
-                  tool: totalToolCount,
-                  todos: totalTodoCount,
-                  mcp: totalMcpCount,
-                  skills: totalSkillCount,
-                  files: totalFileCount,
-                }}
+                activePanel={activePanel}
+                onTogglePanel={togglePanel}
+                panelCounts={panelCounts}
+                hideFiles={isMobile || isFocusMode}
               />
               <ChatMetaBarV2
                 sessionKey={activeSessionKey || activeFriendlyId}
                 selectorSessionKey={modelSessionKey}
                 profileMutable={isNewChat && !creatingSession}
-                toolCount={totalToolCount}
                 thinkingLevel={thinkingLevel}
                 onThinkingLevelChange={handleThinkingLevelChange}
               />
@@ -1529,41 +1490,7 @@ export function ChatScreen({
             onDismissStopNotice={dismissStopNotice}
           />
 
-          {activeTab === 'tool' ? (
-            <ToolTabView
-              messages={realtimeMessages}
-              streamingToolCalls={activeToolCalls}
-              events={realtimeLifecycleEvents}
-              mcpToolNames={mcpToolNames}
-            />
-          ) : activeTab === 'todos' ? (
-            <ToolTabView
-              messages={realtimeMessages}
-              streamingToolCalls={activeToolCalls}
-              view="todos"
-            />
-          ) : activeTab === 'mcp' ? (
-            <ToolTabView
-              messages={realtimeMessages}
-              streamingToolCalls={activeToolCalls}
-              view="mcp"
-              mcpToolNames={mcpToolNames}
-            />
-          ) : activeTab === 'files' ? (
-            <ToolTabView
-              messages={realtimeMessages}
-              streamingToolCalls={activeToolCalls}
-              view="files"
-              mcpToolNames={mcpToolNames}
-            />
-          ) : activeTab === 'skills' ? (
-            <ChatSkillsTabV2
-              messages={realtimeMessages}
-              streamingToolCalls={activeToolCalls}
-              events={realtimeLifecycleEvents}
-            />
-          ) : null}
-          {hideUi || activeTab !== 'chat' ? null : (
+          {hideUi ? null : (
             <StreamingTextContext.Provider
               value={
                 stableActiveStreamingText ||

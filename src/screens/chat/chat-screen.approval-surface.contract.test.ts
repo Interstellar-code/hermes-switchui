@@ -17,7 +17,10 @@ import { describe, expect, it } from 'vitest'
  * unconditional and mutually exclusive with the old one.
  */
 describe('ChatScreen approval surface (task #9)', () => {
-  const source = readFileSync(new URL('./chat-screen.tsx', import.meta.url), 'utf8')
+  const source = readFileSync(
+    new URL('./chat-screen.tsx', import.meta.url),
+    'utf8',
+  )
 
   function between(startMarker: string, endMarker: string): string {
     const start = source.indexOf(startMarker)
@@ -33,7 +36,7 @@ describe('ChatScreen approval surface (task #9)', () => {
     // message-list path and renders inside the ACTIVITY card in timeline
     // order rather than pinning itself above the composer forever.
     const dockedPredicate = between(
-      'const isApprovalClarify = activeClarify?.kind === \'approval\'',
+      "const isApprovalClarify = activeClarify?.kind === 'approval'",
       'const clarifyCard = useMemo(',
     )
     expect(dockedPredicate).toContain(
@@ -68,10 +71,13 @@ describe('ChatScreen approval surface (task #9)', () => {
 
   it('mounts approvalCard as a sibling of the composer, not inside ChatMessageList', () => {
     // The message-list block (search/last-assistant-message/thinking-bubble
-    // gating all live inside ChatMessageList) is gated on activeTab/hideUi
-    // and closes before the composer block opens.
-    const messageListBlockStart = source.indexOf("{hideUi || activeTab !== 'chat' ? null : (")
-    const messageListBlockEnd = source.indexOf('</StreamingTextContext.Provider>')
+    // gating all live inside ChatMessageList) is gated on hideUi only (the
+    // canvas always shows chat; tool panels live in the sidebar) and closes
+    // before the composer block opens.
+    const messageListBlockStart = source.indexOf('{hideUi ? null : (')
+    const messageListBlockEnd = source.indexOf(
+      '</StreamingTextContext.Provider>',
+    )
     const composerBlockStart = source.indexOf('{showComposer ? (')
     const approvalCardMountIndex = source.indexOf('{approvalCard}')
     const composerMountIndex = source.indexOf('<ChatComposerShadcn')
@@ -86,7 +92,7 @@ describe('ChatScreen approval surface (task #9)', () => {
     expect(approvalCardMountIndex).toBeGreaterThan(messageListBlockEnd)
     // ...it is mounted inside the composer block, directly ahead of the
     // composer itself, so it renders whenever the composer does — regardless
-    // of activeTab, hideUi's message-search gating, or anything ChatMessageList
+    // of sidebar panels, hideUi's message-search gating, or anything ChatMessageList
     // internally does with toolDisplayMode / lastAssistantIndex / search.
     expect(approvalCardMountIndex).toBeGreaterThan(composerBlockStart)
     expect(approvalCardMountIndex).toBeLessThan(composerMountIndex)

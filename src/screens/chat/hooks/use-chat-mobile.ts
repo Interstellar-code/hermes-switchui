@@ -6,7 +6,7 @@ export function useChatMobile(queryClient: QueryClient) {
   const [isMobile, setIsMobile] = useState(false)
 
   useLayoutEffect(() => {
-    const media = window.matchMedia('(max-width: 768px)')
+    const media = window.matchMedia('(max-width: 767px)')
     const update = () => setIsMobile(media.matches)
     update()
     media.addEventListener('change', update)

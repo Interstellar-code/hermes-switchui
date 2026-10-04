@@ -134,7 +134,7 @@ describe('useToolDisplay', () => {
       expect(result.current.totalToolCount).toBe(0)
     })
 
-    it('counts general tools separately from file calls', () => {
+    it('counts file calls as tools (same rows as the Tools panel)', () => {
       const activeToolCalls: Array<StreamingToolCall> = [
         { id: 'tc1', name: 'Bash', phase: 'streaming' },
         { id: 'tc2', name: 'Read', phase: 'streaming' },
@@ -145,8 +145,7 @@ describe('useToolDisplay', () => {
           activeToolCalls,
         }),
       )
-      expect(result.current.totalToolCount).toBe(1)
-      expect(result.current.totalFileCount).toBe(1)
+      expect(result.current.totalToolCount).toBe(2)
     })
 
     it('excludes to-dos and MCP calls represented in their own tabs', () => {
@@ -167,7 +166,7 @@ describe('useToolDisplay', () => {
       expect(result.current.totalMcpCount).toBe(1)
     })
 
-    it('excludes file calls represented in the Files tab', () => {
+    it('includes file calls in the tool count', () => {
       const activeToolCalls: Array<StreamingToolCall> = [
         { id: 'read-1', name: 'read_file', phase: 'streaming', args: { file_path: 'src/app.tsx' } },
         { id: 'exec-1', name: 'exec', phase: 'streaming' },
@@ -179,11 +178,10 @@ describe('useToolDisplay', () => {
         }),
       )
 
-      expect(result.current.totalToolCount).toBe(1)
-      expect(result.current.totalFileCount).toBe(1)
+      expect(result.current.totalToolCount).toBe(2)
     })
 
-    it('counts completed general and file calls in their respective tabs', () => {
+    it('counts completed general and file calls as tools', () => {
       const realtimeMessages: Array<ChatMessage> = [
         {
           role: 'assistant',
@@ -199,8 +197,7 @@ describe('useToolDisplay', () => {
           activeToolCalls: EMPTY_TOOL_CALLS,
         }),
       )
-      expect(result.current.totalToolCount).toBe(1)
-      expect(result.current.totalFileCount).toBe(1)
+      expect(result.current.totalToolCount).toBe(2)
     })
 
     it('recomputes when realtimeMessages prop changes', () => {
@@ -234,8 +231,7 @@ describe('useToolDisplay', () => {
       expect(result.current.totalToolCount).toBe(1)
 
       rerender({ realtimeMessages: twoCalls, activeToolCalls: EMPTY_TOOL_CALLS })
-      expect(result.current.totalToolCount).toBe(1)
-      expect(result.current.totalFileCount).toBe(1)
+      expect(result.current.totalToolCount).toBe(2)
     })
 
     it('recomputes when activeToolCalls prop changes', () => {
@@ -340,8 +336,7 @@ describe('useToolDisplay', () => {
       expect(spy).toHaveBeenCalledTimes(1)
       expect(result.current.toolEntries).toHaveLength(2)
       expect(result.current.totalSkillCount).toBe(1)
-      expect(result.current.totalFileCount).toBe(1)
-      expect(result.current.totalToolCount).toBe(1)
+      expect(result.current.totalToolCount).toBe(2)
 
       rerender({ realtimeMessages: EMPTY_MESSAGES, activeToolCalls: calls1 })
       expect(spy).toHaveBeenCalledTimes(1)
@@ -349,20 +344,6 @@ describe('useToolDisplay', () => {
       rerender({ realtimeMessages: EMPTY_MESSAGES, activeToolCalls: [...calls1] })
       expect(spy).toHaveBeenCalledTimes(2)
       spy.mockRestore()
-    })
-  })
-
-  // ── activeTab ──────────────────────────────────────────────────────────────
-
-  describe('activeTab', () => {
-    it('defaults to "chat"', () => {
-      const { result } = renderHook(() =>
-        useToolDisplay({
-          realtimeMessages: EMPTY_MESSAGES,
-          activeToolCalls: EMPTY_TOOL_CALLS,
-        }),
-      )
-      expect(result.current.activeTab).toBe('chat')
     })
   })
 })

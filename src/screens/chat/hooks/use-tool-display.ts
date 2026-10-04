@@ -6,11 +6,9 @@ import {
   extractStreamingEntries,
   extractToolEntries,
   filterToolEntries,
-  isFileToolEntry,
   mergeToolEntries,
 } from '../components/v2/tool-entries'
 import { countSkillEntries } from '../components/v2/chat-skills-tab-v2'
-import type { SourceTab } from '../components/v2/chat-header-v2'
 import type { ToolDisplayMode } from '../components/message-item'
 import type { ChatMessage, StreamingToolCall } from '../types'
 
@@ -20,8 +18,6 @@ export function useToolDisplay(params: {
   mcpToolNames?: ReadonlySet<string>
 }) {
   const { realtimeMessages, activeToolCalls, mcpToolNames } = params
-
-  const [activeTab, setActiveTab] = useState<SourceTab>('chat')
 
   // Tool-display mode: expanded | collapsed | hidden (persisted across sessions)
   const [toolDisplayMode, setToolDisplayMode] = useState<ToolDisplayMode>(
@@ -63,13 +59,9 @@ export function useToolDisplay(params: {
     return mergeToolEntries(streamingEntries, completedEntries, messageEntries)
   }, [realtimeMessages, activeToolCalls])
 
+  // Same rows the Tools panel lists (file-touching calls included).
   const totalToolCount = useMemo(
-    // ponytail: header still has a separate Files count until Phase 3b, so
-    // exclude file entries here to avoid double counting.
-    () =>
-      filterToolEntries(toolEntries, 'all', mcpToolNames).filter(
-        (entry) => !isFileToolEntry(entry),
-      ).length,
+    () => filterToolEntries(toolEntries, 'all', mcpToolNames).length,
     [mcpToolNames, toolEntries],
   )
   const totalTodoCount = useMemo(
@@ -80,10 +72,6 @@ export function useToolDisplay(params: {
     () => filterToolEntries(toolEntries, 'mcp', mcpToolNames).length,
     [mcpToolNames, toolEntries],
   )
-  const totalFileCount = useMemo(
-    () => filterToolEntries(toolEntries, 'files', mcpToolNames).length,
-    [mcpToolNames, toolEntries],
-  )
 
   const totalSkillCount = useMemo(
     () => countSkillEntries(toolEntries),
@@ -91,8 +79,6 @@ export function useToolDisplay(params: {
   )
 
   return {
-    activeTab,
-    setActiveTab,
     toolDisplayMode,
     setToolDisplayMode,
     cycleToolDisplayMode,
@@ -100,7 +86,6 @@ export function useToolDisplay(params: {
     totalToolCount,
     totalTodoCount,
     totalMcpCount,
-    totalFileCount,
     totalSkillCount,
   }
 }

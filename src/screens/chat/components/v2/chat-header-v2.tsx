@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { ChatSourceTabsV2 } from './chat-source-tabs-v2'
 import { ChatHeaderActionsV2 } from './chat-header-actions-v2'
-import type { SourceTab } from './chat-source-tabs-v2'
+import type { SidebarPanel } from './chat-source-tabs-v2'
 import type { SessionSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionStatus } from '@/hooks/use-session-status'
 import { formatCostUsd } from '@/lib/format'
@@ -20,24 +20,23 @@ type ChatHeaderV2Props = {
    * `undefined` in portable mode, where no gateway agent enforces approvals.
    */
   approvalBypassSessionKey?: string
-  activeTab: SourceTab
-  onTabChange: (tab: SourceTab) => void
-  tabCounts?: Partial<Record<SourceTab, number>>
+  activePanel: SidebarPanel | null
+  onTogglePanel: (panel: SidebarPanel) => void
+  panelCounts?: Partial<Record<SidebarPanel, number>>
+  /** Hide the files toggle where the explorer has no sidebar to open in. */
+  hideFiles?: boolean
   sourceKind?: SessionSource
-  fileExplorerCollapsed: boolean
-  onToggleFileExplorer: () => void
 }
 
 function ChatHeaderV2Component({
   activeTitle,
   sessionKey,
   approvalBypassSessionKey,
-  activeTab,
-  onTabChange,
-  tabCounts,
+  activePanel,
+  onTogglePanel,
+  panelCounts,
+  hideFiles,
   sourceKind = 'chat',
-  fileExplorerCollapsed,
-  onToggleFileExplorer,
 }: ChatHeaderV2Props) {
   const displayTitle = activeTitle || 'New Chat'
   const accent = SOURCE_COLORS[sourceKind]
@@ -74,20 +73,15 @@ function ChatHeaderV2Component({
         </span>
       </div>
 
-      {/* Center: source tabs */}
+      {/* Center: sidebar panel toggles (files / tool / todos / mcp / skills) */}
       <div className="shrink-0">
         <ChatSourceTabsV2
-          activeTab={activeTab}
-          onTabChange={onTabChange}
-          counts={tabCounts}
+          activePanel={activePanel}
+          onTogglePanel={onTogglePanel}
+          counts={panelCounts}
+          hideFiles={hideFiles}
         />
       </div>
-
-      {/* File explorer toggle */}
-      <FileExplorerToggle
-        collapsed={fileExplorerCollapsed}
-        onToggle={onToggleFileExplorer}
-      />
 
       {/* Pending approvals — count and a link to the card, never a decision.
           Renders nothing when the queue is empty. */}
@@ -115,30 +109,6 @@ function ChatHeaderV2Component({
   )
 }
 
-function FileExplorerToggle({
-  collapsed,
-  onToggle,
-}: {
-  collapsed: boolean
-  onToggle: () => void
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={collapsed ? 'Show file explorer' : 'Hide file explorer'}
-      aria-pressed={!collapsed}
-      title={collapsed ? 'Show file explorer' : 'Hide file explorer'}
-      onClick={onToggle}
-      className="flex items-center justify-center w-7 h-7 rounded transition-colors hover:bg-[var(--m-surface-2,rgba(255,255,255,0.06))] shrink-0"
-      style={{ color: !collapsed ? 'var(--m-green,#4ade80)' : 'var(--m-muted,var(--theme-muted,#6b7280))' }}
-    >
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-      </svg>
-    </button>
-  )
-}
-
 function SessionCostPill({ sessionKey }: { sessionKey: string }) {
   const status = useSessionStatus(sessionKey)
   if (!status.cost || status.cost <= 0) return null
@@ -155,4 +125,4 @@ function SessionCostPill({ sessionKey }: { sessionKey: string }) {
 }
 
 export const ChatHeaderV2 = memo(ChatHeaderV2Component)
-export type { SourceTab }
+export type { SidebarPanel }

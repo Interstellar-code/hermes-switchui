@@ -42,17 +42,13 @@ type LifecycleEvent = {
 }
 
 type ToolTabViewProps = {
-  messages: Array<ChatMessage>
+  messages?: Array<ChatMessage>
+  /** Pre-merged entries (e.g. from useToolDisplay); skips re-deriving from messages. */
+  entries?: Array<FlatToolEntry>
   streamingToolCalls?: Array<StreamingToolCall>
   events?: Array<LifecycleEvent>
   view?: ToolHistoryView
   mcpToolNames?: ReadonlySet<string>
-}
-
-type ActivityTabViewProps = {
-  events: Array<LifecycleEvent>
-  messages?: Array<ChatMessage>
-  streamingToolCalls?: Array<StreamingToolCall>
 }
 
 const toolViewStyle: React.CSSProperties = {
@@ -86,7 +82,7 @@ function TodoChecklist({ items }: { items: Array<TodoItem> }) {
           return (
             <li key={`${item.content}-${index}`} className="flex items-start gap-2">
               <span aria-label={label} style={{ color }}>{complete ? '✓' : inProgress ? '◐' : '○'}</span>
-              <span className={complete ? 'line-through opacity-50' : ''}>{item.content}</span>
+              <span className={`min-w-0 break-words ${complete ? 'line-through opacity-50' : ''}`}>{item.content}</span>
               <span className="m-label ml-auto shrink-0 opacity-50" style={{ color }}>{label}</span>
             </li>
           )
@@ -162,24 +158,39 @@ function toolInputRows(input?: Record<string, unknown>): Array<{ label: string; 
   return rows.slice(0, 4)
 }
 
+// The <pre> mounts only while open so large raw payloads stay out of the DOM.
+function RawDetails({ summary, text, className, color }: { summary: string; text: () => string; className: string; color: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="cursor-pointer opacity-50">{summary}</summary>
+      {open ? (
+        <pre className={`mt-1 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px] ${className}`} style={{ color }}>
+          {text()}
+        </pre>
+      ) : null}
+    </details>
+  )
+}
+
 function RawToolDetails({ entry }: { entry: FlatToolEntry }) {
   return (
     <div className="mt-2 space-y-1.5">
       {entry.input && Object.keys(entry.input).length > 0 ? (
-        <details>
-          <summary className="cursor-pointer opacity-50">Raw input</summary>
-          <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]" style={{ color: 'var(--code-foreground, var(--theme-text))' }}>
-            {JSON.stringify(entry.input, null, 2)}
-          </pre>
-        </details>
+        <RawDetails
+          summary="Raw input"
+          text={() => JSON.stringify(entry.input, null, 2)}
+          className="max-h-32"
+          color="var(--code-foreground, var(--theme-text))"
+        />
       ) : null}
       {entry.output !== undefined && entry.output !== '' ? (
-        <details>
-          <summary className="cursor-pointer opacity-50">Raw {entry.isError ? 'error' : 'output'}</summary>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap break-words font-mono text-[10px]" style={{ color: entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))' }}>
-            {entry.output}
-          </pre>
-        </details>
+        <RawDetails
+          summary={`Raw ${entry.isError ? 'error' : 'output'}`}
+          text={() => entry.output ?? ''}
+          className="max-h-48"
+          color={entry.isError ? 'var(--theme-danger, #ef4444)' : 'var(--code-foreground, var(--theme-text))'}
+        />
       ) : null}
     </div>
   )
@@ -249,7 +260,7 @@ function ExpandableToolCard({ entry }: { entry: FlatToolEntry }) {
         style={{ cursor: canExpand ? 'pointer' : 'default', background: 'transparent', border: 'none' }}
       >
         <span style={greenStyle}>{open ? '▼' : '▶'}</span>
-        <span className="font-semibold" style={greenStyle}>{displayName}</span>
+        <span className="min-w-0 truncate font-semibold" style={greenStyle} title={displayName}>{displayName}</span>
         {entry.callId ? (
           <span className="opacity-40 truncate min-w-0 text-[10px]">{entry.callId}</span>
         ) : null}
@@ -343,7 +354,8 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
 })
 
 export function ToolTabView({
-  messages,
+  messages = NO_MESSAGES,
+  entries: entriesProp,
   streamingToolCalls = NO_STREAMING_CALLS,
   events = NO_EVENTS,
   view = 'all',
@@ -354,19 +366,15 @@ export function ToolTabView({
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const resultTsMap = useMemo(() => buildResultTsMap(messages), [messages])
-  const streamingEntries = useMemo(
-    () => extractStreamingEntries(streamingToolCalls),
-    [streamingToolCalls],
-  )
-  const completedEntries = useMemo(
-    () => extractStreamToolCallsFromMessages(messages, resultTsMap),
-    [messages, resultTsMap],
-  )
-  const messageEntries = useMemo(() => extractToolEntries(messages), [messages])
   const entries = useMemo(
-    () => mergeToolEntries(streamingEntries, completedEntries, messageEntries),
-    [completedEntries, messageEntries, streamingEntries],
+    () =>
+      entriesProp ??
+      mergeToolEntries(
+        extractStreamingEntries(streamingToolCalls),
+        extractStreamToolCallsFromMessages(messages, buildResultTsMap(messages)),
+        extractToolEntries(messages),
+      ),
+    [entriesProp, messages, streamingToolCalls],
   )
 
   const scopedEntries = useMemo(
@@ -413,6 +421,7 @@ export function ToolTabView({
   )
 
   const isEmpty = scopedEntries.length === 0 && scopedEvents.length === 0
+  const noMatches = !isEmpty && !visibleRows.some((row) => row.kind !== 'gap')
   const emptyMessage =
     view === 'todos'
       ? 'No to-do tool calls yet'
@@ -436,24 +445,28 @@ export function ToolTabView({
             {f}
           </button>
         ))}
-        <div style={{ marginLeft: 'auto' }} className="flex items-center gap-1.5">
+        <div className="ml-auto flex min-w-0 max-w-full items-center gap-1.5">
           {searchOpen ? (
             <input
               autoFocus
               type="text"
+              aria-label="Search tool calls"
               value={searchQuery}
               placeholder="search…"
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Escape') {
+                  // Clear search without letting the panel's Esc handler close it.
+                  e.preventDefault()
+                  e.stopPropagation()
                   setSearchQuery('')
                   setSearchOpen(false)
                 }
               }}
+              className="w-32 min-w-0 flex-1"
               style={{
                 ...filterPillStyle(false),
                 padding: '1px 8px',
-                width: 140,
                 outline: 'none',
               }}
             />
@@ -484,9 +497,9 @@ export function ToolTabView({
         </div>
       </div>
 
-      {isEmpty ? (
+      {isEmpty || noMatches ? (
         <div className="flex-1 flex items-start justify-center pt-8 p-4">
-          <p className="opacity-40 text-center">{emptyMessage}</p>
+          <p className="opacity-40 text-center">{isEmpty ? emptyMessage : 'No matches for this filter'}</p>
         </div>
       ) : (
         <div className="flex-1 min-h-0 p-4 pt-1 space-y-2">
@@ -507,7 +520,7 @@ export function ToolTabView({
               return (
                 <div key={`lc-${i}`} className="flex items-center gap-2" style={{ fontSize: '9px' }}>
                   <ActivityDot isError={ev.isError} />
-                  <span className={ev.isError ? 'text-red-400 shrink-0' : 'opacity-70 shrink-0'}>
+                  <span className={ev.isError ? 'text-red-400 min-w-0 break-words' : 'opacity-70 min-w-0 break-words'}>
                     {ev.text}
                   </span>
                   <span className="opacity-40 ml-auto shrink-0 tabular-nums">
@@ -528,119 +541,14 @@ export function ToolTabView({
   )
 }
 
-// --- Activity Tab ---
-
-type ActivityRow =
-  | { kind: 'lifecycle'; event: LifecycleEvent }
-  | { kind: 'tool'; entry: FlatToolEntry }
-
-function buildActivityRows(
-  events: Array<LifecycleEvent>,
-  messages: Array<ChatMessage>,
-  streamingToolCalls: Array<StreamingToolCall>,
-): Array<ActivityRow> {
-  const rows: Array<ActivityRow> = []
-
-  for (const ev of events) {
-    rows.push({ kind: 'lifecycle', event: ev })
-  }
-
-  const resultTsMap = buildResultTsMap(messages)
-  const streamingEntries = extractStreamingEntries(streamingToolCalls)
-  const completedEntries = extractStreamToolCallsFromMessages(messages, resultTsMap)
-  const messageEntries = extractToolEntries(messages)
-  const toolEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
-  for (const entry of toolEntries) {
-    rows.push({ kind: 'tool', entry })
-  }
-
-  // Sort chronologically; tool entries without timestamps go after lifecycle events
-  rows.sort((a, b) => {
-    const ta = a.kind === 'lifecycle' ? a.event.timestamp : (a.entry.timestamp ?? Infinity)
-    const tb = b.kind === 'lifecycle' ? b.event.timestamp : (b.entry.timestamp ?? Infinity)
-    return ta - tb
-  })
-
-  return rows
-}
-
-function ActivityDot({ isError, isRunning }: { isError?: boolean; isRunning?: boolean }) {
+function ActivityDot({ isError }: { isError?: boolean }) {
   const color = isError
     ? 'var(--theme-danger, #ef4444)'
-    : isRunning
-      ? 'var(--theme-accent, #6366f1)'
-      : 'var(--theme-success, #22c55e)'
+    : 'var(--theme-success, #22c55e)'
   return (
     <span
       className="shrink-0 size-1.5 rounded-full mt-1.5"
       style={{ background: color, display: 'inline-block' }}
     />
-  )
-}
-
-export function ActivityTabView({ events, messages = NO_MESSAGES, streamingToolCalls = NO_STREAMING_CALLS }: ActivityTabViewProps) {
-  const rows = useMemo(
-    () => buildActivityRows(events, messages, streamingToolCalls),
-    [events, messages, streamingToolCalls],
-  )
-
-  if (rows.length === 0) {
-    return (
-      <div
-        className="m-mono flex-1 min-h-0 overflow-y-auto p-4"
-        style={toolViewStyle}
-      >
-        <p className="opacity-40 text-center mt-8">No activity events yet</p>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      className="m-mono flex-1 min-h-0 overflow-y-auto p-4 space-y-1.5"
-      style={toolViewStyle}
-    >
-      {rows.map((row, i) => {
-        if (row.kind === 'lifecycle') {
-          const ev = row.event
-          return (
-            <div key={`lc-${i}`} className="flex items-start gap-2">
-              <ActivityDot isError={ev.isError} />
-              <span className={ev.isError ? 'text-red-400 shrink-0' : 'opacity-80 shrink-0'}>
-                {ev.text}
-              </span>
-              <span className="opacity-40 ml-auto shrink-0 tabular-nums">
-                {new Date(ev.timestamp).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                })}
-              </span>
-            </div>
-          )
-        }
-        const entry = row.entry
-        const badge = statusBadge(entry)
-        const displayName = formatStreamingActivityLabel(entry.name, entry.input)
-        return (
-          <div key={`tool-${entry.key}`} className="flex items-start gap-2">
-            <ActivityDot isError={entry.isError} isRunning={badge.label === 'running'} />
-            <span className="opacity-80 shrink-0">
-              tool · <span style={greenStyle}>{displayName}</span> ·{' '}
-              <span style={{ color: badge.color }}>{badge.label}</span>
-            </span>
-            {entry.displayTs ? (
-              <span className="opacity-40 ml-auto shrink-0 tabular-nums">
-                {new Date(entry.displayTs).toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                  second: '2-digit',
-                })}
-              </span>
-            ) : null}
-          </div>
-        )
-      })}
-    </div>
   )
 }

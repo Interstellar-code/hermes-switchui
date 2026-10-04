@@ -23,6 +23,16 @@ function renderInto(ui: React.ReactElement): HTMLElement {
   return container
 }
 
+// Raw <pre> blocks mount only once their <details> is open (B6).
+function openRawDetails(container: HTMLElement) {
+  act(() => {
+    for (const details of container.querySelectorAll('details')) {
+      details.open = true
+      details.dispatchEvent(new Event('toggle'))
+    }
+  })
+}
+
 describe('ToolTabView streaming tool calls', () => {
   it('renders running status for in-progress tool call', () => {
     const streamingToolCalls = [
@@ -49,6 +59,7 @@ describe('ToolTabView streaming tool calls', () => {
     // Click card to expand
     const button = container.querySelector('button[aria-expanded]')!
     act(() => { fireEvent.click(button) })
+    openRawDetails(container)
     expect(container.textContent).toContain('"y": 2')
     expect(container.textContent).toContain('hi')
   })
@@ -157,6 +168,7 @@ describe('ToolTabView streaming tool calls', () => {
     const button = container.querySelector('button[aria-expanded]')!
     act(() => { fireEvent.click(button) })
     expect(container.textContent).toContain('OK')
+    openRawDetails(container)
     expect(container.textContent).toContain('"x": 1')
   })
 
@@ -216,6 +228,9 @@ describe('ToolTabView streaming tool calls', () => {
 
     // Click to expand
     act(() => { fireEvent.click(button) })
+    expect(container.querySelectorAll('details').length).toBeGreaterThan(0)
+    expect(container.querySelector('pre')).toBeNull()
+    openRawDetails(container)
     expect(container.querySelectorAll('pre').length).toBeGreaterThan(0)
 
     // Click to collapse
@@ -261,7 +276,7 @@ describe('ToolTabView streaming tool calls', () => {
         __streamToolCalls: [
           { id: 'call_stuck', name: 'todo', phase: 'calling', args: { x: 1 } },
         ],
-      } as unknown as Parameters<typeof ToolTabView>[0]['messages'][number],
+      } as unknown as NonNullable<Parameters<typeof ToolTabView>[0]['messages']>[number],
     ]
     const container = renderInto(<ToolTabView view="todos" messages={messages} streamingToolCalls={[]} />)
     expect(container.textContent).toContain('done')

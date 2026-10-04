@@ -194,18 +194,14 @@ function renderInto(ui: React.ReactElement): HTMLElement {
 describe('ChatMetaBarV2', () => {
   it('does not render the removed tools field', () => {
     const container = renderInto(
-      <ChatMetaBarV2
-        sessionKey="t_49b85d13"
-        toolCount={14}
-        profile="default"
-      />,
+      <ChatMetaBarV2 sessionKey="t_49b85d13" profile="default" />,
     )
     expect(container.querySelector('[data-testid="meta-tools"]')).toBeNull()
   })
 
   it('does not render the removed profile field', () => {
     const container = renderInto(
-      <ChatMetaBarV2 sessionKey="abc" toolCount={0} profile="default" />,
+      <ChatMetaBarV2 sessionKey="abc" profile="default" />,
     )
     expect(container.querySelector('[data-testid="meta-profile"]')).toBeNull()
   })
@@ -369,7 +365,13 @@ describe('ChatMetaBarV2', () => {
       data: {
         active_id: null,
         projects: [
-          { id: 'p-loop', slug: 'coding-loop', name: 'Coding Loop', icon: null, color: null },
+          {
+            id: 'p-loop',
+            slug: 'coding-loop',
+            name: 'Coding Loop',
+            icon: null,
+            color: null,
+          },
         ],
       },
       isLoading: false,
@@ -396,7 +398,9 @@ describe('ChatMetaBarV2', () => {
       const inh = renderInto(<ChatMetaBarV2 sessionKey="inh" />)
       const sel = inh.querySelector('[data-testid="project-selector"]')!
       expect(sel.textContent).toContain('Coding Loop')
-      expect(inh.querySelector('[data-testid="project-inherited"]')).not.toBeNull()
+      expect(
+        inh.querySelector('[data-testid="project-inherited"]'),
+      ).not.toBeNull()
 
       const cmp = renderInto(<ChatMetaBarV2 sessionKey="cmp" />)
       expect(
@@ -587,7 +591,11 @@ describe('ChatMetaBarV2', () => {
 
       it('never calls the gateway-wide activate endpoint while resolving via the device layer', () => {
         mockQueries['profiles|scope-status'] = {
-          data: { mode: 'multiplex', servedProfiles: ['default'], sessionCounts: {} },
+          data: {
+            mode: 'multiplex',
+            servedProfiles: ['default'],
+            sessionCounts: {},
+          },
           isLoading: false,
           isError: false,
         }
