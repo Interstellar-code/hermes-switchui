@@ -214,7 +214,9 @@ export function buildDag(
       runs.find((r) => r.agent_profile_hint)?.agent_profile_hint ??
       n.hermes_task?.agent_hint ??
       null
-    const tokenRows = runs.filter((r) => r.total_tokens != null)
+    const tokenRows = runs.filter(
+      (r) => r.loop_iteration == null && r.total_tokens != null,
+    )
     const isLoop = n.type === 'loop'
     return {
       id: n.id,

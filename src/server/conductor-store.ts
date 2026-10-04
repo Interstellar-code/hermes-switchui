@@ -5,6 +5,7 @@
  * One listRuns per snapshot: missions and stats are derived from the same fetch.
  */
 
+import { formatUsageLabel } from '../lib/format-usage'
 import { getCronJobs } from './claude-dashboard-api'
 import { getEngine } from './workflow-engine/factory'
 import { PluginClient } from './workflow-engine/clients/plugin-client'
@@ -104,6 +105,11 @@ function toMs(
   return Number.isFinite(raw) ? raw : fallback
 }
 
+/** "12.4k" or "12.4k · $0.03"; '—' when the backend reports no usage. */
+export function formatUsage(usage: WorkflowRun['usage']): string {
+  return formatUsageLabel(usage?.total_tokens, usage?.cost_usd)
+}
+
 function runToMission(run: WorkflowRun): Mission {
   const now = Date.now()
   const status = mapStatus(run.status)
@@ -124,7 +130,7 @@ function runToMission(run: WorkflowRun): Mission {
     subtitle: `${run.workflow_id} · ${run.current_phase}`,
     status,
     elapsed: formatElapsed(endedAtMs - startedAtMs),
-    tokens: '—', // D7: real tokens arrive with B1
+    tokens: formatUsage(run.usage),
     action: deriveAction(status),
     dayGroup: computeDayGroup(status, startedAtMs),
     createdAt: startedAtMs,
@@ -165,6 +171,14 @@ async function buildSnapshot(): Promise<ConductorSnapshot> {
     pluginClient.listActiveNodeRuns().catch(() => []),
   ])
   const missions = runs.map(runToMission)
+  const totalTokens = runs.reduce((a, r) => a + (r.usage?.total_tokens ?? 0), 0)
+  // Tokens without a cost make the aggregate cost unknown (show tokens only).
+  const costKnown = runs.every(
+    (r) => !r.usage?.total_tokens || r.usage.cost_usd != null,
+  )
+  const totalCost = costKnown
+    ? runs.reduce((a, r) => a + (r.usage?.cost_usd ?? 0), 0)
+    : null
   const live = missions.filter((m) => m.status === 'live')
   const oldest = live.reduce<number | null>(
     (min, m) => (min == null || m.createdAt < min ? m.createdAt : min),
@@ -178,7 +192,7 @@ async function buildSnapshot(): Promise<ConductorSnapshot> {
       nodesRunning: active.filter((n) => n.status === 'running').length,
       oldestLiveElapsed:
         oldest == null ? '—' : formatElapsed(Date.now() - oldest),
-      tokens: '—',
+      tokens: formatUsageLabel(totalTokens, totalCost),
     },
   }
 }

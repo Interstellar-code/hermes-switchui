@@ -102,6 +102,13 @@ export interface PhaseTransition {
   at: number
 }
 
+export interface RunUsage {
+  input_tokens: number
+  output_tokens: number
+  total_tokens: number
+  cost_usd: number | null
+}
+
 export interface WorkflowRunRow {
   id: string
   workflow_id: string
@@ -115,6 +122,8 @@ export interface WorkflowRunRow {
   error: string | null
   /** Trigger/inputs, or the pending approval while paused. */
   metadata?: Record<string, unknown> | null
+  /** Absent/null until the backend reports tokens. */
+  usage?: RunUsage | null
 }
 
 export type WorkflowArtifactRef = {
@@ -141,6 +150,15 @@ export interface NodeRunRow {
   artifact_refs?: string | Array<WorkflowArtifactRef> | null
   /** Set on child rows when they belong to a subgraph expansion (A.7-subgraphs). */
   parent_subgraph_node_run_id?: string | null
+  /** Loop iteration rows: 1..N; wrapper row is null (its tokens = sum of iterations). */
+  loop_iteration?: number | null
+  loop_parent_node_run_id?: string | null
+  input_tokens?: number | null
+  output_tokens?: number | null
+  total_tokens?: number | null
+  cost_usd?: number | null
+  model?: string | null
+  provider?: string | null
 }
 
 export interface ApproveWorkflowInput {

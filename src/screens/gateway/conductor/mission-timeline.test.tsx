@@ -81,6 +81,32 @@ describe('MissionTimeline', () => {
     ).toBeTruthy()
   })
 
+  it('stacks real-shaped wrapper + iteration rows (iterations reference the wrapper)', () => {
+    const base = { dag_node_id: 'loop', status: 'completed' }
+    nodeRuns = [
+      {
+        ...base,
+        id: 'w',
+        started_at: iso(0),
+        completed_at: iso(30),
+        loop_iteration: null,
+        total_tokens: 90,
+      },
+      ...[1, 2, 3].map((i) => ({
+        ...base,
+        id: `i${i}`,
+        started_at: iso((i - 1) * 10),
+        completed_at: iso(i * 10),
+        loop_iteration: i,
+        loop_parent_node_run_id: 'w',
+        total_tokens: 30,
+      })),
+    ]
+    render(<MissionTimeline runId="r1" />)
+    expect(screen.getAllByRole('listitem')).toHaveLength(4)
+    expect(screen.getByText('loop · iteration 3')).toBeTruthy()
+  })
+
   it('switches scale locally, FIT default', () => {
     nodeRuns = []
     render(<MissionTimeline runId="r1" />)

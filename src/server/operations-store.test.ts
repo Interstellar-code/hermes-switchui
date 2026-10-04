@@ -52,6 +52,26 @@ describe('operations-store live projections', () => {
     __resetOperationsReaders()
   })
 
+  it('ignores loop iteration rows in agents and outputs', async () => {
+    const iter = makeNodeRun({
+      id: 'it1',
+      loop_iteration: 1,
+      status: 'completed',
+      completed_at: NOW,
+      summary: 'x',
+    })
+    __setOperationsReaders({
+      listSessions: async () => [],
+      listNodeRuns: async () => [
+        makeNodeRun({ id: 'w' }),
+        makeNodeRun({ ...iter, id: 'it2', status: 'running' }),
+        iter,
+      ],
+    })
+    expect((await listAgents()).map((a) => a.id)).toEqual(['w'])
+    expect(await listOutputs()).toEqual([])
+  })
+
   it('returns empty arrays when gateway and engine are both offline', async () => {
     __setOperationsReaders({
       listSessions: () => {
@@ -181,6 +201,24 @@ describe('operations-store live projections', () => {
     expect(focus).not.toBeNull()
     expect(focus!.mission.traceId).toBe('wr-1')
     expect(focus!.activity.length).toBeGreaterThan(0)
+  })
+
+  it('getAgent resolves a loop iteration row to its wrapper', async () => {
+    __setOperationsReaders({
+      listSessions: async () => [],
+      listNodeRuns: async () => [
+        makeNodeRun({ id: 'wrap' }),
+        makeNodeRun({
+          id: 'it1',
+          loop_iteration: 1,
+          loop_parent_node_run_id: 'wrap',
+        }),
+        makeNodeRun({ id: 'orphan', loop_iteration: 2 }),
+      ],
+    })
+    const focus = await getAgent('it1')
+    expect(focus!.activity).toHaveLength(1)
+    expect(await getAgent('orphan')).toBeNull()
   })
 
   it('getAgent returns null when id is unknown', async () => {

@@ -932,7 +932,7 @@
   }
 
   .miss .meta .tok {
-    color: var(--m-green-500, var(--theme-accent));
+    color: var(--m-text-faint, var(--theme-muted));
   }
 
   .miss .meta .replay {

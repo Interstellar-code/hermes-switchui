@@ -263,3 +263,24 @@ describe('tokens, tiers and cap', () => {
     expect(dag.edges).toHaveLength(59)
   })
 })
+
+describe('buildDag — loop token sums', () => {
+  it('counts only the wrapper row, never wrapper + iterations', () => {
+    const row = (id: string, iter: number | null, tok: number): DagNodeRun =>
+      ({
+        id,
+        dag_node_id: 'analyze',
+        status: 'completed',
+        loop_iteration: iter,
+        total_tokens: tok,
+      }) as DagNodeRun
+    const runs = [
+      row('w', null, 90),
+      row('a', 1, 30),
+      row('b', 2, 30),
+      row('c', 3, 30),
+    ]
+    const dag = buildDag(parsed(improveLoop), runs)
+    expect(byId(dag, 'analyze').tokens).toBe(90)
+  })
+})

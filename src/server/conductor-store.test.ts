@@ -49,6 +49,36 @@ beforeEach(() => {
 })
 
 describe('getConductorSnapshot', () => {
+  it('shows em-dash tokens when usage is absent, formatted usage + summed stats when present', async () => {
+    listRuns.mockResolvedValue([run()])
+    let snap = await getConductorSnapshot()
+    expect(snap.missions[0].tokens).toBe('—')
+    expect(snap.stats.tokens).toBe('—')
+    listRuns.mockResolvedValue([
+      run({
+        usage: {
+          input_tokens: 1,
+          output_tokens: 1,
+          total_tokens: 12400,
+          cost_usd: 0.034,
+        },
+      }),
+      run({
+        id: 'r2',
+        usage: {
+          input_tokens: 1,
+          output_tokens: 1,
+          total_tokens: 600,
+          cost_usd: null,
+        },
+      }),
+    ])
+    snap = await getConductorSnapshot()
+    expect(snap.missions[0].tokens).toBe('12.4k · $0.03')
+    expect(snap.missions[1].tokens).toBe('600')
+    expect(snap.stats.tokens).toBe('13.0k')
+  })
+
   it('gives finite elapsed and createdAt for ISO timestamps', async () => {
     listRuns.mockResolvedValue([run()])
     const { missions } = await getConductorSnapshot()

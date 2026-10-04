@@ -177,7 +177,11 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
         byParent.set(nr.parent_subgraph_node_run_id, arr)
       }
     }
-    const topLevel = nodeRuns.filter((nr) => !childIds.has(nr.id))
+    // Loop iteration rows duplicate their wrapper row (which carries the summed tokens).
+    // Hiding is safe for failures: the wrapper emits node_failed after loop_iteration_failed.
+    const topLevel = nodeRuns.filter(
+      (nr) => !childIds.has(nr.id) && nr.loop_iteration == null,
+    )
     return { topLevelRuns: topLevel, childrenByParent: byParent }
   }, [data?.nodeRuns])
 
@@ -235,6 +239,7 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
       ? nodeRuns.find(
           (nr) =>
             nr.status === 'paused' &&
+            nr.loop_iteration == null &&
             (nr.approval_message || nr.node_type === 'approval'),
         )
       : undefined

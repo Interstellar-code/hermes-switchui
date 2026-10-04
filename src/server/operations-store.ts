@@ -157,6 +157,9 @@ export interface NodeRunRow {
     | 'cancelled'
     | 'skipped'
   assigned_agent: string | null
+  /** Loop iteration rows (1..N) duplicate their wrapper; null/absent = real node. */
+  loop_iteration?: number | null
+  loop_parent_node_run_id?: string | null
   summary: string | null
   error: string | null
   started_at: number | null
@@ -372,7 +375,11 @@ export async function listAgents(): Promise<Array<Agent>> {
   ])
 
   const active = nodeRuns.filter(
-    (n) => n.status !== 'completed' && n.status !== 'cancelled' && n.status !== 'skipped',
+    (n) =>
+      n.loop_iteration == null &&
+      n.status !== 'completed' &&
+      n.status !== 'cancelled' &&
+      n.status !== 'skipped',
   )
   const nodeAgents = active.map(nodeRunToAgent)
   const seenIds = new Set(nodeAgents.map((a) => a.id))
@@ -394,7 +401,12 @@ export async function getAgent(id: string): Promise<FocusData | null> {
     safe(_readers.listNodeRuns),
   ])
 
-  const node = nodeRuns.find((n) => n.id === id)
+  let node = nodeRuns.find((n) => n.id === id)
+  // Iteration rows duplicate their wrapper: resolve to the wrapper.
+  if (node?.loop_iteration != null) {
+    const parentId = node.loop_parent_node_run_id
+    node = parentId ? nodeRuns.find((n) => n.id === parentId) : undefined
+  }
   if (node) {
     return nodeRunToFocusData(node, nodeRuns)
   }
@@ -410,7 +422,9 @@ function nodeRunToFocusData(row: NodeRunRow, all: Array<NodeRunRow>): FocusData 
   const agent = nodeRunToAgent(row)
   // Sibling rows in the same workflow_run feed the activity feed.
   const siblings = all
-    .filter((n) => n.workflow_run_id === row.workflow_run_id)
+    .filter(
+      (n) => n.workflow_run_id === row.workflow_run_id && n.loop_iteration == null,
+    )
     .sort((a, b) => (b.started_at ?? 0) - (a.started_at ?? 0))
 
   const activity: Array<ActivityItem> = siblings.slice(0, 12).map((n) => ({
@@ -503,7 +517,7 @@ function sessionToFocusData(session: ClaudeSession): FocusData {
 export async function listOutputs(): Promise<Array<TeamOutput>> {
   const nodeRuns = await safe(_readers.listNodeRuns)
   const completed = nodeRuns
-    .filter((n) => n.status === 'completed')
+    .filter((n) => n.status === 'completed' && n.loop_iteration == null)
     .sort((a, b) => (b.completed_at ?? 0) - (a.completed_at ?? 0))
 
   const out: Array<TeamOutput> = []

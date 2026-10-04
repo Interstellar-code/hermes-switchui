@@ -74,6 +74,7 @@ export interface WorkflowRun {
   completed_at?: Date | null;
   last_heartbeat: Date;
   error?: string | null;
+  usage?: { input_tokens: number; output_tokens: number; total_tokens: number; cost_usd: number | null } | null;
 }
 
 export interface NodeRun {
@@ -108,6 +109,12 @@ export interface NodeRun {
   approval_message?: string | null;
   approval_response?: string | null;
   approval_target?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  cost_usd?: number | null;
+  model?: string | null;
+  provider?: string | null;
   metadata?: Record<string, unknown> | null;
 }
 

@@ -12,6 +12,7 @@ import { loopBadge } from './dag-model'
 import { useRunDag } from './use-run-dag'
 import type { Point } from './dag-layout'
 import type { DagModel, DagNode } from './dag-model'
+import { compactTokens } from '@/lib/format-usage'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
@@ -151,6 +152,12 @@ export function DagView({ dag, preview = false, onOpenNode }: DagViewProps) {
                 <span className="k">
                   {n.stage} · {n.type}
                   {badge && <span className="loop"> ↻ {badge}</span>}
+                  {n.tokens != null && n.tokens > 0 && (
+                    <span className="tok">
+                      {' '}
+                      · {compactTokens(n.tokens)} tok
+                    </span>
+                  )}
                 </span>
                 <span className="nm">{n.label}</span>
                 <span className="s">
