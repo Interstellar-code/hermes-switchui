@@ -3,6 +3,23 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.11.0] — 2026-10-04
+
+Conductor shows tokens, loop iterations and the agents behind each run.
+
+### Added
+
+- **Token Usage**: Missions, the header and the now-playing strip show tokens per run (and cost when every priced step has one); graph steps get a token badge. Shows "—" for runs before the engine recorded usage.
+- **Loop Iterations**: Each pass through a loop step stacks in the timeline under its step, without double-counting tokens or appearing as extra agents or outputs.
+- **Linked Agents (Tier 3)**: The inspector's Agents section shows who started a run and, per step, its session with nested sub-agents and delegations (model, tokens, cost, status). Sessions open their chat in the right profile; steps with agents show "◇ N agents" on the canvas.
+- **Approval Replies**: The approval box shows the workflow's full question and a labelled reply field sent with Approve or Reject (for example "skip" or "1,3,7").
+
+### Notes
+
+- Needs the workflow-engine patches `~/.hermes/patches/workflow-usage.patch` and `~/.hermes/patches/workflow-run-sessions.patch` (apply after `workflow-runs-query.patch`). Restart the dashboard, the workflow scheduler and the gateway after applying.
+- Agents link to a run once the run records its starting session (new agent-started runs) or once steps run in other profiles (coming with routing). Older runs show no linked agents.
+- Cost stays blank on routes Hermes has no pricing for; tokens still show.
+
 ## [2.10.0] — 2026-10-04
 
 Conductor goes live: real mission graphs, timeline, grouped rail and a working New Mission dialog.
