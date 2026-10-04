@@ -1,0 +1,151 @@
+/* matrix-conductor-timeline.css — MissionTimeline (Gantt). Matrix tokens with theme fallbacks. */
+
+.mtl {
+  --mtl-label-w: 160px;
+  --mtl-dur-w: 72px;
+  --mtl-ok: var(--m-success, var(--theme-success));
+  --mtl-bad: var(--m-danger, var(--theme-danger));
+  --mtl-warn: var(--m-warning, var(--theme-warning));
+  position: relative;
+  padding: 8px 12px;
+  background: var(--m-panel, var(--theme-card));
+  border-top: 1px solid var(--m-border, var(--theme-border));
+  color: var(--m-text, var(--theme-text));
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  max-height: 240px;
+  overflow: auto;
+}
+.mtl-empty {
+  padding: 8px 12px;
+  color: var(--m-text-muted, var(--theme-muted));
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+}
+.mtl-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.mtl-title {
+  color: var(--m-text-muted, var(--theme-muted));
+  letter-spacing: 0.08em;
+}
+.mtl-scales {
+  display: flex;
+  gap: 4px;
+}
+.mtl-scale {
+  padding: 1px 8px;
+  border: 1px solid var(--m-border, var(--theme-border));
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.mtl-scale[aria-pressed='true'] {
+  background: var(--m-fill-strong, var(--theme-accent-subtle));
+  color: var(--m-text-strong, var(--theme-text));
+  border-color: var(--mtl-ok);
+}
+.mtl-axis {
+  position: relative;
+  height: 14px;
+  margin: 0 var(--mtl-dur-w) 4px var(--mtl-label-w);
+  color: var(--m-text-faint, var(--theme-muted));
+}
+.mtl-tick {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.mtl-tick:first-child {
+  transform: none;
+}
+.mtl-tick:last-child {
+  transform: translateX(-100%);
+}
+.mtl-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.mtl-row {
+  display: grid;
+  grid-template-columns: var(--mtl-label-w) 1fr var(--mtl-dur-w);
+  align-items: center;
+  height: 20px;
+}
+.mtl-row-iter .mtl-label {
+  padding-left: 12px;
+  color: var(--m-text-muted, var(--theme-muted));
+}
+.mtl-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mtl-dur {
+  text-align: right;
+  color: var(--m-text-muted, var(--theme-muted));
+}
+.mtl-track {
+  position: relative;
+  height: 100%;
+  border-left: 1px solid var(--m-border-subtle, var(--theme-border));
+  overflow: hidden;
+}
+.mtl-bar {
+  position: absolute;
+  top: 5px;
+  height: 10px;
+  background: var(--mtl-ok);
+  border: 1px solid var(--mtl-ok);
+  box-sizing: border-box;
+}
+.mtl-bar[data-status='running'] {
+  animation: mtl-pulse 1.4s ease-in-out infinite;
+}
+.mtl-bar[data-status='failed'] {
+  background: var(--mtl-bad);
+  border-color: var(--mtl-bad);
+}
+.mtl-bar[data-status='waiting'],
+.mtl-bar[data-status='paused'] {
+  background: transparent;
+  border: 1px dashed var(--mtl-warn);
+}
+.mtl-bar[data-status='cancelled'],
+.mtl-bar[data-status='skipped'] {
+  background: transparent;
+  border-color: var(--m-text-faint, var(--theme-muted));
+}
+.mtl-plot {
+  position: relative;
+}
+.mtl-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid var(--mtl-bad);
+  pointer-events: none;
+}
+.mtl-now span {
+  position: absolute;
+  top: -12px;
+  left: -12px;
+  font-size: 9px;
+  color: var(--mtl-bad);
+}
+@keyframes mtl-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mtl-bar[data-status='running'] {
+    animation: none;
+  }
+}
