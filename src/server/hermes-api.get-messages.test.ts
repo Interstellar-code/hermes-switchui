@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { getSessionMessages } from './claude-dashboard-api'
-import { getMessages } from './hermes-api'
+import { getMessages, toChatMessage } from './hermes-api'
 
 vi.mock('./gateway-capabilities', () => ({
   BEARER_TOKEN: 'test-token',
@@ -63,5 +63,44 @@ describe('getMessages', () => {
       offset: 0,
       order: 'latest',
     })
+  })
+})
+
+describe('toChatMessage display_kind passthrough', () => {
+  const row = {
+    id: 156236,
+    session_id: 's',
+    role: 'user',
+    content: '[ASYNC DELEGATION BATCH COMPLETE — deleg_ecb902b2]',
+    timestamp: 10,
+  }
+
+  it('passes display_kind through as displayKind', () => {
+    const out = toChatMessage({
+      ...row,
+      display_kind: 'async_delegation_complete',
+    })
+    expect(out.displayKind).toBe('async_delegation_complete')
+    expect(out).not.toHaveProperty('displayMetadata')
+  })
+
+  it('passes display_metadata as an object, parsing raw JSON strings', () => {
+    const meta = { delegation_id: 'deleg_x', task_count: 3 }
+    expect(
+      toChatMessage({ ...row, display_metadata: meta }).displayMetadata,
+    ).toEqual(meta)
+    expect(
+      toChatMessage({ ...row, display_metadata: JSON.stringify(meta) })
+        .displayMetadata,
+    ).toEqual(meta)
+    expect(
+      toChatMessage({ ...row, display_metadata: 'not json' }),
+    ).not.toHaveProperty('displayMetadata')
+  })
+
+  it('omits both for ordinary rows', () => {
+    const out = toChatMessage({ ...row, display_kind: null })
+    expect(out).not.toHaveProperty('displayKind')
+    expect(out).not.toHaveProperty('displayMetadata')
   })
 })

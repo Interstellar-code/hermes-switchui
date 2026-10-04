@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
 import { chatQueryKeys, fetchHistory } from '../chat-queries'
+import { parseDelegationCompletion } from '../delegation-completion'
 import { getMessageTimestamp, hasVisibleText, textFromMessage } from '../utils'
 import {
   cleanupExpiredPendingSends,
@@ -505,6 +506,12 @@ export function useChatHistory({
         if ((msg as any).__execNotification) {
           delete (msg as any).__execNotification
         }
+        const delegationComplete = parseDelegationCompletion(msg)
+        if (delegationComplete) {
+          msg.__delegationComplete = delegationComplete
+          return true
+        }
+        if (msg.__delegationComplete) delete msg.__delegationComplete
         // Filter out system event forwards (subagent task announcements etc)
         if (text.startsWith('A subagent task')) return false
         if (text.startsWith('[Queued announce messages')) return false

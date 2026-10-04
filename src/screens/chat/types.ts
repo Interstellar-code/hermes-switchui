@@ -1,3 +1,5 @@
+import type { DelegationCompletion } from './delegation-completion'
+
 export type ToolCallContent = {
   type: 'toolCall'
   id?: string
@@ -93,6 +95,10 @@ export type ChatMessage = {
   __realtimeSequence?: number
   __realtimeSource?: string
   __execNotification?: unknown
+  /** hermes `display_kind` (e.g. 'async_delegation_complete'). */
+  displayKind?: string
+  displayMetadata?: Record<string, unknown>
+  __delegationComplete?: DelegationCompletion
   __isNarration?: boolean
   [key: string]: unknown
   __optimisticId?: string

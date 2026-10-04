@@ -64,6 +64,16 @@ import { useContextAlert } from './hooks/use-context-alert'
 import { useSendMessageState } from './hooks/use-send-message-state'
 import { useSessionLifecycle } from './hooks/use-session-lifecycle'
 import { useComposerSend } from './hooks/use-composer-send'
+import {
+  claimDelegationContinue,
+  delegationContinueKey,
+  isDelegationContinued,
+  lastDelegationCompletion,
+  markDelegationContinued,
+  useDelegationAutoContinue,
+} from './hooks/use-delegation-auto-continue'
+import { DELEGATION_CONTINUE_NUDGE } from './delegation-completion'
+import { DelegationCardActions } from './components/delegation-completion-card'
 import { useMessageRetry } from './hooks/use-message-retry'
 import { useRetryRecovery } from './hooks/use-retry-recovery'
 import { useSlashCommands } from './hooks/use-slash-commands'
@@ -82,6 +92,7 @@ import type {
 import type { ChatAttachment, ChatMessage, SessionMeta } from './types'
 import type { AgentActivity } from '@/stores/chat-activity-store'
 import type { StreamingDelegation } from '@/stores/chat-store'
+import { useDelegationAutoContinueStore } from '@/stores/delegation-auto-continue-store'
 import { usePendingApprovalQueue } from '@/hooks/use-approval-queue'
 import {
   activeScopeKey,
@@ -1231,7 +1242,80 @@ export function ChatScreen({
     setWaitingForResponse,
     isMobile,
   })
-  sendRef.current = send
+
+  // Async delegation completion (Continue button + opt-in auto-continue).
+  // The nudge is short on purpose: hermes folds the delivery row into the
+  // next user message, so resending the results would double-inject them.
+  const delegationSessionKey = resolvedSessionKey || modelSessionKey
+  const delegationIdle =
+    !isComposerLoading && !(activeClarify && !activeClarify.resolved)
+  const lastDelegationCard = lastDelegationCompletion(finalDisplayMessages)
+  const autoContinueEnabledAt = useDelegationAutoContinueStore((s) =>
+    delegationSessionKey ? s.enabledAt[delegationSessionKey] : undefined,
+  )
+  const sendDelegationNudge = useCallback(() => {
+    void send(DELEGATION_CONTINUE_NUDGE, [], {
+      reset: () => {},
+      setValue: () => {},
+      setAttachments: () => {},
+    })
+  }, [send])
+  const continueKey =
+    lastDelegationCard && delegationSessionKey
+      ? delegationContinueKey(delegationSessionKey, lastDelegationCard)
+      : null
+  // Any user send answers the card: claim it so another tab's auto-continue
+  // does not fire a redundant nudge.
+  const sendAndClaim = useCallback(
+    (...args: Parameters<typeof send>) => {
+      if (continueKey) markDelegationContinued(continueKey)
+      return send(...args)
+    },
+    [continueKey, send],
+  )
+  sendRef.current = sendAndClaim
+  const alreadyContinued = continueKey
+    ? isDelegationContinued(continueKey)
+    : false
+  const handleDelegationContinue = useCallback(() => {
+    if (!continueKey) return
+    // Same claim as auto-continue, so two tabs never both send.
+    void claimDelegationContinue(continueKey).then((claimed) => {
+      if (claimed) sendDelegationNudge()
+    })
+  }, [continueKey, sendDelegationNudge])
+  const delegationActions = useMemo(
+    () =>
+      continueKey && delegationSessionKey ? (
+        <DelegationCardActions
+          canContinue={delegationIdle && !alreadyContinued}
+          onContinue={handleDelegationContinue}
+          autoContinue={autoContinueEnabledAt !== undefined}
+          onAutoContinueChange={(enabled) =>
+            useDelegationAutoContinueStore
+              .getState()
+              .setEnabled(delegationSessionKey, enabled)
+          }
+        />
+      ) : undefined,
+    [
+      alreadyContinued,
+      autoContinueEnabledAt,
+      continueKey,
+      delegationIdle,
+      delegationSessionKey,
+      handleDelegationContinue,
+    ],
+  )
+  useDelegationAutoContinue({
+    sessionKey: delegationSessionKey,
+    messages: finalDisplayMessages,
+    enabledAt: autoContinueEnabledAt,
+    // Cached history from an earlier visit may predate a reply; wait for a
+    // fresh fetch before trusting "the card is the last message".
+    idle: delegationIdle && historyQuery.isFetchedAfterMount,
+    sendNudge: sendDelegationNudge,
+  })
 
   const { isCurrentSessionInterrupted, handleResendInterrupted } =
     useMessageRetry({
@@ -1596,6 +1680,7 @@ export function ChatScreen({
                 toolDisplayMode={toolDisplayMode}
                 clarifyCard={clarifyCard}
                 commandOutputs={commandOutputs}
+                delegationActions={delegationActions}
               />
             </StreamingTextContext.Provider>
           )}
@@ -1607,7 +1692,7 @@ export function ChatScreen({
                   message-list anchoring. See `approvalCard` above. */}
               {approvalCard}
               <ChatComposerShadcn
-                onSubmit={send}
+                onSubmit={sendAndClaim}
                 onAbort={handleAbortStreaming}
                 isLoading={isComposerLoading}
                 disabled={

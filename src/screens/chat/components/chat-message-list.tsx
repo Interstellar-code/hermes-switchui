@@ -750,6 +750,9 @@ type ChatMessageListProps = {
   toolDisplayMode?: ToolDisplayMode
   /** Compactions in this chat, rendered as inline dividers (#364). */
   compactionEvents?: Array<CompactionEvent>
+  /** Continue / auto-continue controls, shown on the last message when it is
+   *  an async-delegation completion card. */
+  delegationActions?: React.ReactNode
 }
 
 export function isThinkingIndicatorSurfaceVisible({
@@ -795,6 +798,7 @@ function ChatMessageListComponent({
   noticePosition = 'start',
   clarifyCard,
   commandOutputs,
+  delegationActions,
   waitingForResponse,
   sessionKey,
   pinToTop,
@@ -1280,7 +1284,11 @@ function ChatMessageListComponent({
     .pop()
   const lastUserIndex = visibleEntries
     .map(({ message, sourceIndex }, index) => ({ message, sourceIndex, index }))
-    .filter(({ message }) => message.role === 'user')
+    // A delegation card is gateway-written, not a user turn to pin.
+    .filter(
+      ({ message }) =>
+        message.role === 'user' && !message.__delegationComplete,
+    )
     .map(({ index }) => index)
     .pop()
   // Show typing indicator when waiting for response and no visible text yet.
@@ -1598,6 +1606,11 @@ function ChatMessageListComponent({
         lifecycleEvents={undefined}
         clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
         toolDisplayMode={toolDisplayMode}
+        delegationActions={
+          entryIndex === visibleEntries.length - 1
+            ? delegationActions
+            : undefined
+        }
       />
     )
   }
@@ -2044,6 +2057,10 @@ function ChatMessageListComponent({
                           : undefined,
                         toolDisplayMode: toolDisplayMode,
                         isLastAssistant: forceActionsVisible,
+                        delegationActions:
+                          entryIndex === visibleEntries.length - 1
+                            ? delegationActions
+                            : undefined,
                       }
                       return [
                         ...renderCompactionDividers(entryIndex),
@@ -2313,7 +2330,8 @@ function areChatMessageListEqual(
     prev.liveProgressLabel === next.liveProgressLabel &&
     prev.sending === next.sending &&
     prev.toolDisplayMode === next.toolDisplayMode &&
-    prev.compactionEvents === next.compactionEvents
+    prev.compactionEvents === next.compactionEvents &&
+    prev.delegationActions === next.delegationActions
   )
 }
 

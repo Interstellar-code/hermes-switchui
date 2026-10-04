@@ -90,6 +90,28 @@ describe('useMessageRetry', () => {
     expect(send).toHaveBeenCalledWith('second', [], commandHelpers)
   })
 
+  it('handleResendInterrupted: skips gateway-written delegation / exec rows', () => {
+    const send = vi.fn().mockResolvedValue(undefined)
+    const messages: Array<ChatMessage> = [
+      makeUserMessage('real question'),
+      {
+        ...makeUserMessage('[ASYNC DELEGATION BATCH COMPLETE — deleg_x]'),
+        __delegationComplete: { delegationId: 'deleg_x' },
+      } as unknown as ChatMessage,
+      {
+        ...makeUserMessage('Exec finished'),
+        __execNotification: { name: 'ls' },
+      },
+    ]
+    const { result } = renderHook(() =>
+      useMessageRetry(defaultParams({ finalDisplayMessages: messages, send })),
+    )
+    act(() => {
+      result.current.handleResendInterrupted()
+    })
+    expect(send).toHaveBeenCalledWith('real question', [], commandHelpers)
+  })
+
   it('handleResendInterrupted: clears the interrupted flag in the store', () => {
     useChatStore.setState({
       interruptedSessionKeys: new Set([SESSION]),

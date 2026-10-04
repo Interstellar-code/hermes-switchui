@@ -10,6 +10,7 @@ import {
   textFromMessage,
 } from '../utils'
 import { parseMessageMarkers } from '../quote-markers'
+import { DelegationCompletionCard } from './delegation-completion-card'
 import { MessageActionsBar } from './message-actions-bar'
 import { MessageContextMenu } from './message-context-menu'
 import {
@@ -304,6 +305,8 @@ export type MessageItemProps = {
   streamingKey?: string | null
   toolDisplayMode?: ToolDisplayMode
   isLastAssistant?: boolean
+  /** Continue / auto-continue controls for the last delegation card. */
+  delegationActions?: ReactNode
 }
 
 type InlineToolSection = {
@@ -2113,6 +2116,7 @@ function MessageItemComponent({
   toolCalls: streamToolCalls = [],
   lifecycleEvents = [],
   clarifyCard,
+  delegationActions,
   onRetryMessage,
   onReplyMessage,
   forceActionsVisible = false,
@@ -2642,6 +2646,28 @@ function MessageItemComponent({
       ? () => onReplyMessage(message, messageContextMenu.selectedText)
       : undefined
 
+  const delegationComplete = isUser ? message.__delegationComplete : undefined
+  if (delegationComplete) {
+    return (
+      <div
+        ref={wrapperRef}
+        data-chat-message-role={role}
+        data-chat-message-id={wrapperDataMessageId}
+        style={
+          typeof wrapperScrollMarginTop === 'number'
+            ? { scrollMarginTop: `${wrapperScrollMarginTop}px` }
+            : undefined
+        }
+        className={cn('flex justify-center py-1', wrapperClassName)}
+      >
+        <DelegationCompletionCard
+          completion={delegationComplete}
+          actions={delegationActions}
+        />
+      </div>
+    )
+  }
+
   if (execNotification) {
     const isSuccess = execNotification.ok ?? execNotification.exitCode === 0
     const statusIcon = isSuccess ? '✓' : '✗'
@@ -3063,6 +3089,7 @@ export function areMessagesEqual(
   if (prevProps.toolCalls !== nextProps.toolCalls) return false
   if (prevProps.lifecycleEvents !== nextProps.lifecycleEvents) return false
   if (prevProps.clarifyCard !== nextProps.clarifyCard) return false
+  if (prevProps.delegationActions !== nextProps.delegationActions) return false
   if (prevProps.wrapperDataMessageId !== nextProps.wrapperDataMessageId) {
     return false
   }

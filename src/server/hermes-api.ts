@@ -86,6 +86,8 @@ export type ClaudeMessage = {
   timestamp: number
   token_count?: number | null
   finish_reason?: string | null
+  display_kind?: string | null
+  display_metadata?: unknown
 }
 
 export type ClaudeConfig = {
@@ -597,6 +599,23 @@ export function toChatMessage(
     content.push({ type: 'text', text: msg.content })
   }
 
+  // Raw state.db rows (dashboard path) carry display_metadata as a JSON string.
+  let displayMetadata: unknown = msg.display_metadata
+  if (typeof displayMetadata === 'string') {
+    try {
+      displayMetadata = JSON.parse(displayMetadata)
+    } catch {
+      displayMetadata = undefined
+    }
+  }
+  if (
+    !displayMetadata ||
+    typeof displayMetadata !== 'object' ||
+    Array.isArray(displayMetadata)
+  ) {
+    displayMetadata = undefined
+  }
+
   return {
     id: `msg-${msg.id}`,
     role: msg.role,
@@ -607,6 +626,8 @@ export function toChatMessage(
       ? new Date(msg.timestamp * 1000).toISOString()
       : undefined,
     sessionKey: msg.session_id,
+    ...(msg.display_kind ? { displayKind: msg.display_kind } : {}),
+    ...(displayMetadata ? { displayMetadata } : {}),
     ...(typeof options?.historyIndex === 'number'
       ? { __historyIndex: options.historyIndex }
       : {}),

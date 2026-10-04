@@ -64,9 +64,14 @@ export function useMessageRetry({
     if (!resolvedSessionKey) return
     const store = useChatStore.getState()
     store.clearSessionInterrupted(resolvedSessionKey)
-    const lastUser = [...finalDisplayMessages]
-      .reverse()
-      .find((m) => m.role === 'user' && !m.__optimisticId)
+    const lastUser = [...finalDisplayMessages].reverse().find(
+      (m) =>
+        m.role === 'user' &&
+        !m.__optimisticId &&
+        // Gateway-written rows, not something the user typed to resend.
+        !m.__delegationComplete &&
+        !m.__execNotification,
+    )
     if (lastUser && typeof lastUser.content !== 'undefined') {
       const text = readMessageText(lastUser)
       if (text.trim()) {
