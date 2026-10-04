@@ -150,9 +150,7 @@ describe('ChatTab', () => {
     useMemoryChatStore.setState({ chatRequest: null })
     render(<ChatTab />)
     const box = () =>
-      screen.getByPlaceholderText(
-        /Ask about your memory/i,
-      ) as HTMLTextAreaElement
+      screen.getByPlaceholderText<HTMLTextAreaElement>(/Ask about your memory/i)
     act(() => useMemoryChatStore.getState().askMemory('what is fox?'))
     expect(box().value).toBe('what is fox?')
     expect(fetchMock).not.toHaveBeenCalled()
@@ -169,11 +167,8 @@ describe('ChatTab', () => {
     useMemoryChatStore.setState({ chatRequest: { seed: 'early', seq: 3 } })
     render(<ChatTab />)
     expect(
-      (
-        screen.getByPlaceholderText(
-          /Ask about your memory/i,
-        ) as HTMLTextAreaElement
-      ).value,
+      screen.getByPlaceholderText<HTMLTextAreaElement>(/Ask about your memory/i)
+        .value,
     ).toBe('early')
   })
 })

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { Route } from './sessions/source-totals'
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: (_path: string) => (opts: unknown) => opts as object,
 }))
@@ -18,8 +20,6 @@ vi.mock('../../server/claude-dashboard-api', () => ({
   listProfileSessions: mocks.listProfileSessions,
   listSessions: mocks.listSessions,
 }))
-
-import { Route } from './sessions/source-totals'
 
 type Handler = (ctx: { request: Request }) => Promise<Response>
 const GET = (Route as unknown as { server: { handlers: { GET: Handler } } })

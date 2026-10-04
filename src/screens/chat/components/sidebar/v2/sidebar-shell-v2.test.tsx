@@ -2,6 +2,7 @@
 import { act, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarShellV2 } from './sidebar-shell-v2'
+import type * as SessionsFeedModule from '@/screens/chat/sessions-feed'
 
 const {
   useSessionsFeed,
@@ -11,15 +12,18 @@ const {
   useSessionWindowPages,
   filterState,
   captured,
-} = vi.hoisted(() => ({
+} = vi.hoisted(() => {
+  const rec = (): Record<string, any> => ({})
+  return {
   useSessionsFeed: vi.fn(),
   applyFiltersAndDecorate: vi.fn(),
   useSessionProjectMap: vi.fn(),
   useSessionSourceTotals: vi.fn(),
   useSessionWindowPages: vi.fn(),
-  filterState: {} as Record<string, unknown>,
-  captured: { chips: {} as Record<string, unknown>, list: {} as Record<string, unknown> },
-}))
+  filterState: rec(),
+  captured: { chips: rec(), list: rec() },
+  }
+})
 const folderMap = { version: 'v', projects: [], sessions: {} }
 
 vi.mock('@/lib/projects-api', () => ({ useSessionProjectMap }))
@@ -29,8 +33,7 @@ vi.mock('@/hooks/use-resolved-profile', () => ({
 vi.mock('./sidebar-folders-v2', () => ({ SidebarGroupToggleV2: () => null }))
 
 vi.mock('@/screens/chat/sessions-feed', async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import('@/screens/chat/sessions-feed')>()
+  const actual = await importOriginal<typeof SessionsFeedModule>()
   return {
     useSessionsFeed,
     useSessionSourceTotals,

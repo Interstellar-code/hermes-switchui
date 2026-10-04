@@ -212,7 +212,7 @@ async function fetchRemoteModels(
 ): Promise<Array<ModelEntry>> {
   // Entries embed provider/contextLength and the list may be key-scoped, so
   // profiles sharing one base URL must not share a cache slot.
-  const cacheKey = `${remote.baseUrl}\n${remote.provider}\n${remote.contextLength ?? ''}\n${remote.apiKey ?? ''}`
+  const cacheKey = `${remote.baseUrl}\n${remote.provider}\n${remote.contextLength ?? ''}\n${remote.apiKey}`
   const cached = remoteModelsCache.get(cacheKey)
   if (cached && Date.now() - cached.ts < REMOTE_MODELS_TTL_MS) {
     return cached.models

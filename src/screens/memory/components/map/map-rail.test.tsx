@@ -6,7 +6,9 @@ import { MapRail } from './map-rail'
 import { EDGE_ORDER, KIND_ORDER } from './map-kinds'
 import type { MapRailProps } from './map-rail'
 
-;(
+;
+
+(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
