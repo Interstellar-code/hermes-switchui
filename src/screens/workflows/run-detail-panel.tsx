@@ -138,6 +138,8 @@ function StatusBadge({ status }: { status: string }) {
 interface Props {
   runId: string
   onClose: () => void
+  /** Hide the built-in header (host supplies its own, e.g. Conductor's drawer). */
+  hideHeader?: boolean
 }
 
 export function RunDetailPanel(props: Props) {
@@ -148,7 +150,7 @@ export function RunDetailPanel(props: Props) {
   )
 }
 
-function RunDetailPanelInner({ runId, onClose }: Props) {
+function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
   const { data, isLoading, isError, refetch } = useWorkflowRun(runId)
   const cancelMutation = useCancelRun(runId)
   const approveMutation = useApproveRun(runId)
@@ -260,31 +262,33 @@ function RunDetailPanelInner({ runId, onClose }: Props) {
   return (
     <div className="wfrd-panel">
       {/* ── Header ── */}
-      <div className="wfrd-header">
-        <div className="wfrd-header-left">
-          <span className="wfrd-run-id">run:{shortId(run.id)}</span>
-          <StatusBadge status={run.status} />
-          <span className="wfrd-phase-pill">{run.current_phase}</span>
-        </div>
-        <div className="wfrd-header-right">
-          {!isTerminal && (
+      {!hideHeader && (
+        <div className="wfrd-header">
+          <div className="wfrd-header-left">
+            <span className="wfrd-run-id">run:{shortId(run.id)}</span>
+            <StatusBadge status={run.status} />
+            <span className="wfrd-phase-pill">{run.current_phase}</span>
+          </div>
+          <div className="wfrd-header-right">
+            {!isTerminal && (
+              <button
+                className="wfrd-btn wfrd-btn--danger"
+                disabled={cancelMutation.isPending}
+                onClick={() => cancelMutation.mutate()}
+              >
+                {cancelMutation.isPending ? 'Cancelling…' : 'Cancel run'}
+              </button>
+            )}
             <button
-              className="wfrd-btn wfrd-btn--danger"
-              disabled={cancelMutation.isPending}
-              onClick={() => cancelMutation.mutate()}
+              className="wfrd-btn wfrd-btn--ghost"
+              onClick={onClose}
+              aria-label="Close panel"
             >
-              {cancelMutation.isPending ? 'Cancelling…' : 'Cancel run'}
+              ✕
             </button>
-          )}
-          <button
-            className="wfrd-btn wfrd-btn--ghost"
-            onClick={onClose}
-            aria-label="Close panel"
-          >
-            ✕
-          </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="wfrd-body">
         {/* ── Approval card ── */}

@@ -1,123 +1,145 @@
-import { useConductorMissions } from './use-conductor-queries'
+import { useEffect, useState } from 'react'
+import { fmtDuration, nodeProgress } from './dag-layout'
+import { useRunDag } from './use-run-dag'
+import { useAbortMission, useConductorMissions } from './use-conductor-queries'
+import type { StagePill } from './dag-model'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { toast } from '@/components/ui/toast'
+import { toEpochMs } from '@/screens/workflows/run-status'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
-type Phase = 'plan' | 'route' | 'execute' | 'review' | 'report'
-
-const PHASES: Array<Phase> = ['plan', 'route', 'execute', 'review', 'report']
-
-interface MissionPhase {
-  current_phase?: string
+const PILL_CLASS: Record<StagePill['status'], string> = {
+  done: 'done',
+  running: 'now',
+  waiting: 'now wait',
+  failed: 'fail',
+  pending: '',
 }
 
-function phaseState(
-  phase: Phase,
-  current: string | undefined,
-): 'done' | 'now' | 'pending' {
-  if (!current) return 'pending'
-  const currentIdx = PHASES.indexOf(current as Phase)
-  const phaseIdx = PHASES.indexOf(phase)
-  if (currentIdx < 0) return 'pending'
-  if (phaseIdx < currentIdx) return 'done'
-  if (phaseIdx === currentIdx) return 'now'
-  return 'pending'
-}
-
-function renderEmptyStrip() {
+export function StagePills({ stages }: { stages: Array<StagePill> }) {
   return (
-    <div className="now">
-      <div className="stamp">
-        elapsed
-        <b>—</b>
-      </div>
-      <div className="body">
-        <div className="lbl">no live mission</div>
-        <div className="prompt" style={{ opacity: 0.5 }}>
-          Run a workflow from the Workflows page to see it here.
-        </div>
-      </div>
-      <div className="stages">
-        {PHASES.map((phase) => (
-          <span key={phase} className="st">
-            {phase}
-          </span>
-        ))}
-      </div>
+    <div className="stages" role="list" aria-label="Stages">
+      {stages.map((s) => (
+        <span
+          key={s.stage}
+          role="listitem"
+          className={`st ${PILL_CLASS[s.status]}`}
+          title={`${s.nodeIds.length} node(s) · ${s.status}`}
+        >
+          {s.stage}
+        </span>
+      ))}
     </div>
   )
 }
 
-export function NowPlayingStrip() {
+const ACTIVE = new Set(['running', 'pending', 'paused'])
+
+function triggerOf(
+  metadata: Record<string, unknown> | null | undefined,
+): string | null {
+  const t = metadata?.trigger as { kind?: string; type?: string } | undefined
+  return t?.kind ?? t?.type ?? null
+}
+
+export function NowPlayingStrip({ runId }: { runId: string }) {
+  const { run, dag } = useRunDag(runId)
   const { data: missions = [] } = useConductorMissions()
-  const selectedRunId = useConductorUIStore((state) => state.selectedRunId)
+  const mission = missions.find((m) => m.id === runId)
+  const setDrawerRunId = useConductorUIStore((s) => s.setDrawerRunId)
+  const abort = useAbortMission()
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
-  const mission =
-    missions.find((entry) => entry.id === selectedRunId) ??
-    missions.find((entry) => entry.status === 'live') ??
-    null
+  const active = run ? ACTIVE.has(run.status) : false
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!active) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [active])
 
-  if (!mission) return renderEmptyStrip()
+  const started = toEpochMs(run?.started_at)
+  const ended = toEpochMs(run?.completed_at)
+  const elapsed =
+    started != null
+      ? fmtDuration((active ? now : (ended ?? now)) - started)
+      : (mission?.elapsed ?? '—')
 
-  const subtitle = typeof mission.subtitle === 'string' ? mission.subtitle : ''
-  const currentPhase = subtitle
-    .split('·')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-    .pop()
+  const title = mission?.title ?? run?.workflow_id ?? runId.slice(0, 8)
+  const trigger = mission?.triggerKind ?? triggerOf(run?.metadata)
+  const progress = dag ? nodeProgress(dag) : null
+  const label =
+    run?.status === 'paused'
+      ? 'needs you'
+      : run?.status === 'running' || run?.status === 'pending'
+        ? 'now playing'
+        : (run?.status ?? 'loading')
 
   return (
-    <div className="now">
+    <div className={`now ${run?.status ?? ''}`}>
       <div className="stamp">
         elapsed
-        <b>{mission.elapsed}</b>
+        <b>{elapsed}</b>
       </div>
       <div className="body">
         <div className="lbl">
-          {mission.status === 'live' ? 'now playing' : mission.status} · {mission.id}
+          {label} · {runId.slice(0, 8)}
         </div>
-        <div className="prompt">{mission.title}</div>
+        <div className="prompt">{title}</div>
         <div className="meta">
-          {subtitle || '—'} · used <b>{mission.tokens}</b>
+          {trigger && <span className="chip-trg">{trigger}</span>}
+          {progress && progress.y > 0 && (
+            <>
+              node <b>{progress.x}</b> of <b>{progress.y}</b>
+            </>
+          )}
+          {mission && (
+            <>
+              {' '}
+              · used <b>{mission.tokens}</b>
+            </>
+          )}
         </div>
       </div>
-      <div className="stages">
-        {PHASES.map((phase) => {
-          const state = phaseState(phase, currentPhase)
-          return (
-            <span key={phase} className={`st ${state === 'pending' ? '' : state}`}>
-              {phase}
-            </span>
-          )
-        })}
-      </div>
+      {dag ? <StagePills stages={dag.stages} /> : <div className="stages" />}
       <div className="controls">
         <button
           type="button"
-          className="ico-btn"
-          title="Pause (not yet supported)"
-          disabled
-          style={{ opacity: 0.4, cursor: 'not-allowed' }}
+          className="btn-ghost"
+          onClick={() => setDrawerRunId(runId)}
         >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
+          inspect
+        </button>
+        {active && (
+          <button
+            type="button"
+            className="btn-kill"
+            disabled={abort.isPending}
+            onClick={() => setConfirmOpen(true)}
           >
-            <rect x="6" y="5" width="4" height="14" rx="1" />
-            <rect x="14" y="5" width="4" height="14" rx="1" />
-          </svg>
-        </button>
-        <button
-          className="btn-kill"
-          title="Abort not yet supported"
-          disabled
-          style={{ opacity: 0.5, cursor: 'not-allowed' }}
-        >
-          abort
-        </button>
+            cancel
+          </button>
+        )}
       </div>
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Cancel this run?"
+        message={`${title} (${runId.slice(0, 8)}) will be stopped.`}
+        confirmLabel="Cancel run"
+        cancelLabel="Keep running"
+        destructive
+        busy={abort.isPending}
+        onCancel={() => setConfirmOpen(false)}
+        onConfirm={() =>
+          abort.mutate(runId, {
+            onSuccess: () => setConfirmOpen(false),
+            onError: (e) =>
+              toast(e instanceof Error ? e.message : 'Cancel failed', {
+                type: 'error',
+              }),
+          })
+        }
+      />
     </div>
   )
 }
-
-export type { MissionPhase }

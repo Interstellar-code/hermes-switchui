@@ -1,841 +1,703 @@
-import { useEffect, useRef, useState } from 'react'
+/**
+ * launch-wizard.tsx — shared launch dialog (D10).
+ *
+ * `LaunchDialog` serves Conductor "New Mission" and /workflows. `LaunchWizard`
+ * is the legacy /workflows entry point: a thin wrapper that preselects a
+ * workflow. Steps: WORKFLOW → INPUTS → WHEN → CONFIRM. The Route step is
+ * hidden until routing ships (LB2/C2).
+ */
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import '@/styles/workflow-ui.css'
-import { useLaunchWorkflowRun, useWorkflowParsed } from './use-workflows'
-import type { NodeType, WorkflowDagNode } from './types'
+import {
+  useLaunchWorkflowRun,
+  useWorkflowDefinitions,
+  useWorkflowParsed,
+} from './use-workflows'
+import { useWorkflowRunIndex } from './run-status'
+import type {
+  LaunchDialogProps,
+  LaunchDialogStep,
+} from './launch-dialog-contract'
+import type { WorkflowInputDetail, WorkflowSummary } from './types'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { toast } from '@/components/ui/toast'
+import { useConductorScheduled } from '@/screens/gateway/conductor/use-conductor-queries'
 
-// ── Cron preview helper ───────────────────────────────────────────────────────
-
-const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTHS_SHORT = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
+const STEPS: Array<{ id: LaunchDialogStep; title: string }> = [
+  { id: 'workflow', title: 'Workflow' },
+  { id: 'inputs', title: 'Inputs' },
+  { id: 'when', title: 'When' },
+  { id: 'confirm', title: 'Confirm' },
 ]
 
-/** Best-effort human description of a 5-field cron expression. */
-function describeCron(expr: string): string {
-  if (!expr.trim()) return 'Enter a cron expression'
-  const parts = expr.trim().split(/\s+/)
-  if (parts.length !== 5) return 'Invalid cron (need 5 fields)'
+const RECENT_LIMIT = 4
 
-  const [min, hour, dom, month, dow] = parts
-
-  // Build time string
-  const isAnyMin = min === '*'
-  const isAnyHour = hour === '*'
-  let timeStr = 'some time'
-  if (!isAnyMin && !isAnyHour && /^\d+$/.test(min) && /^\d+$/.test(hour)) {
-    const h = Number(hour)
-    const m = Number(min)
-    const ampm = h < 12 ? 'AM' : 'PM'
-    const h12 = h % 12 === 0 ? 12 : h % 12
-    timeStr = `${h12}:${m.toString().padStart(2, '0')} ${ampm}`
-  } else if (!isAnyHour && /^\d+$/.test(hour)) {
-    const h = Number(hour)
-    const ampm = h < 12 ? 'AM' : 'PM'
-    const h12 = h % 12 === 0 ? 12 : h % 12
-    timeStr = `${h12}:xx ${ampm}`
-  }
-
-  // Build day string
-  const isAnyDom = dom === '*'
-  const isAnyDow = dow === '*'
-  const isAnyMonth = month === '*'
-
-  if (!isAnyDow) {
-    const days = dow.split(',').map((d) => {
-      const n = Number(d)
-      return isNaN(n) ? d : (DAYS_SHORT[n] ?? d)
-    })
-    const monthStr =
-      !isAnyMonth && /^\d+$/.test(month)
-        ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
-        : ''
-    return `Every ${days.join('/')} at ${timeStr}${monthStr}`
-  }
-
-  if (!isAnyDom) {
-    const monthStr =
-      !isAnyMonth && /^\d+$/.test(month)
-        ? ` ${MONTHS_SHORT[Number(month) - 1] ?? month}`
-        : ' (monthly)'
-    return `Day ${dom}${monthStr} at ${timeStr}`
-  }
-
-  const monthStr =
-    !isAnyMonth && /^\d+$/.test(month)
-      ? ` in ${MONTHS_SHORT[Number(month) - 1] ?? month}`
-      : ''
-  return `Daily${monthStr} at ${timeStr}`
+/** Fields come from `inputs_detail`; older responses fall back to the name lists. */
+function inputFields(
+  parsed:
+    | {
+        inputs_detail?: Array<WorkflowInputDetail>
+        required_inputs: Array<string>
+        optional_inputs: Array<string>
+      }
+    | undefined,
+): Array<WorkflowInputDetail> {
+  if (!parsed) return []
+  if (parsed.inputs_detail) return parsed.inputs_detail
+  return [
+    ...parsed.required_inputs.map((name) => ({
+      name,
+      type: 'string',
+      required: true,
+    })),
+    ...parsed.optional_inputs.map((name) => ({
+      name,
+      type: 'string',
+      required: false,
+    })),
+  ]
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+/** YAML default as display text (objects as JSON, never "[object Object]"). */
+const defaultText = (f: WorkflowInputDetail): string | undefined =>
+  f.default == null
+    ? undefined
+    : typeof f.default === 'object'
+      ? JSON.stringify(f.default)
+      : String(f.default)
 
-const AGENTS = ['Switch', 'Neo', 'Trinity', 'Morpheus'] as const
-type Agent = (typeof AGENTS)[number]
+/** User-edited value only — YAML defaults are applied by the engine, never sent. */
+const valueOf = (
+  values: Record<string, string>,
+  f: WorkflowInputDetail,
+): string => values[f.name] ?? ''
 
-const NODE_COLOR: Record<NodeType, string> = {
-  prompt: '#00ff41',
-  bash: '#5ad3ff',
-  command: '#bf97ff',
-  approval: '#ffb454',
-  router: '#ff6b6b',
-  loop: '#ffd700',
-  script: '#5ad3ff',
-  cancel: '#ff6b6b',
-  subgraph: '#bf97ff',
+function needsHint(wf: WorkflowSummary): string {
+  if (wf.required_inputs.length)
+    return `needs: ${wf.required_inputs.join(', ')}`
+  return wf.optional_inputs.length
+    ? `${wf.optional_inputs.length} optional inputs`
+    : 'no inputs'
 }
 
-const STEP_TITLES = ['Plan', 'Route', 'Schedule', 'Confirm'] as const
-
-function agentForNode(nodeId: string): Agent {
-  let h = 0
-  for (let i = 0; i < nodeId.length; i++)
-    h = (h * 31 + nodeId.charCodeAt(i)) & 0xffff
-  return AGENTS[h % 4]
+/** "9 nodes · approval · needs: x" — node count omitted when the list row lacks it. */
+function wfMeta(wf: WorkflowSummary): string {
+  return [
+    wf.node_count ? `${wf.node_count} nodes` : null,
+    wf.has_loop ? 'loops' : null,
+    wf.has_approval ? 'approval' : null,
+    needsHint(wf),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 
-/** Kahn topological layout for wizard DAG (horizontal) */
-function computeWizardLayout(
-  nodes: Array<WorkflowDagNode>,
-  edges: Array<[string, string]>,
-): Partial<Record<string, { x: number; y: number }>> {
-  const NODE_W = 110
-  const NODE_H = 44
-  const GAP_X = 50
-  const GAP_Y = 16
-  const PAD = 24
+// ── Step 1 — workflow list (left pane, always visible) ───────────────────────
 
-  const inDeg: Record<string, number> = {}
-  const adj: Record<string, Array<string>> = {}
-  for (const n of nodes) {
-    inDeg[n.id] = 0
-    adj[n.id] = []
-  }
-  for (const [a, b] of edges) {
-    adj[a] = adj[a] ?? []
-    adj[a].push(b)
-    inDeg[b] = (inDeg[b] ?? 0) + 1
-  }
+function WorkflowList({
+  workflows,
+  loading,
+  failed,
+  selectedId,
+  onSelect,
+}: {
+  workflows: Array<WorkflowSummary>
+  loading: boolean
+  failed: boolean
+  selectedId: string | null
+  onSelect: (id: string) => void
+}) {
+  const [query, setQuery] = useState('')
+  const runIndex = useWorkflowRunIndex().data
 
-  const depth: Record<string, number> = {}
-  const queue: Array<string> = []
-  for (const n of nodes) if ((inDeg[n.id] ?? 0) === 0) queue.push(n.id)
-  while (queue.length > 0) {
-    const id = queue.shift()!
-    for (const nb of adj[id] ?? []) {
-      depth[nb] = Math.max(depth[nb] ?? 0, (depth[id] ?? 0) + 1)
-      inDeg[nb]--
-      if (inDeg[nb] === 0) queue.push(nb)
-    }
-  }
+  const q = query.trim().toLowerCase()
+  const matches = useMemo(
+    () =>
+      workflows.filter(
+        (w) =>
+          !q ||
+          w.id.toLowerCase().includes(q) ||
+          w.name.toLowerCase().includes(q) ||
+          w.description.toLowerCase().includes(q),
+      ),
+    [workflows, q],
+  )
+  const recent = useMemo(() => {
+    if (q || !runIndex) return []
+    const byId = new Map(matches.map((w) => [w.id, w]))
+    return Object.entries(runIndex)
+      .filter(([id, s]) => byId.has(id) && s.last)
+      .sort(([, a], [, b]) =>
+        String(b.last?.started_at).localeCompare(String(a.last?.started_at)),
+      )
+      .slice(0, RECENT_LIMIT)
+      .map(([id]) => byId.get(id)!)
+  }, [matches, runIndex, q])
+  const recentIds = new Set(recent.map((w) => w.id))
+  const rest = matches.filter((w) => !recentIds.has(w.id))
 
-  const byDepth: Record<number, Array<string>> = {}
-  for (const n of nodes) {
-    const d = depth[n.id] ?? 0
-    byDepth[d] = byDepth[d] ?? []
-    byDepth[d].push(n.id)
-  }
+  const row = (w: WorkflowSummary) => (
+    <button
+      key={w.id}
+      type="button"
+      className={`wfl-wf${w.id === selectedId ? ' is-sel' : ''}`}
+      aria-pressed={w.id === selectedId}
+      onClick={() => onSelect(w.id)}
+    >
+      <span className="wfl-wf-name">{w.name || w.id}</span>
+      <span className="wfl-meta">{wfMeta(w)}</span>
+    </button>
+  )
 
-  const pos: Partial<Record<string, { x: number; y: number }>> = {}
-  for (const [d, ids] of Object.entries(byDepth)) {
-    const depthNum = Number(d)
-    const cx = PAD + depthNum * (NODE_W + GAP_X) + NODE_W / 2
-    ids.forEach((id, rank) => {
-      pos[id] = { x: cx - NODE_W / 2, y: PAD + rank * (NODE_H + GAP_Y) }
-    })
-  }
-  return pos
+  return (
+    <div className="wfl-left">
+      <input
+        className="wfl-input wfl-search"
+        type="search"
+        aria-label="Find a workflow"
+        placeholder="Find a workflow…"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+      />
+      <div className="wfl-list" aria-busy={loading}>
+        {loading ? (
+          <div className="wfl-skeletons" aria-label="Loading workflows">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="wfl-skeleton" />
+            ))}
+          </div>
+        ) : failed ? (
+          <div className="wfl-error wfl-empty" role="alert">
+            Couldn&apos;t load workflows.
+          </div>
+        ) : matches.length === 0 ? (
+          <div className="wfl-empty">
+            {workflows.length === 0
+              ? 'No workflows defined yet.'
+              : 'No workflows match your search.'}
+          </div>
+        ) : (
+          <>
+            {recent.length > 0 && (
+              <div className="wfl-label wfl-group">Recent</div>
+            )}
+            {recent.map(row)}
+            {recent.length > 0 && rest.length > 0 && (
+              <div className="wfl-label wfl-group">All</div>
+            )}
+            {rest.map(row)}
+          </>
+        )}
+      </div>
+    </div>
+  )
 }
 
-// ── Step 1 — Plan ─────────────────────────────────────────────────────────────
+// ── Right pane steps ─────────────────────────────────────────────────────────
 
-interface WizardData {
-  id: string
-  name: string
-  description: string
-  required_inputs: Array<string>
-  optional_inputs: Array<string>
-  nodes: Array<WorkflowDagNode>
-  edges: Array<[string, string]>
+function WorkflowPreview({ wf }: { wf: WorkflowSummary | undefined }) {
+  if (!wf)
+    return (
+      <div className="wfl-empty">
+        Pick a workflow on the left to start a mission.
+      </div>
+    )
+  return (
+    <div className="wfl-pane-col">
+      <span className="wfl-label">Workflow</span>
+      <div className="wfl-title">{wf.name || wf.id}</div>
+      <div className="wfl-meta">{wf.id}</div>
+      {wf.description && <p className="wfl-desc">{wf.description}</p>}
+      <div className="wfl-sum">
+        {wfMeta(wf)}
+        {wf.has_approval ? ' — pauses for your approval' : ''}
+      </div>
+    </div>
+  )
 }
 
-function Step1Plan({
-  wf,
+function InputsStep({
+  wfId,
+  fields,
+  loading,
+  failed,
+  values,
+  setValue,
   userMessage,
   setUserMessage,
 }: {
-  wf: WizardData
+  wfId: string
+  fields: Array<WorkflowInputDetail>
+  loading: boolean
+  failed: boolean
+  values: Record<string, string>
+  setValue: (name: string, v: string) => void
   userMessage: string
-  setUserMessage: (m: string) => void
+  setUserMessage: (v: string) => void
 }) {
-  const phases = Array.from(
-    new Set(
-      wf.nodes.map((n) => n.phase).filter((p): p is string => Boolean(p)),
-    ),
-  )
-  const agentHints = Array.from(
-    new Set(
-      wf.nodes
-        .map((n) => n.hermes_task?.agent_hint)
-        .filter((a): a is string => Boolean(a)),
-    ),
-  )
-  const skillSet = Array.from(
-    new Set(wf.nodes.flatMap((n) => n.hermes_task?.skills ?? [])),
-  )
-
   return (
-    <div className="wfw-step-1">
-      <div className="wfw-s1-left">
-        <div className="wfw-summary-card">
-          <div className="wfw-summary-id">{wf.id}</div>
-          <div className="wfw-summary-name">{wf.name}</div>
-          <div className="wfw-summary-desc">{wf.description}</div>
+    <div className="wfl-pane-col">
+      <span className="wfl-label">Inputs · {wfId}</span>
+      {loading ? (
+        <div className="wfl-skeleton" aria-label="Loading inputs" />
+      ) : failed ? (
+        <div className="wfl-error" role="alert">
+          Couldn&apos;t load this workflow&apos;s inputs. Pick it again or try
+          later.
         </div>
-        {wf.required_inputs.length > 0 && (
-          <div className="wfw-inputs-list">
-            <div className="wfw-inputs-label">Inputs to provide</div>
-            {wf.required_inputs.map((inp) => (
-              <div key={inp} className="wfw-input-item">
-                <span className="wfw-input-badge">required</span>
-                <span className="wfw-input-name">{inp}</span>
-              </div>
-            ))}
-            {wf.optional_inputs.map((inp) => (
-              <div key={inp} className="wfw-input-item">
-                <span className="wfw-input-badge wfw-input-badge--opt">
-                  optional
-                </span>
-                <span className="wfw-input-name">{inp}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="wfw-inputs-list">
-          <div className="wfw-inputs-label">Run context (optional)</div>
-          <textarea
-            className="wfw-chat-input"
-            style={{
-              minHeight: 80,
-              padding: 8,
-              resize: 'vertical',
-              width: '100%',
-            }}
-            placeholder="Issue number, repo, or extra prompt context…"
-            value={userMessage}
-            onChange={(e) => setUserMessage(e.target.value)}
-          />
-        </div>
-      </div>
-      <div className="wfw-s1-right">
-        <div className="wfw-chat-header">Workflow overview</div>
-        <div className="wfw-chat-msgs">
-          <div className="wfw-inputs-list" style={{ marginBottom: 12 }}>
-            <div className="wfw-inputs-label">Stats</div>
-            <div className="wfw-input-item">
-              <span className="wfw-input-name">{wf.nodes.length} nodes</span>
-            </div>
-            <div className="wfw-input-item">
-              <span className="wfw-input-name">{wf.edges.length} edges</span>
-            </div>
-            {phases.length > 0 && (
-              <div className="wfw-input-item">
-                <span className="wfw-input-name">
-                  Phases: {phases.join(' → ')}
-                </span>
-              </div>
-            )}
-            {agentHints.length > 0 && (
-              <div className="wfw-input-item">
-                <span className="wfw-input-name">
-                  Agents: {agentHints.join(', ')}
-                </span>
-              </div>
-            )}
-            {skillSet.length > 0 && (
-              <div className="wfw-input-item">
-                <span className="wfw-input-name">
-                  Skills: {skillSet.join(', ')}
-                </span>
-              </div>
-            )}
-          </div>
-          <div className="wfw-inputs-label">Nodes</div>
-          {wf.nodes.map((n) => {
-            const agent = n.hermes_task?.agent_hint
-            const color = NODE_COLOR[n.type]
+      ) : fields.length === 0 ? (
+        <div className="wfl-meta">This workflow takes no inputs.</div>
+      ) : (
+        <div className="wfl-fields">
+          {fields.map((f) => {
+            const id = `wfl-in-${f.name}`
+            const v = valueOf(values, f)
+            const def = defaultText(f)
             return (
-              <div
-                key={n.id}
-                className="wfw-bubble wfw-bubble--switch"
-                style={{ borderLeft: `3px solid ${color}` }}
-              >
-                <span className="wfw-bubble-sender">
-                  {n.type}
-                  {n.phase ? ` · ${n.phase}` : ''}
-                  {agent ? ` · ${agent}` : ''}
-                </span>
-                <span>{n.label || n.id}</span>
+              <div key={f.name} className="wfl-field">
+                <label
+                  id={`${id}-label`}
+                  htmlFor={f.type === 'boolean' ? undefined : id}
+                  className="wfl-field-name"
+                >
+                  {f.name}
+                  {f.required ? (
+                    <span className="wfl-req" title="required">
+                      {' '}
+                      *
+                    </span>
+                  ) : (
+                    <span className="wfl-opt"> optional</span>
+                  )}
+                </label>
+                {f.type === 'boolean' ? (
+                  <div
+                    className="wfl-seg"
+                    role="group"
+                    aria-labelledby={`${id}-label`}
+                  >
+                    {['false', 'true'].map((opt) => (
+                      <button
+                        key={opt}
+                        type="button"
+                        aria-pressed={(v || def) === opt}
+                        className={(v || def) === opt ? 'is-on' : ''}
+                        onClick={() => setValue(f.name, opt)}
+                      >
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <input
+                    id={id}
+                    className="wfl-input"
+                    type={f.type === 'number' ? 'number' : 'text'}
+                    value={v}
+                    placeholder={def}
+                    required={f.required}
+                    onChange={(e) => setValue(f.name, e.target.value)}
+                  />
+                )}
+                {f.description && (
+                  <span className="wfl-meta">{f.description}</span>
+                )}
               </div>
             )
           })}
-          {wf.nodes.length === 0 && (
-            <div className="wfw-bubble wfw-bubble--switch">
-              <span>No nodes defined.</span>
-            </div>
-          )}
         </div>
-      </div>
+      )}
+      <label htmlFor="wfl-context" className="wfl-label">
+        Context (optional)
+      </label>
+      <textarea
+        id="wfl-context"
+        className="wfl-input wfl-context"
+        placeholder="Issue number, repo, or extra prompt context…"
+        value={userMessage}
+        onChange={(e) => setUserMessage(e.target.value)}
+      />
     </div>
   )
 }
 
-// ── Step 2 — Route ────────────────────────────────────────────────────────────
+type WhenMode = 'now' | 'at'
 
-// Step2Route intentionally omits variables — those are collected by VariablesForm
-// rendered below Step2Route in the wizard body.
-function Step2Route({
-  wf,
-  agentMap,
-  setAgentMap,
+/** `<input type=datetime-local>` value → Date, or null if empty/invalid/past. */
+function futureDate(local: string): Date | null {
+  const d = new Date(local)
+  return local && !isNaN(d.getTime()) && d.getTime() > Date.now() ? d : null
+}
+
+/** Current local time as a `datetime-local` value (YYYY-MM-DDTHH:mm). */
+const localNow = () =>
+  new Date(Date.now() - new Date().getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 16)
+
+function WhenStep({
+  mode,
+  setMode,
+  datetime,
+  setDatetime,
+  schedulerAlive,
 }: {
-  wf: WizardData
-  agentMap: Record<string, Agent>
-  setAgentMap: React.Dispatch<React.SetStateAction<Record<string, Agent>>>
+  mode: WhenMode
+  setMode: (m: WhenMode) => void
+  datetime: string
+  setDatetime: (v: string) => void
+  schedulerAlive: boolean
 }) {
-  const [popupNode, setPopupNode] = useState<string | null>(null)
-
-  const W = 110
-  const H = 44
-  const R = 5
-  const PAD = 24
-
-  const hasDag = wf.nodes.length > 0
-  const posMap = hasDag ? computeWizardLayout(wf.nodes, wf.edges) : {}
-
-  const positions = Object.values(posMap).filter(
-    (p): p is { x: number; y: number } => Boolean(p),
+  return (
+    <div className="wfl-pane-col">
+      <span className="wfl-label">When</span>
+      <div className="wfl-seg" role="group" aria-label="When to run">
+        <button
+          type="button"
+          aria-pressed={mode === 'now'}
+          className={mode === 'now' ? 'is-on' : ''}
+          onClick={() => setMode('now')}
+        >
+          Now
+        </button>
+        <button
+          type="button"
+          aria-pressed={mode === 'at'}
+          className={mode === 'at' ? 'is-on' : ''}
+          disabled={!schedulerAlive}
+          onClick={() => setMode('at')}
+        >
+          At a time
+        </button>
+        <button
+          type="button"
+          disabled
+          aria-disabled="true"
+          title="Not supported yet"
+        >
+          Repeat (cron)
+        </button>
+      </div>
+      {mode === 'at' && (
+        <>
+          <label htmlFor="wfl-at" className="wfl-field-name">
+            Run at
+          </label>
+          <input
+            id="wfl-at"
+            type="datetime-local"
+            className="wfl-input wfl-datetime"
+            value={datetime}
+            min={localNow()}
+            onChange={(e) => setDatetime(e.target.value)}
+          />
+          {datetime && !futureDate(datetime) && (
+            <span className="wfl-warn">Pick a time in the future.</span>
+          )}
+        </>
+      )}
+      {!schedulerAlive && (
+        <span className="wfl-meta" role="note">
+          Scheduling needs the workflow scheduler daemon, which isn&apos;t
+          running — runs start now only.
+        </span>
+      )}
+      <span className="wfl-meta" role="note">
+        Repeat schedules aren&apos;t supported by the workflow engine yet.
+      </span>
+    </div>
   )
-  const allX = positions.map((p) => p.x)
-  const allY = positions.map((p) => p.y)
-  const svgW = hasDag ? Math.max(...allX) + W + PAD : 400
-  const svgH = hasDag ? Math.max(...allY) + H + 20 + PAD : 120
+}
 
-  function handleNodeClick(nodeId: string) {
-    setPopupNode(popupNode === nodeId ? null : nodeId)
+function ConfirmStep({
+  wf,
+  fields,
+  values,
+  userMessage,
+  mode,
+  datetime,
+  error,
+}: {
+  wf: WorkflowSummary | undefined
+  fields: Array<WorkflowInputDetail>
+  values: Record<string, string>
+  userMessage: string
+  mode: WhenMode
+  datetime: string
+  error: string | null
+}) {
+  const filled = fields.filter((f) => valueOf(values, f).trim())
+  return (
+    <div className="wfl-pane-col">
+      <span className="wfl-label">Confirm</span>
+      <div className="wfl-sum">
+        <div>
+          <strong>{wf?.name ?? '—'}</strong>{' '}
+          <span className="wfl-meta">{wf?.id}</span>
+        </div>
+        <div>
+          {mode === 'now'
+            ? 'Starts immediately'
+            : `Scheduled for ${new Date(datetime).toLocaleString()}`}
+        </div>
+        {filled.map((f) => (
+          <div key={f.name}>
+            {f.name} ={' '}
+            <span className="wfl-val">{valueOf(values, f).trim()}</span>
+          </div>
+        ))}
+        {userMessage.trim() && <div>context: {userMessage.trim()}</div>}
+      </div>
+      {error && (
+        <div className="wfl-error" role="alert">
+          {error}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Dialog ───────────────────────────────────────────────────────────────────
+
+function LaunchDialogBody({
+  initialWorkflowId,
+  initialStep,
+  onClose,
+  onRunLaunched,
+}: Omit<LaunchDialogProps, 'open'>) {
+  const [workflowId, setWorkflowId] = useState<string | null>(
+    initialWorkflowId ?? null,
+  )
+  // Skipping ahead needs a workflow; otherwise a preselected workflow lands on INPUTS.
+  const [rawStep, setStep] = useState<LaunchDialogStep>(
+    !initialWorkflowId ? 'workflow' : (initialStep ?? 'inputs'),
+  )
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [userMessage, setUserMessage] = useState('')
+  const [mode, setMode] = useState<WhenMode>('now')
+  const [datetime, setDatetime] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const defs = useWorkflowDefinitions()
+  const workflows = useMemo(
+    () => (defs.data ?? []).filter((w) => w.kind !== 'subgraph'),
+    [defs.data],
+  )
+  const wf = (defs.data ?? []).find((w) => w.id === workflowId)
+  const parsed = useWorkflowParsed(workflowId)
+  const fields = inputFields(parsed.data?.parsed)
+  const launch = useLaunchWorkflowRun()
+  // Scheduled-run support: 404 / error / offline all mean "not alive".
+  const schedulerAlive = useConductorScheduled().data?.schedulerAlive === true
+  const effectiveMode: WhenMode = schedulerAlive ? mode : 'now'
+
+  const modalRef = useRef<HTMLDivElement>(null)
+  const close = () => {
+    if (!launch.isPending) onClose()
+  }
+  useFocusTrap(true, modalRef, close)
+
+  function selectWorkflow(id: string) {
+    if (id === workflowId) return
+    setWorkflowId(id)
+    setValues({})
+    setError(null)
   }
 
-  return (
-    <div className="wfw-step-2">
-      <div className="wfw-dag-wrap">
-        {!hasDag ? (
-          <div className="wfw-dag-empty">
-            No DAG defined — nodes will run sequentially.
-          </div>
-        ) : (
-          <svg
-            viewBox={`0 0 ${svgW} ${svgH}`}
-            style={{ width: '100%', maxWidth: `${svgW}px` }}
-          >
-            <defs>
-              <marker
-                id="wfw-arrow"
-                viewBox="0 0 10 10"
-                refX="8"
-                refY="5"
-                markerWidth="6"
-                markerHeight="6"
-                orient="auto"
-              >
-                <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(0,255,65,.35)" />
-              </marker>
-            </defs>
-            {wf.edges.map(([a, b], i) => {
-              const s = posMap[a]
-              const t = posMap[b]
-              if (!s || !t) return null
-              const sx = s.x + W
-              const sy = s.y + H / 2
-              const tx = t.x
-              const ty = t.y + H / 2
-              const mx = (sx + tx) / 2
-              return (
-                <path
-                  key={i}
-                  d={`M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`}
-                  fill="none"
-                  stroke="rgba(0,255,65,.25)"
-                  strokeWidth="1.5"
-                  markerEnd="url(#wfw-arrow)"
-                />
-              )
-            })}
-            {wf.nodes.map((n) => {
-              const pos = posMap[n.id]
-              if (!pos) return null
-              const c = NODE_COLOR[n.type]
-              const agent = agentMap[n.id] ?? agentForNode(n.id)
-              return (
-                <g
-                  key={n.id}
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => handleNodeClick(n.id)}
-                >
-                  <rect
-                    x={pos.x}
-                    y={pos.y}
-                    width={W}
-                    height={H}
-                    rx={R}
-                    fill={
-                      popupNode === n.id
-                        ? 'rgba(0,255,65,.1)'
-                        : 'rgba(4,16,8,.9)'
-                    }
-                    stroke={c}
-                    strokeWidth="1"
-                  />
-                  <text
-                    x={pos.x + W / 2}
-                    y={pos.y + H / 2 - 8}
-                    textAnchor="middle"
-                    style={{
-                      font: '600 10px var(--m-font-mono, ui-monospace, monospace)',
-                      fill: '#e8ffe8',
-                      letterSpacing: '.04em',
-                    }}
-                  >
-                    {n.label}
-                  </text>
-                  <text
-                    x={pos.x + W / 2}
-                    y={pos.y + H / 2 + 4}
-                    textAnchor="middle"
-                    style={{
-                      font: '500 8px var(--m-font-mono, ui-monospace, monospace)',
-                      fill: c,
-                      letterSpacing: '.1em',
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {n.type}
-                  </text>
-                  <text
-                    x={pos.x + W / 2}
-                    y={pos.y + H / 2 + 16}
-                    textAnchor="middle"
-                    style={{
-                      font: '500 8px var(--m-font-mono, ui-monospace, monospace)',
-                      fill: '#00c832',
-                      letterSpacing: '.04em',
-                    }}
-                  >
-                    {agent}
-                  </text>
-                </g>
-              )
-            })}
-          </svg>
-        )}
+  // A declared YAML default satisfies a required input (the engine applies it).
+  const inputsReady =
+    !parsed.isLoading &&
+    !parsed.isError &&
+    fields.every(
+      (f) => !f.required || valueOf(values, f).trim() || f.default != null,
+    )
+  // Never sit past INPUTS while a required input is unsatisfied (also clamps initialStep).
+  const step: LaunchDialogStep =
+    rawStep !== 'workflow' && !inputsReady ? 'inputs' : rawStep
+  const canNext =
+    step === 'workflow'
+      ? Boolean(wf)
+      : step === 'inputs'
+        ? inputsReady
+        : step === 'when'
+          ? effectiveMode === 'now' || futureDate(datetime) !== null
+          : false
+  const idx = STEPS.findIndex((s) => s.id === step)
 
-        {/* Override popup */}
-        {popupNode && (
-          <div className="wfw-override-popup">
-            <div className="wfw-override-label">
-              Override agent for <strong>{popupNode}</strong>
-            </div>
-            <select
-              className="wfw-override-select"
-              value={agentMap[popupNode] ?? agentForNode(popupNode)}
-              onChange={(e) => {
-                setAgentMap((prev) => ({
-                  ...prev,
-                  [popupNode]: e.target.value as Agent,
-                }))
-              }}
-            >
-              {AGENTS.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
+  function submit() {
+    if (!wf || launch.isPending || !inputsReady) return // guard double-submit before React flushes disabled
+    const variables: Record<string, string> = {}
+    for (const f of fields) {
+      const v = valueOf(values, f).trim()
+      if (v) variables[f.name] = v
+    }
+    const at = effectiveMode === 'at' ? futureDate(datetime) : null
+    if (effectiveMode === 'at' && !at) {
+      setError('Scheduled time has passed — pick a new time.')
+      return
+    }
+    setError(null)
+    launch.mutate(
+      {
+        workflow_id: wf.id,
+        conversation_id: crypto.randomUUID(),
+        user_message: userMessage.trim() || `Launch ${wf.name}`,
+        variables: Object.keys(variables).length ? variables : undefined,
+        schedule: at ? { type: 'at', at: at.toISOString() } : { type: 'now' },
+        priority: 50,
+        maxRuntimeSeconds: 3600,
+      },
+      {
+        onSuccess: (result) => {
+          onClose()
+          // A scheduled row is not a run yet — nothing to select until the daemon fires it.
+          if (at) toast(`Scheduled ${wf.name} for ${at.toLocaleString()}`)
+          else onRunLaunched(result.run.id, wf.id)
+        },
+        onError: (err) => {
+          setError(`Launch failed: ${err.message}`)
+          toast(`Launch failed: ${err.message}`, { type: 'error' })
+        },
+      },
+    )
+  }
+
+  return createPortal(
+    <div data-wf-ui>
+      <div className="wfw-backdrop" onClick={close}>
+        <div
+          ref={modalRef}
+          className="wfl-dlg"
+          role="dialog"
+          aria-modal="true"
+          aria-label="New mission"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="wfl-hd">
+            <span className="wfl-t">NEW MISSION</span>
+            <span className="wfl-grow" />
             <button
-              className="wfw-override-close"
-              onClick={() => setPopupNode(null)}
+              className="wfw-close-btn"
+              onClick={close}
+              aria-label="Close dialog"
             >
-              Done
+              ✕
             </button>
           </div>
-        )}
-      </div>
-
-      <div className="wfw-resolved-vars">
-        <div className="wfw-rv-label">Resolved variables</div>
-        {wf.required_inputs.length === 0 && wf.optional_inputs.length === 0 ? (
-          <div className="wfw-rv-empty">No variables required.</div>
-        ) : (
-          <table className="wfw-rv-table">
-            <tbody>
-              {wf.required_inputs.map((inp) => (
-                <tr key={inp}>
-                  <td className="wfw-rv-key">{inp}</td>
-                  <td className="wfw-rv-val">&lt;USER_PROVIDED&gt;</td>
-                </tr>
-              ))}
-              {wf.optional_inputs.map((inp) => (
-                <tr key={inp}>
-                  <td className="wfw-rv-key">{inp}</td>
-                  <td className="wfw-rv-val wfw-rv-val--opt">
-                    &lt;optional&gt;
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Step 3 — Schedule ─────────────────────────────────────────────────────────
-
-type ScheduleMode = 'now' | 'at' | 'cron'
-type Priority = 'low' | 'normal' | 'high' | 'urgent'
-
-interface ScheduleState {
-  mode: ScheduleMode
-  datetime: string
-  cron: string
-  priority: Priority
-  maxRuntime: number
-}
-
-function Step3Schedule({
-  schedule,
-  setSchedule,
-}: {
-  schedule: ScheduleState
-  setSchedule: React.Dispatch<React.SetStateAction<ScheduleState>>
-}) {
-  function update<TKey extends keyof ScheduleState>(
-    k: TKey,
-    v: ScheduleState[TKey],
-  ) {
-    setSchedule((prev) => ({ ...prev, [k]: v }))
-  }
-
-  return (
-    <div className="wfw-step-3">
-      <div className="wfw-field-group">
-        <div className="wfw-field-label">When to run</div>
-        <label className="wfw-radio">
-          <input
-            type="radio"
-            name="sched"
-            value="now"
-            checked={schedule.mode === 'now'}
-            onChange={() => update('mode', 'now')}
-          />
-          <span>Run now</span>
-        </label>
-        <label className="wfw-radio">
-          <input
-            type="radio"
-            name="sched"
-            value="at"
-            checked={schedule.mode === 'at'}
-            onChange={() => update('mode', 'at')}
-          />
-          <span>Run at</span>
-          {schedule.mode === 'at' && (
-            <input
-              type="datetime-local"
-              className="wfw-datetime"
-              value={schedule.datetime}
-              onChange={(e) => update('datetime', e.target.value)}
+          <ol className="wfl-steps" aria-label="Steps">
+            {STEPS.map((s, i) => (
+              <li key={s.id}>
+                <button
+                  type="button"
+                  className={`wfl-pill${i === idx ? ' is-on' : ''}${i < idx ? ' is-done' : ''}`}
+                  aria-current={i === idx ? 'step' : undefined}
+                  disabled={i > idx}
+                  onClick={() => setStep(s.id)}
+                >
+                  {i + 1} {s.title.toUpperCase()}
+                  {i < idx ? ' ✓' : ''}
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="wfl-body">
+            <WorkflowList
+              workflows={workflows}
+              loading={defs.isLoading}
+              failed={defs.isError}
+              selectedId={workflowId}
+              onSelect={selectWorkflow}
             />
-          )}
-        </label>
-        <label className="wfw-radio">
-          <input
-            type="radio"
-            name="sched"
-            value="cron"
-            checked={schedule.mode === 'cron'}
-            onChange={() => update('mode', 'cron')}
-          />
-          <span>Run on schedule</span>
-          {schedule.mode === 'cron' && (
-            <div className="wfw-cron-wrap">
-              <input
-                type="text"
-                className="wfw-cron-input"
-                placeholder="0 9 * * 1-5"
-                value={schedule.cron}
-                onChange={(e) => update('cron', e.target.value)}
-              />
-              <div className="wfw-cron-preview">
-                {describeCron(schedule.cron)}
-              </div>
+            <div className="wfl-right">
+              {step === 'workflow' && <WorkflowPreview wf={wf} />}
+              {step === 'inputs' && workflowId && (
+                <InputsStep
+                  wfId={workflowId}
+                  fields={fields}
+                  loading={parsed.isLoading}
+                  failed={parsed.isError}
+                  values={values}
+                  setValue={(name, v) =>
+                    setValues((p) => ({ ...p, [name]: v }))
+                  }
+                  userMessage={userMessage}
+                  setUserMessage={setUserMessage}
+                />
+              )}
+              {step === 'when' && (
+                <WhenStep
+                  mode={effectiveMode}
+                  setMode={setMode}
+                  datetime={datetime}
+                  setDatetime={setDatetime}
+                  schedulerAlive={schedulerAlive}
+                />
+              )}
+              {step === 'confirm' && (
+                <ConfirmStep
+                  wf={wf}
+                  fields={fields}
+                  values={values}
+                  userMessage={userMessage}
+                  mode={effectiveMode}
+                  datetime={datetime}
+                  error={error}
+                />
+              )}
             </div>
-          )}
-        </label>
+          </div>
+          <div className="wfw-footer">
+            <button
+              className="wfw-btn wfw-btn--secondary"
+              onClick={() => setStep(STEPS[idx - 1].id)}
+              disabled={idx === 0}
+            >
+              Back
+            </button>
+            <div className="wfw-footer-spacer" />
+            <button className="wfw-btn wfw-btn--ghost" onClick={close}>
+              Cancel
+            </button>
+            {step === 'confirm' ? (
+              <button
+                className="wfw-btn wfw-btn--primary"
+                onClick={submit}
+                disabled={launch.isPending || !wf}
+              >
+                {launch.isPending
+                  ? 'Launching…'
+                  : effectiveMode === 'at'
+                    ? 'Schedule ▶'
+                    : 'Launch ▶'}
+              </button>
+            ) : (
+              <button
+                className="wfw-btn wfw-btn--primary"
+                onClick={() => setStep(STEPS[idx + 1].id)}
+                disabled={!canNext}
+              >
+                Next
+              </button>
+            )}
+          </div>
+        </div>
       </div>
-
-      <div className="wfw-field-group">
-        <label className="wfw-field-label" htmlFor="wfw-priority">
-          Priority
-        </label>
-        <select
-          id="wfw-priority"
-          className="wfw-select"
-          value={schedule.priority}
-          onChange={(e) => update('priority', e.target.value as Priority)}
-        >
-          <option value="low">Low</option>
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-      </div>
-
-      <div className="wfw-field-group">
-        <label className="wfw-field-label" htmlFor="wfw-maxruntime">
-          Max runtime (seconds)
-        </label>
-        <input
-          id="wfw-maxruntime"
-          type="number"
-          className="wfw-number-input"
-          value={schedule.maxRuntime}
-          min={60}
-          max={86400}
-          onChange={(e) => update('maxRuntime', Number(e.target.value))}
-        />
-      </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
-// ── Step 4 — Confirm ──────────────────────────────────────────────────────────
-
-function Step4Confirm({
-  wf,
-  agentMap,
-  schedule,
-  variables,
-  onSubmit,
-  isSubmitting,
-}: {
-  wf: WizardData
-  agentMap: Record<string, Agent>
-  schedule: ScheduleState
-  variables: Record<string, string>
-  onSubmit: () => void
-  isSubmitting: boolean
-}) {
-  const scheduleLabel =
-    schedule.mode === 'now'
-      ? 'Run immediately'
-      : schedule.mode === 'at'
-        ? `Run at ${schedule.datetime || '(not set)'}`
-        : `Cron: ${schedule.cron || '(not set)'} — ${describeCron(schedule.cron)}`
-
-  return (
-    <div className="wfw-step-4">
-      <div className="wfw-confirm-grid">
-        <div className="wfw-confirm-card">
-          <div className="wfw-cc-title">Workflow</div>
-          <div className="wfw-cc-row">
-            <span>ID</span>
-            <span>{wf.id}</span>
-          </div>
-          <div className="wfw-cc-row">
-            <span>Name</span>
-            <span>{wf.name}</span>
-          </div>
-        </div>
-        <div className="wfw-confirm-card">
-          <div className="wfw-cc-title">Execution</div>
-          <div className="wfw-cc-row">
-            <span>Schedule</span>
-            <span>{scheduleLabel}</span>
-          </div>
-          <div className="wfw-cc-row">
-            <span>Priority</span>
-            <span>{schedule.priority}</span>
-          </div>
-          <div className="wfw-cc-row">
-            <span>Max runtime</span>
-            <span>{schedule.maxRuntime}s</span>
-          </div>
-        </div>
-        {wf.nodes.length > 0 && (
-          <div className="wfw-confirm-card">
-            <div className="wfw-cc-title">Agent Assignments</div>
-            {wf.nodes.map((n) => (
-              <div key={n.id} className="wfw-cc-row">
-                <span>{n.label}</span>
-                <span className="wfw-agent-tag">
-                  {agentMap[n.id] ?? agentForNode(n.id)}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-        {(wf.required_inputs.length > 0 || wf.optional_inputs.length > 0) && (
-          <div className="wfw-confirm-card">
-            <div className="wfw-cc-title">Resolved Variables</div>
-            {wf.required_inputs.map((inp) => (
-              <div key={inp} className="wfw-cc-row">
-                <span>{inp}</span>
-                <span className="wfw-rv-val">
-                  {variables[inp].trim() || '—'}
-                </span>
-              </div>
-            ))}
-            {wf.optional_inputs.map((inp) => (
-              <div key={inp} className="wfw-cc-row">
-                <span>{inp}</span>
-                <span className="wfw-rv-val wfw-rv-val--opt">
-                  {variables[inp].trim() || <em>not provided</em>}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <button
-        className="wfw-submit-btn"
-        onClick={onSubmit}
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? 'Launching…' : 'Submit as Workflow Run'}
-      </button>
-    </div>
-  )
+export function LaunchDialog({ open, ...rest }: LaunchDialogProps) {
+  // Portal target (document.body) only exists after mount — keeps SSR safe.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  if (!open || !mounted) return null
+  // Body unmounts on close, so every open starts from clean state.
+  return <LaunchDialogBody {...rest} />
 }
 
-// ── Step 2b — Variables Form ──────────────────────────────────────────────────
-
-function VariablesForm({
-  wf,
-  variables,
-  setVariables,
-  onValidChange,
-}: {
-  wf: WizardData
-  variables: Record<string, string>
-  setVariables: React.Dispatch<React.SetStateAction<Record<string, string>>>
-  onValidChange: (valid: boolean) => void
-}) {
-  const hasInputs =
-    wf.required_inputs.length > 0 || wf.optional_inputs.length > 0
-
-  function handleChange(name: string, value: string) {
-    setVariables((prev) => {
-      const next = { ...prev, [name]: value }
-      const allRequiredFilled = wf.required_inputs.every((inp) =>
-        next[inp].trim(),
-      )
-      onValidChange(allRequiredFilled)
-      return next
-    })
-  }
-
-  // Validate on mount / when wf changes
-  useEffect(() => {
-    const allRequiredFilled = wf.required_inputs.every((inp) =>
-      variables[inp].trim(),
-    )
-    onValidChange(allRequiredFilled)
-  }, [wf.required_inputs])
-
-  if (!hasInputs) {
-    return (
-      <div className="wfw-resolved-vars" style={{ marginTop: 16 }}>
-        <div className="wfw-rv-empty">
-          No variables required for this workflow.
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div className="wfw-resolved-vars" style={{ marginTop: 16 }}>
-      <div className="wfw-rv-label" style={{ marginBottom: 8 }}>
-        Provide variables
-      </div>
-      {wf.required_inputs.map((inp) => (
-        <div
-          key={inp}
-          className="wfw-input-item"
-          style={{
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 4,
-            marginBottom: 10,
-          }}
-        >
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="wfw-input-badge">required</span>
-            <span className="wfw-input-name">{inp}</span>
-          </label>
-          <input
-            className="wfw-cron-input"
-            style={{ width: '100%' }}
-            value={variables[inp] ?? ''}
-            onChange={(e) => handleChange(inp, e.target.value)}
-            placeholder={`Enter ${inp}…`}
-          />
-        </div>
-      ))}
-      {wf.optional_inputs.map((inp) => (
-        <div
-          key={inp}
-          className="wfw-input-item"
-          style={{
-            flexDirection: 'column',
-            alignItems: 'flex-start',
-            gap: 4,
-            marginBottom: 10,
-          }}
-        >
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span className="wfw-input-badge wfw-input-badge--opt">
-              optional
-            </span>
-            <span className="wfw-input-name">{inp}</span>
-          </label>
-          <input
-            className="wfw-cron-input"
-            style={{ width: '100%' }}
-            value={variables[inp] ?? ''}
-            onChange={(e) => handleChange(inp, e.target.value)}
-            placeholder={`Enter ${inp} (optional)…`}
-          />
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── Main LaunchWizard ─────────────────────────────────────────────────────────
+// ── Legacy /workflows entry point ────────────────────────────────────────────
 
 interface LaunchWizardProps {
   workflowId: string | null
@@ -848,295 +710,17 @@ export function LaunchWizard({
   onClose,
   onRunLaunched,
 }: LaunchWizardProps) {
-  const [step, setStep] = useState(1)
-  const [canAdvance, setCanAdvance] = useState(true)
-  const [agentMap, setAgentMap] = useState<Record<string, Agent>>({})
-  const [userMessage, setUserMessage] = useState('')
-  const [variables, setVariables] = useState<Record<string, string>>({})
-  const [schedule, setSchedule] = useState<ScheduleState>({
-    mode: 'now',
-    datetime: '',
-    cron: '',
-    priority: 'normal',
-    maxRuntime: 3600,
-  })
-
-  // Portal target (document.body) only exists after mount — keeps SSR safe.
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-
-  const { data, isLoading } = useWorkflowParsed(workflowId)
-  const launchMutation = useLaunchWorkflowRun()
-
-  // Reset state when workflow changes
-  useEffect(() => {
-    setStep(1)
-    setCanAdvance(true)
-    setAgentMap({})
-    setUserMessage('')
-    setVariables({})
-    setSchedule({
-      mode: 'now',
-      datetime: '',
-      cron: '',
-      priority: 'normal',
-      maxRuntime: 3600,
-    })
-  }, [workflowId])
-
-  // Focus trap + Escape dismiss. Loading and loaded modals are different
-  // elements, so each gets its own trap.
-  const modalRef = useRef<HTMLDivElement>(null)
-  const loadingRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(Boolean(workflowId) && mounted && !isLoading, modalRef, onClose)
-  useFocusTrap(Boolean(workflowId) && mounted && isLoading, loadingRef, onClose)
-
-  if (!workflowId || !mounted) return null
-
-  // Build wizard data from parsed response
-  let wf: WizardData | null = null
-  if (data) {
-    const { definition: def, parsed } = data
-    wf = {
-      id: def.id,
-      name: parsed.name,
-      description: parsed.description,
-      required_inputs: parsed.required_inputs,
-      optional_inputs: parsed.optional_inputs,
-      nodes: parsed.nodes.map((n) => ({
-        id: n.id,
-        label: n.label ?? n.id,
-        type: (n.type ?? 'prompt') as NodeType,
-        config: n.config,
-      })),
-      edges: parsed.edges,
-    }
-  }
-
-  if (isLoading) {
-    return createPortal(
-      <div data-wf-ui>
-        <div className="wfw-backdrop" onClick={onClose}>
-          <div
-            ref={loadingRef}
-            className="wfw-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Launch workflow"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div
-              className="wfw-body"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                minHeight: 200,
-              }}
-            >
-              <span style={{ opacity: 0.5 }}>Loading workflow…</span>
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.body,
-    )
-  }
-
-  if (!wf) return null
-
-  function next() {
-    if (step < 4) {
-      setStep((s) => s + 1)
-      // Re-check canAdvance for the upcoming step (step 2 → variables gate)
-      if (step + 1 === 2 && wf) {
-        setCanAdvance(wf.required_inputs.every((inp) => variables[inp].trim()))
-      } else {
-        setCanAdvance(true)
+  return (
+    <LaunchDialog
+      key={workflowId ?? ''}
+      open={Boolean(workflowId)}
+      initialWorkflowId={workflowId ?? undefined}
+      onClose={onClose}
+      onRunLaunched={(runId) =>
+        onRunLaunched
+          ? onRunLaunched(runId)
+          : toast(`Workflow Run created: ${runId}`)
       }
-    }
-  }
-  function back() {
-    if (step > 1) setStep((s) => s - 1)
-  }
-  function submit() {
-    if (!wf) return
-    // Codex Bundle 6 Q3 — guard against double-submit before React flushes
-    // the button's disabled state on rapid clicks.
-    if (launchMutation.isPending) return
-    const conversationId = crypto.randomUUID()
-    const summary = userMessage || `Launch ${wf.name}`
-    // Collect variables: required fields (always included) + non-empty optionals.
-    const resolvedVariables: Record<string, string> = {}
-    for (const inp of wf.required_inputs) {
-      resolvedVariables[inp] = variables[inp].trim()
-    }
-    for (const inp of wf.optional_inputs) {
-      const val = variables[inp].trim()
-      if (val) resolvedVariables[inp] = val
-    }
-    // Build schedule payload per hermes-agent#15 shape.
-    const schedulePayload =
-      schedule.mode === 'now'
-        ? { type: 'now' as const }
-        : schedule.mode === 'at'
-          ? {
-              type: 'at' as const,
-              at: new Date(schedule.datetime).toISOString(),
-            }
-          : { type: 'cron' as const, cron: schedule.cron }
-
-    const priorityMap: Record<Priority, number> = {
-      low: 0,
-      normal: 50,
-      high: 80,
-      urgent: 100,
-    }
-
-    launchMutation.mutate(
-      {
-        workflow_id: wf.id,
-        conversation_id: conversationId,
-        user_message: summary,
-        variables:
-          Object.keys(resolvedVariables).length > 0
-            ? resolvedVariables
-            : undefined,
-        schedule: schedulePayload,
-        priority: priorityMap[schedule.priority],
-        maxRuntimeSeconds:
-          schedule.maxRuntime > 0 ? schedule.maxRuntime : undefined,
-      },
-      {
-        onSuccess: (result) => {
-          onClose()
-          if (onRunLaunched) {
-            onRunLaunched(result.run.id)
-          } else {
-            window.dispatchEvent(
-              new CustomEvent('wf-toast', {
-                detail: { msg: `Workflow Run created: ${result.run.id}` },
-              }),
-            )
-          }
-        },
-        onError: (err) => {
-          window.dispatchEvent(
-            new CustomEvent('wf-toast', {
-              detail: { msg: `Launch failed: ${err.message}` },
-            }),
-          )
-        },
-      },
-    )
-  }
-
-  const isLast = step === 4
-
-  return createPortal(
-    <div data-wf-ui>
-      <div className="wfw-backdrop" onClick={onClose}>
-        <div
-          ref={modalRef}
-          className="wfw-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label={`Launch ${wf.name}`}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="wfw-header">
-            <div className="wfw-progress">
-              {STEP_TITLES.map((title, i) => {
-                const num = i + 1
-                const isActive = num === step
-                const isDone = num < step
-                return (
-                  <div key={title} className="wfw-progress-item">
-                    <span
-                      className={`wfw-progress-dot ${isActive ? 'is-active' : ''} ${isDone ? 'is-done' : ''}`}
-                    >
-                      {num}
-                    </span>
-                    <span className="wfw-progress-title">{title}</span>
-                  </div>
-                )
-              })}
-            </div>
-            <button
-              className="wfw-close-btn"
-              onClick={onClose}
-              aria-label="Close wizard"
-            >
-              ✕
-            </button>
-          </div>
-
-          {/* Body */}
-          <div className="wfw-body">
-            {step === 1 && (
-              <Step1Plan
-                wf={wf}
-                userMessage={userMessage}
-                setUserMessage={setUserMessage}
-              />
-            )}
-            {step === 2 && (
-              <>
-                <Step2Route
-                  wf={wf}
-                  agentMap={agentMap}
-                  setAgentMap={setAgentMap}
-                />
-                <VariablesForm
-                  wf={wf}
-                  variables={variables}
-                  setVariables={setVariables}
-                  onValidChange={setCanAdvance}
-                />
-              </>
-            )}
-            {step === 3 && (
-              <Step3Schedule schedule={schedule} setSchedule={setSchedule} />
-            )}
-            {step === 4 && (
-              <Step4Confirm
-                wf={wf}
-                agentMap={agentMap}
-                schedule={schedule}
-                variables={variables}
-                onSubmit={submit}
-                isSubmitting={launchMutation.isPending}
-              />
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="wfw-footer">
-            <button
-              className="wfw-btn wfw-btn--secondary"
-              onClick={back}
-              disabled={step === 1}
-            >
-              Back
-            </button>
-            <div className="wfw-footer-spacer" />
-            <button className="wfw-btn wfw-btn--ghost" onClick={onClose}>
-              Cancel
-            </button>
-            {!isLast && (
-              <button
-                className="wfw-btn wfw-btn--primary"
-                onClick={next}
-                disabled={(step === 1 || step === 2) && !canAdvance}
-              >
-                {step === 3 ? 'Next — Review' : 'Next'}
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>,
-    document.body,
+    />
   )
 }

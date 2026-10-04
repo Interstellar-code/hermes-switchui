@@ -69,6 +69,15 @@ export interface WorkflowSummary {
   bundled_checksum?: string | null
 }
 
+/** One declared workflow input (`default` only when the YAML declares it). */
+export interface WorkflowInputDetail {
+  name: string
+  type: string
+  required: boolean
+  default?: unknown
+  description?: string
+}
+
 /** Shape returned by GET /api/workflow-definitions/:id/parsed */
 export interface ParsedWorkflow {
   name: string
@@ -90,6 +99,7 @@ export interface ParsedWorkflow {
   has_approval: boolean
   required_inputs: Array<string>
   optional_inputs: Array<string>
+  inputs_detail?: Array<WorkflowInputDetail>
   node_count: number
 }
 

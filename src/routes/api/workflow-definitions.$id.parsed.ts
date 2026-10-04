@@ -10,7 +10,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { parse as parseYaml } from 'yaml'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { getEngine } from '../../server/workflow-engine/factory'
-
+import type { WorkflowInputDetail } from '../../screens/workflows/types'
 
 type RawNode = Record<string, unknown> & { id?: unknown }
 
@@ -38,7 +38,15 @@ function nodeType(
 
 function configPreview(node: RawNode): string {
   const pick: Record<string, unknown> = {}
-  for (const key of ['command', 'prompt', 'bash', 'script', 'cancel', 'provider', 'model']) {
+  for (const key of [
+    'command',
+    'prompt',
+    'bash',
+    'script',
+    'cancel',
+    'provider',
+    'model',
+  ]) {
     const v = node[key]
     if (v !== undefined) {
       const s = String(v)
@@ -69,10 +77,14 @@ function parseInputs(doc: {
     Array.isArray(doc.optional_inputs)
   ) {
     const req = Array.isArray(doc.required_inputs)
-      ? (doc.required_inputs as Array<unknown>).filter((s): s is string => typeof s === 'string')
+      ? (doc.required_inputs as Array<unknown>).filter(
+          (s): s is string => typeof s === 'string',
+        )
       : []
     const opt = Array.isArray(doc.optional_inputs)
-      ? (doc.optional_inputs as Array<unknown>).filter((s): s is string => typeof s === 'string')
+      ? (doc.optional_inputs as Array<unknown>).filter(
+          (s): s is string => typeof s === 'string',
+        )
       : []
     // Also union nested inputs: array/object when present alongside top-level arrays.
     if (doc.inputs) {
@@ -98,7 +110,11 @@ function parseInputs(doc: {
       if (!name) continue
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(name)
-      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
+      } else if (
+        entry['required'] === true ||
+        entry['required'] === 'true' ||
+        entry['required'] == null
+      ) {
         req.push(name)
       } else {
         opt.push(name)
@@ -108,14 +124,25 @@ function parseInputs(doc: {
   }
 
   // Shape 3: inputs object { key: { required? } }
-  if (doc.inputs && typeof doc.inputs === 'object' && !Array.isArray(doc.inputs)) {
+  if (
+    doc.inputs &&
+    typeof doc.inputs === 'object' &&
+    !Array.isArray(doc.inputs)
+  ) {
     const req: Array<string> = []
     const opt: Array<string> = []
-    for (const [key, val] of Object.entries(doc.inputs as Record<string, unknown>)) {
-      const entry = val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
+    for (const [key, val] of Object.entries(
+      doc.inputs as Record<string, unknown>,
+    )) {
+      const entry =
+        val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(key)
-      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
+      } else if (
+        entry['required'] === true ||
+        entry['required'] === 'true' ||
+        entry['required'] == null
+      ) {
         req.push(key)
       } else {
         opt.push(key)
@@ -125,6 +152,54 @@ function parseInputs(doc: {
   }
 
   return { required_inputs: [], optional_inputs: [] }
+}
+
+/**
+ * Per-input detail for the launch dialog. `default` is present ONLY when the
+ * YAML declares one — never invented. Same three shapes as parseInputs; the
+ * top-level required_inputs/optional_inputs string arrays carry no detail.
+ */
+function parseInputsDetail(
+  doc: {
+    inputs?: unknown
+    required_inputs?: unknown
+    optional_inputs?: unknown
+  },
+  names: { required_inputs: Array<string>; optional_inputs: Array<string> },
+): Array<WorkflowInputDetail> {
+  const declared = new Map<string, Record<string, unknown>>()
+  if (Array.isArray(doc.inputs)) {
+    for (const item of doc.inputs as Array<unknown>) {
+      if (!item || typeof item !== 'object') continue
+      const e = item as Record<string, unknown>
+      if (typeof e['name'] === 'string') declared.set(e['name'], e)
+    }
+  } else if (doc.inputs && typeof doc.inputs === 'object') {
+    for (const [k, v] of Object.entries(
+      doc.inputs as Record<string, unknown>,
+    )) {
+      declared.set(
+        k,
+        v && typeof v === 'object' ? (v as Record<string, unknown>) : {},
+      )
+    }
+  }
+  const req = new Set(names.required_inputs)
+  return [...new Set([...names.required_inputs, ...names.optional_inputs])].map(
+    (name) => {
+      const e = declared.get(name) ?? {}
+      return {
+        name,
+        type: typeof e['type'] === 'string' ? e['type'] : 'string',
+        required: req.has(name),
+        ...('default' in e &&
+          e['default'] != null && { default: e['default'] }),
+        ...(typeof e['description'] === 'string' && {
+          description: e['description'],
+        }),
+      }
+    },
+  )
 }
 
 export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
@@ -159,7 +234,10 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
           doc = parseYaml(def.yaml) ?? {}
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          return Response.json({ error: msg, errorType: 'yaml_parse' }, { status: 422 })
+          return Response.json(
+            { error: msg, errorType: 'yaml_parse' },
+            { status: 422 },
+          )
         }
 
         const nodes: Array<RawNode> = Array.isArray(doc.nodes) ? doc.nodes : []
@@ -230,23 +308,26 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
                 (s): s is string => typeof s === 'string',
               )
             : []
-          return [{
-            id,
-            label: (node['name'] as string | undefined) ?? id,
-            type: nodeType(node),
-            phase: (node['phase'] as string | undefined) ?? null,
-            hermes_task: hermesTask,
-            subgraph,
-            depends_on: depsArr,
-            skills: hermesTask?.skills ?? skillsArr,
-            model_hint:
-              hermesTask?.model_hint ??
-              (node['model'] as string | undefined) ??
-              null,
-            config_preview: configPreview(node),
-          }]
+          return [
+            {
+              id,
+              label: (node['name'] as string | undefined) ?? id,
+              type: nodeType(node),
+              phase: (node['phase'] as string | undefined) ?? null,
+              hermes_task: hermesTask,
+              subgraph,
+              depends_on: depsArr,
+              skills: hermesTask?.skills ?? skillsArr,
+              model_hint:
+                hermesTask?.model_hint ??
+                (node['model'] as string | undefined) ??
+                null,
+              config_preview: configPreview(node),
+            },
+          ]
         })
 
+        const inputNames = parseInputs(doc)
         const payload = {
           definition: def,
           parsed: {
@@ -257,7 +338,8 @@ export const Route = createFileRoute('/api/workflow-definitions/$id/parsed')({
             node_count: nodes.length,
             has_loop: nodes.some((n) => Boolean(n['loop'])),
             has_approval: nodes.some((n) => Boolean(n['approval'])),
-            ...parseInputs(doc),
+            ...inputNames,
+            inputs_detail: parseInputsDetail(doc, inputNames),
           },
         }
         return new Response(JSON.stringify(payload), {

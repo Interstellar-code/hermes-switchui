@@ -1,37 +1,78 @@
-import { useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { LaunchWizard } from '../../workflows/launch-wizard'
-import { useWorkflowDefinitions } from '../../workflows/use-workflows'
-import { MissionCanvas } from './mission-canvas'
-import { MissionRail } from './mission-rail'
-import { NowPlayingStrip } from './now-playing-strip'
+import { useNavigate, useSearch } from '@tanstack/react-router'
+import { LaunchDialog } from '../../workflows/launch-wizard'
+import { ApprovalBanner } from './approval-banner'
+import { ConductorIdle } from './conductor-idle'
 import { ConductorTopBar } from './conductor-top-bar'
-import { WorkerLanes } from './worker-lanes'
+import { MissionCanvas } from './mission-canvas'
 import { MissionDetailDrawer } from './mission-detail-drawer'
-import '@/styles/workflow-ui.css'
-import { useFocusTrap } from '@/components/ui/use-focus-trap'
+import { MissionRail } from './mission-rail'
+import { MissionTimeline } from './mission-timeline'
+import { NowPlayingStrip } from './now-playing-strip'
+import { selectFocus } from './focus'
+import { useConductorLive } from './use-conductor-live'
+import {
+  useConductorMissions,
+  useConductorScheduled,
+} from './use-conductor-queries'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 export function ConductorLayout() {
-  const [pickerOpen, setPickerOpen] = useState(false)
-  const [wizardId, setWizardId] = useState<string | null>(null)
-  const { data: workflows = [], isLoading } = useWorkflowDefinitions()
+  const [launch, setLaunch] = useState<{ open: boolean; workflowId?: string }>({
+    open: false,
+  })
   const queryClient = useQueryClient()
+  const selectedRunId = useConductorUIStore((s) => s.selectedRunId)
   const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
+  const { data: missions = [] } = useConductorMissions()
+  const { data: sched } = useConductorScheduled()
 
-  const pickerRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(pickerOpen, pickerRef, () => setPickerOpen(false))
+  // ?run=<id> deep link selects that run on the canvas.
+  const search: Record<string, unknown> = useSearch({ strict: false })
+  const runParam = search.run
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (runParam != null && runParam !== '') setSelectedRunId(String(runParam))
+  }, [runParam, setSelectedRunId])
 
-  function handlePickWorkflow(id: string) {
-    setPickerOpen(false)
-    setWizardId(id)
-  }
+  // Reflect selection back into ?run= (only when it differs, so no loop).
+  useEffect(() => {
+    const current =
+      runParam == null || runParam === '' ? null : String(runParam)
+    if (selectedRunId === current) return
+    // An unset selection with a ?run= still pending is the deep link above landing.
+    if (selectedRunId == null && current != null) return
+    void navigate({
+      to: '/conductor',
+      // `run` is not in the route's typed search; the reducer is untyped on purpose.
+      search: ((s: Record<string, unknown>) => ({
+        ...s,
+        run: selectedRunId ?? undefined,
+      })) as never,
+      replace: true,
+    })
+  }, [selectedRunId, runParam, navigate])
+
+  // Preview only when the scheduler is alive; otherwise the idle view says "offline".
+  const nextScheduled = sched?.schedulerAlive
+    ? (sched.scheduled
+        .filter((s) => s.enabled && s.nextRunAt != null)
+        .sort((a, b) => a.nextRunAt! - b.nextRunAt!)[0] ?? null)
+    : null
+  const focus = selectFocus({ selectedRunId, missions, nextScheduled })
+
+  // At most one per-run EventSource: the drawer's RunDetailPanel opens its own.
+  const drawerRunId = useConductorUIStore((s) => s.drawerRunId)
+  useConductorLive(
+    drawerRunId ? null : focus.kind === 'run' ? focus.runId : null,
+  )
 
   // A launch selects the new run on the canvas; the drawer stays closed.
   function handleRunLaunched(runId: string) {
     void queryClient.invalidateQueries({ queryKey: ['conductor'] })
     setSelectedRunId(runId)
+    setLaunch({ open: false })
   }
 
   return (
@@ -39,87 +80,30 @@ export function ConductorLayout() {
       <ConductorTopBar />
       <div className="cnd-body">
         <main className="cnd-main">
-          <NowPlayingStrip />
-          <MissionCanvas />
-          <WorkerLanes />
+          <ApprovalBanner />
+          {focus.kind === 'run' ? (
+            <>
+              <NowPlayingStrip runId={focus.runId} />
+              <MissionCanvas runId={focus.runId} />
+              <MissionTimeline runId={focus.runId} />
+            </>
+          ) : (
+            <ConductorIdle
+              focus={focus}
+              nextScheduled={nextScheduled}
+              onRunNow={(workflowId) => setLaunch({ open: true, workflowId })}
+              onNewMission={() => setLaunch({ open: true })}
+            />
+          )}
         </main>
-        <MissionRail onNewMission={() => setPickerOpen(true)} />
+        <MissionRail onNewMission={() => setLaunch({ open: true })} />
       </div>
       <MissionDetailDrawer />
 
-      {pickerOpen &&
-        createPortal(
-          <div data-wf-ui>
-            <div className="wfw-backdrop" onClick={() => setPickerOpen(false)}>
-              <div
-                ref={pickerRef}
-                className="wfw-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Select workflow to run"
-                style={{ maxWidth: 480, maxHeight: '60vh', overflowY: 'auto' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="wfw-header">
-                  <span className="wfw-progress-title">
-                    Select workflow to run
-                  </span>
-                  <button
-                    className="wfw-close-btn"
-                    onClick={() => setPickerOpen(false)}
-                    aria-label="Close"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <div className="wfw-body">
-                  {isLoading && (
-                    <p style={{ padding: '1rem', opacity: 0.5 }}>Loading…</p>
-                  )}
-                  {!isLoading && workflows.length === 0 && (
-                    <p style={{ padding: '1rem', opacity: 0.5 }}>
-                      No workflows found. Create one on the Workflows page.
-                    </p>
-                  )}
-                  {workflows.map((wf) => (
-                    <button
-                      key={wf.id}
-                      onClick={() => handlePickWorkflow(wf.id)}
-                      style={{
-                        display: 'block',
-                        width: '100%',
-                        textAlign: 'left',
-                        padding: '0.6rem 1rem',
-                        background: 'none',
-                        border: 'none',
-                        borderBottom: '1px solid var(--border, #222)',
-                        cursor: 'pointer',
-                        color: 'inherit',
-                        fontSize: '0.85rem',
-                      }}
-                    >
-                      <strong>{wf.name}</strong>
-                      <span
-                        style={{
-                          opacity: 0.5,
-                          marginLeft: '0.5rem',
-                          fontSize: '0.75rem',
-                        }}
-                      >
-                        {wf.id}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      <LaunchWizard
-        workflowId={wizardId}
-        onClose={() => setWizardId(null)}
+      <LaunchDialog
+        open={launch.open}
+        initialWorkflowId={launch.workflowId}
+        onClose={() => setLaunch({ open: false })}
         onRunLaunched={handleRunLaunched}
       />
     </>
