@@ -1,11 +1,12 @@
 /**
- * GET  /api/workflow-runs   — list runs (filter via ?workflow_id, ?status comma-list)
+ * GET  /api/workflow-runs   — list runs (filter via ?workflow_id, ?status comma-list, ?limit)
  * POST /api/workflow-runs   — launch a run (Launch Wizard target)
  */
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { requireJsonContentType } from '../../server/rate-limit';
 import { getEngine } from '../../server/workflow-engine/factory';
+import { WORKFLOW_RUN_STATUS } from '../../server/workflow-engine/interface';
 
 
 export const Route = createFileRoute('/api/workflow-runs')({
@@ -16,10 +17,27 @@ export const Route = createFileRoute('/api/workflow-runs')({
         const engine = getEngine();
         const url = new URL(request.url);
         const workflowId = url.searchParams.get('workflow_id');
+        const rawLimit = Number(url.searchParams.get('limit'));
+        const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.trunc(rawLimit), 500) || undefined : undefined;
+        const rawStatus = url.searchParams.get('status');
+        let status: string | undefined;
+        if (rawStatus !== null) {
+          const valid = rawStatus
+            .split(',')
+            .map((s) => s.trim())
+            .filter((s) => (WORKFLOW_RUN_STATUS as ReadonlyArray<string>).includes(s));
+          if (valid.length === 0) {
+            return Response.json(
+              { error: `status must be a comma list of: ${WORKFLOW_RUN_STATUS.join(',')}` },
+              { status: 400 },
+            );
+          }
+          status = valid.join(',');
+        }
 
         // Phase 2: always plugin path.
         try {
-          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined });
+          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined, limit, status });
           return Response.json({ runs });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);

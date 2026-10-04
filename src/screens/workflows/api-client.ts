@@ -113,6 +113,8 @@ export interface WorkflowRunRow {
   started_at: string | number
   completed_at: string | number | null
   error: string | null
+  /** Trigger/inputs, or the pending approval while paused. */
+  metadata?: Record<string, unknown> | null
 }
 
 export type WorkflowArtifactRef = {
@@ -192,9 +194,11 @@ export interface WorkflowRunDetail {
 export async function listWorkflowRuns(params?: {
   workflow_id?: string
   status?: string | Array<string>
+  limit?: number
 }): Promise<Array<WorkflowRunRow>> {
   const qs = new URLSearchParams()
   if (params?.workflow_id) qs.set('workflow_id', params.workflow_id)
+  if (params?.limit) qs.set('limit', String(params.limit))
   if (params?.status)
     qs.set(
       'status',

@@ -231,10 +231,13 @@ export class PluginClient implements WorkflowEngineInterface {
   async listRuns(opts?: {
     workflowId?: string
     limit?: number
+    /** Comma-separated run statuses. */
+    status?: string
   }): Promise<Array<WorkflowRun>> {
     const params = new URLSearchParams()
     if (opts?.workflowId) params.set('workflow_id', opts.workflowId)
     if (opts?.limit != null) params.set('limit', String(opts.limit))
+    if (opts?.status) params.set('status', opts.status)
     const qs = params.toString() ? `?${params}` : ''
     const data = await _get<{ runs: Array<WorkflowRun> }>(`/runs${qs}`)
     return data.runs

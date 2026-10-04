@@ -9,7 +9,10 @@ export interface WorkflowSseEvent {
 const MAX_BUFFER = 500
 const FLUSH_INTERVAL_MS = 80
 
-export function useWorkflowEvents(runId: string | null): {
+export function useWorkflowEvents(
+  runId: string | null,
+  opts?: { skipReplayed?: boolean },
+): {
   events: Array<WorkflowSseEvent>
   status: 'idle' | 'connecting' | 'open' | 'error' | 'closed'
 } {
@@ -21,6 +24,8 @@ export function useWorkflowEvents(runId: string | null): {
   // and flush every FLUSH_INTERVAL_MS so React sees at most one update per
   // animation-frame-ish window regardless of incoming event rate.
   const bufferRef = useRef<Array<WorkflowSseEvent>>([])
+  const skipReplayedRef = useRef(opts?.skipReplayed === true)
+  skipReplayedRef.current = opts?.skipReplayed === true
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -66,6 +71,11 @@ export function useWorkflowEvents(runId: string | null): {
       } catch {
         data = { raw }
       }
+      // D9: the plugin EventBus replays the last 50 DB events on subscribe,
+      // marked `_replayed: true` (plugins/workflow-engine/engine/emitter/bus.py).
+      // Opt-in: live-only consumers (Conductor) skip them; the run detail
+      // panel and editor still render the replayed history.
+      if (skipReplayedRef.current && data._replayed === true) return
       bufferRef.current.push({ type, data, receivedAt: Date.now() })
       if (flushTimerRef.current === null) {
         flushTimerRef.current = setTimeout(flush, FLUSH_INTERVAL_MS)

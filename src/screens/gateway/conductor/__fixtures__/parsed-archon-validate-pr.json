@@ -1,0 +1,304 @@
+{
+  "name": "archon-validate-pr",
+  "description": "Use when: User wants a thorough PR validation that tests both main (bug present) and feature branch (bug fixed).\nTrigger",
+  "nodes": [
+    {
+      "id": "fetch-pr",
+      "label": "fetch-pr",
+      "type": "bash",
+      "phase": "Plan",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"# Extract PR number from arguments\\nPR_NUMBER=$(echo \\\"$ARGUMENTS\\\" | g\u2026"
+    },
+    {
+      "id": "find-ports",
+      "label": "find-ports",
+      "type": "bash",
+      "phase": "Plan",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"# Use Bun to let the OS pick truly free ports (cross-platform: Linux, m\u2026"
+    },
+    {
+      "id": "resolve-paths",
+      "label": "resolve-paths",
+      "type": "bash",
+      "phase": "Plan",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "fetch-pr"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"# Resolve canonical repo path (main branch) vs worktree path (feature b\u2026"
+    },
+    {
+      "id": "code-review-main",
+      "label": "code-review-main",
+      "type": "command",
+      "phase": "Plan",
+      "hermes_task": {
+        "skills": [
+          "testing"
+        ],
+        "agent_hint": "trinity",
+        "model_hint": "claude-sonnet-4"
+      },
+      "subgraph": null,
+      "depends_on": [
+        "fetch-pr",
+        "resolve-paths"
+      ],
+      "skills": [
+        "testing"
+      ],
+      "model_hint": "claude-sonnet-4",
+      "config_preview": "{\"command\":\"archon-validate-pr-code-review-main\"}"
+    },
+    {
+      "id": "code-review-feature",
+      "label": "code-review-feature",
+      "type": "command",
+      "phase": "Execute",
+      "hermes_task": {
+        "skills": [
+          "testing"
+        ],
+        "agent_hint": "trinity",
+        "model_hint": "claude-sonnet-4"
+      },
+      "subgraph": null,
+      "depends_on": [
+        "fetch-pr",
+        "resolve-paths",
+        "code-review-main"
+      ],
+      "skills": [
+        "testing"
+      ],
+      "model_hint": "claude-sonnet-4",
+      "config_preview": "{\"command\":\"archon-validate-pr-code-review-feature\"}"
+    },
+    {
+      "id": "classify-testability",
+      "label": "classify-testability",
+      "type": "prompt",
+      "phase": "Execute",
+      "hermes_task": {
+        "skills": [
+          "planning"
+        ],
+        "agent_hint": "morpheus",
+        "model_hint": "claude-opus-4"
+      },
+      "subgraph": null,
+      "depends_on": [
+        "fetch-pr"
+      ],
+      "skills": [
+        "planning"
+      ],
+      "model_hint": "claude-opus-4",
+      "config_preview": "{\"prompt\":\"You are a PR testability classifier. Determine whether this PR's chan\u2026"
+    },
+    {
+      "id": "e2e-test-main",
+      "label": "e2e-test-main",
+      "type": "command",
+      "phase": "Execute",
+      "hermes_task": {
+        "skills": [
+          "testing"
+        ],
+        "agent_hint": "trinity",
+        "model_hint": "claude-sonnet-4"
+      },
+      "subgraph": null,
+      "depends_on": [
+        "classify-testability",
+        "find-ports",
+        "resolve-paths",
+        "code-review-main",
+        "code-review-feature"
+      ],
+      "skills": [
+        "testing"
+      ],
+      "model_hint": "claude-sonnet-4",
+      "config_preview": "{\"command\":\"archon-validate-pr-e2e-main\"}"
+    },
+    {
+      "id": "e2e-test-feature",
+      "label": "e2e-test-feature",
+      "type": "command",
+      "phase": "Verify",
+      "hermes_task": {
+        "skills": [
+          "testing"
+        ],
+        "agent_hint": "trinity",
+        "model_hint": "claude-sonnet-4"
+      },
+      "subgraph": null,
+      "depends_on": [
+        "e2e-test-main",
+        "find-ports",
+        "resolve-paths"
+      ],
+      "skills": [
+        "testing"
+      ],
+      "model_hint": "claude-sonnet-4",
+      "config_preview": "{\"command\":\"archon-validate-pr-e2e-feature\"}"
+    },
+    {
+      "id": "cleanup-processes",
+      "label": "cleanup-processes",
+      "type": "bash",
+      "phase": "Verify",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "e2e-test-main",
+        "e2e-test-feature"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"# Safety net: kill any orphaned processes from E2E testing\\n# This runs\u2026"
+    },
+    {
+      "id": "final-report",
+      "label": "final-report",
+      "type": "command",
+      "phase": "Verify",
+      "hermes_task": {
+        "skills": [
+          "testing"
+        ],
+        "agent_hint": "trinity",
+        "model_hint": "claude-sonnet-4"
+      },
+      "subgraph": null,
+      "depends_on": [
+        "code-review-main",
+        "code-review-feature",
+        "e2e-test-main",
+        "e2e-test-feature",
+        "classify-testability",
+        "cleanup-processes"
+      ],
+      "skills": [
+        "testing"
+      ],
+      "model_hint": "claude-sonnet-4",
+      "config_preview": "{\"command\":\"archon-validate-pr-report\"}"
+    }
+  ],
+  "edges": [
+    [
+      "fetch-pr",
+      "resolve-paths"
+    ],
+    [
+      "fetch-pr",
+      "code-review-main"
+    ],
+    [
+      "resolve-paths",
+      "code-review-main"
+    ],
+    [
+      "fetch-pr",
+      "code-review-feature"
+    ],
+    [
+      "resolve-paths",
+      "code-review-feature"
+    ],
+    [
+      "code-review-main",
+      "code-review-feature"
+    ],
+    [
+      "fetch-pr",
+      "classify-testability"
+    ],
+    [
+      "classify-testability",
+      "e2e-test-main"
+    ],
+    [
+      "find-ports",
+      "e2e-test-main"
+    ],
+    [
+      "resolve-paths",
+      "e2e-test-main"
+    ],
+    [
+      "code-review-main",
+      "e2e-test-main"
+    ],
+    [
+      "code-review-feature",
+      "e2e-test-main"
+    ],
+    [
+      "e2e-test-main",
+      "e2e-test-feature"
+    ],
+    [
+      "find-ports",
+      "e2e-test-feature"
+    ],
+    [
+      "resolve-paths",
+      "e2e-test-feature"
+    ],
+    [
+      "e2e-test-main",
+      "cleanup-processes"
+    ],
+    [
+      "e2e-test-feature",
+      "cleanup-processes"
+    ],
+    [
+      "code-review-main",
+      "final-report"
+    ],
+    [
+      "code-review-feature",
+      "final-report"
+    ],
+    [
+      "e2e-test-main",
+      "final-report"
+    ],
+    [
+      "e2e-test-feature",
+      "final-report"
+    ],
+    [
+      "classify-testability",
+      "final-report"
+    ],
+    [
+      "cleanup-processes",
+      "final-report"
+    ]
+  ],
+  "node_count": 10,
+  "has_loop": false,
+  "has_approval": false,
+  "required_inputs": [],
+  "optional_inputs": []
+}

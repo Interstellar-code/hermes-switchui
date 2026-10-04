@@ -83,6 +83,7 @@ export interface ParsedWorkflow {
     config_preview?: string
     /** Present when the node expands a subgraph definition (A.7-subgraphs). */
     subgraph?: SubgraphRef | null
+    depends_on?: Array<string> | null
   }>
   edges: Array<[string, string]>
   has_loop: boolean

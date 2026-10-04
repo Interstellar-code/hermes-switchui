@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAbortMission } from './use-conductor-queries'
 import type { Mission } from './use-conductor-queries'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { runAgainInput } from '@/screens/workflows/run-status'
 import { useLaunchWorkflowRun } from '@/screens/workflows/use-workflows'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
@@ -41,23 +42,14 @@ export function MissionCard({ mission }: MissionCardProps) {
 
   function rerun(e: React.MouseEvent) {
     e.stopPropagation()
-    launch.mutate(
-      {
-        workflow_id: mission.workflowId,
-        conversation_id: crypto.randomUUID(),
-        user_message: mission.userMessage,
-        variables: Object.keys(mission.inputs).length
-          ? mission.inputs
-          : undefined,
-        schedule: { type: 'now' },
+    const input = runAgainInput(mission)
+    if (!input) return
+    launch.mutate(input, {
+      onSuccess: (r) => {
+        void queryClient.invalidateQueries({ queryKey: ['conductor'] })
+        setSelectedRunId(r.run.id)
       },
-      {
-        onSuccess: (r) => {
-          void queryClient.invalidateQueries({ queryKey: ['conductor'] })
-          setSelectedRunId(r.run.id)
-        },
-      },
-    )
+    })
   }
 
   return (

@@ -1,0 +1,61 @@
+{
+  "name": "archon-test-loop-dag",
+  "description": "Use when: User explicitly says \"test-loop-dag\" or \"run test-loop-dag\".\nIMPORTANT: This is a DAG workflow with a loop nod",
+  "nodes": [
+    {
+      "id": "setup",
+      "label": "setup",
+      "type": "bash",
+      "phase": "Plan",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"echo \\\"0\\\" > .archon/test-loop-dag-counter.txt\\necho \\\"Counter initiali\u2026"
+    },
+    {
+      "id": "loop-counter",
+      "label": "loop-counter",
+      "type": "loop",
+      "phase": "Execute",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "setup"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"loop\":{\"prompt\":\"You are testing the loop node functionality within a DAG work\u2026"
+    },
+    {
+      "id": "report",
+      "label": "report",
+      "type": "prompt",
+      "phase": "Fix",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "loop-counter"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"prompt\":\"The loop counter test has completed. The loop node output was:\\n\\n$lo\u2026"
+    }
+  ],
+  "edges": [
+    [
+      "setup",
+      "loop-counter"
+    ],
+    [
+      "loop-counter",
+      "report"
+    ]
+  ],
+  "node_count": 3,
+  "has_loop": true,
+  "has_approval": false,
+  "required_inputs": [],
+  "optional_inputs": []
+}

@@ -118,6 +118,13 @@ describe('PluginClient.listRuns', () => {
     await client.listRuns({ workflowId: 'hello-world' })
     expect(lastUrl()).toContain('workflow_id=hello-world')
   })
+
+  it('passes limit and status through (B0)', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ runs: [] }))
+    await client.listRuns({ limit: 200, status: 'paused,running' })
+    expect(lastUrl()).toContain('limit=200')
+    expect(lastUrl()).toContain('status=paused%2Crunning')
+  })
 })
 
 describe('PluginClient.getRun', () => {

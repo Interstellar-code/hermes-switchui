@@ -1,0 +1,188 @@
+{
+  "name": "Agent Improve Loop (dry-run)",
+  "description": "Weekly, local-first self-improvement loop. Exports session JSONL, classifies\nfindings into 8 categories, proposes prompt",
+  "nodes": [
+    {
+      "id": "check-staleness",
+      "label": "check-staleness",
+      "type": "bash",
+      "phase": "Discover",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nDB=\\\"/Users/rohits/hermes/workspace/research/agent-i\u2026"
+    },
+    {
+      "id": "export-sessions",
+      "label": "export-sessions",
+      "type": "bash",
+      "phase": "Discover",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "check-staleness"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nAIL_DIR=\\\"/Users/rohits/hermes/workspace/research/ag\u2026"
+    },
+    {
+      "id": "analyze",
+      "label": "analyze",
+      "type": "bash",
+      "phase": "Execute",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "export-sessions"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nENV_FILE=\\\"${HOME}/.hermes/profiles/hermes-switch/cr\u2026"
+    },
+    {
+      "id": "load-report",
+      "label": "load-report",
+      "type": "bash",
+      "phase": "Report",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "analyze"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"REPORT=\\\"/Users/rohits/hermes/workspace/research/agent-improve-loop/age\u2026"
+    },
+    {
+      "id": "render-diff-for-user",
+      "label": "render-diff-for-user",
+      "type": "bash",
+      "phase": "Report",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "load-report"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nRENDER=\\\"/Users/rohits/hermes/workspace/research/age\u2026"
+    },
+    {
+      "id": "approval",
+      "label": "approval",
+      "type": "approval",
+      "phase": "Report",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "render-diff-for-user"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"approval\":{\"message\":\"Rendered diffs are ready (see previous node output or\\nw\u2026"
+    },
+    {
+      "id": "apply-approved",
+      "label": "apply-approved",
+      "type": "bash",
+      "phase": "Report",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "approval"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nAIL_DB=\\\"/Users/rohits/hermes/workspace/research/age\u2026"
+    },
+    {
+      "id": "measure",
+      "label": "measure",
+      "type": "bash",
+      "phase": "Report",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "apply-approved"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nDB=\\\"/Users/rohits/hermes/workspace/research/agent-i\u2026"
+    },
+    {
+      "id": "summarize",
+      "label": "summarize",
+      "type": "bash",
+      "phase": "Report",
+      "hermes_task": null,
+      "subgraph": null,
+      "depends_on": [
+        "check-staleness",
+        "approval",
+        "apply-approved",
+        "measure"
+      ],
+      "skills": [],
+      "model_hint": null,
+      "config_preview": "{\"bash\":\"set -euo pipefail\\nDB=\\\"/Users/rohits/hermes/workspace/research/agent-i\u2026"
+    }
+  ],
+  "edges": [
+    [
+      "check-staleness",
+      "export-sessions"
+    ],
+    [
+      "export-sessions",
+      "analyze"
+    ],
+    [
+      "analyze",
+      "load-report"
+    ],
+    [
+      "load-report",
+      "render-diff-for-user"
+    ],
+    [
+      "render-diff-for-user",
+      "approval"
+    ],
+    [
+      "approval",
+      "apply-approved"
+    ],
+    [
+      "apply-approved",
+      "measure"
+    ],
+    [
+      "check-staleness",
+      "summarize"
+    ],
+    [
+      "approval",
+      "summarize"
+    ],
+    [
+      "apply-approved",
+      "summarize"
+    ],
+    [
+      "measure",
+      "summarize"
+    ]
+  ],
+  "node_count": 9,
+  "has_loop": false,
+  "has_approval": true,
+  "required_inputs": [],
+  "optional_inputs": [
+    "lookback_days",
+    "prompts_dir",
+    "force_run"
+  ]
+}
