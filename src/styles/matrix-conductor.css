@@ -814,7 +814,7 @@
   /* mission card */
   .miss {
     display: grid;
-    grid-template-columns: 6px 1fr auto;
+    grid-template-columns: 6px minmax(0, 1fr) auto;
     gap: 10px;
     padding: 9px 8px 9px 0;
     border-radius: var(--m-radius-md, 6px);
@@ -917,6 +917,8 @@
 
   .miss .meta {
     text-align: right;
+    white-space: nowrap;
+    flex-shrink: 0;
     font: 500 10px var(--m-font-mono, ui-monospace, monospace);
     color: var(--m-text-faint, var(--theme-muted));
     line-height: 1.4;
@@ -996,6 +998,11 @@
     border-left: 1px solid var(--m-border, var(--theme-border));
     box-shadow: -8px 0 32px rgba(0, 0, 0, 0.4);
     animation: mdd-slide-in 180ms ease-out;
+  }
+
+  .mdd .wfrd-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
   }
 
   @keyframes mdd-slide-in {

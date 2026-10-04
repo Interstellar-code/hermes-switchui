@@ -19,7 +19,8 @@ function relTime(ts: number | string | Date | null | undefined): string {
   const diff = (Date.now() - ms) / 1000
   if (diff < 60) return `${Math.round(diff)}s ago`
   if (diff < 3600) return `${Math.round(diff / 60)}m ago`
-  return `${Math.round(diff / 3600)}h ago`
+  if (diff < 86400) return `${Math.round(diff / 3600)}h ago`
+  return `${Math.round(diff / 86400)}d ago`
 }
 
 function shortId(id: string | null | undefined): string {
