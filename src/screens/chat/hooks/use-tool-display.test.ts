@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 
+import * as toolEntries from '../components/v2/tool-entries'
 import { useToolDisplay } from './use-tool-display'
 import type { ChatMessage, StreamingToolCall } from '../types'
 
@@ -323,6 +324,31 @@ describe('useToolDisplay', () => {
       )
       expect(result.current.totalTodoCount).toBe(1)
       expect(result.current.totalMcpCount).toBe(1)
+    })
+  })
+
+  describe('shared tool entries', () => {
+    it('merges once per input change and derives every count from toolEntries', () => {
+      const spy = vi.spyOn(toolEntries, 'mergeToolEntries')
+      const calls1: Array<StreamingToolCall> = [
+        { id: 'sk1', name: 'skill_view', phase: 'complete' },
+        { id: 'rf1', name: 'read_file', phase: 'complete', args: { path: 'a' } },
+      ]
+      const { result, rerender } = renderHook((props) => useToolDisplay(props), {
+        initialProps: { realtimeMessages: EMPTY_MESSAGES, activeToolCalls: calls1 },
+      })
+      expect(spy).toHaveBeenCalledTimes(1)
+      expect(result.current.toolEntries).toHaveLength(2)
+      expect(result.current.totalSkillCount).toBe(1)
+      expect(result.current.totalFileCount).toBe(1)
+      expect(result.current.totalToolCount).toBe(1)
+
+      rerender({ realtimeMessages: EMPTY_MESSAGES, activeToolCalls: calls1 })
+      expect(spy).toHaveBeenCalledTimes(1)
+
+      rerender({ realtimeMessages: EMPTY_MESSAGES, activeToolCalls: [...calls1] })
+      expect(spy).toHaveBeenCalledTimes(2)
+      spy.mockRestore()
     })
   })
 

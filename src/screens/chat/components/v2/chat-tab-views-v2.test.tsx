@@ -424,7 +424,7 @@ describe('ToolTabView streaming tool calls', () => {
     expect(container.textContent).not.toContain('github_search')
   })
 
-  it('moves file operations to the Files view and out of Tools', () => {
+  it('shows file operations in both Tools (all) and the Files view', () => {
     const streamingToolCalls = [
       { id: 'read-1', name: 'read_file', phase: 'complete', args: { file_path: 'src/app.tsx' } },
       { id: 'write-1', name: 'write_file', phase: 'complete', args: { path: 'src/app.tsx' } },
@@ -434,8 +434,8 @@ describe('ToolTabView streaming tool calls', () => {
     const files = renderInto(<ToolTabView view="files" messages={[]} streamingToolCalls={streamingToolCalls} />)
 
     expect(tools.textContent).toContain('exec')
-    expect(tools.textContent).not.toContain('read_file')
-    expect(tools.textContent).not.toContain('write_file')
+    expect(tools.textContent).toContain('read_file')
+    expect(tools.textContent).toContain('write_file')
     expect(files.textContent).toContain('read_file')
     expect(files.textContent).toContain('write_file')
     expect(files.textContent).not.toContain('exec')

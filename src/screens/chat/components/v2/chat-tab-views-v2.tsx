@@ -1,6 +1,38 @@
 import { useMemo, useState } from 'react'
 import { formatStreamingActivityLabel } from '../streaming-activity-ui'
+import {
+  buildResultTsMap,
+  categorizeEntry,
+  extractStreamToolCallsFromMessages,
+  extractStreamingEntries,
+  extractToolEntries,
+  filterToolEntries,
+  mergeToolEntries,
+  readTodoItems,
+  unwrapToolInput,
+} from './tool-entries'
+import type {
+  FlatToolEntry,
+  StreamingToolCall,
+  TodoItem,
+  ToolHistoryView,
+} from './tool-entries'
 import type { ChatMessage } from '../../types'
+
+export {
+  buildResultTsMap,
+  detectToolError,
+  extractStreamToolCallsFromMessages,
+  extractStreamingEntries,
+  extractToolEntries,
+  filterToolEntries,
+  isFileToolEntry,
+  isMcpToolEntry,
+  latestTodoSnapshot,
+  mcpServerOf,
+  mergeToolEntries,
+} from './tool-entries'
+export type { FlatToolEntry, ToolHistoryView } from './tool-entries'
 
 type LifecycleEvent = {
   text: string
@@ -9,67 +41,12 @@ type LifecycleEvent = {
   isError: boolean
 }
 
-type StreamingToolCall = {
-  id: string
-  name: string
-  phase: string
-  args?: unknown
-  preview?: string
-  result?: string
-  firstSeenAt?: number
-}
-
 type ToolTabViewProps = {
   messages: Array<ChatMessage>
   streamingToolCalls?: Array<StreamingToolCall>
   events?: Array<LifecycleEvent>
   view?: ToolHistoryView
   mcpToolNames?: ReadonlySet<string>
-}
-
-export type ToolHistoryView = 'all' | 'todos' | 'mcp' | 'files'
-
-/**
- * Categorize a tool entry by inferring its "kind" from arg keys + name.
- * Drives the filter chip row so users filter by purpose rather than tool name.
- */
-function categorizeEntry(entry: FlatToolEntry): string {
-  const name = (entry.name || '').toLowerCase()
-
-  // Collect input keys, recursing one level into a string-form `value` field
-  // when the gateway emits args as `{value: "<json string>"}`.
-  let keys: Array<string> = []
-  if (entry.input) {
-    keys = Object.keys(entry.input).map((k) => k.toLowerCase())
-    const v = entry.input.value
-    if (typeof v === 'string') {
-      try {
-        const parsed = JSON.parse(v)
-        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-          keys = keys.concat(Object.keys(parsed).map((k) => k.toLowerCase()))
-        }
-      } catch {
-        /* ignore non-JSON value */
-      }
-    }
-  }
-
-  const has = (...ks: Array<string>) => ks.some((k) => keys.includes(k))
-  if (has('command', 'cmd', 'shell') || /\b(exec|bash|terminal|shell|run_command)\b/.test(name)) return 'exec'
-  if (has('pattern', 'glob', 'file_glob') || /\bglob\b/.test(name)) return 'glob'
-  if (has('query', 'q', 'reasoning_level') || /\b(search|find|grep|query)\b/.test(name)) return 'search'
-  if (has('url', 'href') || /\b(web|browser|fetch|http)\b/.test(name)) return 'web'
-  if (has('file_path', 'path', 'target_file', 'filepath') || /\b(read|write|edit|file|notebook)\b/.test(name)) return 'file'
-  // Strict skill system tools per Hermes Agent canonical taxonomy
-  if (name === 'skill' || name === 'skill_view' || name === 'skill_manage' || name === 'skills_list') return 'skill'
-  // todo is its own tool, not a skill
-  if (name === 'todo') return 'todo'
-  // kanban task tool
-  if (name === 'task' || /\bkanban\b/.test(name)) return 'kanban'
-  // plugin tools: honcho_*, mem0_*
-  if (/\b(honcho|mem0|memory|recall|remember|context|profile|reasoning)\b/.test(name)) return 'memory'
-  if (has('job_id', 'schedule', 'repeat') || /\bcron\b/.test(name)) return 'cron'
-  return 'other'
 }
 
 type ActivityTabViewProps = {
@@ -86,139 +63,9 @@ const cardStyle: React.CSSProperties = {
   borderColor: 'var(--m-border, var(--theme-border))',
 }
 const greenStyle: React.CSSProperties = { color: 'var(--m-green-500)' }
-
-type FlatToolEntry = {
-  key: string
-  isCall: boolean
-  name: string
-  callId: string
-  input?: Record<string, unknown>
-  output?: string
-  isError?: boolean
-  /**
-   * Sort-order timestamp — may be a synthesised parent-message offset.
-   * Do NOT display this directly; use displayTs instead.
-   */
-  timestamp?: number
-  /**
-   * Display timestamp — only set when the timestamp is reliably per-tool-call:
-   *   • firstSeenAt from the SSE stream (live runs)
-   *   • result-message timestamp (when a tool result message exists in history)
-   * Absent for old/history sessions where the gateway never persisted per-tool time.
-   */
-  displayTs?: number
-}
-
-export function isMcpToolEntry(
-  entry: Pick<FlatToolEntry, 'name'>,
-  mcpToolNames: ReadonlySet<string> = new Set(),
-): boolean {
-  const name = entry.name.toLowerCase()
-  return (
-    name === 'load_mcp_tools' ||
-    name === 'load_mcp_server' ||
-    name.startsWith('mcp__') ||
-    name.startsWith('mcp_') ||
-    mcpToolNames.has(name)
-  )
-}
-
-export function isFileToolEntry(
-  entry: Pick<FlatToolEntry, 'name' | 'input'>,
-): boolean {
-  const name = entry.name.toLowerCase()
-  if (
-    /(^|_)(read|write|edit|patch|delete|remove|rename|move|create|search|list)_?file(s)?$/.test(name) ||
-    /^file_(read|write|edit|patch|delete|remove|rename|move|create|search|list)$/.test(name)
-  ) return true
-  if (['read', 'write', 'edit', 'delete', 'remove', 'rename', 'move', 'glob', 'apply_patch'].includes(name)) return true
-
-  const input = unwrapToolInput(entry.input)
-  if (!input || !['file_path', 'path', 'target_file', 'filepath'].some((key) => key in input)) {
-    return false
-  }
-  return /(^|_)(read|write|edit|patch|delete|remove|rename|move|create|search|list|file|notebook)/.test(name)
-}
-
-export function filterToolEntries(
-  entries: Array<FlatToolEntry>,
-  view: ToolHistoryView,
-  mcpToolNames: ReadonlySet<string> = new Set(),
-): Array<FlatToolEntry> {
-  if (view === 'todos') return entries.filter((entry) => entry.name.toLowerCase() === 'todo')
-  if (view === 'mcp') return entries.filter((entry) => isMcpToolEntry(entry, mcpToolNames))
-  if (view === 'files') {
-    return entries.filter((entry) => !isMcpToolEntry(entry, mcpToolNames) && isFileToolEntry(entry))
-  }
-  return entries.filter(
-    (entry) =>
-      entry.name.toLowerCase() !== 'todo' &&
-      !isMcpToolEntry(entry, mcpToolNames) &&
-      !isFileToolEntry(entry),
-  )
-}
-
-/**
- * Read a usable timestamp off a chat message. Tries createdAt, timestamp
- * (number or ISO string), then __receiveTime. Returns undefined if none.
- * Mirrors chat-store.ts:444-466.
- */
-function getMessageTimestamp(m: ChatMessage): number | undefined {
-  const raw = m as unknown as Record<string, unknown>
-  for (const key of ['createdAt', 'timestamp']) {
-    const v = raw[key]
-    if (typeof v === 'number' && Number.isFinite(v)) return v
-    if (typeof v === 'string' && v.trim().length > 0) {
-      const parsed = Date.parse(v)
-      if (Number.isFinite(parsed)) return parsed
-    }
-  }
-  const r = raw.__receiveTime
-  if (typeof r === 'number' && Number.isFinite(r)) return r
-  return undefined
-}
-
-type RootLevelResult = {
-  toolCallId: string
-  toolName?: string
-  isError?: boolean
-  output: string
-  timestamp?: number
-}
-
-type TodoItem = {
-  content: string
-  status: string
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
-
-/** Gateway arguments may be wrapped as `{ value: "{...}" }`. */
-function unwrapToolInput(input?: Record<string, unknown>): Record<string, unknown> | undefined {
-  if (!input || typeof input.value !== 'string') return input
-  try {
-    const value = JSON.parse(input.value)
-    return isRecord(value) ? value : input
-  } catch {
-    return input
-  }
-}
-
-function readTodoItems(input?: Record<string, unknown>): Array<TodoItem> {
-  const payload = unwrapToolInput(input)
-  if (!payload) return []
-  const todos = payload.todos
-  if (!Array.isArray(todos)) return []
-  return todos.flatMap((todo) => {
-    if (!isRecord(todo)) return []
-    const { content, status } = todo
-    return typeof content === 'string' && content.trim()
-      ? [{ content: content.trim(), status: typeof status === 'string' ? status : 'pending' }]
-      : []
-  })
-}
+const NO_STREAMING_CALLS: Array<StreamingToolCall> = []
+const NO_EVENTS: Array<LifecycleEvent> = []
+const NO_MESSAGES: Array<ChatMessage> = []
 
 function TodoChecklist({ items }: { items: Array<TodoItem> }) {
   return (
@@ -247,278 +94,6 @@ function TodoChecklist({ items }: { items: Array<TodoItem> }) {
       </ul>
     </div>
   )
-}
-
-/** Determine phase → status. Unknown phases fail closed to avoid phantom spinners. */
-function phaseToStatus(phase: string): 'running' | 'done' | 'error' {
-  if (phase === 'error' || phase === 'failed' || phase === 'failure') return 'error'
-  if (
-    phase === 'done' ||
-    phase === 'result' ||
-    phase === 'complete' ||
-    phase === 'completed'
-  )
-    return 'done'
-  if (phase === 'start' || phase === 'started' || phase === 'calling' || phase === 'running')
-    return 'running'
-  return 'done'
-}
-
-/** Build FlatToolEntry list from streaming tool calls */
-export function extractStreamingEntries(
-  streamingToolCalls: Array<StreamingToolCall>,
-): Array<FlatToolEntry> {
-  return streamingToolCalls.map((tc) => {
-    const status = phaseToStatus(tc.phase)
-    const input =
-      tc.args && typeof tc.args === 'object' && !Array.isArray(tc.args)
-        ? (tc.args as Record<string, unknown>)
-        : tc.args !== undefined
-          ? { value: tc.args }
-          : undefined
-    // Use result field for output; empty string is valid (shows 'done' with empty body)
-    const output = status !== 'running' ? (tc.result ?? '') : undefined
-    return {
-      key: tc.id,
-      isCall: true,
-      name: tc.name,
-      callId: tc.id,
-      input,
-      output,
-      isError: status === 'error',
-      // firstSeenAt is set by chat-store on SSE insert — reliable per-tool clock.
-      timestamp: tc.firstSeenAt,
-      displayTs: tc.firstSeenAt,
-    }
-  })
-}
-
-export function extractToolEntries(messages: Array<ChatMessage>): Array<FlatToolEntry> {
-  const entries: Array<FlatToolEntry> = []
-  const resultsByCallId = new Map<string, RootLevelResult>()
-
-  // First pass: collect tool results.
-  // Two shapes occur in the wild:
-  //   (a) realtime: a separate message with role 'tool'/'toolResult' and a
-  //       top-level toolCallId field.
-  //   (b) history (hermes-api.ts): role 'tool' with a content block of
-  //       type 'tool_result' carrying toolCallId; no top-level toolCallId.
-  for (const m of messages) {
-    const rootToolCallId =
-      typeof m.toolCallId === 'string' && m.toolCallId ? m.toolCallId : ''
-    if (rootToolCallId) {
-      const textOutput = Array.isArray(m.content)
-        ? m.content
-          .filter((c) => c.type === 'text')
-          .map((c) => (c as { text?: string }).text ?? '')
-          .join('')
-        : ''
-      const output = textOutput || (m.details ? JSON.stringify(m.details, null, 2) : '')
-      resultsByCallId.set(rootToolCallId, {
-        toolCallId: rootToolCallId,
-        toolName: typeof m.toolName === 'string' ? m.toolName : undefined,
-        isError: m.isError === true,
-        output,
-        timestamp: getMessageTimestamp(m),
-      })
-      continue
-    }
-    if (!Array.isArray(m.content)) continue
-    for (const c of m.content) {
-      const cAny = c as unknown as Record<string, unknown>
-      if (cAny.type !== 'tool_result' && cAny.type !== 'toolResult') continue
-      const callId =
-        typeof cAny.toolCallId === 'string' ? cAny.toolCallId : ''
-      if (!callId) continue
-      const text =
-        typeof cAny.text === 'string'
-          ? cAny.text
-          : Array.isArray(cAny.content)
-            ? (cAny.content as Array<{ type?: string; text?: string }>)
-              .filter((p) => p.type === 'text')
-              .map((p) => p.text ?? '')
-              .join('')
-            : ''
-      const details = cAny.details as Record<string, unknown> | undefined
-      const output = text || (details ? JSON.stringify(details, null, 2) : '')
-      resultsByCallId.set(callId, {
-        toolCallId: callId,
-        toolName: typeof cAny.toolName === 'string' ? cAny.toolName : undefined,
-        isError: cAny.isError === true,
-        timestamp: getMessageTimestamp(m),
-        output,
-      })
-    }
-  }
-
-  // Second pass: build entries from toolCall content blocks.
-  // Synthesise a strictly-increasing timestamp so order across + within
-  // messages is preserved when the message-level timestamp is missing
-  // or shared.
-  messages.forEach((m, msgIdx) => {
-    if (!Array.isArray(m.content)) return
-    const baseTs = getMessageTimestamp(m) ?? msgIdx * 1000
-    let subIdx = 0
-    for (const c of m.content) {
-      if (c.type !== 'toolCall') continue
-      const callId = c.id ?? ''
-      const result = callId ? resultsByCallId.get(callId) : undefined
-      // result?.timestamp is the tool result message's timestamp — reliable.
-      // baseTs is the parent assistant message — shared across all calls in the
-      // turn, so we use it only for sort order, never for display.
-      const reliableTs = result?.timestamp
-      entries.push({
-        key: callId || `${c.name ?? 'tool'}-${entries.length}`,
-        isCall: true,
-        name: c.name ?? '',
-        callId,
-        input: c.arguments,
-        output: result ? result.output : undefined,
-        isError: result?.isError ?? false,
-        timestamp: reliableTs ?? baseTs + subIdx * 0.001,
-        displayTs: reliableTs,
-      })
-      subIdx++
-    }
-  })
-
-  return entries
-}
-
-/** Extract completed tool calls embedded on a finished assistant message */
-/**
- * Scan all messages once and build callId → result-message timestamp.
- * Covers both root-level toolCallId messages and tool_result content blocks.
- */
-export function buildResultTsMap(messages: Array<ChatMessage>): Map<string, number> {
-  const map = new Map<string, number>()
-  for (const m of messages) {
-    const ts = getMessageTimestamp(m)
-    if (ts == null) continue
-    const rootId =
-      typeof m.toolCallId === 'string' && m.toolCallId ? m.toolCallId : ''
-    if (rootId) {
-      map.set(rootId, ts)
-      continue
-    }
-    if (!Array.isArray(m.content)) continue
-    for (const c of m.content) {
-      const cAny = c as unknown as Record<string, unknown>
-      if (cAny.type !== 'tool_result' && cAny.type !== 'toolResult') continue
-      const id = typeof cAny.toolCallId === 'string' ? cAny.toolCallId : ''
-      if (id) map.set(id, ts)
-    }
-  }
-  return map
-}
-
-export function extractStreamToolCallsFromMessages(
-  messages: Array<ChatMessage>,
-  resultTsMap: Map<string, number> = new Map(),
-): Array<FlatToolEntry> {
-  const entries: Array<FlatToolEntry> = []
-  messages.forEach((m, msgIdx) => {
-    const mAny = m as unknown as Record<string, unknown>
-    // Two shapes carry embedded tool-call summaries:
-    //   __streamToolCalls — written by chat-store on the realtime 'done' event.
-    //   streamToolCalls   — written by hermes-api.ts when normalising history
-    //                       (server-side history reload). Phase is already
-    //                       'complete' on this path.
-    const realtimeList = mAny.__streamToolCalls
-    const historyList = mAny.streamToolCalls
-    const list = Array.isArray(realtimeList)
-      ? realtimeList
-      : Array.isArray(historyList)
-        ? historyList
-        : null
-    if (!list) return
-    const messageSettled =
-      mAny.__streamingStatus === 'complete' || Array.isArray(historyList)
-    const baseTs = getMessageTimestamp(m) ?? msgIdx * 1000
-    let subIdx = 0
-    for (const tc of list as Array<StreamingToolCall>) {
-      let status = phaseToStatus(tc.phase)
-      if (messageSettled && status === 'running') status = 'done'
-      const input =
-        tc.args && typeof tc.args === 'object' && !Array.isArray(tc.args)
-          ? (tc.args as Record<string, unknown>)
-          : tc.args !== undefined
-            ? { value: tc.args }
-            : undefined
-      const output = status !== 'running' ? (tc.result ?? '') : undefined
-      // Reliable per-tool timestamp: firstSeenAt (SSE-stamped) or result-msg ts.
-      // baseTs (parent message) is shared across all calls in the turn — use
-      // only for sort order, never as a display timestamp.
-      const reliableTs = tc.firstSeenAt ?? resultTsMap.get(tc.id)
-      entries.push({
-        key: tc.id || `${tc.name}-${entries.length}`,
-        isCall: true,
-        name: tc.name,
-        callId: tc.id,
-        input,
-        output,
-        isError: status === 'error',
-        timestamp: reliableTs ?? baseTs + subIdx * 0.001,
-        displayTs: reliableTs,
-      })
-      subIdx++
-    }
-  })
-  return entries
-}
-
-/**
- * Merge tool entries by callId.
- * Default priority (highest → lowest): streaming (in-flight) >
- *   __streamToolCalls (completed snapshot) > message-content.
- * Exception: when the live streaming entry is still 'running' but another
- * source already has a settled entry (output set or error) for the same
- * callId, prefer the settled one. This guards against upstream phase
- * staleness (e.g. Responses API swallowing tool.completed) while the run
- * is still considered active.
- */
-export function mergeToolEntries(
-  streamingEntries: Array<FlatToolEntry>,
-  completedEntries: Array<FlatToolEntry>,
-  messageEntries: Array<FlatToolEntry>,
-): Array<FlatToolEntry> {
-  const byCallId = new Map<string, FlatToolEntry>()
-
-  const isSettled = (e: FlatToolEntry) =>
-    e.isError === true || e.output !== undefined
-
-  for (const e of messageEntries) {
-    const k = e.callId || e.key
-    byCallId.set(k, e)
-  }
-
-  // bestDisplayTs: pick the most reliable displayTs across any source for a callId.
-  const bestTs = (
-    a: FlatToolEntry | undefined,
-    b: FlatToolEntry,
-  ): Pick<FlatToolEntry, 'timestamp' | 'displayTs'> => ({
-    // Sort timestamp: prefer a defined value; fall back to the other.
-    timestamp: a?.timestamp ?? b.timestamp,
-    // Display timestamp: prefer whichever source has a reliable per-tool ts.
-    displayTs: a?.displayTs ?? b.displayTs,
-  })
-
-  for (const e of completedEntries) {
-    const k = e.callId || e.key
-    const existing = byCallId.get(k)
-    if (!existing || !isSettled(existing) || isSettled(e)) {
-      byCallId.set(k, { ...e, ...bestTs(existing, e) })
-    }
-  }
-
-  for (const e of streamingEntries) {
-    const k = e.callId || e.key
-    const existing = byCallId.get(k)
-    if (existing && isSettled(existing) && !isSettled(e)) continue
-    byCallId.set(k, { ...e, ...bestTs(existing, e) })
-  }
-
-  return Array.from(byCallId.values())
 }
 
 function statusBadge(entry: FlatToolEntry) {
@@ -769,8 +344,8 @@ const filterPillStyle = (active: boolean): React.CSSProperties => ({
 
 export function ToolTabView({
   messages,
-  streamingToolCalls = [],
-  events = [],
+  streamingToolCalls = NO_STREAMING_CALLS,
+  events = NO_EVENTS,
   view = 'all',
   mcpToolNames,
 }: ToolTabViewProps) {
@@ -806,8 +381,8 @@ export function ToolTabView({
 
   // Derive the set of categories present in the current tool entries
   const categoriesPresent = useMemo(
-    () => Array.from(new Set(scopedEntries.map((e) => categorizeEntry(e)))).sort(),
-    [scopedEntries],
+    () => Array.from(new Set(scopedEntries.map((e) => categorizeEntry(e, mcpToolNames)))).sort(),
+    [mcpToolNames, scopedEntries],
   )
   const q = useMemo(() => searchQuery.trim().toLowerCase(), [searchQuery])
   const filteredRows = useMemo(() => {
@@ -828,10 +403,10 @@ export function ToolTabView({
       if (!matchesQuery(row)) return false
       if (filter === 'all') return true
       if (filter === 'events') return row.kind !== 'tool'
-      if (row.kind === 'tool') return categorizeEntry(row.entry) === filter
+      if (row.kind === 'tool') return categorizeEntry(row.entry, mcpToolNames) === filter
       return false
     })
-  }, [allRows, filter, q])
+  }, [allRows, filter, mcpToolNames, q])
   const visibleRows = useMemo(
     () => (sortDir === 'newest' ? [...filteredRows].reverse() : filteredRows),
     [filteredRows, sortDir],
@@ -1003,7 +578,7 @@ function ActivityDot({ isError, isRunning }: { isError?: boolean; isRunning?: bo
   )
 }
 
-export function ActivityTabView({ events, messages = [], streamingToolCalls = [] }: ActivityTabViewProps) {
+export function ActivityTabView({ events, messages = NO_MESSAGES, streamingToolCalls = NO_STREAMING_CALLS }: ActivityTabViewProps) {
   const rows = useMemo(
     () => buildActivityRows(events, messages, streamingToolCalls),
     [events, messages, streamingToolCalls],

@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   buildResultTsMap,
   extractStreamToolCallsFromMessages,
   extractStreamingEntries,
   extractToolEntries,
   mergeToolEntries,
-} from './chat-tab-views-v2'
+} from './tool-entries'
+import type { FlatToolEntry } from './tool-entries'
 import type { ChatMessage } from '../../types'
 
 type LifecycleEvent = {
@@ -38,18 +39,9 @@ const SKILL_TOOL_NAMES = new Set(['skills_list', 'skill_view', 'skill_manage'])
 const isSkillSystemEntry = (e: { name: string }) =>
   e.name === 'skill' || SKILL_TOOL_NAMES.has(e.name)
 
-/** Count skill-system tool invocations across history + live stream. Shared with the tab badge. */
-export function countSkillEntries(
-  messages: Array<ChatMessage>,
-  streamingToolCalls: Array<StreamingToolCall> = [],
-): number {
-  const resultTsMap = buildResultTsMap(messages)
-  const allEntries = mergeToolEntries(
-    extractStreamingEntries(streamingToolCalls),
-    extractStreamToolCallsFromMessages(messages, resultTsMap),
-    extractToolEntries(messages),
-  )
-  return allEntries.filter(isSkillSystemEntry).length
+/** Count skill-system tool invocations in merged tool entries. Shared with the tab badge. */
+export function countSkillEntries(entries: Array<FlatToolEntry>): number {
+  return entries.filter(isSkillSystemEntry).length
 }
 
 type SkillInvocation = {
@@ -257,13 +249,19 @@ function SkillCard({ group }: { group: SkillGroup }) {
   )
 }
 
-export function ChatSkillsTabV2({ messages, streamingToolCalls = [], events: _events = [] }: ChatSkillsTabV2Props) {
+const NO_STREAMING_CALLS: Array<StreamingToolCall> = []
+
+export function ChatSkillsTabV2({ messages, streamingToolCalls = NO_STREAMING_CALLS, events: _events = [] }: ChatSkillsTabV2Props) {
   const [filter, setFilter] = useState<SkillFilter>('all')
-  const resultTsMap = buildResultTsMap(messages)
-  const streamingEntries = extractStreamingEntries(streamingToolCalls)
-  const completedEntries = extractStreamToolCallsFromMessages(messages, resultTsMap)
-  const messageEntries = extractToolEntries(messages)
-  const allEntries = mergeToolEntries(streamingEntries, completedEntries, messageEntries)
+  const allEntries = useMemo(
+    () =>
+      mergeToolEntries(
+        extractStreamingEntries(streamingToolCalls),
+        extractStreamToolCallsFromMessages(messages, buildResultTsMap(messages)),
+        extractToolEntries(messages),
+      ),
+    [messages, streamingToolCalls],
+  )
 
   // Filter to skill-system entries per Hermes Agent canonical taxonomy:
   const skillEntries = allEntries.filter(isSkillSystemEntry)

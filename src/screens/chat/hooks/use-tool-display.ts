@@ -6,8 +6,9 @@ import {
   extractStreamingEntries,
   extractToolEntries,
   filterToolEntries,
+  isFileToolEntry,
   mergeToolEntries,
-} from '../components/v2/chat-tab-views-v2'
+} from '../components/v2/tool-entries'
 import { countSkillEntries } from '../components/v2/chat-skills-tab-v2'
 import type { SourceTab } from '../components/v2/chat-header-v2'
 import type { ToolDisplayMode } from '../components/message-item'
@@ -63,7 +64,12 @@ export function useToolDisplay(params: {
   }, [realtimeMessages, activeToolCalls])
 
   const totalToolCount = useMemo(
-    () => filterToolEntries(toolEntries, 'all', mcpToolNames).length,
+    // ponytail: header still has a separate Files count until Phase 3b, so
+    // exclude file entries here to avoid double counting.
+    () =>
+      filterToolEntries(toolEntries, 'all', mcpToolNames).filter(
+        (entry) => !isFileToolEntry(entry),
+      ).length,
     [mcpToolNames, toolEntries],
   )
   const totalTodoCount = useMemo(
@@ -80,8 +86,8 @@ export function useToolDisplay(params: {
   )
 
   const totalSkillCount = useMemo(
-    () => countSkillEntries(realtimeMessages, activeToolCalls),
-    [realtimeMessages, activeToolCalls],
+    () => countSkillEntries(toolEntries),
+    [toolEntries],
   )
 
   return {
@@ -90,6 +96,7 @@ export function useToolDisplay(params: {
     toolDisplayMode,
     setToolDisplayMode,
     cycleToolDisplayMode,
+    toolEntries,
     totalToolCount,
     totalTodoCount,
     totalMcpCount,
