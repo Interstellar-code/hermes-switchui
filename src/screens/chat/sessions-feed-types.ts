@@ -106,6 +106,8 @@ export type SessionFeedItem = {
   /** Optional chip-count for collapsed grouping (e.g. unread messages, task subtasks). */
   badgeCount?: number
   sourceMeta: SessionSourceMeta
+  /** Project mode: folder name inherited from an earlier session in the chain (no explicit binding). */
+  inheritedFolder?: string
 }
 
 /** Sort options for the merged feed. */

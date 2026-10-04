@@ -614,4 +614,65 @@ describe('applyFiltersAndDecorate — grouping', () => {
     expect(ids).not.toContain('cron:run:x')
     expect(ids).not.toContain('cron:job')
   })
+  it('withTotals attaches server folder counts and keeps empty folders with a total', () => {
+    const counted = {
+      ...map,
+      counts: { 'p-a': 41, 'p-b': 2, 'p-empty': 5 },
+      unfiled: 77,
+    }
+    const result = applyFiltersAndDecorate(items, makeFilter(), local, {
+      groupBy: 'project',
+      map: counted,
+      withTotals: true,
+    })
+    expect(result.groups.map((g) => [g.key, g.items.length, g.total])).toEqual([
+      ['pinned', 1, undefined],
+      ['project:p-a', 1, 40], // pin1 (p-a) is shown under Pinned
+      ['project:p-empty', 0, 5],
+      ['project:p-b', 2, 2],
+      ['project:p-old', 1, 0],
+      ['unfiled', 3, 77],
+    ])
+    // A count-affecting filter drops the server totals and the empty folder.
+    const filtered = applyFiltersAndDecorate(items, makeFilter(), local, {
+      groupBy: 'project',
+      map: counted,
+      withTotals: false,
+    })
+    expect(filtered.groups.some((g) => g.total !== undefined)).toBe(false)
+    expect(filtered.groups.map((g) => g.key)).not.toContain('project:p-empty')
+  })
+
+  it('folder totals exclude pinned and locally archived sessions of that folder', () => {
+    const counted = {
+      ...map,
+      counts: { 'p-a': 10, 'p-b': 2 },
+      unfiled: 5,
+    }
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter(),
+      makeLocal({ pinned: ['chat:pin1'], archived: ['chat:b1', 'chat:loose'] }),
+      { groupBy: 'project', map: counted, withTotals: true },
+    )
+    const total = (key: string) =>
+      result.groups.find((g) => g.key === key)?.total
+    expect(total('project:p-a')).toBe(9) // pin1 shows under Pinned
+    expect(total('project:p-b')).toBe(1) // b1 archived locally
+    expect(total('unfiled')).toBe(4) // loose archived locally
+  })
+
+  it('inherited sessions group under their folder and carry the folder name', () => {
+    const result = applyFiltersAndDecorate(items, makeFilter(), local, {
+      groupBy: 'project',
+      map: { ...map, inherited: { a1: true } },
+    })
+    const alpha = result.groups.find((g) => g.key === 'project:p-a')!
+    expect(alpha.items[0]).toMatchObject({
+      id: 'chat:a1',
+      inheritedFolder: 'Alpha',
+    })
+    const beta = result.groups.find((g) => g.key === 'project:p-b')!
+    expect(beta.items[0].inheritedFolder).toBeUndefined()
+  })
 })

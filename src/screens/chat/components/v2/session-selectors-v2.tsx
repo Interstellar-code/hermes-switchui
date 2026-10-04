@@ -61,6 +61,7 @@ import type {
   WorkspaceDetectionResponse,
 } from '../chat-composer-types'
 import type { Project, SessionProjectRef } from '@/lib/projects-types'
+import { isPlaceholderSessionKey } from '@/lib/projects-types'
 import { useGatewayRestartStore } from '@/stores/gateway-restart-store'
 import {
   Popover,
@@ -85,6 +86,7 @@ import {
   useBindSessionProject,
   useProjects,
   useSessionProject,
+  useSessionProjectMap,
   useUnbindSessionProject,
 } from '@/lib/projects-api'
 import { useSessionModelStore } from '@/stores/session-model-store'
@@ -361,7 +363,13 @@ function SessionSelectorsV2Component({
   // that profile's projects.db (same scope the sidebar folders read).
   const browseProfile = useResolvedProfile() ?? undefined
   const projectsQuery = useProjects(false, true, browseProfile)
-  const sessionProjectQuery = useSessionProject(sessionKey)
+  const sessionProjectQuery = useSessionProject(sessionKey, browseProfile)
+  // Effective folder (compression / inheritance) when there is no explicit
+  // binding — same ETag'd map the sidebar folders read.
+  const { data: folderMap } = useSessionProjectMap(
+    browseProfile,
+    Boolean(sessionKey) && !isPlaceholderSessionKey(sessionKey ?? ''),
+  )
   const bindSessionProjectMutation = useBindSessionProject(browseProfile)
   const unbindSessionProjectMutation = useUnbindSessionProject(browseProfile)
   const gatewayModeQuery = useQuery({
@@ -640,11 +648,19 @@ function SessionSelectorsV2Component({
     : 'Where the agent actually runs'
   const missingTerminalBlock = Boolean(agentCwd && !agentCwd.hasTerminalBlock)
   const projects = projectsQuery.data?.projects ?? []
-  // The backend may report a profile-level fallback. The chat control only
-  // represents an explicit assignment, so a new chat starts unassigned.
-  const sessionProject =
-    sessionProjectQuery.data?.source === 'binding'
-      ? sessionProjectQuery.data.project
+  // The backend may report a profile-level fallback. The chat control shows
+  // an explicit assignment or the folder-map's effective one (compression /
+  // inheritance), never the profile's active project.
+  const explicitBinding = sessionProjectQuery.data?.source === 'binding'
+  const mapProjectId =
+    !explicitBinding && sessionKey ? folderMap?.sessions[sessionKey] : undefined
+  const projectInherited = Boolean(
+    mapProjectId && sessionKey && folderMap?.inherited?.[sessionKey],
+  )
+  const sessionProject = explicitBinding
+    ? (sessionProjectQuery.data?.project ?? null)
+    : mapProjectId
+      ? (projects.find((project) => project.id === mapProjectId) ?? null)
       : null
   const selectedProject = sessionProject
     ? (projects.find((project) => project.id === sessionProject.id) ??
@@ -656,10 +672,13 @@ function SessionSelectorsV2Component({
       ? selectedProject
       : null
   const projectButtonLabel = selectedProject?.name || 'No project'
+  // A compressed continuation counts as filed (Clear removes the owner's
+  // binding); a truly inherited folder can only be overridden by picking one.
   const projectSelectionIsBinding =
-    sessionProjectQuery.data?.source === 'binding'
+    explicitBinding || Boolean(sessionProject && !projectInherited)
   const projectSelectorDisabled =
     !sessionKey ||
+    isPlaceholderSessionKey(sessionKey) ||
     bindSessionProjectMutation.isPending ||
     unbindSessionProjectMutation.isPending
 
@@ -1365,6 +1384,15 @@ function SessionSelectorsV2Component({
                 />
               )}
               <span className="truncate">{projectButtonLabel}</span>
+              {projectInherited && (
+                <span
+                  className="shrink-0 normal-case opacity-60"
+                  title="Folder inherited from an earlier session — pick one to pin it"
+                  data-testid="project-inherited"
+                >
+                  ↳ inherited
+                </span>
+              )}
               <ChevronDown className="size-2.5 opacity-60" />
             </button>
           </PopoverAnchor>
@@ -1384,6 +1412,13 @@ function SessionSelectorsV2Component({
                     value="clear project from chat"
                     onSelect={clearSessionProject}
                     disabled={unbindSessionProjectMutation.isPending}
+                    // Compressed continuation: Clear removes the earlier
+                    // segment's binding, which other chats may inherit.
+                    title={
+                      explicitBinding
+                        ? undefined
+                        : 'Also unfiles chats that inherit this folder.'
+                    }
                     className="mb-1 flex rounded-sm px-2 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
                     data-testid="project-use-profile-default"
                   >

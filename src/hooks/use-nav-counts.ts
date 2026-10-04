@@ -111,9 +111,14 @@ export function useNavCounts(enabled: boolean): NavCounts {
   })
   // /api/sessions supports ?profile= — thread it through so a profile switch
   // both re-keys the cache AND fetches that profile's own session count.
+  // Profile-scoped reads page at 50 rows, so count the dashboard's listable
+  // `total` (same number as the sidebar header), not the page length.
   const chat = useQuery({
     queryKey: navCountKeys.sessions(profile),
-    queryFn: () => countFromArray(withProfileParam('/api/sessions', profile), 'sessions'),
+    queryFn: () =>
+      profile
+        ? countFromArray(withProfileParam('/api/sessions?limit=1', profile), 'sessions', 'total')
+        : countFromArray('/api/sessions', 'sessions'),
     ...common,
   })
   const workflows = useQuery({

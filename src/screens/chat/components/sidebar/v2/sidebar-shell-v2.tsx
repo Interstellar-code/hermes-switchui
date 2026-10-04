@@ -163,11 +163,17 @@ export function SidebarShellV2() {
           lastSeenUpdate,
           seenUpdatesInitialized,
         },
-        { groupBy, map: folderMap },
+        {
+          groupBy,
+          map: folderMap,
+          // Server folder totals ignore search/date/updates and source chips.
+          withTotals: !countFiltered && fSources.length === 0,
+        },
       ),
     [
       groupBy,
       folderMap,
+      countFiltered,
       items,
       fSources,
       fQuery,

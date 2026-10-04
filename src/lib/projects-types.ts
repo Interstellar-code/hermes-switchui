@@ -124,6 +124,12 @@ export type ProjectMutationResponse = ProjectDetailResponse
 /** The small project reference returned when resolving a chat's project. */
 export type SessionProjectRef = Pick<Project, 'id' | 'slug' | 'name'>
 
+/** `new` / blank = a chat not created yet: never bind, unbind or resolve it. */
+export function isPlaceholderSessionKey(sessionKey: string): boolean {
+  const key = sessionKey.trim()
+  return key === '' || key === 'new' || key === 'main'
+}
+
 export type SessionProjectResolution = {
   session_id: string
   project: SessionProjectRef | null
@@ -154,4 +160,14 @@ export type SessionProjectMap = {
   }>
   /** session_id → project_id */
   sessions: Record<string, string>
+  /** Sessions whose folder is inherited from an earlier session in their chain (no explicit binding). */
+  inherited?: Record<string, true>
+  /** session_id → the ancestor whose explicit binding gives it its folder (compression or inheritance). */
+  binding_owner?: Record<string, string>
+  /** project_id → bound sessions the dashboard would list (no children/delegates/archived). Absent on the fallback path. */
+  counts?: Record<string, number>
+  /** Same as the dashboard's profile_totals for this profile. */
+  listable_total?: number
+  /** listable_total − listable bound sessions. */
+  unfiled?: number
 }

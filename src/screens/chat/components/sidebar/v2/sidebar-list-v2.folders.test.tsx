@@ -341,3 +341,59 @@ describe('SidebarListV2 — select mode + bulk delete', () => {
     expect(deleteSessions).not.toHaveBeenCalled()
   })
 })
+
+describe('SidebarListV2 — folder server counts', () => {
+  const countOf = (key: string) =>
+    q<HTMLElement>(
+      `[data-testid="group-header-${key}"] [data-testid="group-count"]`,
+    )!
+
+  it('shows "loaded / total" only when the server knows more than is loaded', () => {
+    mount([
+      { ...projectGroups[0], total: 41 },
+      { ...projectGroups[1], total: 1 },
+      projectGroups[2],
+    ])
+    const alpha = countOf('project:p1')
+    expect(alpha.querySelector('[aria-hidden]')!.textContent).toBe('2 / 41')
+    expect(alpha.querySelector('.sr-only')!.textContent).toBe('2 of 41 loaded')
+    expect(alpha.getAttribute('title')).toBe('2 of 41 loaded')
+    expect(countOf('project:p2').textContent).toBe('1')
+    expect(countOf('project:p2').querySelector('.sr-only')).toBeNull()
+    expect(countOf('unfiled').textContent).toBe('1')
+  })
+
+  it('an empty folder with a server total shows 0 / N and a Load button that pages more', () => {
+    const onLoadMore = vi.fn()
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={[{ ...projectGroups[0], items: [], total: 5 }]}
+          loadMore={{ loaded: 50, total: 309, loading: false, onLoadMore }}
+        />,
+      ),
+    )
+    expect(countOf('project:p1').textContent).toContain('0 / 5')
+    const load = q<HTMLButtonElement>(
+      '[aria-label="Load older sessions (all folders)"]',
+    )!
+    expect(load.textContent).toBe('Load older')
+    click(load)
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+    // Stays mounted while loading, busy and inert.
+    act(() =>
+      root.render(
+        <SidebarListV2
+          groups={[{ ...projectGroups[0], items: [], total: 5 }]}
+          loadMore={{ loaded: 50, total: 309, loading: true, onLoadMore }}
+        />,
+      ),
+    )
+    const busy = q<HTMLButtonElement>(
+      '[aria-label="Load older sessions (all folders)"]',
+    )!
+    expect(busy.getAttribute('aria-busy')).toBe('true')
+    click(busy)
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+})

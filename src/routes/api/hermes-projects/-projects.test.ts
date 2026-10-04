@@ -270,4 +270,28 @@ describe('/api/hermes-projects/session', () => {
     )
     expect(mockUnbindSessionProject).toHaveBeenCalledWith('chat-a', 'neo')
   })
+
+  it('rejects placeholder session keys (new / blank) with 400 on every verb', async () => {
+    for (const key of ['new', '%20', '']) {
+      const url = `http://localhost/api/hermes-projects/session?sessionKey=${key}`
+      const init = { headers: { 'Content-Type': 'application/json' } }
+      const responses = [
+        await sessionHandlers.GET({ request: makeRequest('GET', url) }),
+        await sessionHandlers.POST({
+          request: new Request(url, {
+            ...init,
+            method: 'POST',
+            body: JSON.stringify({ project_slug: 'alpha' }),
+          }),
+        }),
+        await sessionHandlers.DELETE({
+          request: new Request(url, { ...init, method: 'DELETE' }),
+        }),
+      ]
+      expect(responses.map((r) => r.status)).toEqual([400, 400, 400])
+    }
+    expect(mockResolveSessionProject).not.toHaveBeenCalled()
+    expect(mockBindSessionProject).not.toHaveBeenCalled()
+    expect(mockUnbindSessionProject).not.toHaveBeenCalled()
+  })
 })

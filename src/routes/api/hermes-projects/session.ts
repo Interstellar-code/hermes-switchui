@@ -8,13 +8,19 @@ import {
   resolveSessionProject,
   unbindSessionProject,
 } from '../../../server/projects-client'
+import { isPlaceholderSessionKey } from '../../../lib/projects-types'
 
+/** '' when missing or a placeholder (`new`) — callers answer 400. */
 function sessionKeyFrom(request: Request): string {
-  return new URL(request.url).searchParams.get('sessionKey')?.trim() ?? ''
+  const key = new URL(request.url).searchParams.get('sessionKey')?.trim() ?? ''
+  return isPlaceholderSessionKey(key) ? '' : key
 }
 
 function invalidSessionKey() {
-  return Response.json({ error: 'sessionKey is required' }, { status: 400 })
+  return Response.json(
+    { error: 'sessionKey is required (not a placeholder)' },
+    { status: 400 },
+  )
 }
 
 export const Route = createFileRoute('/api/hermes-projects/session')({

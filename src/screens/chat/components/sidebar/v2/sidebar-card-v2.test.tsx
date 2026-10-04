@@ -104,4 +104,16 @@ describe('SidebarCardV2 attention markers', () => {
 
     expect(screen.getByRole('link').getAttribute('data-profile')).toBe('morpheus')
   })
+
+  it('marks a chat whose folder is inherited from an earlier session', () => {
+    render(<SidebarCardV2 item={makeItem({ inheritedFolder: 'Coding Loop' })} />)
+    expect(
+      screen.getByText('In Coding Loop via earlier session').className,
+    ).toBe('sr-only')
+  })
+
+  it('no inherited marker for explicitly filed chats', () => {
+    render(<SidebarCardV2 item={makeItem()} />)
+    expect(screen.queryByText(/via earlier session/)).toBeNull()
+  })
 })

@@ -150,7 +150,7 @@ beforeEach(() => {
     isLoading: false,
     isError: false,
   }
-  mockQueries['hermes-projects|session|abc'] = {
+  mockQueries['hermes-projects|session|abc|[object Object]'] = {
     data: undefined,
     isLoading: false,
     isError: false,
@@ -259,7 +259,7 @@ describe('ChatMetaBarV2', () => {
       isLoading: false,
       isError: false,
     }
-    mockQueries['hermes-projects|session|chat-a'] = {
+    mockQueries['hermes-projects|session|chat-a|[object Object]'] = {
       data: {
         session_id: 'chat-a',
         project: {
@@ -272,7 +272,7 @@ describe('ChatMetaBarV2', () => {
       isLoading: false,
       isError: false,
     }
-    mockQueries['hermes-projects|session|chat-b'] = {
+    mockQueries['hermes-projects|session|chat-b|[object Object]'] = {
       data: {
         session_id: 'chat-b',
         project: { id: 'project-other', slug: 'switchui', name: 'SwitchUI' },
@@ -343,7 +343,7 @@ describe('ChatMetaBarV2', () => {
       isLoading: false,
       isError: false,
     }
-    mockQueries['hermes-projects|session|new-chat'] = {
+    mockQueries['hermes-projects|session|new-chat|[object Object]'] = {
       data: {
         session_id: 'new-chat',
         project: {
@@ -361,6 +361,51 @@ describe('ChatMetaBarV2', () => {
     expect(
       container.querySelector('[data-testid="project-selector"]')?.textContent,
     ).toContain('No project')
+  })
+
+  it('shows the folder-map effective folder: inherited hint, compressed counts as filed', () => {
+    const MAP_KEY = 'hermes-projects|session-map|[object Object]'
+    mockQueries['hermes-projects|list|[object Object]'] = {
+      data: {
+        active_id: null,
+        projects: [
+          { id: 'p-loop', slug: 'coding-loop', name: 'Coding Loop', icon: null, color: null },
+        ],
+      },
+      isLoading: false,
+      isError: false,
+    }
+    for (const sid of ['inh', 'cmp'])
+      mockQueries[`hermes-projects|session|${sid}|[object Object]`] = {
+        data: { session_id: sid, project: null, source: null },
+        isLoading: false,
+        isError: false,
+      }
+    mockQueries[MAP_KEY] = {
+      data: {
+        version: 'v',
+        projects: [],
+        sessions: { inh: 'p-loop', cmp: 'p-loop' },
+        inherited: { inh: true },
+        binding_owner: { inh: 'root', cmp: 'root' },
+      },
+      isLoading: false,
+      isError: false,
+    }
+    try {
+      const inh = renderInto(<ChatMetaBarV2 sessionKey="inh" />)
+      const sel = inh.querySelector('[data-testid="project-selector"]')!
+      expect(sel.textContent).toContain('Coding Loop')
+      expect(inh.querySelector('[data-testid="project-inherited"]')).not.toBeNull()
+
+      const cmp = renderInto(<ChatMetaBarV2 sessionKey="cmp" />)
+      expect(
+        cmp.querySelector('[data-testid="project-selector"]')!.textContent,
+      ).toContain('Coding Loop')
+      expect(cmp.querySelector('[data-testid="project-inherited"]')).toBeNull()
+    } finally {
+      delete mockQueries[MAP_KEY]
+    }
   })
 
   it('tolerates null profile and workspace rows from query payloads', () => {

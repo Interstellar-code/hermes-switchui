@@ -215,6 +215,19 @@ function SidebarCardV2Impl({ item, isActive }: SidebarCardV2Props) {
           >
             {opening ? 'Opening…' : item.title}
           </span>
+          {item.inheritedFolder && (
+            <span
+              title={`In ${item.inheritedFolder} via earlier session`}
+              data-testid={`session-inherited-${item.id}`}
+              className="shrink-0"
+              style={{ color: 'var(--theme-muted)', opacity: 0.6, fontSize: 10 }}
+            >
+              <span aria-hidden>↳</span>
+              <span className="sr-only">
+                {`In ${item.inheritedFolder} via earlier session`}
+              </span>
+            </span>
+          )}
         </div>
 
         {/* Meta row: src badge + inline stats */}

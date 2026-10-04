@@ -343,6 +343,7 @@ export function SidebarListV2({
                     selecting={selecting}
                     selected={selected}
                     onToggle={() => toggleGroup(row.group)}
+                    loadMore={loadMore}
                     onSelectAll={(on) =>
                       setMany(
                         row.group.items.map((i) => i.id),
@@ -450,6 +451,7 @@ function GroupHeader({
   selected,
   onToggle,
   onSelectAll,
+  loadMore,
 }: {
   row: Extract<RowModel, { type: 'header' }>
   projectMode: boolean
@@ -457,8 +459,11 @@ function GroupHeader({
   selected: Partial<Record<string, true>>
   onToggle: () => void
   onSelectAll: (on: boolean) => void
+  loadMore?: LoadMoreState
 }) {
   const { group } = row
+  // "loaded / total" only while the server knows more than is loaded.
+  const partial = group.total !== undefined && group.total > row.count
   const isProject = group.kind === 'project'
   const projectId = group.key.slice('project:'.length)
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
@@ -574,8 +579,19 @@ function GroupHeader({
               lineHeight: '14px',
               fontVariantNumeric: 'tabular-nums',
             }}
+            data-testid="group-count"
+            title={
+              partial ? `${row.count} of ${group.total} loaded` : undefined
+            }
           >
-            {row.count}
+            {partial ? (
+              <>
+                <span aria-hidden>{`${row.count} / ${group.total}`}</span>
+                <span className="sr-only">{`${row.count} of ${group.total} loaded`}</span>
+              </>
+            ) : (
+              row.count
+            )}
           </span>
           <span
             aria-hidden
@@ -586,6 +602,30 @@ function GroupHeader({
               opacity: 0.5,
             }}
           />
+        </button>
+      )}
+      {row.count === 0 && partial && loadMore && (
+        <button
+          type="button"
+          // Pages the shared feed, not this folder; stays mounted (aria-busy)
+          // while loading so focus is kept.
+          aria-disabled={loadMore.loading}
+          aria-busy={loadMore.loading}
+          onClick={() => {
+            if (!loadMore.loading) loadMore.onLoadMore()
+          }}
+          aria-label="Load older sessions (all folders)"
+          className="m-mono pt-2"
+          style={{
+            color: 'var(--theme-muted)',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: 10,
+            opacity: loadMore.loading ? 0.6 : 1,
+          }}
+        >
+          {loadMore.loading ? 'Loading…' : 'Load older'}
         </button>
       )}
       {isProject && (

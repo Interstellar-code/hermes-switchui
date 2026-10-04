@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { isPlaceholderSessionKey } from './projects-types'
 import type {
   AddProjectFolderInput,
   CreateProjectInput,
@@ -13,7 +14,6 @@ import type {
   SessionProjectUnbindResponse,
   UpdateProjectInput,
 } from './projects-types'
-import { activeScopeKey } from '@/lib/session-scope'
 import { runPool } from '@/lib/run-pool'
 
 async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -69,8 +69,9 @@ export const projectsKeys = {
     ['hermes-projects', 'folders', idOrSlug, { profile }] as const,
   activity: (idOrSlug: string, profile?: string) =>
     ['hermes-projects', 'activity', idOrSlug, { profile }] as const,
-  session: (sessionKey: string) =>
-    ['hermes-projects', 'session', activeScopeKey(sessionKey)] as const,
+  /** Keyed by the browsed profile — the one bind/unbind write to. */
+  session: (sessionKey: string, profile?: string) =>
+    ['hermes-projects', 'session', sessionKey, { profile }] as const,
   sessionMapAll: ['hermes-projects', 'session-map'] as const,
   sessionMap: (profile?: string) =>
     ['hermes-projects', 'session-map', { profile }] as const,
@@ -136,8 +137,17 @@ function sessionProjectPath(sessionKey: string): string {
 
 export function fetchSessionProject(
   sessionKey: string,
+  profile?: string,
 ): Promise<SessionProjectResolution> {
-  return projectsJson<SessionProjectResolution>(sessionProjectPath(sessionKey))
+  if (isPlaceholderSessionKey(sessionKey))
+    return Promise.resolve({
+      session_id: sessionKey,
+      project: null,
+      source: null,
+    })
+  return projectsJson<SessionProjectResolution>(
+    withProfile(sessionProjectPath(sessionKey), profile),
+  )
 }
 
 export function bindSessionProject({
@@ -148,7 +158,8 @@ export function bindSessionProject({
   sessionKey: string
   projectSlug: string
   profile?: string
-}): Promise<SessionProjectBindingResponse> {
+}): Promise<SessionProjectBindingResponse | null> {
+  if (isPlaceholderSessionKey(sessionKey)) return Promise.resolve(null)
   return projectsJson<SessionProjectBindingResponse>(
     withProfile(sessionProjectPath(sessionKey), profile),
     jsonBody({ project_slug: projectSlug }),
@@ -159,6 +170,8 @@ export function unbindSessionProject(
   sessionKey: string,
   profile?: string,
 ): Promise<SessionProjectUnbindResponse> {
+  if (isPlaceholderSessionKey(sessionKey))
+    return Promise.resolve({ session_id: sessionKey, removed: 0 })
   return projectsJson<SessionProjectUnbindResponse>(
     withProfile(sessionProjectPath(sessionKey), profile),
     {
@@ -375,6 +388,7 @@ async function patchSessionMaps(
   sessionKey: string,
   projectSlug: string | null,
 ): Promise<MapSnapshot> {
+  if (isPlaceholderSessionKey(sessionKey)) return []
   const queryKey = projectsKeys.sessionMap(profile)
   await queryClient.cancelQueries({ queryKey, exact: true })
   const snapshot = queryClient.getQueriesData<SessionProjectMap>({
@@ -385,28 +399,73 @@ async function patchSessionMaps(
     { queryKey, exact: true },
     (map) => {
       if (!map) return map
+      // An inherited chat has no binding to remove: it stays where it is.
+      if (projectSlug === null && map.inherited?.[sessionKey]) return map
       const sessions = { ...map.sessions }
+      const from = sessions[sessionKey] as string | undefined
+      let to: string | undefined
       if (projectSlug === null) {
         delete sessions[sessionKey]
+        // Unbind removes the owning ancestor's binding (see unbindTarget).
+        const owner = map.binding_owner?.[sessionKey]
+        if (owner) delete sessions[owner]
       } else {
         const project = map.projects.find((p) => p.slug === projectSlug)
         if (!project) return map
-        sessions[sessionKey] = project.id
+        to = sessions[sessionKey] = project.id
       }
-      return { ...map, sessions }
+      const next = { ...map, sessions }
+      // Server folder counts follow the move (refetch settles exact numbers).
+      if (map.counts && from !== to) {
+        const counts = { ...map.counts }
+        if (from) counts[from] = Math.max(0, (counts[from] ?? 0) - 1)
+        if (to) counts[to] = (counts[to] ?? 0) + 1
+        next.counts = counts
+        if (map.unfiled !== undefined)
+          next.unfiled = Math.max(
+            0,
+            map.unfiled + (from ? 0 : -1) + (to ? 0 : 1),
+          )
+      }
+      if (map.inherited?.[sessionKey]) {
+        // Now explicit (or unbound): no longer inherited.
+        const { [sessionKey]: _, ...inherited } = map.inherited
+        next.inherited = inherited
+      }
+      return next
     },
   )
   return snapshot
+}
+
+/**
+ * The session whose binding to delete: a compressed continuation or inherited
+ * chat has no binding of its own — its folder belongs to `binding_owner`.
+ */
+function unbindTarget(
+  queryClient: QueryClient,
+  profile: string | undefined,
+  sessionKey: string,
+): string {
+  const map = queryClient.getQueryData<SessionProjectMap>(
+    projectsKeys.sessionMap(profile),
+  )
+  if (!map || map.inherited?.[sessionKey]) return sessionKey
+  return map.binding_owner?.[sessionKey] ?? sessionKey
 }
 
 function rollbackSessionMaps(queryClient: QueryClient, snapshot?: MapSnapshot) {
   for (const [key, data] of snapshot ?? []) queryClient.setQueryData(key, data)
 }
 
-function settleSessionProject(queryClient: QueryClient, sessionKey: string) {
+function settleSessionProject(
+  queryClient: QueryClient,
+  sessionKey: string,
+  profile?: string,
+) {
   return Promise.all([
     queryClient.invalidateQueries({
-      queryKey: projectsKeys.session(sessionKey),
+      queryKey: projectsKeys.session(sessionKey, profile),
     }),
     queryClient.invalidateQueries({ queryKey: projectsKeys.sessionMapAll }),
   ])
@@ -422,7 +481,7 @@ export function useBindSessionProject(profile?: string) {
     onError: (_err, _input, snapshot) =>
       rollbackSessionMaps(queryClient, snapshot),
     onSettled: (_data, _err, { sessionKey }) =>
-      settleSessionProject(queryClient, sessionKey),
+      settleSessionProject(queryClient, sessionKey, profile),
   })
 }
 
@@ -430,20 +489,25 @@ export function useUnbindSessionProject(profile?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (sessionKey: string) =>
-      unbindSessionProject(sessionKey, profile),
+      unbindSessionProject(
+        unbindTarget(queryClient, profile, sessionKey),
+        profile,
+      ),
     onMutate: (sessionKey) =>
       patchSessionMaps(queryClient, profile, sessionKey, null),
     onError: (_err, _sessionKey, snapshot) =>
       rollbackSessionMaps(queryClient, snapshot),
     onSettled: (_data, _err, sessionKey) =>
-      settleSessionProject(queryClient, sessionKey),
+      settleSessionProject(queryClient, sessionKey, profile),
   })
 }
 
 /**
  * Move many sessions at once (`projectSlug: null` = remove from project).
  * Optimistic map patch up front, ≤4 requests in flight, ONE invalidate at the
- * end. Resolves with the session keys that failed (rolled back via refetch).
+ * end. Resolves with the session keys that failed (rolled back via refetch)
+ * and, for a remove, the inherited keys skipped (they have no binding to
+ * delete; only picking a folder overrides inheritance).
  */
 export function useBulkMoveSessions(profile?: string) {
   const queryClient = useQueryClient()
@@ -454,18 +518,35 @@ export function useBulkMoveSessions(profile?: string) {
     }: {
       sessionKeys: Array<string>
       projectSlug: string | null
-    }) => {
-      for (const key of sessionKeys)
-        await patchSessionMaps(queryClient, profile, key, projectSlug)
-      const results = await runPool<string, unknown>(
-        sessionKeys,
-        4,
-        (sessionKey) =>
-          projectSlug === null
-            ? unbindSessionProject(sessionKey, profile)
-            : bindSessionProject({ sessionKey, projectSlug, profile }),
+    }): Promise<{ failed: Array<string>; inherited: Array<string> }> => {
+      const map = queryClient.getQueryData<SessionProjectMap>(
+        projectsKeys.sessionMap(profile),
       )
-      return sessionKeys.filter((_, i) => results[i].status === 'rejected')
+      const inherited =
+        projectSlug === null
+          ? sessionKeys.filter((key) => map?.inherited?.[key])
+          : []
+      const keys = sessionKeys.filter((key) => !inherited.includes(key))
+      // Remove targets the binding owner; siblings sharing one → one DELETE.
+      const targetOf = new Map(
+        keys.map((key) => [
+          key,
+          projectSlug === null ? unbindTarget(queryClient, profile, key) : key,
+        ]),
+      )
+      for (const key of keys)
+        await patchSessionMaps(queryClient, profile, key, projectSlug)
+      const targets = [...new Set(targetOf.values())]
+      const results = await runPool<string, unknown>(targets, 4, (target) =>
+        projectSlug === null
+          ? unbindSessionProject(target, profile)
+          : bindSessionProject({ sessionKey: target, projectSlug, profile }),
+      )
+      const failedTargets = new Set(
+        targets.filter((_, i) => results[i].status === 'rejected'),
+      )
+      const failed = keys.filter((key) => failedTargets.has(targetOf.get(key)!))
+      return { failed, inherited }
     },
     onSettled: async () => {
       // A map refetch that started mid-move would land stale bindings over
@@ -523,11 +604,11 @@ export function useProjectActivity(
   })
 }
 
-export function useSessionProject(sessionKey?: string) {
+export function useSessionProject(sessionKey?: string, profile?: string) {
   return useQuery({
-    queryKey: projectsKeys.session(sessionKey ?? ''),
-    queryFn: () => fetchSessionProject(sessionKey!),
-    enabled: Boolean(sessionKey),
+    queryKey: projectsKeys.session(sessionKey ?? '', profile),
+    queryFn: () => fetchSessionProject(sessionKey!, profile),
+    enabled: Boolean(sessionKey) && !isPlaceholderSessionKey(sessionKey ?? ''),
     staleTime: 30_000,
   })
 }

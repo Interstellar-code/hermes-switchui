@@ -57,10 +57,36 @@ describe('Projects mutations', () => {
 })
 
 describe('Session project client', () => {
-  it('uses a session-specific cache key', () => {
+  it('uses a session- and profile-specific cache key', () => {
     expect(projectsKeys.session('chat-a')).not.toEqual(
       projectsKeys.session('chat-b'),
     )
+    expect(projectsKeys.session('chat-a', 'work')).not.toEqual(
+      projectsKeys.session('chat-a', 'home'),
+    )
+  })
+
+  it('resolves the session project in the same profile bind/unbind write to', async () => {
+    const fetchMock = vi.fn((_url: string, _init?: RequestInit) =>
+      Promise.resolve({ ok: true, json: () => Promise.resolve({}) }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    await fetchSessionProject('chat-a', 'work')
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      '/api/hermes-projects/session?sessionKey=chat-a&profile=work',
+    )
+  })
+
+  it('never sends a request for a placeholder session key', async () => {
+    const fetchMock = vi.fn()
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await fetchSessionProject('new')).toMatchObject({ project: null })
+    expect(
+      await bindSessionProject({ sessionKey: 'new', projectSlug: 'demo' }),
+    ).toBeNull()
+    expect(await unbindSessionProject(' ')).toMatchObject({ removed: 0 })
+    expect(await fetchSessionProject('main')).toMatchObject({ project: null })
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('calls the session binding endpoint', async () => {

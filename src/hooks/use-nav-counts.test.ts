@@ -144,4 +144,26 @@ describe('useNavCounts profile threading', () => {
 
     vi.unstubAllGlobals()
   })
+  it('scoped Chat badge = server listable total, not the 50-row page length', async () => {
+    mockUseResolvedProfile.mockReturnValue('neo')
+    const mockFetch = vi.fn((url: string) =>
+      Promise.resolve(
+        jsonResponse(
+          url.startsWith('/api/sessions')
+            ? { sessions: [{ id: 'a' }], total: 309 }
+            : {},
+        ),
+      ),
+    )
+    vi.stubGlobal('fetch', mockFetch)
+
+    const { Wrapper } = createWrapper()
+    const { result } = renderHook(() => useNavCounts(true), { wrapper: Wrapper })
+
+    await waitFor(() => expect(result.current.chat).toBe(309))
+    const urls = mockFetch.mock.calls.map((call) => String(call[0]))
+    expect(urls).toContain('/api/sessions?limit=1&profile=neo')
+
+    vi.unstubAllGlobals()
+  })
 })

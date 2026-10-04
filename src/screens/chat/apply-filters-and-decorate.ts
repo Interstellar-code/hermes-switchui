@@ -29,6 +29,8 @@ export type SessionGroup = {
   icon?: string | null
   archived?: boolean
   items: Array<SessionFeedItem>
+  /** Server count of listable sessions in this folder (project/unfiled only, unfiltered views only). */
+  total?: number
 }
 
 /** @deprecated use `SessionGroup`; kept so existing imports compile. */
@@ -37,6 +39,8 @@ export type SessionDayGroup = SessionGroup
 export type SessionGrouping = {
   groupBy: FilterState['groupBy']
   map?: SessionProjectMap | null
+  /** Attach the map's server folder counts (`total`) — only when no filter narrows the list. */
+  withTotals?: boolean
 }
 
 export type FilterAndDecorateResult = {
@@ -159,7 +163,17 @@ export function applyFiltersAndDecorate(
   )
 
   const map = grouping?.groupBy === 'project' ? grouping.map : null
-  const groups = map ? groupByProject(decorated, map) : groupByDay(decorated)
+  // Server folder counts include sessions this view hides locally (archived
+  // here, not on the server); they are subtracted from each folder's total.
+  // ponytail: only LOADED locally-archived rows are known, so unloaded ones
+  // still count — N can overstate by those; a server-side local-archive list
+  // would fix it.
+  const locallyHidden = grouping?.withTotals
+    ? items.filter((i) => archivedSet.has(i.id) && i.state !== 'archived')
+    : null
+  const groups = map
+    ? groupByProject(decorated, map, locallyHidden)
+    : groupByDay(decorated)
 
   return {
     groups,
@@ -215,24 +229,49 @@ function groupByDay(decorated: Array<SessionFeedItem>): Array<SessionGroup> {
 function groupByProject(
   decorated: Array<SessionFeedItem>,
   map: SessionProjectMap,
+  /** null = no server totals (a filter narrows the view). */
+  locallyHidden: Array<SessionFeedItem> | null,
 ): Array<SessionGroup> {
+  const folderOf = (item: SessionFeedItem): string | undefined => {
+    const rawId = item.id.split(':').slice(1).join(':')
+    return Object.hasOwn(map.sessions, rawId) ? map.sessions[rawId] : undefined
+  }
+  const knownIds = new Set(map.projects.map((p) => p.id))
+  // Server-counted sessions shown elsewhere (Pinned) or hidden locally, per folder.
+  const elsewhere = new Map<string, number>()
+  const countElsewhere = (item: SessionFeedItem) => {
+    const id = folderOf(item)
+    const key = id && knownIds.has(id) ? id : 'unfiled'
+    elsewhere.set(key, (elsewhere.get(key) ?? 0) + 1)
+  }
+  locallyHidden?.forEach(countElsewhere)
+  // Folders with server sessions but none loaded still get a header.
+  const totalOf = (key: string, n: number | undefined) =>
+    locallyHidden && n !== undefined
+      ? { total: Math.max(0, n - (elsewhere.get(key) ?? 0)) }
+      : {}
   const pinnedItems: Array<SessionFeedItem> = []
   const unfiled: Array<SessionFeedItem> = []
   const byProject = new Map<string, Array<SessionFeedItem>>(
     map.projects.map((p) => [p.id, []]),
   )
+  const nameOf = new Map(map.projects.map((p) => [p.id, p.name]))
 
   for (const item of decorated) {
     if (item.pinned) {
       pinnedItems.push(item)
+      countElsewhere(item)
       continue
     }
     const rawId = item.id.split(':').slice(1).join(':')
-    const projectId = Object.hasOwn(map.sessions, rawId)
-      ? map.sessions[rawId]
-      : undefined
+    const projectId = folderOf(item)
     const bucket = projectId ? byProject.get(projectId) : undefined
-    if (bucket) bucket.push(item)
+    if (bucket && projectId)
+      bucket.push(
+        map.inherited?.[rawId]
+          ? { ...item, inheritedFolder: nameOf.get(projectId) }
+          : item,
+      )
     else unfiled.push(item)
   }
 
@@ -241,7 +280,9 @@ function groupByProject(
   for (const archived of [false, true]) {
     for (const p of map.projects) {
       const items = byProject.get(p.id)!
-      if (p.archived !== archived || items.length === 0) continue
+      const extra = totalOf(p.id, map.counts && (map.counts[p.id] ?? 0))
+      if (p.archived !== archived || (items.length === 0 && !extra.total))
+        continue
       groups.push({
         key: `project:${p.id}`,
         label: p.name,
@@ -250,15 +291,18 @@ function groupByProject(
         icon: p.icon,
         archived: p.archived,
         items,
+        ...extra,
       })
     }
   }
-  if (unfiled.length > 0)
+  const unfiledExtra = totalOf('unfiled', map.unfiled)
+  if (unfiled.length > 0 || unfiledExtra.total)
     groups.push({
       key: 'unfiled',
       label: 'Unfiled',
       kind: 'unfiled',
       items: unfiled,
+      ...unfiledExtra,
     })
   return groups
 }

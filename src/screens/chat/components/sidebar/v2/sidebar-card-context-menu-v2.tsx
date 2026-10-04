@@ -276,6 +276,7 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
                     <FolderPickerList
                       projects={folderMap?.projects ?? []}
                       currentId={currentProjectId}
+                      inherited={folderMap?.inherited?.[rawId] === true}
                       onPick={(p) =>
                         act(() =>
                           bindProject.mutate({ sessionKey: rawId, projectSlug: p.slug }),

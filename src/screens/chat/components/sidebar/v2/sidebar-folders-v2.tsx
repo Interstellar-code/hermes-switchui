@@ -198,7 +198,7 @@ function NewFolderForm({ profile }: { profile?: string }) {
       return
     const slug = (res as { project: { slug: string } }).project.slug
     try {
-      const failed = await move.mutateAsync({
+      const { failed } = await move.mutateAsync({
         sessionKeys: moveKeys,
         projectSlug: slug,
       })
@@ -373,12 +373,15 @@ export function FolderPickerList({
   onPick,
   onRemove,
   onNewFolder,
+  inherited = false,
 }: {
   projects: Array<MapProject>
   currentId?: string | null
   onPick: (project: MapProject) => void
   onRemove: () => void
   onNewFolder: () => void
+  /** Folder comes from an earlier session in the chain: removing would just fall back to it. */
+  inherited?: boolean
 }) {
   const [filter, setFilter] = useState('')
   const live = projects.filter((p) => !p.archived)
@@ -457,9 +460,19 @@ export function FolderPickerList({
           margin: '4px 0',
         }}
       />
-      <PickerItem onClick={onRemove} disabled={currentId === null}>
-        Remove from project
-      </PickerItem>
+      {inherited ? (
+        <span
+          className="m-mono px-3 py-1"
+          data-testid="folder-inherited-hint"
+          style={{ fontSize: 11, color: 'var(--theme-muted)' }}
+        >
+          Folder inherited from an earlier session — pick one to pin it
+        </span>
+      ) : (
+        <PickerItem onClick={onRemove} disabled={currentId === null}>
+          Remove from project
+        </PickerItem>
+      )}
       <PickerItem onClick={onNewFolder}>+ New folder…</PickerItem>
       <span
         className="m-mono px-3 pt-1 pb-1.5"

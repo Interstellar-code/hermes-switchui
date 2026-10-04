@@ -151,7 +151,7 @@ describe('SidebarGroupToggleV2', () => {
       )!.set!.call(input, 'Beta')
       input.dispatchEvent(new Event('input', { bubbles: true }))
     })
-    moveSessions.mockResolvedValue([])
+    moveSessions.mockResolvedValue({ failed: [], inherited: [] })
     act(() => useSessionsSelectionStore.getState().setMany(['chat:s1'], true))
     await act(async () => byText('CREATE').click())
     expect(moveSessions).toHaveBeenCalledWith({
@@ -236,6 +236,25 @@ describe('FolderPickerList', () => {
     )
     expect(rows).toHaveLength(1)
     expect(rows[0].textContent).toContain('Needle project')
+  })
+
+  it('inherited folder: hides Remove from project and explains instead', () => {
+    act(() =>
+      root.render(
+        <FolderPickerList
+          projects={projects.slice(0, 3)}
+          currentId="p1"
+          inherited
+          onPick={noop}
+          onRemove={noop}
+          onNewFolder={noop}
+        />,
+      ),
+    )
+    expect(container.textContent).not.toContain('Remove from project')
+    expect(q('[data-testid="folder-inherited-hint"]')!.textContent).toContain(
+      'inherited from an earlier session',
+    )
   })
 
   it('no filter at 8 or fewer folders', () => {

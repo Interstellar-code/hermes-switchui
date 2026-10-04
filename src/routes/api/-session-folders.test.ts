@@ -32,7 +32,11 @@ const MAP = {
       board_slug: null,
     },
   ],
-  sessions: { s1: 'p1' },
+  sessions: { s1: 'p1', s2: 'p1' },
+  inherited: { s2: true as const },
+  counts: { p1: 2 },
+  listable_total: 5,
+  unfiled: 3,
 }
 
 beforeEach(() => {

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarShellV2 } from './sidebar-shell-v2'
 import type * as SessionsFeedModule from '@/screens/chat/sessions-feed'
@@ -142,8 +142,19 @@ it('passes the raw merged feed to the filtering owner', () => {
       lastSeenUpdate: {},
       seenUpdatesInitialized: false,
     },
-    { groupBy: 'project', map: folderMap },
+    { groupBy: 'project', map: folderMap, withTotals: false },
   )
+})
+
+it('folder totals only when nothing narrows the view (no search, no hidden chip)', () => {
+  const grouping = () => applyFiltersAndDecorate.mock.calls.at(-1)?.[3]
+  Object.assign(filterState, { query: '', sources: ['chat'] })
+  render(<SidebarShellV2 />)
+  expect(grouping()).toMatchObject({ withTotals: false })
+  cleanup()
+  Object.assign(filterState, { query: '', sources: [] })
+  render(<SidebarShellV2 />)
+  expect(grouping()).toMatchObject({ withTotals: true })
 })
 
 it('renders the panel at the persisted width with a resize separator', () => {

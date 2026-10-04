@@ -81,16 +81,19 @@ export function SidebarBulkActionsV2({
   async function runMove(projectSlug: string | null) {
     setMoveOpen(false)
     try {
-      const failed = await move.mutateAsync({
+      const { failed, inherited } = await move.mutateAsync({
         sessionKeys: chatKeys,
         projectSlug,
       })
-      const ok = nChat - failed.length
+      const ok = nChat - failed.length - inherited.length
+      const skipped = inherited.length
+        ? `; ${inherited.length} inherited — pick a folder to override`
+        : ''
       toast(
         failed.length
-          ? `Moved ${ok} of ${nChat}; ${failed.length} failed`
-          : `${projectSlug ? 'Moved' : 'Removed'} ${ok} session${plural(ok)}`,
-        { type: failed.length ? 'warning' : 'success' },
+          ? `Moved ${ok} of ${nChat}; ${failed.length} failed${skipped}`
+          : `${projectSlug ? 'Moved' : 'Removed'} ${ok} session${plural(ok)}${skipped}`,
+        { type: failed.length || skipped ? 'warning' : 'success' },
       )
       if (!failed.length) exit()
     } catch (err) {
