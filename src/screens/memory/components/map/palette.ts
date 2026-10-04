@@ -5,14 +5,14 @@
  * (`var()`, `color-mix()`, relative `oklch(from …)`), so each one is resolved
  * through a hidden probe element inside `el` (so `.mm-wrap`-scoped tokens
  * apply): `probe.style.color = var(--x)` → computed `rgb()`/`oklch()`.
- * Cached per theme (the <html> data-theme + class).
+ * Cached per theme (the <html> data-theme).
  */
 
 const cache = new Map<string, string>()
 
 function themeKey(): string {
   const html = document.documentElement
-  return `${html.getAttribute('data-theme') ?? ''}|${html.className}`
+  return html.getAttribute('data-theme') ?? ''
 }
 
 export function resolveCssColor(

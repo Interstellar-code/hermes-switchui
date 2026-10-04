@@ -8,8 +8,11 @@
  */
 
 .mm-wrap {
-  /* toolbar (12 + ~32) + status line row */
-  --mm-rail-top: 76px;
+  /* below the toolbar (12 + ~32 + 8); memory-map.tsx updates it from the
+   * toolbar's real height when it wraps */
+  --mm-rail-top: 52px;
+  /* the info pill switches to its short form on narrow maps */
+  container-type: inline-size;
   --mm-gist: var(--theme-accent);
   --mm-working: var(--theme-accent-secondary);
   --mm-fact: #5fcfff;
@@ -31,6 +34,11 @@
   --mm-cluster-other: var(--theme-muted);
   --mm-age-new: var(--theme-warning);
   --mm-age-old: color-mix(in oklab, var(--theme-muted) 45%, var(--theme-bg));
+  /* age ramp steps (canvas batches by bucket, so the lerp is 6 discrete steps) */
+  --mm-age-1: color-mix(in oklab, var(--mm-age-old), var(--mm-age-new) 20%);
+  --mm-age-2: color-mix(in oklab, var(--mm-age-old), var(--mm-age-new) 40%);
+  --mm-age-3: color-mix(in oklab, var(--mm-age-old), var(--mm-age-new) 60%);
+  --mm-age-4: color-mix(in oklab, var(--mm-age-old), var(--mm-age-new) 80%);
 
   position: relative;
   width: 100%;
@@ -189,11 +197,53 @@
   text-overflow: ellipsis;
 }
 
-.mm-toggles,
-.mm-zoom {
+.mm-toggles {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+/* zoom dock: bottom-left, clear of the rail (MapRail sets --mm-rail-w) */
+.mm-zoom {
+  position: absolute;
+  left: var(--mm-rail-w, 12px);
+  bottom: 12px;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  background: var(--mm-overlay);
+}
+.mm-zoom .mm-zoom-btn {
+  border: 0;
+  border-radius: 0;
+}
+.mm-zoom .mm-zoom-btn + .mm-zoom-btn {
+  border-top: 1px solid var(--theme-border);
+}
+
+/* minimap: bottom-right, shifts left of the open inspector */
+.mm-minimap {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+  width: 150px;
+  height: 96px;
+  background: var(--mm-overlay);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  cursor: crosshair;
+  touch-action: none;
+}
+.mm-wrap:has(.mm-detail) .mm-minimap {
+  right: calc(min(300px, 100% - 24px) + 24px);
+}
+.mm-minimap:focus-visible {
+  outline: 2px solid var(--theme-accent);
+  outline-offset: 1px;
 }
 
 .mm-toggle,
@@ -298,21 +348,53 @@
   flex: none;
 }
 
-/* ── status line + empty state ──────────────────────────────────────────── */
+/* ── info pill (toolbar, right) + empty state ──────────────────────────── */
 
-.mm-status {
-  position: absolute;
-  top: 52px;
-  left: 12px;
-  z-index: 2;
-  display: flex;
+.mm-pill {
+  margin-left: auto;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   align-items: center;
   gap: 6px;
-  font-size: 0.75rem;
+  padding: 4px 10px;
+  font-size: 0.72rem;
   color: var(--theme-muted);
+  background: var(--mm-overlay);
+  border: 1px solid var(--theme-border);
+  border-radius: 999px;
   font-variant-numeric: tabular-nums;
 }
-.mm-status-warn {
+.mm-pill-short {
+  display: none;
+}
+@container (max-width: 900px) {
+  .mm-pill-long {
+    display: none;
+  }
+  .mm-pill-short {
+    display: inline;
+  }
+}
+.mm-pill-pop {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: 280px;
+  padding: 10px 12px;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--theme-text);
+  background: var(--theme-panel);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  box-shadow: var(--theme-shadow-2);
+}
+.mm-status-warn,
+.mm-link-btn.mm-status-warn {
   color: var(--theme-warning);
 }
 .mm-link-btn {
@@ -346,7 +428,7 @@
 
 .mm-detail {
   position: absolute;
-  top: 52px;
+  top: var(--mm-rail-top);
   right: 12px;
   bottom: 12px;
   z-index: 3;
@@ -531,6 +613,9 @@
   border-radius: 999px;
   cursor: pointer;
 }
+.mm-detail-chip.is-other {
+  border-style: dashed;
+}
 .mm-detail-chip:hover {
   background: color-mix(in srgb, currentColor 14%, transparent);
 }
@@ -566,6 +651,8 @@
   flex-direction: column;
   gap: 12px;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
   padding: 8px 10px;
   background: var(--mm-overlay);
   border: 1px solid var(--theme-border);
@@ -642,6 +729,23 @@
 .mm-cluster-item.is-on {
   border-color: var(--theme-border);
   background: var(--theme-accent-subtle);
+}
+.mm-age-key {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: var(--theme-muted);
+}
+.mm-age-ramp {
+  width: 48px;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--mm-age-old), var(--mm-age-new));
+}
+.mm-age-key .mm-cluster-swatch {
+  margin-left: 6px;
 }
 .mm-cluster-swatch {
   width: 10px;

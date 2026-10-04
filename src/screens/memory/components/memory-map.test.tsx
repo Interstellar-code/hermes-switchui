@@ -10,6 +10,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryMap } from './memory-map'
 
+// Canvas colours resolve to the token name, so draws can be asserted by token.
+vi.mock('./map/palette', () => ({
+  resolveCssColor: (_el: unknown, name: string) => name,
+}))
+
 const GRAPH = {
   nodes: [
     { id: 'gist_a', kind: 'gist', label: 'a gist' },
@@ -105,6 +110,8 @@ beforeEach(() => {
       'fillText',
       'strokeText',
       'closePath',
+      'strokeRect',
+      'drawImage',
     ].map((m) => [m, vi.fn()]),
   )
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
@@ -354,5 +361,93 @@ describe('MemoryMap', () => {
       name: /maximum nodes shown/i,
     })
     expect((select as HTMLSelectElement).value).toBe('2000')
+  })
+
+  describe('renderer', () => {
+    // a 6-clique → one real cluster (slot 0); the lone gist falls into Other
+    const ids = ['f0', 'f1', 'f2', 'f3', 'f4', 'f5']
+    const CLIQUE = {
+      nodes: [
+        ...ids.map((id) => ({ id, kind: 'fact', label: id })),
+        { id: 'g', kind: 'gist', label: 'g' },
+      ],
+      edges: [
+        ...ids.flatMap((a, i) =>
+          ids.slice(i + 1).map((b) => ({
+            source: a,
+            target: b,
+            edgeType: 'relates',
+            weight: 1,
+            occurrences: 1,
+            timestamp: '2026-01-0' + (i + 1),
+          })),
+        ),
+      ],
+      meta: { ...GRAPH.meta, nodeCount: 7, edgeCount: 15, rawEdgeCount: 15 },
+    }
+    function trackFills() {
+      const fills: Array<string> = []
+      Object.defineProperty(mockCtx, 'fillStyle', {
+        configurable: true,
+        get: () => fills.at(-1),
+        set: (v: string) => fills.push(v),
+      })
+      return fills
+    }
+
+    it('colours by cluster by default and switches palette with colour-by', async () => {
+      const fills = trackFills()
+      vi.stubGlobal('fetch', okFetch(CLIQUE))
+      renderMap()
+      await waitFor(() => expect(fills).toContain('--mm-cluster-0'))
+      expect(fills.filter((f) => f.startsWith('--mm-'))).not.toContain(
+        '--mm-fact',
+      )
+
+      fills.length = 0
+      fireEvent.click(screen.getByRole('radio', { name: 'Kind' }))
+      await waitFor(() => expect(fills).toContain('--mm-fact'))
+      expect(fills).not.toContain('--mm-cluster-0')
+
+      fills.length = 0
+      fireEvent.click(screen.getByRole('radio', { name: 'Age' }))
+      await waitFor(() =>
+        expect(fills.some((f) => f.startsWith('--mm-age-'))).toBe(true),
+      )
+    })
+
+    it('lists real clusters in the rail and renders the minimap + zoom dock', async () => {
+      vi.stubGlobal('fetch', okFetch(CLIQUE))
+      const { container } = renderMap()
+      await screen.findByRole('button', { name: /^Cluster .* \(6\)$/ })
+      expect(container.querySelector('canvas.mm-minimap')).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Zoom in' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Zoom out' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Fit to screen' })).toBeTruthy()
+      // viewport rect drawn on the minimap
+      await waitFor(() => expect(mockCtx.strokeRect).toHaveBeenCalled())
+    })
+
+    it('info pill shows shown/total, junk and an edges-trimmed explainer', async () => {
+      vi.stubGlobal(
+        'fetch',
+        okFetch({
+          ...GRAPH,
+          meta: {
+            ...GRAPH.meta,
+            rawEdgeCount: 10,
+            truncated: true,
+            junkFacts: 7,
+          },
+        }),
+      )
+      renderMap()
+      const pill = await screen.findByRole('note')
+      expect(pill.textContent).toMatch(/4 of\s*\/?\s*4 shown/)
+      expect(pill.textContent).toMatch(/7 junk hidden/)
+      expect(
+        screen.getByRole('button', { name: /edges trimmed: 7 edges cut/i }),
+      ).toBeTruthy()
+    })
   })
 })

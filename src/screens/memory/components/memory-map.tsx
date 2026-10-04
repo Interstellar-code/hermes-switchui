@@ -22,7 +22,7 @@
  * its own shape so colour is never the only cue.
  */
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { drag as d3drag } from 'd3-drag'
 import {
@@ -55,7 +55,21 @@ import {
   KindGlyph,
 } from './map/map-kinds'
 import { MapRail } from './map/map-rail'
+import { computeClusters } from './map/clusters'
+import {
+  AGE_VARS,
+  CLUSTER_SLOTS,
+  ageOf,
+  colourIndex,
+  isDimmed,
+  miniToSim,
+  minimapTransform,
+  nodeRadius,
+  paletteFor,
+  viewportRect,
+} from './map/map-render'
 import { resolveCssColor } from './map/palette'
+import type { MapPalette, MiniTransform } from './map/map-render'
 import type { Shape } from './map/map-kinds'
 import type {
   ColourBy,
@@ -75,7 +89,20 @@ import type { ZoomTransform } from 'd3-zoom'
 import { useMemoryScreenStore } from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory-map.css'
 
-type SimNode = GraphNode & SimulationNodeDatum & { deg: number }
+type SimNode = GraphNode &
+  SimulationNodeDatum & {
+    deg: number
+    /** cluster id (-1 = Other) */
+    cl: number
+    /** recency 0..1, null = undated */
+    age: number | null
+    /** colour bucket for the current colour-by mode */
+    ci: number
+    /** KIND_ORDER index (shape bucket) */
+    ki: number
+    /** cached label text */
+    lt?: string
+  }
 type SimEdge = Omit<GraphEdge, 'source' | 'target'> &
   SimulationLinkDatum<SimNode> & {
     source: string | SimNode
@@ -100,14 +127,6 @@ const EDGE_ALPHA: Record<EdgeType, number> = {
   about: 0.22,
   relates: 0.55,
   summarizes: 0.3,
-}
-const BASE_R: Record<Kind, number> = {
-  gist: 2.6,
-  working: 2.6,
-  fact: 2.6,
-  entity: 3,
-  episodic: 3.4,
-  wiki: 4,
 }
 const ALL_TYPES_ON: Record<EdgeType, boolean> = {
   ctx: true,
@@ -137,6 +156,15 @@ const DEFAULT_KINDS: Record<Kind, boolean> = {
 const TAU = Math.PI * 2
 // ponytail: labels are the costliest draw call; cap per frame
 const LABEL_MAX = 150
+/** hovered/selected node: label its top neighbours by degree, at any zoom */
+const NEIGHBOR_LABEL_MAX = 40
+/** alpha for nodes outside the search / neighbourhood / selected cluster */
+const DIM_ALPHA = 0.12
+// preallocated pass lists so the draw loop allocates nothing per frame
+const PASS_NORMAL: ReadonlyArray<boolean> = [false]
+const PASS_DIM_FIRST: ReadonlyArray<boolean> = [true, false]
+const MINI_W = 150
+const MINI_H = 96
 const LIMIT_OPTIONS = [500, 1000, 2000, 5000] as const
 const LIMIT_KEY = 'memory-map-node-limit'
 
@@ -153,10 +181,8 @@ function readLimit(): number | null {
   return DEFAULT_NODE_LIMIT
 }
 
-function nodeRadius(n: SimNode): number {
-  // entity hubs grow with degree so the connectors stand out
-  const boost = n.kind === 'entity' ? Math.min(6, Math.sqrt(n.deg)) : 0
-  return BASE_R[n.kind] + boost
+function radiusOf(n: SimNode): number {
+  return nodeRadius(n.kind, n.deg)
 }
 
 function tracePath(
@@ -204,17 +230,42 @@ function tracePath(
   }
 }
 
-type Palette = { kind: Record<Kind, string>; text: string; bg: string }
-
-function readPalette(el: HTMLElement): Palette {
+function readPalette(el: HTMLElement): MapPalette {
   const v = (name: string, fb: string) => resolveCssColor(el, name, fb)
   const kind = {} as Record<Kind, string>
   for (const k of KIND_ORDER) kind[k] = v(`--mm-${k}`, FALLBACK_COLOR[k])
+  const muted = v('--theme-muted', '#6b8f74')
   return {
     kind,
+    cluster: [
+      ...Array.from({ length: CLUSTER_SLOTS }, (_, i) =>
+        v(`--mm-cluster-${i}`, muted),
+      ),
+      v('--mm-cluster-other', muted),
+    ],
+    // ramp + "undated" (muted) last
+    age: [
+      ...AGE_VARS.map((name) => v(name, muted)),
+      v('--mm-cluster-other', muted),
+    ],
     text: v('--theme-text', '#d8ffe3'),
     bg: v('--theme-bg', '#020804'),
+    accent: v('--theme-accent', '#00ff41'),
+    edge: muted,
   }
+}
+
+// Top-layer popovers have no anchor; place under the invoking button.
+function placePopBelow(e: React.ToggleEvent<HTMLElement>) {
+  if (e.newState !== 'open') return
+  const pop = e.currentTarget
+  const btn = pop.previousElementSibling
+  if (!btn) return
+  const r = btn.getBoundingClientRect()
+  // still display:none here; the computed width is the CSS-declared one
+  const w = parseFloat(getComputedStyle(pop).width) || 280
+  pop.style.top = `${r.bottom + 6}px`
+  pop.style.left = `${Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8))}px`
 }
 
 async function fetchGraph(profile: string): Promise<GraphResponse> {
@@ -314,6 +365,9 @@ function MemoryMapCanvas({
 }) {
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const miniRef = useRef<HTMLCanvasElement | null>(null)
+  const controlsRef = useRef<HTMLDivElement | null>(null)
+  const edgesPopId = useId()
   const apiRef = useRef<MapApi | null>(null)
   // node positions survive a refetch (data identity change)
   const posRef = useRef(new Map<string, { x: number; y: number }>())
@@ -323,10 +377,8 @@ function MemoryMapCanvas({
   const [visibleTypes, setVisibleTypes] = useState(DEFAULT_TYPES)
   const [visibleKinds, setVisibleKinds] = useState(DEFAULT_KINDS)
   const [minConnections, setMinConnections] = useState(0)
-  // MapViewState slots wired by later lanes: C renders colourBy (flips the
-  // default to 'cluster'), E adds rail controls for colourBy/selectedCluster,
-  // G drives focus.
-  const [colourBy, setColourBy] = useState<ColourBy>('kind')
+  // MapViewState slots; G drives focus.
+  const [colourBy, setColourBy] = useState<ColourBy>('cluster')
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null)
   const [focus, setFocus] = useState<MapViewState['focus']>(null)
   // null = every node that passes the filters ("Show all")
@@ -369,6 +421,12 @@ function MemoryMapCanvas({
     }
   }, [data])
 
+  // Full dataset, not the visible subset: colours stay stable under filters.
+  const clusters = useMemo(
+    () => computeClusters(data.nodes, data.edges),
+    [data],
+  )
+
   const visible = useMemo(
     () =>
       computeVisibleGraph(data.nodes, data.edges, {
@@ -389,8 +447,8 @@ function MemoryMapCanvas({
   // live refs so interaction state reaches the draw loop without rebuilding it
   // matchIds: null = no active search (nothing dimmed)
   const matchIds = search.trim() ? results.ids : null
-  const stateRef = useRef({ selectedId, matchIds })
-  stateRef.current = { selectedId, matchIds }
+  const stateRef = useRef({ selectedId, matchIds, colourBy, selectedCluster })
+  stateRef.current = { selectedId, matchIds, colourBy, selectedCluster }
 
   useEffect(() => {
     const wrapEl = wrapRef.current
@@ -398,6 +456,8 @@ function MemoryMapCanvas({
     if (!wrapEl || !canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    const mini = miniRef.current
+    const mctx = mini?.getContext('2d') ?? null
 
     const reduced = prefersReducedMotion()
     const dpr = Math.min(
@@ -408,10 +468,26 @@ function MemoryMapCanvas({
 
     // clone DTOs — d3-force mutates node/link objects in place.
     const positions = posRef.current
+    // age = recency of last-seen within the dataset's time span
+    const lastT = new Map<string, number>()
+    let tMin = Infinity
+    let tMax = -Infinity
+    for (const n of data.nodes) {
+      const iso = model.dates.get(n.id)?.last ?? n.lastAt
+      const t = iso ? Date.parse(iso) : NaN
+      if (!Number.isFinite(t)) continue
+      lastT.set(n.id, t)
+      if (t < tMin) tMin = t
+      if (t > tMax) tMax = t
+    }
     const nodes: Array<SimNode> = data.nodes.map((n) => ({
       ...n,
       ...positions.get(n.id),
       deg: model.deg.get(n.id) ?? 0,
+      cl: clusters.clusterOf.get(n.id) ?? -1,
+      age: ageOf(lastT.get(n.id), tMin, tMax),
+      ci: 0,
+      ki: KIND_ORDER.indexOf(n.kind),
     }))
     const edges: Array<SimEdge> = data.edges.map((e) => ({ ...e }))
     const nodeById = new Map(nodes.map((n) => [n.id, n]))
@@ -430,6 +506,10 @@ function MemoryMapCanvas({
       canvas!.style.height = `${height}px`
     }
     sizeCanvas()
+    if (mini) {
+      mini.width = MINI_W * dpr
+      mini.height = MINI_H * dpr
+    }
 
     const linkForce = forceLink<SimNode, SimEdge>([])
       .id((d) => d.id)
@@ -437,7 +517,7 @@ function MemoryMapCanvas({
       .strength(0.15)
     const chargeForce = forceManyBody<SimNode>().strength(-14).distanceMax(400)
     const collideForce = forceCollide<SimNode>()
-      .radius((d) => nodeRadius(d) + 1)
+      .radius((d) => radiusOf(d) + 1)
       .iterations(1)
     // dev-only perf hook: Playwright reads the settle time of one layout run
     // (drag re-heats leave simStart at 0 and are not recorded)
@@ -464,7 +544,22 @@ function MemoryMapCanvas({
     let visNodes: Array<SimNode> = []
     let visIds = new Set<string>()
     let visEdgeKey = ''
-    const visByKind = new Map<Kind, Array<SimNode>>()
+    // draw batches: one path per (shape, colour) — ≤ 6 shapes × 9 colours
+    let groups: Array<{ shape: Shape; ci: number; nodes: Array<SimNode> }> = []
+    let groupMode: ColourBy | null = null
+    function regroup(mode: ColourBy) {
+      groupMode = mode
+      const byKey = new Map<number, (typeof groups)[number]>()
+      for (const n of visNodes) {
+        n.ci = colourIndex(mode, n.kind, n.cl, n.age)
+        const key = n.ki * 16 + n.ci
+        const g = byKey.get(key)
+        if (g) g.nodes.push(n)
+        else byKey.set(key, { shape: KIND_SHAPE[n.kind], ci: n.ci, nodes: [n] })
+      }
+      groups = [...byKey.values()]
+      dotsDirty = miniDirty = true
+    }
     const edgesByType = new Map<EdgeType, Array<SimEdge>>()
     const visAdj = new Map<string, Array<SimNode>>()
     // label LOD: hubs by visible degree, most-connected first
@@ -488,15 +583,11 @@ function MemoryMapCanvas({
       visIds = nodeIds
       visEdgeKey = edgeKey
       visNodes = []
-      visByKind.clear()
       for (const id of nodeIds) {
         const n = nodeById.get(id)
-        if (!n) continue
-        visNodes.push(n)
-        const bucket = visByKind.get(n.kind)
-        if (bucket) bucket.push(n)
-        else visByKind.set(n.kind, [n])
+        if (n) visNodes.push(n)
       }
+      groupMode = null
       // seed newly shown nodes next to an already-placed neighbour
       for (const n of visNodes) {
         if (n.x != null && n.y != null) continue
@@ -565,17 +656,47 @@ function MemoryMapCanvas({
     }
 
     // ── drawing ───────────────────────────────────────────────────────────
+    // active (hover/selected) neighbourhood, cached until the active node or
+    // the visible set changes: the id set for dimming + neighbours by degree
+    let nbFor: string | null = null
+    let nbVis: Set<string> | null = null
+    const nbIds = new Set<string>()
+    let nbByDeg: Array<SimNode> = []
+    function neighborhood(activeId: string | null): Set<string> {
+      if (activeId === nbFor && visIds === nbVis) return nbIds
+      nbFor = activeId
+      nbVis = visIds
+      nbIds.clear()
+      nbByDeg = []
+      if (!activeId) return nbIds
+      nbIds.add(activeId)
+      for (const m of visAdj.get(activeId) ?? []) {
+        if (nbIds.has(m.id)) continue
+        nbIds.add(m.id)
+        nbByDeg.push(m)
+      }
+      nbByDeg.sort((a, b) => b.deg - a.deg)
+      return nbIds
+    }
+    // per-frame label scratch, reused (cleared) instead of reallocated
+    const labelled: Array<SimNode> = []
+    const labelIds = new Set<string>()
+    const labelTexts = new Set<string>()
     let raf = 0
+    let miniDirty = true
+    let lastMini = 0
     function draw() {
-      const { selectedId: sel, matchIds: hits } = stateRef.current
+      const {
+        selectedId: sel,
+        matchIds: hits,
+        colourBy: mode,
+        selectedCluster: selCl,
+      } = stateRef.current
+      if (groupMode !== mode) regroup(mode)
       const activeId =
         (hoverId && visIds.has(hoverId) ? hoverId : null) ??
         (sel && visIds.has(sel) ? sel : null)
-      const neighbors = new Set<string>()
-      if (activeId) {
-        neighbors.add(activeId)
-        for (const m of visAdj.get(activeId) ?? []) neighbors.add(m.id)
-      }
+      const neighbors = neighborhood(activeId)
 
       // viewport in simulation coords (with margin) for culling
       const m = 20 / transform.k
@@ -593,71 +714,83 @@ function MemoryMapCanvas({
       c.translate(transform.x, transform.y)
       c.scale(transform.k, transform.k)
 
-      // edges, batched per type; fade when zoomed out on a dense subset
+      // edges, batched per type; fade when zoomed out on a dense subset.
+      // With a cluster selected, edges leaving it get a faint second pass.
       c.lineWidth = Math.max(0.3, Math.min(1, transform.k)) / transform.k
       const edgeFade =
         visNodes.length > 600 && transform.k < 0.8
           ? Math.max(0.35, transform.k / 0.8)
           : 1
+      const edgePasses = selCl == null ? PASS_NORMAL : PASS_DIM_FIRST
       for (const type of EDGE_ORDER) {
         const bucket = edgesByType.get(type)
         if (!bucket) continue
-        c.strokeStyle = palette.kind[EDGE_KIND[type]]
-        c.globalAlpha = activeId
+        c.strokeStyle =
+          mode === 'kind' ? palette.kind[EDGE_KIND[type]] : palette.edge
+        const base = activeId
           ? Math.min(1, EDGE_ALPHA[type] * 2)
           : EDGE_ALPHA[type] * edgeFade
-        c.beginPath()
-        for (const e of bucket) {
-          const s = e.source as SimNode
-          const t = e.target as SimNode
-          if (s.x == null || s.y == null || t.x == null || t.y == null) continue
-          if (activeId && s.id !== activeId && t.id !== activeId) continue
-          if (
-            (s.x < x0 && t.x < x0) ||
-            (s.x > x1 && t.x > x1) ||
-            (s.y < y0 && t.y < y0) ||
-            (s.y > y1 && t.y > y1)
-          ) {
-            continue
+        for (const dimPass of edgePasses) {
+          c.globalAlpha = dimPass ? base * DIM_ALPHA : base
+          c.beginPath()
+          for (const e of bucket) {
+            const s = e.source as SimNode
+            const t = e.target as SimNode
+            if (s.x == null || s.y == null || t.x == null || t.y == null)
+              continue
+            if (activeId && s.id !== activeId && t.id !== activeId) continue
+            if (selCl != null && (s.cl !== selCl || t.cl !== selCl) !== dimPass)
+              continue
+            if (
+              (s.x < x0 && t.x < x0) ||
+              (s.x > x1 && t.x > x1) ||
+              (s.y < y0 && t.y < y0) ||
+              (s.y > y1 && t.y > y1)
+            ) {
+              continue
+            }
+            c.moveTo(s.x, s.y)
+            c.lineTo(t.x, t.y)
           }
-          c.moveTo(s.x, s.y)
-          c.lineTo(t.x, t.y)
+          c.stroke()
         }
-        c.stroke()
       }
 
-      // nodes, one path per kind × (normal | dimmed)
+      // nodes: dimmed batches first (underneath), then normal ones
+      const colours = paletteFor(mode, palette)
+      const dimState = {
+        hits,
+        neighbors: activeId ? neighbors : null,
+        selectedCluster: selCl,
+      }
+      const anyDim = hits != null || activeId != null || selCl != null
       const matched: Array<SimNode> = []
-      for (const kind of KIND_ORDER) {
-        const shape = KIND_SHAPE[kind]
-        for (const dimPass of [true, false]) {
+      for (const dimPass of anyDim ? PASS_DIM_FIRST : PASS_NORMAL) {
+        c.globalAlpha = dimPass ? DIM_ALPHA : 1
+        for (const g of groups) {
           c.beginPath()
           let any = false
-          for (const n of visByKind.get(kind) ?? []) {
+          for (const n of g.nodes) {
             if (n.x == null || n.y == null || !onScreen(n)) continue
-            const isMatch = hits?.has(n.id) ?? false
+            // the active / selected node itself never dims
             const dim =
-              (hits != null && !isMatch) ||
-              (activeId != null && !neighbors.has(n.id))
+              anyDim &&
+              n.id !== activeId &&
+              n.id !== sel &&
+              isDimmed(n.id, n.cl, dimState)
             if (dim !== dimPass) continue
-            if (isMatch && !dimPass) matched.push(n)
-            tracePath(
-              c,
-              shape,
-              n.x,
-              n.y,
-              shape === 'ring' ? nodeRadius(n) - 0.7 : nodeRadius(n),
-            )
+            if (!dimPass && hits?.has(n.id)) matched.push(n)
+            const r = radiusOf(n)
+            tracePath(c, g.shape, n.x, n.y, g.shape === 'ring' ? r - 0.7 : r)
             any = true
           }
           if (!any) continue
-          c.globalAlpha = dimPass ? 0.12 : 1
-          if (shape === 'ring') {
+          if (g.shape === 'ring') {
             c.lineWidth = 1.4
-            c.strokeStyle = palette.kind[kind]
+            c.strokeStyle = colours[g.ci]
             c.stroke()
           } else {
-            c.fillStyle = palette.kind[kind]
+            c.fillStyle = colours[g.ci]
             c.fill()
           }
         }
@@ -676,35 +809,50 @@ function MemoryMapCanvas({
           KIND_SHAPE[n.kind],
           n.x,
           n.y,
-          nodeRadius(n) + 2 / transform.k,
+          radiusOf(n) + 2 / transform.k,
         )
         c.stroke()
       }
       if (matched.length > 0) {
         c.beginPath()
         for (const n of matched)
-          tracePath(c, KIND_SHAPE[n.kind], n.x!, n.y!, nodeRadius(n))
+          tracePath(c, KIND_SHAPE[n.kind], n.x!, n.y!, radiusOf(n))
         c.stroke()
       }
 
-      // labels (LOD): active neighbourhood + search hits always; entity/wiki
-      // hubs by degree — only the biggest few when zoomed out, all on-screen
-      // ones once zoomed in. Capped per frame.
-      const labelled: Array<SimNode> = []
-      const seen = new Set<string>()
-      const addLabel = (n: SimNode | undefined) => {
-        if (labelled.length >= LABEL_MAX || !n || seen.has(n.id)) return
-        if (n.x == null || !onScreen(n)) return
-        seen.add(n.id)
+      // labels (LOD): selected, hovered and search hits always; then the
+      // active node's top neighbours by degree (any zoom, capped, identical
+      // text once); else entity/wiki hubs (within the selected cluster) —
+      // the biggest few when zoomed out, more as you zoom in.
+      labelled.length = 0
+      labelIds.clear()
+      labelTexts.clear()
+      const addLabel = (n: SimNode | undefined): boolean => {
+        if (labelled.length >= LABEL_MAX || !n || labelIds.has(n.id))
+          return false
+        if (n.x == null || !onScreen(n)) return false
+        n.lt ??= shortLabel(n, 28, model.dates.get(n.id)?.last ?? null)
+        if (labelTexts.has(n.lt)) return false
+        labelIds.add(n.id)
+        labelTexts.add(n.lt)
         labelled.push(n)
+        return true
       }
+      if (sel && visIds.has(sel)) addLabel(nodeById.get(sel))
       if (activeId) addLabel(nodeById.get(activeId))
       for (const n of matched) addLabel(n)
-      if (activeId) for (const id of neighbors) addLabel(nodeById.get(id))
-      if (!activeId) {
-        const hubCap =
-          transform.k >= 1.4 ? LABEL_MAX : transform.k >= 0.6 ? 25 : 10
-        for (let i = 0; i < hubs.length && i < hubCap; i++) addLabel(hubs[i])
+      const k = transform.k
+      if (activeId) {
+        for (let i = 0, added = 0; i < nbByDeg.length; i++) {
+          if (added >= NEIGHBOR_LABEL_MAX) break
+          if (addLabel(nbByDeg[i])) added++
+        }
+      } else {
+        const hubCap = k >= 1.4 ? LABEL_MAX : k >= 0.9 ? 50 : k >= 0.6 ? 25 : 10
+        for (let i = 0, added = 0; i < hubs.length && added < hubCap; i++) {
+          if (selCl != null && hubs[i].cl !== selCl) continue
+          if (addLabel(hubs[i])) added++
+        }
       }
       if (labelled.length > 0) {
         const fs = 11 / transform.k
@@ -714,14 +862,89 @@ function MemoryMapCanvas({
         c.strokeStyle = palette.bg
         c.fillStyle = palette.text
         for (const n of labelled) {
-          const text = shortLabel(n, 28, model.dates.get(n.id)?.last ?? null)
-          const lx = n.x! + nodeRadius(n) + 3 / transform.k
+          const lx = n.x! + radiusOf(n) + 3 / transform.k
           const ly = n.y! + fs * 0.35
-          c.strokeText(text, lx, ly)
-          c.fillText(text, lx, ly)
+          c.strokeText(n.lt!, lx, ly)
+          c.fillText(n.lt!, lx, ly)
         }
       }
       c.restore()
+
+      if (miniDirty || dotsCl !== selCl) drawMini()
+    }
+
+    // ── minimap: dots cached offscreen; a pan/zoom only blits + strokes ─────
+    let miniT: MiniTransform | null = null
+    const dots =
+      mctx && typeof document !== 'undefined'
+        ? document.createElement('canvas')
+        : null
+    const dctx = dots?.getContext('2d') ?? null
+    if (dots) {
+      dots.width = MINI_W * dpr
+      dots.height = MINI_H * dpr
+    }
+    let dotsDirty = true
+    let dotsCl: number | null = null
+    function drawDots(selCl: number | null) {
+      dotsDirty = false
+      dotsCl = selCl
+      lastMini = performance.now()
+      let minX = Infinity
+      let minY = Infinity
+      let maxX = -Infinity
+      let maxY = -Infinity
+      for (const n of visNodes) {
+        if (n.x == null || n.y == null) continue
+        if (n.x < minX) minX = n.x
+        if (n.x > maxX) maxX = n.x
+        if (n.y < minY) minY = n.y
+        if (n.y > maxY) maxY = n.y
+      }
+      miniT = Number.isFinite(minX)
+        ? minimapTransform({ minX, minY, maxX, maxY }, MINI_W, MINI_H)
+        : null
+      if (!dctx) return
+      dctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      dctx.clearRect(0, 0, MINI_W, MINI_H)
+      const mt = miniT
+      if (!mt) return
+      const colours = paletteFor(stateRef.current.colourBy, palette)
+      // with a cluster selected, the rest fade as on the main canvas
+      for (const dimPass of selCl == null ? PASS_NORMAL : PASS_DIM_FIRST) {
+        dctx.globalAlpha = dimPass ? DIM_ALPHA : 0.8
+        for (const g of groups) {
+          dctx.beginPath()
+          for (const n of g.nodes) {
+            if (n.x == null || n.y == null) continue
+            if (selCl != null && (n.cl !== selCl) !== dimPass) continue
+            dctx.rect(
+              n.x * mt.k + mt.x - 0.75,
+              n.y * mt.k + mt.y - 0.75,
+              1.5,
+              1.5,
+            )
+          }
+          dctx.fillStyle = colours[g.ci]
+          dctx.fill()
+        }
+      }
+      dctx.globalAlpha = 1
+    }
+    function drawMini() {
+      miniDirty = false
+      if (!mctx) return
+      const selCl = stateRef.current.selectedCluster
+      if (dotsDirty || dotsCl !== selCl) drawDots(selCl)
+      mctx.setTransform(1, 0, 0, 1, 0, 0)
+      mctx.clearRect(0, 0, mini!.width, mini!.height)
+      if (dots) mctx.drawImage(dots, 0, 0)
+      if (!miniT) return
+      mctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      const r = viewportRect(transform, width, height, miniT)
+      mctx.strokeStyle = palette.accent
+      mctx.lineWidth = 1
+      mctx.strokeRect(r.x, r.y, r.w, r.h)
     }
     function scheduleDraw() {
       if (raf) return
@@ -730,8 +953,14 @@ function MemoryMapCanvas({
         draw()
       })
     }
-    sim.on('tick', scheduleDraw)
+    sim.on('tick', () => {
+      // minimap follows the layout at ~2 Hz while it settles
+      if (performance.now() - lastMini > 500) dotsDirty = miniDirty = true
+      scheduleDraw()
+    })
     sim.on('end', () => {
+      dotsDirty = miniDirty = true
+      scheduleDraw()
       markSettled()
       if (!fitted) {
         fitted = true
@@ -759,6 +988,7 @@ function MemoryMapCanvas({
         // user took control during the first layout: don't auto-fit over it
         if (event.sourceEvent) fitted = true
         transform = event.transform
+        miniDirty = true
         scheduleDraw()
       })
     const canvasSel = select(canvas)
@@ -768,6 +998,16 @@ function MemoryMapCanvas({
         .transition()
         .duration(animate && !reduced ? 450 : 0)
         .call(zoomBehavior.transform as any, t)
+
+    /** Centre of the canvas area not covered by the rail / open inspector. */
+    function viewCentre(): [number, number] {
+      const railW =
+        parseFloat(getComputedStyle(wrapEl!).getPropertyValue('--mm-rail-w')) ||
+        0
+      const insp = wrapEl!.querySelector<HTMLElement>('.mm-detail')
+      const inspW = insp ? insp.offsetWidth + 24 : 0
+      return [(railW + width - inspW) / 2, height / 2]
+    }
 
     function fit(animate = true) {
       let minX = Infinity
@@ -837,6 +1077,59 @@ function MemoryMapCanvas({
       })
     canvasSel.call(dragBehavior as any)
 
+    // ── minimap: click / drag centres the view there; arrows pan ────────────
+    let miniDrag = false
+    function miniPan(ev: PointerEvent) {
+      if (!miniT) return
+      const rect = mini!.getBoundingClientRect()
+      const [sx, sy] = miniToSim(
+        ev.clientX - rect.left,
+        ev.clientY - rect.top,
+        miniT,
+      )
+      fitted = true
+      canvasSel.interrupt()
+      zoomBehavior.translateTo(canvasSel as any, sx, sy, viewCentre())
+    }
+    function onMiniDown(ev: PointerEvent) {
+      if (ev.button !== 0) return
+      miniDrag = true
+      mini!.setPointerCapture(ev.pointerId)
+      miniPan(ev)
+    }
+    function onMiniMove(ev: PointerEvent) {
+      if (miniDrag) miniPan(ev)
+    }
+    function onMiniUp(ev: PointerEvent) {
+      miniDrag = false
+      if (mini!.hasPointerCapture(ev.pointerId))
+        mini!.releasePointerCapture(ev.pointerId)
+    }
+    function onMiniKey(ev: KeyboardEvent) {
+      if (ev.key === 'Home' || ev.key === '0') {
+        ev.preventDefault()
+        fit()
+        return
+      }
+      const step = 80 / transform.k
+      const d: Record<string, [number, number]> = {
+        ArrowLeft: [step, 0],
+        ArrowRight: [-step, 0],
+        ArrowUp: [0, step],
+        ArrowDown: [0, -step],
+      }
+      const v = d[ev.key] as [number, number] | undefined
+      if (!v) return
+      ev.preventDefault()
+      fitted = true
+      zoomBehavior.translateBy(canvasSel as any, v[0], v[1])
+    }
+    mini?.addEventListener('pointerdown', onMiniDown)
+    mini?.addEventListener('pointermove', onMiniMove)
+    mini?.addEventListener('pointerup', onMiniUp)
+    mini?.addEventListener('pointercancel', onMiniUp)
+    mini?.addEventListener('keydown', onMiniKey)
+
     // ── hover (ref only — no React render per mousemove) / click ─────────
     function onMove(ev: MouseEvent) {
       const rect = canvas!.getBoundingClientRect()
@@ -878,6 +1171,7 @@ function MemoryMapCanvas({
       width = wrapEl.clientWidth || width
       height = wrapEl.clientHeight || height
       sizeCanvas()
+      miniDirty = true
       sim.force('center', forceCenter(width / 2, height / 2))
       sim.force('x', forceX(width / 2).strength(0.02))
       sim.force('y', forceY(height / 2).strength(0.02))
@@ -886,6 +1180,7 @@ function MemoryMapCanvas({
     ro.observe(wrapEl)
     const mo = new MutationObserver(() => {
       palette = readPalette(wrapEl)
+      dotsDirty = miniDirty = true
       scheduleDraw()
     })
     mo.observe(document.documentElement, {
@@ -906,11 +1201,8 @@ function MemoryMapCanvas({
         const n = nodeById.get(id)
         if (n?.x == null || n.y == null) return
         const k = Math.max(transform.k, 1.8)
-        moveTo(
-          zoomIdentity
-            .translate(width / 2 - k * n.x, height / 2 - k * n.y)
-            .scale(k),
-        )
+        const [cx, cy] = viewCentre()
+        moveTo(zoomIdentity.translate(cx - k * n.x, cy - k * n.y).scale(k))
       },
     }
 
@@ -928,10 +1220,30 @@ function MemoryMapCanvas({
       canvas.removeEventListener('mouseleave', onLeave)
       canvas.removeEventListener('click', onClick)
       canvas.removeEventListener('dblclick', onDblClick)
+      mini?.removeEventListener('pointerdown', onMiniDown)
+      mini?.removeEventListener('pointermove', onMiniMove)
+      mini?.removeEventListener('pointerup', onMiniUp)
+      mini?.removeEventListener('pointercancel', onMiniUp)
+      mini?.removeEventListener('keydown', onMiniKey)
       apiRef.current = null
     }
     // Rebuild only when the dataset changes; interaction reads via stateRef.
-  }, [data, model])
+  }, [data, model, clusters])
+
+  // the toolbar wraps at narrow widths: rail / inspector start below it
+  useEffect(() => {
+    const el = controlsRef.current
+    const wrap = wrapRef.current
+    if (!el || !wrap || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() =>
+      wrap.style.setProperty(
+        '--mm-rail-top',
+        `${el.offsetTop + el.offsetHeight + 8}px`,
+      ),
+    )
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   // push the visible subset into the simulation (after the build effect)
   useEffect(() => {
@@ -946,7 +1258,7 @@ function MemoryMapCanvas({
   // repaint on selection / search change (sim may be cooled)
   useEffect(() => {
     apiRef.current?.redraw()
-  }, [selectedId, matchIds])
+  }, [selectedId, matchIds, colourBy, selectedCluster])
 
   function focusNode(id: string) {
     const n = model.byId.get(id)
@@ -996,7 +1308,7 @@ function MemoryMapCanvas({
         if (e.key === 'Escape' && selectedId) setSelectedId(null)
       }}
     >
-      <div className="mm-controls">
+      <div className="mm-controls" ref={controlsRef}>
         <div className="mm-search-wrap">
           <input
             type="search"
@@ -1089,48 +1401,80 @@ function MemoryMapCanvas({
           ))}
           <option value="all">All nodes</option>
         </select>
-        <div className="mm-zoom" role="group" aria-label="View controls">
-          <button
-            type="button"
-            className="mm-zoom-btn"
-            aria-label="Zoom in"
-            onClick={() => apiRef.current?.zoomBy(1.4)}
-          >
-            +
-          </button>
-          <button
-            type="button"
-            className="mm-zoom-btn"
-            aria-label="Zoom out"
-            onClick={() => apiRef.current?.zoomBy(1 / 1.4)}
-          >
-            −
-          </button>
-          <button
-            type="button"
-            className="mm-zoom-btn"
-            aria-label="Fit to screen"
-            title="Fit to screen"
-            onClick={() => apiRef.current?.fit()}
-          >
-            ⤢
-          </button>
-          <button
-            type="button"
-            className={`mm-zoom-btn ${refreshing ? 'is-busy' : ''}`}
-            aria-label="Refresh map"
-            title="Refresh map"
-            disabled={refreshing}
-            onClick={onRefresh}
-          >
-            ⟳
-          </button>
+        <button
+          type="button"
+          className={`mm-zoom-btn ${refreshing ? 'is-busy' : ''}`}
+          aria-label="Refresh map"
+          title="Refresh map"
+          disabled={refreshing}
+          onClick={onRefresh}
+        >
+          ⟳
+        </button>
+        <div className="mm-pill" role="note">
+          <span>
+            {shown.toLocaleString()}
+            <span className="mm-pill-long"> of </span>
+            <span className="mm-pill-short" aria-hidden="true">
+              /
+            </span>
+            {visible.candidates.toLocaleString()}
+            <span className="mm-pill-long"> shown</span>
+          </span>
+          {(limited || showAll) && (
+            <button
+              type="button"
+              className="mm-link-btn"
+              onClick={() => setNodeLimit(showAll ? lastLimit : null)}
+            >
+              {showAll ? `Top ${lastLimit}` : 'Show all'}
+            </button>
+          )}
+          {(data.meta.junkFacts ?? 0) > 0 && (
+            <span>
+              · {data.meta.junkFacts!.toLocaleString()} junk
+              <span className="mm-pill-long"> hidden</span>
+            </span>
+          )}
+          {data.meta.truncated && droppedEdges > 0 && (
+            <>
+              <button
+                type="button"
+                className="mm-link-btn mm-status-warn"
+                popoverTarget={edgesPopId}
+                aria-label={`Edges trimmed: ${droppedEdges} edges cut by the server limit. More info`}
+                onKeyDown={(e) => {
+                  // Escape closes the popover only, not the inspector too
+                  if (
+                    e.key === 'Escape' &&
+                    document
+                      .getElementById(edgesPopId)
+                      ?.matches(':popover-open')
+                  )
+                    e.stopPropagation()
+                }}
+              >
+                · edges<span className="mm-pill-long"> trimmed</span> ⓘ
+              </button>
+              <div
+                id={edgesPopId}
+                className="mm-pill-pop"
+                popover="auto"
+                onBeforeToggle={placePopBelow}
+              >
+                {droppedEdges.toLocaleString()} of{' '}
+                {data.meta.rawEdgeCount.toLocaleString()} edges were cut by the
+                server&apos;s edge limit, so some links between shown nodes are
+                missing. Nodes are unaffected.
+              </div>
+            </>
+          )}
         </div>
       </div>
 
       <MapRail
         colourBy={colourBy}
-        clusters={null /* Lane C computes clusters */}
+        clusters={clusters}
         defaultTypes={DEFAULT_TYPES}
         defaultKinds={DEFAULT_KINDS}
         selectedCluster={selectedCluster}
@@ -1156,6 +1500,46 @@ function MemoryMapCanvas({
         aria-label={`Memory map: showing ${shown} of ${data.meta.nodeCount} nodes`}
       />
 
+      <div className="mm-zoom" role="group" aria-label="Zoom controls">
+        <button
+          type="button"
+          className="mm-zoom-btn"
+          aria-label="Zoom in"
+          title="Zoom in"
+          onClick={() => apiRef.current?.zoomBy(1.4)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="mm-zoom-btn"
+          aria-label="Zoom out"
+          title="Zoom out"
+          onClick={() => apiRef.current?.zoomBy(1 / 1.4)}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="mm-zoom-btn"
+          aria-label="Fit to screen"
+          title="Fit to screen"
+          onClick={() => apiRef.current?.fit()}
+        >
+          ⤢
+        </button>
+      </div>
+      <canvas
+        ref={miniRef}
+        className="mm-minimap"
+        tabIndex={0}
+        role="application"
+        aria-roledescription="minimap"
+        width={MINI_W}
+        height={MINI_H}
+        aria-label="Click or drag to move the view; arrow keys pan, Home or 0 fits"
+      />
+
       {shown === 0 && (
         <div className="mm-empty" role="status">
           No nodes match the current filters.
@@ -1170,6 +1554,7 @@ function MemoryMapCanvas({
           profile={profile}
           selected={selected}
           model={model}
+          clusters={clusters}
           onClose={() => {
             setSelectedId(null)
             canvasRef.current?.focus({ preventScroll: true })
@@ -1185,28 +1570,6 @@ function MemoryMapCanvas({
           onOpenInWiki={openInWiki}
         />
       )}
-
-      <div className="mm-status" role="note">
-        Showing {shown} of {visible.candidates} nodes
-        {(limited || showAll) && (
-          <button
-            type="button"
-            className="mm-link-btn"
-            onClick={() => setNodeLimit(showAll ? lastLimit : null)}
-          >
-            {showAll ? `Top ${lastLimit}` : 'Show all'}
-          </button>
-        )}
-        {(data.meta.junkFacts ?? 0) > 0 && (
-          <span> · {data.meta.junkFacts} junk facts hidden</span>
-        )}
-        {data.meta.truncated && droppedEdges > 0 && (
-          <span className="mm-status-warn">
-            {' '}
-            · {droppedEdges} edges cut by server limit
-          </span>
-        )}
-      </div>
     </div>
   )
 }

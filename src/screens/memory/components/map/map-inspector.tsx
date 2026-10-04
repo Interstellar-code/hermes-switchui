@@ -131,6 +131,8 @@ export function MapInspector({
     () => new Map(clusters?.clusters.map((c) => [c.id, c])),
     [clusters],
   )
+  const isOther = (nodeId: string): boolean =>
+    clusterInfo.get(clusters?.clusterOf.get(nodeId) ?? NaN)?.slot == null
   const clusterVar = (nodeId: string): string => {
     const c = clusterInfo.get(clusters?.clusterOf.get(nodeId) ?? NaN)
     return c?.slot == null
@@ -358,7 +360,8 @@ export function MapInspector({
                 <button
                   key={n.id}
                   type="button"
-                  className="mm-detail-chip"
+                  className={`mm-detail-chip ${isOther(n.id) ? 'is-other' : ''}`}
+                  title={isOther(n.id) ? 'Other cluster' : undefined}
                   style={{ color: clusterVar(n.id) }}
                   onClick={() => onFocusNode(n.id)}
                 >

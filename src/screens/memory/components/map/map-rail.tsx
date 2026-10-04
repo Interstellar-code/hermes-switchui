@@ -151,6 +151,19 @@ export function MapRail({
                 </button>
               ))}
             </div>
+            {colourBy === 'age' && (
+              <div className="mm-age-key" aria-label="Age colours">
+                <span>old</span>
+                <span className="mm-age-ramp" aria-hidden="true" />
+                <span>new</span>
+                <span
+                  className="mm-cluster-swatch"
+                  style={{ background: 'var(--mm-cluster-other)' }}
+                  aria-hidden="true"
+                />
+                <span>undated</span>
+              </div>
+            )}
           </section>
 
           <section className="mm-rail-sec">
