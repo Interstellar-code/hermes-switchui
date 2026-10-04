@@ -214,8 +214,20 @@ describe('labels + lookups', () => {
 
   it('computes degree and latest edge date per node', () => {
     expect(degreeMap(EDGES).get('hub')).toBe(4)
-    expect(nodeDates(EDGES).get('hub')).toBe('2026-03-01T00:00:00Z')
+    expect(nodeDates(EDGES).get('hub')?.last).toBe('2026-03-01T00:00:00Z')
     expect(nodeDates(EDGES).has('b')).toBe(false)
+  })
+
+  it('nodeDates returns first + last, skipping null timestamps', () => {
+    const d = nodeDates([
+      edge('n', 'x', 'about', '2026-05-01T00:00:00Z'),
+      edge('n', 'y', 'about', null),
+      edge('z', 'n', 'about', '2026-02-01T00:00:00Z'),
+    ])
+    expect(d.get('n')).toEqual({
+      first: '2026-02-01T00:00:00Z',
+      last: '2026-05-01T00:00:00Z',
+    })
   })
 
   it('searches labels with prefix hits first, then by degree', () => {

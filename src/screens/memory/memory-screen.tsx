@@ -16,6 +16,7 @@ import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import {
   DEFAULT_MEMORY_PROFILE,
+  useMemoryChatStore,
   useMemoryScreenStore,
 } from '@/stores/memory-screen-store'
 import '@/styles/matrix-memory.css'
@@ -342,6 +343,15 @@ export function MemoryScreen() {
       setActiveTab('memory')
     }
   }, [activeTab, setActiveTab])
+
+  // askMemory(q) from any tab opens the drawer; chat-tab prefills the seed.
+  const chatSeq = useMemoryChatStore((s) => s.chatRequest?.seq)
+  useEffect(() => {
+    if (chatSeq != null) {
+      setChatMounted(true)
+      setChatOpen(true)
+    }
+  }, [chatSeq])
 
   // If a matrix-memory tab is persisted-active but it's unavailable, fall back.
   useEffect(() => {

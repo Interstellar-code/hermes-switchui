@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -9,7 +10,10 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryScreen, healthItems, nextTabId } from './memory-screen'
-import { useMemoryScreenStore } from '@/stores/memory-screen-store'
+import {
+  useMemoryChatStore,
+  useMemoryScreenStore,
+} from '@/stores/memory-screen-store'
 
 // Stub the lazy tab bodies so the screen renders without heavy deps.
 vi.mock('./components/agent-memory-tab', () => ({
@@ -106,6 +110,25 @@ describe('MemoryScreen — matrix-memory tab gating (Map + Browse)', () => {
 })
 
 describe('MemoryScreen — IA', () => {
+  it('askMemory opens the chat drawer, and re-opens on a repeat ask', async () => {
+    useMemoryChatStore.setState({ chatRequest: null })
+    mockStats(true, 42)
+    renderScreen()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    act(() => useMemoryChatStore.getState().askMemory(null))
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: /chat/i })).toBeTruthy(),
+    )
+    fireEvent.click(screen.getByRole('button', { name: /close chat/i }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    act(() => useMemoryChatStore.getState().askMemory('What about X?'))
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /close chat/i }))
+    act(() => useMemoryChatStore.getState().askMemory('What about X?'))
+    await waitFor(() => expect(screen.getByRole('dialog')).toBeTruthy())
+    useMemoryChatStore.setState({ chatRequest: null })
+  })
+
   it('opens a persisted chat tab as a drawer and settings via the gear', async () => {
     useMemoryScreenStore.setState({ activeTab: 'chat' })
     mockStats(true, 42)

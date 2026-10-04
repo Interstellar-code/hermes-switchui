@@ -22,7 +22,7 @@
  * its own shape so colour is never the only cue.
  */
 
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { drag as d3drag } from 'd3-drag'
 import {
@@ -39,7 +39,6 @@ import { zoom as d3zoom, zoomIdentity, zoomTransform } from 'd3-zoom'
 import {
   DEFAULT_NODE_LIMIT,
   buildSearchIndex,
-  cleanLabel,
   computeVisibleGraph,
   degreeMap,
   nodeDates,
@@ -47,13 +46,25 @@ import {
   shortLabel,
 } from './memory-map-graph'
 import { useWikiFocusStore } from './wiki-focus-store'
+import { MapInspector } from './map/map-inspector'
+import {
+  EDGE_KIND,
+  EDGE_ORDER,
+  KIND_ORDER,
+  KIND_SHAPE,
+  KindGlyph,
+} from './map/map-kinds'
+import { MapRail } from './map/map-rail'
+import { resolveCssColor } from './map/palette'
+import type { Shape } from './map/map-kinds'
 import type {
+  ColourBy,
   EdgeType,
   GraphEdge,
   GraphNode,
-  GraphNodeDetail,
   GraphResponse,
   Kind,
+  MapViewState,
 } from './memory-map-graph'
 import type {
   Simulation,
@@ -73,32 +84,6 @@ type SimEdge = Omit<GraphEdge, 'source' | 'target'> &
 
 // ── palette / geometry ──────────────────────────────────────────────────────
 
-type Shape = 'circle' | 'ring' | 'triangle' | 'diamond' | 'hexagon' | 'square'
-
-const KIND_ORDER: ReadonlyArray<Kind> = [
-  'gist',
-  'working',
-  'fact',
-  'entity',
-  'episodic',
-  'wiki',
-]
-const EDGE_ORDER: ReadonlyArray<EdgeType> = [
-  'mentions',
-  'about',
-  'ctx',
-  'summarizes',
-  'references',
-  'relates',
-]
-const KIND_SHAPE: Record<Kind, Shape> = {
-  gist: 'circle',
-  working: 'ring',
-  fact: 'triangle',
-  entity: 'diamond',
-  episodic: 'hexagon',
-  wiki: 'square',
-}
 // Used only when the theme vars can't be read (e.g. stylesheet missing).
 const FALLBACK_COLOR: Record<Kind, string> = {
   gist: '#00ff41',
@@ -107,15 +92,6 @@ const FALLBACK_COLOR: Record<Kind, string> = {
   entity: '#ffb347',
   episodic: '#c792ea',
   wiki: '#ff6b9d',
-}
-// Edges borrow a kind colour (drawn with globalAlpha).
-const EDGE_KIND: Record<EdgeType, Kind> = {
-  ctx: 'gist',
-  references: 'wiki',
-  mentions: 'entity',
-  about: 'fact',
-  relates: 'episodic',
-  summarizes: 'working',
 }
 const EDGE_ALPHA: Record<EdgeType, number> = {
   ctx: 0.3,
@@ -176,8 +152,6 @@ function readLimit(): number | null {
   }
   return DEFAULT_NODE_LIMIT
 }
-// ponytail: expanded neighbour list is capped; paginate if hubs need more
-const NEIGHBOUR_MAX = 200
 
 function nodeRadius(n: SimNode): number {
   // entity hubs grow with degree so the connectors stand out
@@ -230,42 +204,10 @@ function tracePath(
   }
 }
 
-/** SVG twin of tracePath for legend / panel chips. */
-function KindGlyph({ kind }: { kind: Kind }) {
-  const fill = `var(--mm-${kind})`
-  const shape = KIND_SHAPE[kind]
-  return (
-    <svg className="mm-glyph" viewBox="0 0 12 12" aria-hidden="true">
-      {shape === 'circle' && <circle cx="6" cy="6" r="4.5" fill={fill} />}
-      {shape === 'ring' && (
-        <circle
-          cx="6"
-          cy="6"
-          r="3.8"
-          fill="none"
-          stroke={fill}
-          strokeWidth="1.8"
-        />
-      )}
-      {shape === 'square' && (
-        <rect x="1.8" y="1.8" width="8.4" height="8.4" rx="1" fill={fill} />
-      )}
-      {shape === 'diamond' && (
-        <path d="M6 0.6L11.4 6 6 11.4 0.6 6z" fill={fill} />
-      )}
-      {shape === 'triangle' && <path d="M6 1L11.2 10.5H0.8z" fill={fill} />}
-      {shape === 'hexagon' && (
-        <path d="M11 6L8.5 10.3h-5L1 6l2.5-4.3h5z" fill={fill} />
-      )}
-    </svg>
-  )
-}
-
 type Palette = { kind: Record<Kind, string>; text: string; bg: string }
 
 function readPalette(el: HTMLElement): Palette {
-  const cs = getComputedStyle(el)
-  const v = (name: string, fb: string) => cs.getPropertyValue(name).trim() || fb
+  const v = (name: string, fb: string) => resolveCssColor(el, name, fb)
   const kind = {} as Record<Kind, string>
   for (const k of KIND_ORDER) kind[k] = v(`--mm-${k}`, FALLBACK_COLOR[k])
   return {
@@ -273,13 +215,6 @@ function readPalette(el: HTMLElement): Palette {
     text: v('--theme-text', '#d8ffe3'),
     bg: v('--theme-bg', '#020804'),
   }
-}
-
-function dateRange(a?: string | null, b?: string | null): string {
-  const d1 = a?.slice(0, 10)
-  const d2 = b?.slice(0, 10)
-  if (!d1 || !d2) return d1 ?? d2 ?? '—'
-  return d1 === d2 ? d1 : `${d1} → ${d2}`
 }
 
 async function fetchGraph(profile: string): Promise<GraphResponse> {
@@ -292,23 +227,6 @@ async function fetchGraph(profile: string): Promise<GraphResponse> {
     throw new Error(payload.error ?? `Request failed (${res.status})`)
   }
   return res.json() as Promise<GraphResponse>
-}
-
-async function fetchNode(
-  id: string,
-  profile: string,
-): Promise<GraphNodeDetail> {
-  const res = await fetch(
-    `/api/memory/graph/node?id=${encodeURIComponent(id)}&profile=${encodeURIComponent(profile)}`,
-    {
-      credentials: 'same-origin',
-    },
-  )
-  if (!res.ok) {
-    const payload = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(payload.error ?? `Request failed (${res.status})`)
-  }
-  return res.json() as Promise<GraphNodeDetail>
 }
 
 function prefersReducedMotion(): boolean {
@@ -405,6 +323,12 @@ function MemoryMapCanvas({
   const [visibleTypes, setVisibleTypes] = useState(DEFAULT_TYPES)
   const [visibleKinds, setVisibleKinds] = useState(DEFAULT_KINDS)
   const [minConnections, setMinConnections] = useState(0)
+  // MapViewState slots wired by later lanes: C renders colourBy (flips the
+  // default to 'cluster'), E adds rail controls for colourBy/selectedCluster,
+  // G drives focus.
+  const [colourBy, setColourBy] = useState<ColourBy>('kind')
+  const [selectedCluster, setSelectedCluster] = useState<number | null>(null)
+  const [focus, setFocus] = useState<MapViewState['focus']>(null)
   // null = every node that passes the filters ("Show all")
   const [nodeLimit, setNodeLimitState] = useState<number | null>(readLimit)
   const showAll = nodeLimit == null
@@ -413,7 +337,6 @@ function MemoryMapCanvas({
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [resultsOpen, setResultsOpen] = useState(false)
   const [activeResult, setActiveResult] = useState(0)
-  const [expandedKinds, setExpandedKinds] = useState<Set<Kind>>(new Set())
   const [focusReq, setFocusReq] = useState<{ id: string; seq: number } | null>(
     null,
   )
@@ -517,6 +440,17 @@ function MemoryMapCanvas({
     const collideForce = forceCollide<SimNode>()
       .radius((d) => nodeRadius(d) + 1)
       .iterations(1)
+    // dev-only perf hook: Playwright reads the settle time of one layout run
+    // (drag re-heats leave simStart at 0 and are not recorded)
+    let simStart = 0
+    function markSettled() {
+      if (!import.meta.env.DEV || simStart === 0) return
+      ;(window as { __mmSettleMs?: number }).__mmSettleMs = Math.round(
+        performance.now() - simStart,
+      )
+      simStart = 0
+      canvas!.dataset.settled = '1'
+    }
     const sim = forceSimulation<SimNode, SimEdge>([])
       .force('link', linkForce)
       .force('charge', chargeForce)
@@ -611,6 +545,10 @@ function MemoryMapCanvas({
       chargeForce.theta(big ? 1.2 : 0.9)
       collideForce.iterations(visNodes.length > 3000 ? 0 : 1)
 
+      if (import.meta.env.DEV) {
+        simStart = performance.now()
+        delete canvas!.dataset.settled
+      }
       if (reduced) {
         sim.stop()
         // sync ticks block the main thread; scale down for big subsets
@@ -621,6 +559,7 @@ function MemoryMapCanvas({
           fit(false)
         }
         scheduleDraw()
+        markSettled()
       } else {
         sim.alpha(fitted ? 0.4 : 1).restart()
       }
@@ -776,7 +715,7 @@ function MemoryMapCanvas({
         c.strokeStyle = palette.bg
         c.fillStyle = palette.text
         for (const n of labelled) {
-          const text = shortLabel(n, 28, model.dates.get(n.id) ?? null)
+          const text = shortLabel(n, 28, model.dates.get(n.id)?.last ?? null)
           const lx = n.x! + nodeRadius(n) + 3 / transform.k
           const ly = n.y! + fs * 0.35
           c.strokeText(text, lx, ly)
@@ -794,6 +733,7 @@ function MemoryMapCanvas({
     }
     sim.on('tick', scheduleDraw)
     sim.on('end', () => {
+      markSettled()
       if (!fitted) {
         fitted = true
         fit()
@@ -1004,11 +944,6 @@ function MemoryMapCanvas({
     apiRef.current?.redraw()
   }, [selectedId, matchIds])
 
-  // collapse "+N more" groups when the selection changes
-  useEffect(() => {
-    setExpandedKinds(new Set())
-  }, [selectedId])
-
   function focusNode(id: string) {
     const n = model.byId.get(id)
     if (!n) return
@@ -1043,34 +978,6 @@ function MemoryMapCanvas({
     KIND_ORDER.some((k) => visibleKinds[k] !== DEFAULT_KINDS[k])
 
   const selected = selectedId ? model.byId.get(selectedId) : undefined
-  const detailQuery = useQuery({
-    queryKey: ['memory', 'map', 'node', profile, selectedId],
-    queryFn: () => fetchNode(selectedId!, profile),
-    enabled: !!selectedId,
-    staleTime: 60_000,
-  })
-  const detail =
-    detailQuery.data?.id === selectedId ? detailQuery.data : undefined
-  const lastSeen = selected ? model.dates.get(selected.id) : undefined
-  const neighbourGroups = useMemo(() => {
-    if (!selectedId) return []
-    const groups = new Map<Kind, Array<GraphNode>>()
-    for (const id of model.adj.get(selectedId) ?? []) {
-      const n = model.byId.get(id)
-      if (!n) continue
-      const list = groups.get(n.kind)
-      if (list) list.push(n)
-      else groups.set(n.kind, [n])
-    }
-    return KIND_ORDER.filter((k) => groups.has(k)).map((k) => ({
-      kind: k,
-      nodes: groups
-        .get(k)!
-        .sort(
-          (a, b) => (model.deg.get(b.id) ?? 0) - (model.deg.get(a.id) ?? 0),
-        ),
-    }))
-  }, [selectedId, model])
 
   const showResults = resultsOpen && search.trim().length > 0
   const activeIdx = Math.min(
@@ -1156,7 +1063,7 @@ function MemoryMapCanvas({
                   >
                     <KindGlyph kind={n.kind} />
                     <span className="mm-result-label">
-                      {shortLabel(n, 60, model.dates.get(n.id) ?? null)}
+                      {shortLabel(n, 60, model.dates.get(n.id)?.last ?? null)}
                     </span>
                   </button>
                 ))}
@@ -1229,76 +1136,19 @@ function MemoryMapCanvas({
         </div>
       </div>
 
-      {filtersOpen && (
-        <div
-          className="mm-filter-panel"
-          role="group"
-          aria-label="Graph filters"
-        >
-          <div className="mm-filter-row">
-            <span className="mm-filter-label">Edge types</span>
-            <div
-              className="mm-toggles"
-              role="group"
-              aria-label="Edge type filters"
-            >
-              {EDGE_ORDER.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  className={`mm-toggle ${visibleTypes[t] ? 'is-on' : ''}`}
-                  aria-pressed={visibleTypes[t]}
-                  onClick={() => setVisibleTypes((v) => ({ ...v, [t]: !v[t] }))}
-                >
-                  <span
-                    className="mm-edge-swatch"
-                    style={{ background: `var(--mm-${EDGE_KIND[t]})` }}
-                    aria-hidden="true"
-                  />
-                  {t}
-                  {data.meta.byType ? ` (${data.meta.byType[t]})` : ''}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="mm-filter-row">
-            <label className="mm-filter-slider">
-              <span>Min connections: {minConnections}</span>
-              <input
-                type="range"
-                min={0}
-                max={model.maxConn}
-                value={minConnections}
-                onChange={(e) => setMinConnections(Number(e.target.value))}
-                aria-label="Minimum connections"
-              />
-            </label>
-            <button type="button" className="mm-toggle" onClick={resetFilters}>
-              Reset
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div
-        className="mm-legend"
-        role="group"
-        aria-label="Node kinds (toggle visibility)"
-      >
-        {KIND_ORDER.map((k) => (
-          <button
-            key={k}
-            type="button"
-            className={`mm-legend-item ${visibleKinds[k] ? 'is-on' : ''}`}
-            aria-pressed={visibleKinds[k]}
-            aria-label={`${k} (${model.counts[k] ?? 0})`}
-            onClick={() => setVisibleKinds((v) => ({ ...v, [k]: !v[k] }))}
-          >
-            <KindGlyph kind={k} />
-            {k} <span className="mm-legend-count">{model.counts[k] ?? 0}</span>
-          </button>
-        ))}
-      </div>
+      <MapRail
+        filtersOpen={filtersOpen}
+        byType={data.meta.byType}
+        counts={model.counts}
+        maxConn={model.maxConn}
+        types={visibleTypes}
+        kinds={visibleKinds}
+        minDegree={minConnections}
+        onToggleType={(t) => setVisibleTypes((v) => ({ ...v, [t]: !v[t] }))}
+        onToggleKind={(k) => setVisibleKinds((v) => ({ ...v, [k]: !v[k] }))}
+        onMinConnections={setMinConnections}
+        onReset={resetFilters}
+      />
 
       <canvas
         ref={canvasRef}
@@ -1317,180 +1167,14 @@ function MemoryMapCanvas({
       )}
 
       {selected && (
-        <aside className="mm-detail" aria-label="Selected node detail">
-          <div className="mm-detail-head">
-            <span className="mm-detail-kind">
-              <KindGlyph kind={selected.kind} />
-              {selected.kind}
-            </span>
-            <button
-              type="button"
-              className="mm-detail-close"
-              onClick={() => setSelectedId(null)}
-              aria-label="Close detail"
-            >
-              ✕
-            </button>
-          </div>
-          <div className="mm-detail-label">
-            {cleanLabel(detail?.label ?? selected.label) || selected.id}
-            {(detail?.count ?? selected.count ?? 1) > 1 && (
-              <span
-                className="mm-count-badge"
-                title={`${detail?.count ?? selected.count} identical facts`}
-              >
-                ×{detail?.count ?? selected.count}
-              </span>
-            )}
-          </div>
-          {detail &&
-            detail.text.trim() &&
-            detail.text.trim() !== detail.label && (
-              <div className="mm-detail-text">{detail.text}</div>
-            )}
-          {detailQuery.isLoading && (
-            <div className="mm-detail-note" role="status">
-              Loading full text…
-            </div>
-          )}
-          {detailQuery.isError && (
-            <div className="mm-detail-note">Full text unavailable.</div>
-          )}
-          <dl className="mm-detail-meta">
-            <dt>Connections</dt>
-            <dd>{model.deg.get(selected.id) ?? 0}</dd>
-            {detail?.createdAt && (
-              <>
-                <dt>Created</dt>
-                <dd>{detail.createdAt.slice(0, 16).replace('T', ' ')}</dd>
-              </>
-            )}
-            {detail?.updatedAt && (
-              <>
-                <dt>Updated</dt>
-                <dd>{detail.updatedAt.slice(0, 16).replace('T', ' ')}</dd>
-              </>
-            )}
-            {!detail?.createdAt && lastSeen && (
-              <>
-                <dt>Last seen</dt>
-                <dd>{lastSeen.slice(0, 10)}</dd>
-              </>
-            )}
-            {(detail?.count ?? 1) > 1 && (
-              <>
-                <dt>Seen</dt>
-                <dd>{dateRange(detail!.firstAt, detail!.lastAt)}</dd>
-              </>
-            )}
-            {Object.entries(detail?.source ?? {}).map(([k, v]) => (
-              <Fragment key={k}>
-                <dt>{k.replace(/_/g, ' ')}</dt>
-                <dd>{v}</dd>
-              </Fragment>
-            ))}
-            <dt>ID</dt>
-            <dd className="mm-detail-id">{selected.id}</dd>
-          </dl>
-          {selected.kind === 'wiki' && (
-            <button
-              type="button"
-              className="mm-toggle is-on"
-              onClick={() => openInWiki(selected.id)}
-            >
-              Open in Wiki
-            </button>
-          )}
-          {detail?.facts && detail.facts.length > 0 && (
-            <div className="mm-detail-neighbours">
-              <section>
-                <h4>
-                  <KindGlyph kind="fact" />
-                  distinct facts · {detail.source.distinct_facts}
-                  {Number(detail.source.facts) >
-                    Number(detail.source.distinct_facts) &&
-                    ` (${detail.source.facts} rows)`}
-                </h4>
-                <ul>
-                  {detail.facts.map((f) => (
-                    <li key={f.id}>
-                      <button
-                        type="button"
-                        disabled={!model.byId.has(f.id)}
-                        title={
-                          model.byId.has(f.id)
-                            ? undefined
-                            : 'Not in current view'
-                        }
-                        onClick={() => focusNode(f.id)}
-                      >
-                        {f.text.length > 48
-                          ? `${f.text.slice(0, 47)}…`
-                          : f.text}
-                        {f.count > 1 && (
-                          <span
-                            className="mm-count-badge"
-                            title={dateRange(f.firstAt, f.lastAt)}
-                          >
-                            ×{f.count}
-                          </span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
-          )}
-          {neighbourGroups.length > 0 && (
-            <div className="mm-detail-neighbours">
-              {neighbourGroups.map((g) => (
-                <section key={g.kind}>
-                  <h4>
-                    <KindGlyph kind={g.kind} />
-                    {g.kind} · {g.nodes.length}
-                  </h4>
-                  <ul>
-                    {g.nodes
-                      .slice(0, expandedKinds.has(g.kind) ? NEIGHBOUR_MAX : 12)
-                      .map((n) => (
-                        <li key={n.id}>
-                          <button type="button" onClick={() => focusNode(n.id)}>
-                            {shortLabel(n, 48, model.dates.get(n.id) ?? null)}
-                          </button>
-                        </li>
-                      ))}
-                  </ul>
-                  {g.nodes.length > 12 && (
-                    <button
-                      type="button"
-                      className="mm-detail-more"
-                      aria-expanded={expandedKinds.has(g.kind)}
-                      onClick={() =>
-                        setExpandedKinds((cur) => {
-                          const next = new Set(cur)
-                          if (next.has(g.kind)) next.delete(g.kind)
-                          else next.add(g.kind)
-                          return next
-                        })
-                      }
-                    >
-                      {expandedKinds.has(g.kind)
-                        ? 'Show fewer'
-                        : `+${g.nodes.length - 12} more`}
-                    </button>
-                  )}
-                  {expandedKinds.has(g.kind) &&
-                    g.nodes.length > NEIGHBOUR_MAX && (
-                      <div className="mm-detail-note">
-                        {g.nodes.length - NEIGHBOUR_MAX} more not listed
-                      </div>
-                    )}
-                </section>
-              ))}
-            </div>
-          )}
-        </aside>
+        <MapInspector
+          profile={profile}
+          selected={selected}
+          model={model}
+          onClose={() => setSelectedId(null)}
+          onFocusNode={focusNode}
+          onOpenInWiki={openInWiki}
+        />
       )}
 
       <div className="mm-status" role="note">

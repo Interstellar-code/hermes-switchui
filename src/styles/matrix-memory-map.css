@@ -15,6 +15,20 @@
   --mm-episodic: #c792ea;
   --mm-wiki: #ff6b9d;
   --mm-overlay: color-mix(in srgb, var(--theme-panel) 90%, transparent);
+  /* Redesign palette (Phase 0 contract). Static cluster slots are the
+   * fallback; inside @supports below they step the theme accent's hue by
+   * 45deg (chroma 0.12, odd slots ±0.06 lightness for neighbour contrast). */
+  --mm-cluster-0: #8acb83;
+  --mm-cluster-1: #5ae4d8;
+  --mm-cluster-2: #5cc5f7;
+  --mm-cluster-3: #b7c3ff;
+  --mm-cluster-4: #db9de5;
+  --mm-cluster-5: #ffa9bd;
+  --mm-cluster-6: #f4a16d;
+  --mm-cluster-7: #e0cb6a;
+  --mm-cluster-other: var(--theme-muted);
+  --mm-age-new: var(--theme-warning);
+  --mm-age-old: color-mix(in oklab, var(--theme-muted) 45%, var(--theme-bg));
 
   position: relative;
   width: 100%;
@@ -36,6 +50,36 @@
   --mm-entity: #a85d00;
   --mm-episodic: #7b3fa8;
   --mm-wiki: #b5245a;
+  --mm-cluster-0: #3b7a35;
+  --mm-cluster-1: #006c63;
+  --mm-cluster-2: #0073a1;
+  --mm-cluster-3: #494f9a;
+  --mm-cluster-4: #884f91;
+  --mm-cluster-5: #8d364c;
+  --mm-cluster-6: #9d521a;
+  --mm-cluster-7: #6b5600;
+}
+@supports (color: oklch(from red l c h)) {
+  .mm-wrap {
+    --mm-cluster-0: oklch(from var(--theme-accent) 0.78 0.12 h);
+    --mm-cluster-1: oklch(from var(--theme-accent) 0.84 0.12 calc(h + 45));
+    --mm-cluster-2: oklch(from var(--theme-accent) 0.78 0.12 calc(h + 90));
+    --mm-cluster-3: oklch(from var(--theme-accent) 0.84 0.12 calc(h + 135));
+    --mm-cluster-4: oklch(from var(--theme-accent) 0.78 0.12 calc(h + 180));
+    --mm-cluster-5: oklch(from var(--theme-accent) 0.84 0.12 calc(h + 225));
+    --mm-cluster-6: oklch(from var(--theme-accent) 0.78 0.12 calc(h + 270));
+    --mm-cluster-7: oklch(from var(--theme-accent) 0.84 0.12 calc(h + 315));
+  }
+  [data-theme$='-light'] .mm-wrap {
+    --mm-cluster-0: oklch(from var(--theme-accent) 0.52 0.12 h);
+    --mm-cluster-1: oklch(from var(--theme-accent) 0.46 0.12 calc(h + 45));
+    --mm-cluster-2: oklch(from var(--theme-accent) 0.52 0.12 calc(h + 90));
+    --mm-cluster-3: oklch(from var(--theme-accent) 0.46 0.12 calc(h + 135));
+    --mm-cluster-4: oklch(from var(--theme-accent) 0.52 0.12 calc(h + 180));
+    --mm-cluster-5: oklch(from var(--theme-accent) 0.46 0.12 calc(h + 225));
+    --mm-cluster-6: oklch(from var(--theme-accent) 0.52 0.12 calc(h + 270));
+    --mm-cluster-7: oklch(from var(--theme-accent) 0.46 0.12 calc(h + 315));
+  }
 }
 
 .mm-state {

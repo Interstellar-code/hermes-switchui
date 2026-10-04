@@ -7,6 +7,7 @@ import {
   findUnknownThemeFallbacks,
   stripComments,
 } from '@/lib/css-contract'
+import { THEMES } from '@/lib/theme'
 
 /**
  * Sweep test for the bug that `providers-theme.contract.test.ts`,
@@ -107,5 +108,106 @@ describe('matrix theme token fallbacks (sweep)', () => {
           `${unknown.join(', ')}`,
       ).toEqual([])
     })
+  })
+})
+
+/**
+ * Memory Map redesign palette (Phase 0 contract): every theme must resolve
+ * the cluster / age tokens, and each one must chain only to `--theme-*`
+ * tokens that theme actually declares in styles.css.
+ */
+describe('memory map redesign tokens (per theme)', () => {
+  const MM_TOKENS = [
+    ...Array.from({ length: 8 }, (_, i) => `--mm-cluster-${i}`),
+    '--mm-cluster-other',
+    '--mm-age-new',
+    '--mm-age-old',
+  ]
+  const LIGHT_SEL = "[data-theme$='-light'] .mm-wrap"
+  const mapCss = stripComments(
+    readFileSync(resolve(ROOT, 'src/styles/matrix-memory-map.css'), 'utf8'),
+  )
+  const stylesCss = stripComments(
+    readFileSync(resolve(ROOT, 'src/styles.css'), 'utf8'),
+  )
+  /** Top-level rules + at-rule (e.g. @supports) bodies, split by brace depth. */
+  function split(css: string) {
+    const top: Array<{ sel: string; body: string }> = []
+    const atBodies: Array<string> = []
+    let depth = 0
+    let start = 0
+    let head = ''
+    for (let i = 0; i < css.length; i++) {
+      if (css[i] === '{') {
+        if (depth === 0) {
+          head = css.slice(start, i).trim()
+          start = i + 1
+        }
+        depth++
+      } else if (css[i] === '}') {
+        depth--
+        if (depth === 0) {
+          const body = css.slice(start, i)
+          if (head.startsWith('@')) atBodies.push(body)
+          else top.push({ sel: head, body })
+          start = i + 1
+        }
+      }
+    }
+    return { top, atBodies }
+  }
+  const { top, atBodies } = split(mapCss)
+  const declsOf = (sel: string) => {
+    const out = new Map<string, string>()
+    for (const r of top.filter((b) => b.sel === sel))
+      for (const [, k, v] of r.body.matchAll(
+        /(--mm-[a-z0-9-]+)\s*:\s*([^;]+);/g,
+      ))
+        out.set(k, v.trim())
+    return out
+  }
+  const base = declsOf('.mm-wrap')
+  const light = declsOf(LIGHT_SEL)
+  const supported = atBodies
+    .map((b) => split(b).top)
+    .flat()
+    .filter((r) => r.sel === '.mm-wrap' || r.sel === LIGHT_SEL)
+  const themeTokens = (theme: string) => {
+    const m = stylesCss.match(
+      new RegExp(`\\[data-theme='${theme}'\\]\\s*\\{([^}]*)\\}`),
+    )
+    return new Set(
+      [...(m?.[1] ?? '').matchAll(/(--theme-[a-z0-9-]+)\s*:/g)].map(
+        (x) => x[1],
+      ),
+    )
+  }
+
+  it('-light block redefines all 8 cluster slots (static + @supports)', () => {
+    for (let i = 0; i < 8; i++)
+      expect(light.has(`--mm-cluster-${i}`)).toBe(true)
+    expect(supported.map((r) => r.sel).sort()).toEqual(
+      ['.mm-wrap', LIGHT_SEL].sort(),
+    )
+    for (const r of supported)
+      for (let i = 0; i < 8; i++) {
+        const m = r.body.match(new RegExp(`--mm-cluster-${i}\\s*:\\s*([^;]+);`))
+        expect(m?.[1], `${r.sel} cluster-${i}`).toContain('var(--theme-accent)')
+      }
+  })
+
+  it.each(THEMES.map((t) => t.id))('%s declares every --mm token', (theme) => {
+    const decls = new Map(base)
+    if (theme.endsWith('-light')) for (const [k, v] of light) decls.set(k, v)
+    const declared = themeTokens(theme)
+    expect(declared.size).toBeGreaterThan(5)
+    for (const tok of MM_TOKENS) {
+      const v = decls.get(tok)
+      expect(v, `${theme}: ${tok} missing`).toBeTruthy()
+      for (const [, ref] of v!.matchAll(/var\((--theme-[a-z0-9-]+)/g))
+        expect(declared.has(ref), `${theme}: ${tok} → ${ref} undeclared`).toBe(
+          true,
+        )
+    }
   })
 })

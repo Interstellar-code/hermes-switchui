@@ -57,3 +57,22 @@ describe('memory-screen-store migration (v1 → v2)', () => {
     expect(store.getState().profile).toBe('hermes-switch')
   })
 })
+
+describe('memory chat request (askMemory → prefill)', () => {
+  it('bumps seq per ask; consumeChatSeed takes the seed once, keeps seq', async () => {
+    const { useMemoryChatStore } = await import('../memory-screen-store')
+    const st = () => useMemoryChatStore.getState()
+    st().askMemory('What do you know about X?')
+    expect(st().chatRequest).toEqual({
+      seed: 'What do you know about X?',
+      seq: 1,
+    })
+    expect(st().consumeChatSeed()).toBe('What do you know about X?')
+    expect(st().chatRequest).toEqual({ seed: null, seq: 1 })
+    expect(st().consumeChatSeed()).toBeNull()
+    st().askMemory('What do you know about X?')
+    expect(st().chatRequest?.seq).toBe(2)
+    st().askMemory(null)
+    expect(st().chatRequest).toEqual({ seed: null, seq: 3 })
+  })
+})

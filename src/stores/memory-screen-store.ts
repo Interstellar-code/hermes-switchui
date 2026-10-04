@@ -86,3 +86,26 @@ export const useBrowseFocusStore = create<{
   focus: null,
   setFocus: (focus) => set({ focus }),
 }))
+
+// "ASK ABOUT" hand-off to the chat drawer. `askMemory(q)` bumps `seq` (so
+// asking the same question twice re-opens the drawer) and sets the seed;
+// memory-screen opens the drawer on every `seq` change. chat-tab PREFILLS its
+// input with the seed — never auto-sends — via `consumeChatSeed()`, which
+// returns the seed and clears it (seq is kept). `askMemory(null)` just opens.
+export type ChatRequest = { seed: string | null; seq: number }
+
+export const useMemoryChatStore = create<{
+  chatRequest: ChatRequest | null
+  askMemory: (q: string | null) => void
+  consumeChatSeed: () => string | null
+}>()((set, get) => ({
+  chatRequest: null,
+  askMemory: (q) =>
+    set((s) => ({ chatRequest: { seed: q, seq: (s.chatRequest?.seq ?? 0) + 1 } })),
+  consumeChatSeed: () => {
+    const req = get().chatRequest
+    if (!req || req.seed == null) return null
+    set({ chatRequest: { seed: null, seq: req.seq } })
+    return req.seed
+  },
+}))

@@ -111,19 +111,87 @@ export function degreeMap(
   return deg
 }
 
-/** Latest incident-edge timestamp per node (nodes carry no date of their own). */
+export type NodeDates = { first: string; last: string }
+
+/** Earliest + latest incident-edge timestamp per node (nodes carry no date of their own). */
 export function nodeDates(
   edges: ReadonlyArray<GraphEdge>,
-): Map<string, string> {
-  const out = new Map<string, string>()
+): Map<string, NodeDates> {
+  const out = new Map<string, NodeDates>()
   for (const e of edges) {
-    if (!e.timestamp) continue
+    const t = e.timestamp
+    if (!t) continue
     for (const id of [e.source, e.target]) {
       const cur = out.get(id)
-      if (!cur || e.timestamp > cur) out.set(id, e.timestamp)
+      if (!cur) out.set(id, { first: t, last: t })
+      else {
+        if (t < cur.first) cur.first = t
+        if (t > cur.last) cur.last = t
+      }
     }
   }
   return out
+}
+
+// ── redesign contracts (Phase 0; bodies land in later lanes) ────────────────
+
+export type ColourBy = 'cluster' | 'kind' | 'age'
+
+export interface ClusterResult {
+  clusterOf: Map<string, number>
+  clusters: Array<{
+    id: number
+    name: string
+    size: number
+    /** Palette slot 0-7 (`--mm-cluster-N`); null = "Other". */
+    slot: number | null
+  }>
+}
+
+/** Map view state — local to memory-map.tsx, prop-drilled to rail/inspector. */
+export interface MapViewState {
+  colourBy: ColourBy
+  kinds: Record<Kind, boolean>
+  types: Record<EdgeType, boolean>
+  minDegree: number
+  selectedId: string | null
+  selectedCluster: number | null
+  focus: { id: string; hops: 1 | 2; types: Set<EdgeType> } | null
+}
+
+export interface InspectorData {
+  node: GraphNode
+  clusterId: number | null
+  connections: number
+  firstSeen?: string
+  lastSeen?: string
+  linkedEntities: Array<GraphNode>
+  mentionedIn: Array<{ node: GraphNode; at?: string }>
+}
+
+/** Graph lookups the inspector derives from (built once per dataset in memory-map.tsx). */
+export interface InspectorModel {
+  byId: Map<string, GraphNode>
+  deg: Map<string, number>
+  dates: Map<string, NodeDates>
+  adj: Map<string, Set<string>>
+}
+
+/** Stub — Lane D fills it from `model.adj`. */
+export function deriveInspector(
+  model: InspectorModel,
+  id: string,
+  clusters: ClusterResult | null,
+): InspectorData | undefined {
+  const node = model.byId.get(id)
+  if (!node) return undefined
+  return {
+    node,
+    clusterId: clusters?.clusterOf.get(id) ?? null,
+    connections: model.deg.get(id) ?? 0,
+    linkedEntities: [],
+    mentionedIn: [],
+  }
 }
 
 export type VisibilityOptions = {
