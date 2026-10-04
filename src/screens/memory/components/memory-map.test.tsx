@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryMap } from './memory-map'
@@ -112,6 +113,7 @@ beforeEach(() => {
       'closePath',
       'strokeRect',
       'drawImage',
+      'setLineDash',
     ].map((m) => [m, vi.fn()]),
   )
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
@@ -448,6 +450,135 @@ describe('MemoryMap', () => {
       expect(
         screen.getByRole('button', { name: /edges trimmed: 7 edges cut/i }),
       ).toBeTruthy()
+    })
+  })
+
+  describe('focus mode', () => {
+    async function enterFocusOn(q: string) {
+      vi.stubGlobal('fetch', okFetch(GRAPH))
+      const view = renderMap()
+      const input = await screen.findByRole('combobox', {
+        name: /search memory map/i,
+      })
+      fireEvent.change(input, { target: { value: q } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      const panel = await screen.findByRole('complementary', {
+        name: /selected node/i,
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'FOCUS' }))
+      const bar = await screen.findByRole('group', { name: /focus mode/i })
+      return { ...view, panel, bar }
+    }
+
+    it('enters from the inspector: breadcrumb, 2 hops, rail hidden, legend counts', async () => {
+      const { container, bar } = await enterFocusOn('switch')
+      expect(container.querySelector('.mm-wrap')!.className).toMatch(/is-focus/)
+      const crumb = screen.getByRole('navigation', { name: /focus path/i })
+      expect(crumb.textContent).toMatch(/All memory/)
+      expect(crumb.textContent).toMatch(/SwitchUI$/)
+      expect(
+        within(bar)
+          .getByRole('button', { name: '2 hops' })
+          .getAttribute('aria-pressed'),
+      ).toBe('true')
+      // keyboard lands on the bar's back button
+      expect(document.activeElement?.textContent).toMatch(/back to map/i)
+      const legend = screen.getByLabelText(/edge types in view/i)
+      // SwitchUI: mentions (gist) + about (fact) direct; ctx gist-fact at hop 2
+      expect(legend.textContent).toMatch(/2 direct/)
+      expect(legend.textContent).toMatch(/0 at 2 hops/)
+      expect(bar.textContent).toMatch(/esc · back to map/i)
+    })
+
+    it('depth and edge-type controls update the ego network', async () => {
+      const { bar } = await enterFocusOn('switch')
+      const legend = screen.getByLabelText(/edge types in view/i)
+      // types toggle: mentions off leaves SwitchUI's fact (about) direct,
+      // and the gist one more hop away over ctx
+      const mentions = within(bar).getByRole('button', { name: 'mentions' })
+      expect(mentions.getAttribute('aria-pressed')).toBe('true')
+      fireEvent.click(mentions)
+      await waitFor(() => expect(legend.textContent).toMatch(/1 direct/))
+      expect(legend.textContent).toMatch(/1 at 2 hops/)
+      expect(mentions.getAttribute('aria-pressed')).toBe('false')
+      expect(
+        within(bar)
+          .getByRole('button', { name: 'all' })
+          .getAttribute('aria-pressed'),
+      ).toBe('false')
+      fireEvent.click(within(bar).getByRole('button', { name: '1 hop' }))
+      await waitFor(() => expect(legend.textContent).not.toMatch(/2 hops/))
+      fireEvent.click(within(bar).getByRole('button', { name: 'all' }))
+      await waitFor(() => expect(legend.textContent).toMatch(/2 direct/))
+    })
+
+    it('Esc order: inspector first, then focus; selection survives exit', async () => {
+      const { container, panel } = await enterFocusOn('switch')
+      // Escape inside the inspector closes it, focus mode stays
+      fireEvent.keyDown(panel, { key: 'Escape' })
+      expect(
+        screen.queryByRole('complementary', { name: /selected node/i }),
+      ).toBeNull()
+      expect(screen.getByRole('group', { name: /focus mode/i })).toBeTruthy()
+      // next Escape (from the bar) leaves focus mode
+      fireEvent.keyDown(screen.getByRole('group', { name: /focus mode/i }), {
+        key: 'Escape',
+      })
+      expect(screen.queryByRole('group', { name: /focus mode/i })).toBeNull()
+      expect(container.querySelector('.mm-wrap')!.className).not.toMatch(
+        /is-focus/,
+      )
+    })
+
+    it('breadcrumb cluster exits focus and highlights that cluster', async () => {
+      await enterFocusOn('switch')
+      const crumb = screen.getByRole('navigation', { name: /focus path/i })
+      // the 4-node fixture is too small for named clusters: "Other"
+      fireEvent.click(within(crumb).getByRole('button', { name: 'Other' }))
+      expect(screen.queryByRole('group', { name: /focus mode/i })).toBeNull()
+      const rail = screen.getByRole('complementary', { name: /map controls/i })
+      expect(
+        within(rail)
+          .getByRole('button', { name: /^Cluster Other/ })
+          .getAttribute('aria-pressed'),
+      ).toBe('true')
+    })
+
+    it('inspector FOCUS while focused re-centres and keeps the trail', async () => {
+      const { panel } = await enterFocusOn('switch')
+      // jump the selection to another node via its inspector chip
+      fireEvent.change(
+        screen.getByRole('combobox', { name: /search memory map/i }),
+        { target: { value: 'caught' } },
+      )
+      fireEvent.keyDown(
+        screen.getByRole('combobox', { name: /search memory map/i }),
+        { key: 'Enter' },
+      )
+      await waitFor(() => expect(panel.textContent).toMatch(/caught/))
+      fireEvent.click(within(panel).getByRole('button', { name: 'FOCUS' }))
+      const crumb = screen.getByRole('navigation', { name: /focus path/i })
+      await waitFor(() =>
+        expect(
+          within(crumb).getByRole('button', { name: 'SwitchUI' }),
+        ).toBeTruthy(),
+      )
+      expect(crumb.textContent).toMatch(/caught$/)
+    })
+
+    it('back button exits and keeps the selected node and map filters', async () => {
+      await enterFocusOn('switch')
+      fireEvent.click(screen.getByRole('button', { name: /back to map/i }))
+      expect(screen.queryByRole('group', { name: /focus mode/i })).toBeNull()
+      expect(
+        screen.getByRole('complementary', { name: /selected node/i }),
+      ).toBeTruthy()
+      // rail filters untouched
+      expect(
+        screen
+          .getByRole('button', { name: 'mentions' })
+          .getAttribute('aria-pressed'),
+      ).toBe('true')
     })
   })
 })

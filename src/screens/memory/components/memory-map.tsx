@@ -56,6 +56,7 @@ import {
 } from './map/map-kinds'
 import { MapRail } from './map/map-rail'
 import { computeClusters } from './map/clusters'
+import { egoNetwork, radialLayout, typedAdjacency } from './map/focus'
 import {
   AGE_VARS,
   CLUSTER_SLOTS,
@@ -69,6 +70,8 @@ import {
   viewportRect,
 } from './map/map-render'
 import { resolveCssColor } from './map/palette'
+import { FocusBar } from './map/focus-bar'
+import type { Ego } from './map/focus'
 import type { MapPalette, MiniTransform } from './map/map-render'
 import type { Shape } from './map/map-kinds'
 import type {
@@ -163,6 +166,12 @@ const DIM_ALPHA = 0.12
 // preallocated pass lists so the draw loop allocates nothing per frame
 const PASS_NORMAL: ReadonlyArray<boolean> = [false]
 const PASS_DIM_FIRST: ReadonlyArray<boolean> = [true, false]
+/** focus edges: hop-2 links first, centre links on top */
+const FOCUS_EDGE_PASSES: ReadonlyArray<boolean> = [false, true]
+/** non-ego nodes in focus mode */
+const FOCUS_DIM = 0.08
+/** focus enter / exit / re-centre animation */
+const FOCUS_MS = 300
 const MINI_W = 150
 const MINI_H = 96
 const LIMIT_OPTIONS = [500, 1000, 2000, 5000] as const
@@ -345,6 +354,8 @@ export function MemoryMap() {
 }
 
 type MapApi = {
+  /** enter / update (ego) or leave (null) focus mode */
+  focus: (ego: Ego | null) => void
   apply: (nodeIds: Set<string>, edgeIdx: Array<number>) => void
   zoomTo: (id: string) => void
   zoomBy: (k: number) => void
@@ -381,6 +392,9 @@ function MemoryMapCanvas({
   const [colourBy, setColourBy] = useState<ColourBy>('cluster')
   const [selectedCluster, setSelectedCluster] = useState<number | null>(null)
   const [focus, setFocus] = useState<MapViewState['focus']>(null)
+  /** ids focused this session, oldest first; the breadcrumb steps back */
+  const [focusTrail, setFocusTrail] = useState<Array<string>>([])
+  const backRef = useRef<HTMLButtonElement | null>(null)
   // null = every node that passes the filters ("Show all")
   const [nodeLimit, setNodeLimitState] = useState<number | null>(readLimit)
   const showAll = nodeLimit == null
@@ -439,6 +453,23 @@ function MemoryMapCanvas({
     [data, visibleKinds, visibleTypes, minConnections, nodeLimit, selectedId],
   )
 
+  // ego network over the rail-filtered node set (centre always included)
+  const tadj = useMemo(() => typedAdjacency(data.edges), [data])
+  const ego = useMemo(
+    () =>
+      focus
+        ? egoNetwork(
+            tadj,
+            focus.id,
+            focus.hops,
+            focus.types,
+            model.deg,
+            visible.nodeIds,
+          )
+        : null,
+    [focus, tadj, model, visible],
+  )
+
   const results = useMemo(
     () => searchNodes(model.searchIndex, search, model.deg),
     [search, model],
@@ -447,8 +478,22 @@ function MemoryMapCanvas({
   // live refs so interaction state reaches the draw loop without rebuilding it
   // matchIds: null = no active search (nothing dimmed)
   const matchIds = search.trim() ? results.ids : null
-  const stateRef = useRef({ selectedId, matchIds, colourBy, selectedCluster })
-  stateRef.current = { selectedId, matchIds, colourBy, selectedCluster }
+  const stateRef = useRef({
+    selectedId,
+    matchIds,
+    colourBy,
+    selectedCluster,
+    onPick: recentre,
+    onEnter: enterFocus,
+  })
+  stateRef.current = {
+    selectedId,
+    matchIds,
+    colourBy,
+    selectedCluster,
+    onPick: recentre,
+    onEnter: enterFocus,
+  }
 
   useEffect(() => {
     const wrapEl = wrapRef.current
@@ -540,6 +585,47 @@ function MemoryMapCanvas({
       .alphaDecay(0.03)
       .stop()
 
+    // ── focus (ego) mode state ──────────────────────────────────────────────
+    // `saved` = the map as it was on entry (positions, velocities, pins, zoom,
+    // sim alpha); restored exactly on exit. The sim is stopped meanwhile.
+    type SavedPos = Pick<SimNode, 'x' | 'y' | 'vx' | 'vy' | 'fx' | 'fy'>
+    let saved: {
+      pos: Map<SimNode, SavedPos>
+      transform: ZoomTransform
+      alpha: number
+      /** sim coords the ego network is laid out around */
+      ox: number
+      oy: number
+    } | null = null
+    let focusOn: {
+      ego: Ego
+      ids: Set<string>
+      /** centre first */
+      nodes: Array<SimNode>
+      edges: Array<{ s: SimNode; t: SimNode; type: EdgeType; inner: boolean }>
+      labels: Array<SimNode>
+      r1: number
+      r2: number
+    } | null = null
+    let pendingApply: [Set<string>, Array<number>] | null = null
+    /** set while the exit tween runs; calling it lands the exit at once */
+    let exitDone: (() => void) | null = null
+    let anim: {
+      from: Map<SimNode, [number, number]>
+      to: Map<SimNode, [number, number]>
+      t0: number
+      done?: () => void
+    } | null = null
+    /** focus label boxes, flat x0,y0,x1,y1 quads (reused per frame) */
+    const placed: Array<number> = []
+    // drawFocus scratch, rebuilt only when the zoom level changes
+    let fontK = 0
+    let fontLabel = ''
+    let fontCentre = ''
+    let ringDash: Array<number> = []
+    // dev-only perf hook: first frame drawn after a focus change
+    let focusStamp = false
+
     // ── visible subset (rebuilt on filter change, not per frame) ────────────
     let visNodes: Array<SimNode> = []
     let visIds = new Set<string>()
@@ -568,7 +654,13 @@ function MemoryMapCanvas({
     const end = (v: string | SimNode) =>
       typeof v === 'string' ? nodeById.get(v) : v
 
-    function apply(nodeIds: Set<string>, edgeIdx: Array<number>) {
+    /** true when the layout was re-run (sim restarted / re-ticked) */
+    function apply(nodeIds: Set<string>, edgeIdx: Array<number>): boolean {
+      // focus mode (and its exit tween) owns positions; the map catches up
+      if (saved || exitDone) {
+        pendingApply = [nodeIds, edgeIdx]
+        return false
+      }
       let h = 0
       for (const i of edgeIdx) h = (Math.imul(h, 31) + i) | 0
       const edgeKey = `${edgeIdx.length}:${h}`
@@ -578,7 +670,7 @@ function MemoryMapCanvas({
         [...nodeIds].every((id) => visIds.has(id))
       if (same) {
         scheduleDraw()
-        return
+        return false
       }
       visIds = nodeIds
       visEdgeKey = edgeKey
@@ -653,6 +745,7 @@ function MemoryMapCanvas({
       } else {
         sim.alpha(fitted ? 0.4 : 1).restart()
       }
+      return true
     }
 
     // ── drawing ───────────────────────────────────────────────────────────
@@ -686,6 +779,22 @@ function MemoryMapCanvas({
     let miniDirty = true
     let lastMini = 0
     function draw() {
+      if (anim) {
+        const p = reduced
+          ? 1
+          : Math.min(1, (performance.now() - anim.t0) / FOCUS_MS)
+        const ease = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2
+        for (const [n, [tx, ty]] of anim.to) {
+          const [sx, sy] = anim.from.get(n)!
+          n.x = sx + (tx - sx) * ease
+          n.y = sy + (ty - sy) * ease
+        }
+        if (p >= 1) {
+          const done = anim.done
+          anim = null
+          done?.()
+        } else scheduleDraw()
+      }
       const {
         selectedId: sel,
         matchIds: hits,
@@ -713,6 +822,12 @@ function MemoryMapCanvas({
       c.clearRect(0, 0, width, height)
       c.translate(transform.x, transform.y)
       c.scale(transform.k, transform.k)
+
+      if (focusOn) {
+        drawFocus(c, focusOn, mode, onScreen)
+        c.restore()
+        return
+      }
 
       // edges, batched per type; fade when zoomed out on a dense subset.
       // With a cluster selected, edges leaving it get a faint second pass.
@@ -968,10 +1083,372 @@ function MemoryMapCanvas({
       }
     })
 
+    // ── focus (ego) mode ────────────────────────────────────────────────────
+    function snap(n: SimNode) {
+      if (saved && !saved.pos.has(n))
+        saved.pos.set(n, {
+          x: n.x,
+          y: n.y,
+          vx: n.vx,
+          vy: n.vy,
+          fx: n.fx,
+          fy: n.fy,
+        })
+    }
+    function restore(n: SimNode, p: SavedPos) {
+      n.x = p.x
+      n.y = p.y
+      n.vx = p.vx
+      n.vy = p.vy
+      n.fx = p.fx
+      n.fy = p.fy
+    }
+    /** Finish a running exit tween now: exact positions, zoom and sim. */
+    function landExit() {
+      if (!exitDone) return
+      const done = exitDone
+      exitDone = null
+      anim = null
+      done()
+    }
+    function setFocusMode(next: Ego | null) {
+      landExit()
+      if (!next) {
+        if (!saved) return
+        const s = saved
+        saved = null
+        focusOn = null
+        hoverId = null
+        // animate back, then restore every saved field exactly
+        const from = new Map<SimNode, [number, number]>()
+        const to = new Map<SimNode, [number, number]>()
+        for (const [n, p] of s.pos) {
+          if (p.x == null || p.y == null || n.x == null || n.y == null) {
+            restore(n, p)
+            continue
+          }
+          from.set(n, [n.x, n.y])
+          to.set(n, [p.x, p.y])
+        }
+        exitDone = () => {
+          for (const [n, p] of s.pos) restore(n, p)
+          // the zoom tween's last step can be off by float noise: land exact
+          canvasSel.interrupt()
+          zoomBehavior.transform(canvasSel as any, s.transform)
+          dotsDirty = miniDirty = true
+          const pa = pendingApply
+          pendingApply = null
+          // a held apply that changed nothing must not leave the sim frozen
+          const rerun = pa ? apply(pa[0], pa[1]) : false
+          if (!rerun && !reduced && s.alpha > sim.alphaMin())
+            sim.alpha(s.alpha).restart()
+          scheduleDraw()
+        }
+        anim = { from, to, t0: performance.now(), done: landExit }
+        moveTo(s.transform, true, FOCUS_MS)
+        scheduleDraw()
+        return
+      }
+      if (!saved) {
+        sim.stop()
+        canvasSel.interrupt()
+        const c = nodeById.get(next.centre)
+        const [vx, vy] = viewCentre()
+        saved = {
+          pos: new Map(),
+          transform,
+          alpha: sim.alpha(),
+          ox: c?.x ?? (vx - transform.x) / transform.k,
+          oy: c?.y ?? (vy - transform.y) / transform.k,
+        }
+        for (const n of visNodes) snap(n)
+      }
+      const { ox, oy } = saved
+      let maxR = 0
+      for (const id of [next.centre, ...next.ring1, ...next.ring2]) {
+        const n = nodeById.get(id)
+        if (n) maxR = Math.max(maxR, radiusOf(n))
+      }
+      const lay = radialLayout(
+        next,
+        (id) => {
+          const n = nodeById.get(id)
+          // "Other" (-1) clusters sort last
+          return n ? [n.cl < 0 ? CLUSTER_SLOTS * 1000 : n.cl, n.ki] : []
+        },
+        model.deg,
+        2 * maxR + 4,
+      )
+      // nodes leaving the next set go straight back to their map spot
+      if (focusOn)
+        for (const n of focusOn.nodes)
+          if (!lay.pos.has(n.id)) restore(n, saved.pos.get(n)!)
+      const from = new Map<SimNode, [number, number]>()
+      const to = new Map<SimNode, [number, number]>()
+      const fnodes: Array<SimNode> = []
+      for (const [id, o] of lay.pos) {
+        const n = nodeById.get(id)
+        if (!n) continue
+        snap(n)
+        fnodes.push(n)
+        n.x ??= ox
+        n.y ??= oy
+        from.set(n, [n.x, n.y])
+        to.set(n, [ox + o.x, oy + o.y])
+      }
+      const fedges: NonNullable<typeof focusOn>['edges'] = []
+      for (const e of next.edges) {
+        const s = nodeById.get(e.s)
+        const t = nodeById.get(e.t)
+        if (s && t)
+          fedges.push({ s, t, type: e.type, inner: e.s === next.centre })
+      }
+      const pick = (ids: ReadonlyArray<string>) =>
+        ids.map((id) => nodeById.get(id)).filter((n): n is SimNode => n != null)
+      focusOn = {
+        ego: next,
+        ids: new Set(lay.pos.keys()),
+        nodes: fnodes,
+        edges: fedges,
+        // label candidates, busiest first (rings are degree-sorted)
+        labels: [...pick(next.ring1), ...pick(next.ring2)],
+        r1: lay.r1,
+        r2: lay.r2,
+      }
+      hoverId = null
+      anim = {
+        from,
+        to,
+        t0: performance.now(),
+        done: () => {
+          if (import.meta.env.DEV)
+            (window as { __mmFocusDoneAt?: number }).__mmFocusDoneAt =
+              performance.now()
+        },
+      }
+      focusStamp = true
+      frameFocus(true)
+      scheduleDraw()
+    }
+
+    /** Fit the outer ring (+ label room) into the area the chrome leaves. */
+    function frameFocus(animate: boolean) {
+      if (!saved || !focusOn) return
+      const { ox, oy } = saved
+      const insp = wrapEl!.querySelector<HTMLElement>('.mm-detail')
+      const bar = wrapEl!.querySelector<HTMLElement>('.mm-focus-bar')
+      const left = 12
+      const legend = wrapEl!.querySelector<HTMLElement>('.mm-focus-legend')
+      const right =
+        (insp ? insp.offsetWidth + 24 : 12) +
+        (legend ? legend.offsetWidth + 12 : 0)
+      const top = bar
+        ? bar.getBoundingClientRect().bottom -
+          wrapEl!.getBoundingClientRect().top
+        : 0
+      const aw = Math.max(100, width - left - right)
+      const ah = Math.max(100, height - top - 12)
+      const reach = focusOn.r2 + 120
+      const k = Math.max(0.05, Math.min(2.5, Math.min(aw, ah) / (2 * reach)))
+      moveTo(
+        zoomIdentity
+          .translate(left + aw / 2 - k * ox, top + ah / 2 - k * oy)
+          .scale(k),
+        animate,
+        FOCUS_MS,
+      )
+    }
+
+    function drawFocus(
+      c: CanvasRenderingContext2D,
+      f: NonNullable<typeof focusOn>,
+      mode: ColourBy,
+      onScreen: (n: SimNode) => boolean,
+    ) {
+      const k = transform.k
+      if (k !== fontK) {
+        fontK = k
+        fontLabel = `${11 / k}px ui-monospace, SFMono-Regular, Menlo, monospace`
+        fontCentre = `700 ${14 / k}px ui-monospace, SFMono-Regular, Menlo, monospace`
+        ringDash = [3 / k, 5 / k]
+      }
+      const colours = paletteFor(mode, palette)
+      const centre = f.nodes[0] as SimNode | undefined
+
+      // everything outside the ego network: a faint backdrop, no edges
+      c.globalAlpha = FOCUS_DIM
+      for (const g of groups) {
+        c.beginPath()
+        for (const n of g.nodes) {
+          if (f.ids.has(n.id) || n.x == null || n.y == null || !onScreen(n))
+            continue
+          tracePath(c, g.shape, n.x, n.y, radiusOf(n))
+        }
+        c.fillStyle = colours[g.ci]
+        c.fill()
+      }
+
+      // ring guides
+      if (centre?.x != null && centre.y != null) {
+        c.globalAlpha = 0.3
+        c.strokeStyle = palette.accent
+        c.lineWidth = 1 / k
+        c.setLineDash(ringDash)
+        c.beginPath()
+        c.moveTo(centre.x + f.r1, centre.y)
+        c.arc(centre.x, centre.y, f.r1, 0, TAU)
+        if (f.ego.ring2.length > 0) {
+          c.moveTo(centre.x + f.r2, centre.y)
+          c.arc(centre.x, centre.y, f.r2, 0, TAU)
+        }
+        c.stroke()
+        c.setLineDash([])
+      }
+
+      // edges coloured by type: hop-2 links thin, centre links bold
+      for (const inner of FOCUS_EDGE_PASSES) {
+        c.lineWidth = (inner ? 1.8 : 1) / k
+        c.globalAlpha = inner ? 0.85 : 0.35
+        for (const type of EDGE_ORDER) {
+          c.strokeStyle = palette.kind[EDGE_KIND[type]]
+          c.beginPath()
+          for (const e of f.edges) {
+            if (e.inner !== inner || e.type !== type) continue
+            if (
+              e.s.x == null ||
+              e.s.y == null ||
+              e.t.x == null ||
+              e.t.y == null
+            )
+              continue
+            c.moveTo(e.s.x, e.s.y)
+            c.lineTo(e.t.x, e.t.y)
+          }
+          c.stroke()
+        }
+      }
+
+      // centre halo
+      if (centre?.x != null && centre.y != null) {
+        c.globalAlpha = 0.14
+        c.fillStyle = palette.accent
+        c.beginPath()
+        c.arc(centre.x, centre.y, radiusOf(centre) + 14, 0, TAU)
+        c.fill()
+        c.globalAlpha = 1
+        c.strokeStyle = palette.accent
+        c.lineWidth = 2 / k
+        c.stroke()
+      }
+
+      // ego nodes (≤ ~350): drawn one by one
+      c.globalAlpha = 1
+      for (const n of f.nodes) {
+        if (n.x == null || n.y == null) continue
+        const shape = KIND_SHAPE[n.kind]
+        const r = radiusOf(n) + (n === centre ? 4 : 0)
+        const col = colours[colourIndex(mode, n.kind, n.cl, n.age)]
+        c.beginPath()
+        tracePath(c, shape, n.x, n.y, shape === 'ring' ? r - 0.7 : r)
+        if (shape === 'ring') {
+          c.lineWidth = 1.4
+          c.strokeStyle = col
+          c.stroke()
+        } else {
+          c.fillStyle = col
+          c.fill()
+        }
+      }
+      const hov = hoverId ? nodeById.get(hoverId) : undefined
+      if (hov && f.ids.has(hov.id) && hov.x != null && hov.y != null) {
+        c.strokeStyle = palette.text
+        c.lineWidth = 2 / k
+        c.beginPath()
+        tracePath(c, KIND_SHAPE[hov.kind], hov.x, hov.y, radiusOf(hov) + 2 / k)
+        c.stroke()
+      }
+
+      // labels: radially outward (east of the centre reads right, west reads
+      // left); centre and hovered always, then busiest first, skipping any
+      // that would overlap one already placed
+      if (centre?.x != null && centre.y != null) {
+        c.lineWidth = 3 / k
+        c.lineJoin = 'round'
+        c.strokeStyle = palette.bg
+        c.fillStyle = palette.text
+        placed.length = 0
+        placeLabel(c, centre, centre, true)
+        if (hov && hov !== centre && f.ids.has(hov.id))
+          placeLabel(c, hov, centre, true)
+        for (const n of f.labels) if (n !== hov) placeLabel(c, n, centre, false)
+      }
+      c.textAlign = 'left'
+      c.globalAlpha = 1
+
+      if (focusStamp) {
+        focusStamp = false
+        if (import.meta.env.DEV)
+          (window as { __mmFocusFrameAt?: number }).__mmFocusFrameAt =
+            performance.now()
+      }
+    }
+
+    /** Draw `n`'s label unless (`force` aside) it overlaps one already placed. */
+    function placeLabel(
+      c: CanvasRenderingContext2D,
+      n: SimNode,
+      centre: SimNode,
+      force: boolean,
+    ) {
+      if (n.x == null || n.y == null || centre.x == null) return
+      if (placed.length >= LABEL_MAX * 4) return
+      n.lt ??= shortLabel(n, 28, model.dates.get(n.id)?.last ?? null)
+      const k = transform.k
+      const isC = n === centre
+      const size = (isC ? 14 : 11) / k
+      // monospace: ~0.62em per glyph
+      const w = n.lt.length * size * 0.62
+      const east = n.x >= centre.x
+      const lx = isC ? n.x : n.x + (east ? 1 : -1) * (radiusOf(n) + 3 / k)
+      const ly = isC ? n.y + radiusOf(n) + 18 + size : n.y + size * 0.35
+      const x0 = isC ? lx - w / 2 : east ? lx : lx - w
+      const y0 = ly - size
+      const x1 = x0 + w
+      const y1 = ly + size * 0.25
+      if (!force)
+        for (let i = 0; i < placed.length; i += 4)
+          if (
+            x0 < placed[i + 2] &&
+            x1 > placed[i] &&
+            y0 < placed[i + 3] &&
+            y1 > placed[i + 1]
+          )
+            return
+      placed.push(x0, y0, x1, y1)
+      c.font = isC ? fontCentre : fontLabel
+      c.textAlign = isC ? 'center' : east ? 'left' : 'right'
+      c.strokeText(n.lt, lx, ly)
+      c.fillText(n.lt, lx, ly)
+    }
+
     // ── hit testing ─────────────────────────────────────────────────────────
     function nodeAt(px: number, py: number): SimNode | undefined {
       const sx = (px - transform.x) / transform.k
       const sy = (py - transform.y) / transform.k
+      if (focusOn) {
+        // only the ego network is live; linear scan of ≤ ~350 nodes
+        let best: SimNode | undefined
+        let bd = (12 / transform.k) ** 2
+        for (const n of focusOn.nodes) {
+          if (n.x == null || n.y == null) continue
+          const d = (n.x - sx) ** 2 + (n.y - sy) ** 2
+          if (d < bd) {
+            bd = d
+            best = n
+          }
+        }
+        return best
+      }
       return sim.find(sx, sy, 12 / transform.k)
     }
 
@@ -993,10 +1470,10 @@ function MemoryMapCanvas({
       })
     const canvasSel = select(canvas)
     canvasSel.call(zoomBehavior as any)
-    const moveTo = (t: ZoomTransform, animate = true) =>
+    const moveTo = (t: ZoomTransform, animate = true, ms = 450) =>
       canvasSel
         .transition()
-        .duration(animate && !reduced ? 450 : 0)
+        .duration(animate && !reduced ? ms : 0)
         .call(zoomBehavior.transform as any, t)
 
     /** Centre of the canvas area not covered by the rail / open inspector. */
@@ -1052,6 +1529,8 @@ function MemoryMapCanvas({
     const dragBehavior = d3drag<HTMLCanvasElement, unknown>()
       .container(canvas)
       .subject((event: any) => {
+        // focus mode has a fixed layout: no dragging
+        if (focusOn) return undefined
         const [px, py] = pointer(event, canvas)
         return nodeAt(px, py)
       })
@@ -1150,11 +1629,22 @@ function MemoryMapCanvas({
     function onClick(ev: MouseEvent) {
       const rect = canvas!.getBoundingClientRect()
       const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top)
+      if (focusOn) {
+        // clicking an ego node re-centres on it
+        if (n) stateRef.current.onPick(n.id)
+        return
+      }
       setSelectedId((cur) => (n ? (cur === n.id ? null : n.id) : null))
     }
     function onDblClick(ev: MouseEvent) {
+      if (focusOn) return
       const rect = canvas!.getBoundingClientRect()
       const n = nodeAt(ev.clientX - rect.left, ev.clientY - rect.top)
+      // entities open focus mode; other kinds release a drag pin
+      if (n?.kind === 'entity') {
+        stateRef.current.onEnter(n.id)
+        return
+      }
       if (n) {
         n.fx = null
         n.fy = null
@@ -1175,6 +1665,7 @@ function MemoryMapCanvas({
       sim.force('center', forceCenter(width / 2, height / 2))
       sim.force('x', forceX(width / 2).strength(0.02))
       sim.force('y', forceY(height / 2).strength(0.02))
+      frameFocus(false)
       scheduleDraw()
     })
     ro.observe(wrapEl)
@@ -1189,6 +1680,7 @@ function MemoryMapCanvas({
     })
 
     apiRef.current = {
+      focus: setFocusMode,
       apply,
       fit,
       redraw: scheduleDraw,
@@ -1209,6 +1701,9 @@ function MemoryMapCanvas({
     // ── cleanup ─────────────────────────────────────────────────────────────
     return () => {
       if (raf) cancelAnimationFrame(raf)
+      // land a running exit / leave focus so the saved map positions persist
+      landExit()
+      if (saved) for (const [n, p] of saved.pos) restore(n, p)
       for (const n of nodes)
         if (n.x != null && n.y != null) positions.set(n.id, { x: n.x, y: n.y })
       sim.on('tick', null).on('end', null)
@@ -1250,6 +1745,35 @@ function MemoryMapCanvas({
     apiRef.current?.apply(visible.nodeIds, visible.edgeIdx)
   }, [visible])
 
+  // focus mode: hand the ego network to the canvas (null leaves it)
+  useEffect(() => {
+    apiRef.current?.focus(ego)
+  }, [ego])
+
+  // entering focus: keyboard focus to the bar so Esc / Tab work from there;
+  // Esc also exits when nothing in particular has focus
+  // (runs after the inspector's own focus-on-select, so a re-centre keeps
+  // the keyboard in the bar and the next Esc leaves focus mode)
+  const focusId = focus?.id
+  useEffect(() => {
+    if (focusId) backRef.current?.focus({ preventScroll: true })
+  }, [focusId])
+  const inFocus = focus != null
+  useEffect(() => {
+    if (!inFocus) return
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.key === 'Escape' &&
+        !e.defaultPrevented &&
+        e.target === document.body &&
+        !document.querySelector('[aria-modal="true"]')
+      )
+        exitFocus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [inFocus])
+
   // zoom to a focused node once it is in the visible set
   useEffect(() => {
     if (focusReq) apiRef.current?.zoomTo(focusReq.id)
@@ -1268,6 +1792,33 @@ function MemoryMapCanvas({
     setSelectedId(id)
     setResultsOpen(false)
     setFocusReq((r) => ({ id, seq: (r?.seq ?? 0) + 1 }))
+  }
+  function enterFocus(id: string) {
+    // already focused (inspector FOCUS on a ring node): re-centre instead
+    if (focus) return recentre(id)
+    setSelectedId(id)
+    setFocus({
+      id,
+      hops: 2,
+      types: new Set(EDGE_ORDER.filter((t) => visibleTypes[t])),
+    })
+    setFocusTrail([id])
+  }
+  /** focus-mode click / breadcrumb: centre on `id`, keeping the trail */
+  function recentre(id: string) {
+    if (!focus || id === focus.id) return
+    const i = focusTrail.indexOf(id)
+    setFocusTrail(i >= 0 ? focusTrail.slice(0, i + 1) : [...focusTrail, id])
+    setFocus({ ...focus, id })
+    setSelectedId(id)
+  }
+  function exitFocus() {
+    setFocus(null)
+    setFocusTrail([])
+    canvasRef.current?.focus({ preventScroll: true })
+  }
+  function setFocusTypes(types: Set<EdgeType>) {
+    if (focus && types.size > 0) setFocus({ ...focus, types })
   }
   function openInWiki(path: string) {
     useWikiFocusStore.getState().setPath(path)
@@ -1302,10 +1853,14 @@ function MemoryMapCanvas({
 
   return (
     <div
-      className="mm-wrap"
+      className={`mm-wrap ${focus ? 'is-focus' : ''}`}
       ref={wrapRef}
       onKeyDown={(e) => {
-        if (e.key === 'Escape' && selectedId) setSelectedId(null)
+        // order: popovers / search / inspector stop Escape themselves; then
+        // focus mode exits; then the selection clears
+        if (e.key !== 'Escape') return
+        if (focus) exitFocus()
+        else if (selectedId) setSelectedId(null)
       }}
     >
       <div className="mm-controls" ref={controlsRef}>
@@ -1549,6 +2104,30 @@ function MemoryMapCanvas({
         </div>
       )}
 
+      {focus && ego && (
+        <FocusBar
+          focus={focus}
+          ego={ego}
+          trail={focusTrail}
+          label={(id) => {
+            const n = model.byId.get(id)
+            return n ? shortLabel(n, 32, model.dates.get(id)?.last ?? null) : id
+          }}
+          cluster={clusters.clusters.find(
+            (c) => c.id === (clusters.clusterOf.get(focus.id) ?? -1),
+          )}
+          onCluster={(id) => {
+            exitFocus()
+            setSelectedCluster(id)
+          }}
+          backRef={backRef}
+          onExit={exitFocus}
+          onRecentre={recentre}
+          onHops={(hops) => setFocus({ ...focus, hops })}
+          onTypes={setFocusTypes}
+        />
+      )}
+
       {selected && (
         <MapInspector
           profile={profile}
@@ -1560,13 +2139,7 @@ function MemoryMapCanvas({
             canvasRef.current?.focus({ preventScroll: true })
           }}
           onFocusNode={focusNode}
-          onFocus={(id) =>
-            setFocus({
-              id,
-              hops: 2,
-              types: new Set(EDGE_ORDER.filter((t) => visibleTypes[t])),
-            })
-          }
+          onFocus={enterFocus}
           onOpenInWiki={openInWiki}
         />
       )}

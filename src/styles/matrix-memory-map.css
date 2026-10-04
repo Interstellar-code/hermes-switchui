@@ -799,3 +799,102 @@
 .mm-detail:focus {
   outline: none;
 }
+
+/* ── focus (ego network) mode ────────────────────────────────────────────── */
+
+/* the rail's filters and the minimap belong to the whole map */
+.mm-wrap.is-focus .mm-rail,
+.mm-wrap.is-focus .mm-minimap {
+  display: none;
+}
+.mm-wrap.is-focus {
+  --mm-rail-w: 12px;
+  --mm-focus-right: 12px;
+}
+/* keep clear of the inspector when it is open */
+.mm-wrap.is-focus:has(> .mm-detail) {
+  --mm-focus-right: calc(min(300px, 100% - 24px) + 24px);
+}
+.mm-focus-chrome {
+  position: absolute;
+  top: var(--mm-rail-top);
+  left: 12px;
+  right: var(--mm-focus-right);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+}
+.mm-focus-chrome > * {
+  pointer-events: auto;
+}
+.mm-focus-bar {
+  align-self: stretch;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 8px 12px;
+  background: var(--mm-overlay);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  font-size: 0.78rem;
+}
+.mm-crumb {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--theme-muted);
+}
+.mm-crumb b {
+  color: var(--theme-accent);
+}
+.mm-focus-lbl {
+  font-size: 0.66rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--theme-muted);
+}
+.mm-focus-bar .mm-seg-btn {
+  flex: 0 0 auto;
+  padding: 4px 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 0.68rem;
+}
+.mm-focus-back {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.68rem;
+  color: var(--theme-accent);
+  border-color: var(--theme-accent);
+}
+.mm-focus-legend {
+  width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--mm-overlay);
+  border: 1px solid var(--theme-border);
+  border-radius: 6px;
+  font-size: 0.76rem;
+  color: var(--theme-text);
+}
+.mm-focus-et {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mm-focus-et .mm-legend-count {
+  margin-left: auto;
+}
+.mm-focus-note {
+  font-size: 0.7rem;
+  color: var(--theme-muted);
+}
