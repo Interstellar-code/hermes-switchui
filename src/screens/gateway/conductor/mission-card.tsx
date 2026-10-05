@@ -78,7 +78,16 @@ export function MissionCard({ mission }: MissionCardProps) {
       <div className="rail" />
       <div className="body">
         <div className="ttl">{title}</div>
-        <div className="sub">{subtitle}</div>
+        <div className="sub">
+          {mission.dayGroup === 'yesterday' || mission.dayGroup === 'earlier'
+            ? `${formatClock(mission.startedAt)} · ${mission.errorLine ?? mission.userMessage.slice(0, 80)}`
+            : subtitle}
+        </div>
+        {status === 'err' && mission.errorLine && (
+          <div className="err-line" title={mission.errorLine}>
+            {mission.errorLine}
+          </div>
+        )}
         <div className="badges">
           {status === 'waiting' ? (
             <span className="b waiting">needs you</span>

@@ -1,11 +1,50 @@
+import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useConductorScheduled,
   useConductorState,
 } from './use-conductor-queries'
 
+/** mm:ss, h/m past an hour. */
+export function formatTick(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000))
+  const h = Math.floor(s / 3600)
+  if (h >= 1) return `${h}h ${Math.floor((s % 3600) / 60)}m`
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
 export function ConductorTopBar() {
   const { data } = useConductorState()
   const { data: sched } = useConductorScheduled()
+  const queryClient = useQueryClient()
+  const [refreshing, setRefreshing] = useState(false)
+  const [now, setNow] = useState(() => Date.now())
+  const oldestStart = data?.oldestLiveStartedAt ?? null
+  useEffect(() => {
+    if (oldestStart == null) return
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [oldestStart])
+
+  const oldestLive = !data
+    ? '—'
+    : oldestStart == null
+      ? 'none'
+      : formatTick(now - oldestStart)
+  // Runs exist but none report usage: show 0, not the shared '—' label.
+  const tokens = !data
+    ? '—'
+    : data.tokens === '—' && data.totalTokens === 0
+      ? '0'
+      : data.tokens
+
+  function refresh() {
+    setRefreshing(true)
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['conductor'] }),
+      queryClient.invalidateQueries({ queryKey: ['workflow-runs'] }),
+    ]).finally(() => setRefreshing(false))
+  }
   return (
     <header className="cnd-top">
       <div className="crumbs">
@@ -43,15 +82,22 @@ export function ConductorTopBar() {
           <span className="l">nodes running</span>
         </div>
         <div className="stat">
-          <span className="v">{data?.oldestLiveElapsed ?? '—'}</span>
+          <span className="v">{oldestLive}</span>
           <span className="l">oldest live</span>
         </div>
         <div className="stat">
-          <span className="v">{data?.tokens ?? '—'}</span>
+          <span className="v">{tokens}</span>
           <span className="l">tok used</span>
         </div>
         <div className="right-actions">
-          <button type="button" className="ico-btn" title="Refresh">
+          <button
+            type="button"
+            className={`ico-btn${refreshing ? ' spin' : ''}`}
+            title="Refresh"
+            aria-label="Refresh"
+            disabled={refreshing}
+            onClick={refresh}
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -59,17 +105,6 @@ export function ConductorTopBar() {
               strokeWidth="1.6"
             >
               <path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5" />
-            </svg>
-          </button>
-          <button type="button" className="ico-btn" title="Theme">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M12 1v3M12 20v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M1 12h3M20 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1" />
             </svg>
           </button>
         </div>

@@ -23,6 +23,14 @@ function filterMissions(
   return missions.filter((m) => m.status === 'err')
 }
 
+function matches(m: Mission, q: string): boolean {
+  const needle = q.trim().toLowerCase()
+  if (!needle) return true
+  return [m.title, m.workflowId, m.id, m.triggerKind ?? ''].some((v) =>
+    v.toLowerCase().includes(needle),
+  )
+}
+
 function RailRowView({ row }: { row: RailRow }) {
   const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
   if (row.kind === 'run') return <MissionCard mission={row.mission} />
@@ -38,9 +46,14 @@ function RailRowView({ row }: { row: RailRow }) {
         <span className="rail" />
         <span className="body">
           <span className="ttl">{newest.title}</span>
+          <span className="sub">
+            {newest.triggerKind ?? 'run'} · last {formatClock(row.to)} ·{' '}
+            {newest.elapsed}
+          </span>
           <span className="badges">
-            <span className="b">×{row.count}</span>
-            <span className={`b ${newest.status}`}>{newest.status}</span>
+            <span className={`b ${newest.status}`}>
+              {newest.status} ×{row.count}
+            </span>
             <span className="b trig">{newest.triggerKind ?? '—'}</span>
             <span className="b">
               {formatClock(row.from)} – {formatClock(row.to)}
@@ -75,14 +88,14 @@ function RailRowView({ row }: { row: RailRow }) {
   )
 }
 
-export function MissionList() {
+export function MissionList({ search = '' }: { search?: string }) {
   const filterTab = useConductorUIStore((s) => s.filterTab)
   const { data: missions = [] } = useConductorMissions()
   const { data: sched } = useConductorScheduled()
 
   // Scheduled entries aren't runs: only the unfiltered view lists them.
   const groups = groupRail(
-    filterMissions(missions, filterTab),
+    filterMissions(missions, filterTab).filter((m) => matches(m, search)),
     filterTab === 'all' ? sched?.scheduled : [],
   )
 

@@ -26,6 +26,9 @@ export interface Mission {
   inputs: Record<string, unknown>
   userMessage: string
   error: string | null
+  /** Last non-empty line of `error`, for the rail's recent rows. */
+  errorLine: string | null
+  startedAt: number
 }
 
 export interface ConductorStats {
@@ -34,6 +37,11 @@ export interface ConductorStats {
   nodesRunning: number
   oldestLiveElapsed: string
   tokens: string
+  /** Raw sum so the client can show `0` instead of `—` when runs exist. */
+  totalTokens: number
+  /** Epoch ms of the oldest live run's start; null when nothing is live. */
+  oldestLiveStartedAt: number | null
+  runsToday: number
 }
 
 export interface ConductorSnapshot {
@@ -110,7 +118,18 @@ export function formatUsage(usage: WorkflowRun['usage']): string {
   return formatUsageLabel(usage?.total_tokens, usage?.cost_usd)
 }
 
-function runToMission(run: WorkflowRun): Mission {
+function lastLine(text: string | null | undefined): string | null {
+  const lines = (text ?? '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+  return lines.length ? lines[lines.length - 1].slice(0, 160) : null
+}
+
+function runToMission(
+  run: WorkflowRun,
+  names: Map<string, string> = new Map(),
+): Mission {
   const now = Date.now()
   const status = mapStatus(run.status)
   const startedAtMs = toMs(run.started_at, toMs(run.last_heartbeat, now))
@@ -126,8 +145,8 @@ function runToMission(run: WorkflowRun): Mission {
 
   return {
     id: run.id,
-    title: run.workflow_id,
-    subtitle: `${run.workflow_id} · ${run.current_phase}`,
+    title: names.get(run.workflow_id) || run.workflow_id,
+    subtitle: `${typeof triggerKind === 'string' ? triggerKind : 'run'} · ${formatHHMM(startedAtMs)} · run ${run.id.slice(0, 8)}`,
     status,
     elapsed: formatElapsed(endedAtMs - startedAtMs),
     tokens: formatUsage(run.usage),
@@ -139,10 +158,34 @@ function runToMission(run: WorkflowRun): Mission {
     inputs: inputs ?? {},
     userMessage: run.user_message,
     error: run.error ?? null,
+    errorLine: lastLine(run.error),
+    startedAt: startedAtMs,
   }
 }
 
+function formatHHMM(ms: number): string {
+  const d = new Date(ms)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
 const pluginClient = new PluginClient()
+
+const NAMES_TTL_MS = 60_000
+let namesMemo: { at: number; value: Map<string, string> } | null = null
+
+/** workflow id → friendly name; cached ~60s, never throws. */
+async function getDefinitionNames(): Promise<Map<string, string>> {
+  if (namesMemo && Date.now() - namesMemo.at < NAMES_TTL_MS)
+    return namesMemo.value
+  try {
+    const defs = await pluginClient.listDefinitions()
+    const value = new Map(defs.map((d) => [d.id, d.name]))
+    namesMemo = { at: Date.now(), value }
+    return value
+  } catch {
+    return namesMemo?.value ?? new Map()
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -166,11 +209,12 @@ export function getConductorSnapshot(maxAgeMs = 0): Promise<ConductorSnapshot> {
 }
 
 async function buildSnapshot(): Promise<ConductorSnapshot> {
-  const [runs, active] = await Promise.all([
+  const [runs, active, names] = await Promise.all([
     getEngine().listRuns({ limit: 200 }),
     pluginClient.listActiveNodeRuns().catch(() => []),
+    getDefinitionNames(),
   ])
-  const missions = runs.map(runToMission)
+  const missions = runs.map((r) => runToMission(r, names))
   const totalTokens = runs.reduce((a, r) => a + (r.usage?.total_tokens ?? 0), 0)
   // Tokens without a cost make the aggregate cost unknown (show tokens only).
   const costKnown = runs.every(
@@ -193,6 +237,10 @@ async function buildSnapshot(): Promise<ConductorSnapshot> {
       oldestLiveElapsed:
         oldest == null ? '—' : formatElapsed(Date.now() - oldest),
       tokens: formatUsageLabel(totalTokens, totalCost),
+      totalTokens,
+      oldestLiveStartedAt: oldest,
+      runsToday: missions.filter((m) => m.createdAt >= startOfDay(Date.now()))
+        .length,
     },
   }
 }
@@ -202,8 +250,11 @@ export async function getMission(
   id: string,
 ): Promise<Mission | null> {
   try {
-    const run = await getEngine().getRun(id)
-    return run ? runToMission(run) : null
+    const [run, names] = await Promise.all([
+      getEngine().getRun(id),
+      getDefinitionNames(),
+    ])
+    return run ? runToMission(run, names) : null
   } catch {
     return null
   }

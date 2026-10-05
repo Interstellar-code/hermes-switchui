@@ -5,14 +5,21 @@ import {
   listScheduledWorkflows,
 } from './conductor-store'
 
-const { listRuns, listActiveNodeRuns, cancelRun, health, getCronJobs } =
-  vi.hoisted(() => ({
-    health: vi.fn(),
-    getCronJobs: vi.fn(),
-    listRuns: vi.fn(),
-    listActiveNodeRuns: vi.fn(),
-    cancelRun: vi.fn(),
-  }))
+const {
+  listRuns,
+  listActiveNodeRuns,
+  cancelRun,
+  health,
+  getCronJobs,
+  listDefinitions,
+} = vi.hoisted(() => ({
+  health: vi.fn(),
+  getCronJobs: vi.fn(),
+  listRuns: vi.fn(),
+  listActiveNodeRuns: vi.fn(),
+  cancelRun: vi.fn(),
+  listDefinitions: vi.fn(),
+}))
 
 vi.mock('./workflow-engine/factory', () => ({
   getEngine: () => ({ listRuns, cancelRun, getRun: vi.fn() }),
@@ -20,6 +27,7 @@ vi.mock('./workflow-engine/factory', () => ({
 vi.mock('./workflow-engine/clients/plugin-client', () => ({
   PluginClient: class {
     listActiveNodeRuns = listActiveNodeRuns
+    listDefinitions = listDefinitions
     health = health
   },
 }))
@@ -46,9 +54,31 @@ beforeEach(() => {
   listRuns.mockReset()
   listActiveNodeRuns.mockReset().mockResolvedValue([])
   cancelRun.mockReset()
+  listDefinitions.mockReset().mockResolvedValue([])
 })
 
 describe('getConductorSnapshot', () => {
+  // Must stay first: definition names are cached ~60s module-wide.
+  it('uses the friendly definition name, errorLine and F4 stats', async () => {
+    listDefinitions.mockResolvedValue([{ id: 'wf-names', name: 'Nice Name' }])
+    listRuns.mockResolvedValue([
+      run({
+        id: 'abcdef123456',
+        workflow_id: 'wf-names',
+        status: 'failed',
+        error: 'boom\nexited with code 1: bad\n',
+      }),
+      run({ id: 'l1', status: 'running', completed_at: null }),
+    ])
+    const { missions, stats } = await getConductorSnapshot()
+    expect(missions[0].title).toBe('Nice Name')
+    expect(missions[0].errorLine).toBe('exited with code 1: bad')
+    expect(missions[0].subtitle).toMatch(/^run · \d\d:\d\d · run abcdef12$/)
+    expect(stats.totalTokens).toBe(0)
+    expect(stats.oldestLiveStartedAt).toBe(missions[1].startedAt)
+    expect(stats.runsToday).toBeGreaterThanOrEqual(0)
+  })
+
   it('shows em-dash tokens when usage is absent, formatted usage + summed stats when present', async () => {
     listRuns.mockResolvedValue([run()])
     let snap = await getConductorSnapshot()

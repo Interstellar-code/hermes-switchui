@@ -1,7 +1,11 @@
 'use client'
 
 import '@/styles/matrix-conductor-rail.css'
-import { useConductorMissions } from './use-conductor-queries'
+import { useState } from 'react'
+import {
+  useConductorMissions,
+  useConductorState,
+} from './use-conductor-queries'
 import { MissionFilters } from './mission-filters'
 import { MissionList } from './mission-list'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
@@ -15,6 +19,8 @@ export function MissionRail({ onNewMission }: MissionRailProps) {
   const setFilterTab = useConductorUIStore((s) => s.setFilterTab)
 
   const { data: missions = [] } = useConductorMissions()
+  const { data: stats } = useConductorState()
+  const [search, setSearch] = useState('')
 
   const counts = {
     live: missions.filter((m) => m.status === 'live').length,
@@ -30,18 +36,16 @@ export function MissionRail({ onNewMission }: MissionRailProps) {
     <aside className="cnd-rail">
       <div className="h-head">
         <h3>Missions</h3>
-        <span className="ct">· {total}</span>
+        <span className="ct">· {stats?.runsToday ?? total} today</span>
         <div className="actions">
-          <span className="ico-btn" aria-label="Search">
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-            >
-              <path d="M21 21l-4.3-4.3M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />
-            </svg>
-          </span>
+          <input
+            type="search"
+            className="h-search"
+            aria-label="Search missions"
+            placeholder="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
         </div>
       </div>
 
@@ -51,7 +55,7 @@ export function MissionRail({ onNewMission }: MissionRailProps) {
         onSelect={setFilterTab}
       />
 
-      <MissionList />
+      <MissionList search={search} />
 
       <div className="h-foot">
         <button onClick={onNewMission}>

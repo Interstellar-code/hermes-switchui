@@ -26,6 +26,7 @@ export function StagePills({ stages }: { stages: Array<StagePill> }) {
           className={`st ${PILL_CLASS[s.status]}`}
           title={`${s.nodeIds.length} node(s) · ${s.status}`}
         >
+          {s.status === 'done' ? '✓ ' : s.status === 'failed' ? '✗ ' : ''}
           {s.stage}
         </span>
       ))}
@@ -68,31 +69,50 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
   const title = mission?.title ?? run?.workflow_id ?? runId.slice(0, 8)
   const trigger = mission?.triggerKind ?? triggerOf(run?.metadata)
   const progress = dag ? nodeProgress(dag) : null
-  const label =
+  const failed = run?.status === 'failed'
+  const terminal = !active && run != null
+  const statusChip =
     run?.status === 'paused'
-      ? 'needs you'
-      : run?.status === 'running' || run?.status === 'pending'
-        ? 'now playing'
-        : (run?.status ?? 'loading')
+      ? '⏸ waiting · approval'
+      : failed
+        ? '✗ failed'
+        : active
+          ? 'running'
+          : (run?.status ?? 'loading')
+  const startedClock =
+    started != null
+      ? new Date(started).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+        })
+      : null
 
   return (
     <div className={`now ${run?.status ?? ''}`}>
       <div className="stamp">
-        elapsed
+        {terminal ? 'total' : 'elapsed'}
         <b>{elapsed}</b>
       </div>
       <div className="body">
         <div className="lbl">
-          {label} · {runId.slice(0, 8)}
+          <span className="chip-status">{statusChip}</span>
+          run {runId.slice(0, 8)}
         </div>
         <div className="prompt">{title}</div>
-        <div className="meta">
-          {trigger && <span className="chip-trg">{trigger}</span>}
+        <div className="sub-line">
+          {run?.workflow_id ?? runId}
+          {startedClock && ` · started ${startedClock}`}
           {progress && progress.y > 0 && (
             <>
-              node <b>{progress.x}</b> of <b>{progress.y}</b>
+              {failed ? ' · stopped at node ' : ' · node '}
+              {progress.x} of {progress.y}
             </>
           )}
+        </div>
+        <div className="meta">
+          {trigger && <span className="chip-trg">{trigger}</span>}
           {mission && (
             <>
               {' '}
@@ -110,6 +130,7 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
         >
           inspect
         </button>
+        {/* RESUME slot for a failed run lands with F5a (POST /retry). */}
         {active && (
           <button
             type="button"

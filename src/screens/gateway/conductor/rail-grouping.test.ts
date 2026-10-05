@@ -20,6 +20,8 @@ function m(id: string, over: Partial<Mission> = {}): Mission {
     inputs: {},
     userMessage: '',
     error: null,
+    errorLine: null,
+    startedAt: NOW - H,
     ...over,
   }
 }
