@@ -43,6 +43,7 @@ import { Route as SettingsProvidersRouteImport } from './routes/settings/provide
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as ChatSessionKeyRouteImport } from './routes/chat/$sessionKey'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
+import { Route as ApiWorkflowSchedulesRouteImport } from './routes/api/workflow-schedules'
 import { Route as ApiWorkflowRunsRouteImport } from './routes/api/workflow-runs'
 import { Route as ApiWorkflowFeaturesRouteImport } from './routes/api/workflow-features'
 import { Route as ApiWorkflowEventsRouteImport } from './routes/api/workflow-events'
@@ -103,6 +104,7 @@ import { Route as ApiAgentVersionRouteImport } from './routes/api/agent-version'
 import { Route as ApiAgentCwdRouteImport } from './routes/api/agent-cwd'
 import { Route as ApiHermesProjectsIndexRouteImport } from './routes/api/hermes-projects/index'
 import { Route as ApiWorkspaceAgentsRouteImport } from './routes/api/workspace.agents'
+import { Route as ApiWorkflowSchedulesIdRouteImport } from './routes/api/workflow-schedules.$id'
 import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
 import { Route as ApiWorkflowDefinitionsIdRouteImport } from './routes/api/workflow-definitions.$id'
 import { Route as ApiUpdateWorkspaceRouteImport } from './routes/api/update/workspace'
@@ -432,6 +434,11 @@ const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
   path: '/api/workspace',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowSchedulesRoute = ApiWorkflowSchedulesRouteImport.update({
+  id: '/api/workflow-schedules',
+  path: '/api/workflow-schedules',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWorkflowRunsRoute = ApiWorkflowRunsRouteImport.update({
   id: '/api/workflow-runs',
   path: '/api/workflow-runs',
@@ -731,6 +738,11 @@ const ApiWorkspaceAgentsRoute = ApiWorkspaceAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
   getParentRoute: () => ApiWorkspaceRoute,
+} as any)
+const ApiWorkflowSchedulesIdRoute = ApiWorkflowSchedulesIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => ApiWorkflowSchedulesRoute,
 } as any)
 const ApiWorkflowRunsRunIdRoute = ApiWorkflowRunsRunIdRouteImport.update({
   id: '/$runId',
@@ -1663,6 +1675,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
   '/api/workflow-features': typeof ApiWorkflowFeaturesRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
+  '/api/workflow-schedules': typeof ApiWorkflowSchedulesRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/docs/$': typeof DocsSplatRoute
@@ -1776,6 +1789,7 @@ export interface FileRoutesByFullPath {
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
+  '/api/workflow-schedules/$id': typeof ApiWorkflowSchedulesIdRoute
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/hermes-projects/': typeof ApiHermesProjectsIndexRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
@@ -1915,6 +1929,7 @@ export interface FileRoutesByTo {
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
   '/api/workflow-features': typeof ApiWorkflowFeaturesRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
+  '/api/workflow-schedules': typeof ApiWorkflowSchedulesRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/docs/$': typeof DocsSplatRoute
@@ -2028,6 +2043,7 @@ export interface FileRoutesByTo {
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
+  '/api/workflow-schedules/$id': typeof ApiWorkflowSchedulesIdRoute
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/hermes-projects': typeof ApiHermesProjectsIndexRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
@@ -2170,6 +2186,7 @@ export interface FileRoutesById {
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
   '/api/workflow-features': typeof ApiWorkflowFeaturesRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
+  '/api/workflow-schedules': typeof ApiWorkflowSchedulesRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
   '/docs/$': typeof DocsSplatRoute
@@ -2283,6 +2300,7 @@ export interface FileRoutesById {
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
+  '/api/workflow-schedules/$id': typeof ApiWorkflowSchedulesIdRoute
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
   '/api/hermes-projects/': typeof ApiHermesProjectsIndexRoute
   '/api/conductor/missions/$id': typeof ApiConductorMissionsIdRouteWithChildren
@@ -2426,6 +2444,7 @@ export interface FileRouteTypes {
     | '/api/workflow-events'
     | '/api/workflow-features'
     | '/api/workflow-runs'
+    | '/api/workflow-schedules'
     | '/api/workspace'
     | '/chat/$sessionKey'
     | '/docs/$'
@@ -2539,6 +2558,7 @@ export interface FileRouteTypes {
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
+    | '/api/workflow-schedules/$id'
     | '/api/workspace/agents'
     | '/api/hermes-projects/'
     | '/api/conductor/missions/$id'
@@ -2678,6 +2698,7 @@ export interface FileRouteTypes {
     | '/api/workflow-events'
     | '/api/workflow-features'
     | '/api/workflow-runs'
+    | '/api/workflow-schedules'
     | '/api/workspace'
     | '/chat/$sessionKey'
     | '/docs/$'
@@ -2791,6 +2812,7 @@ export interface FileRouteTypes {
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
+    | '/api/workflow-schedules/$id'
     | '/api/workspace/agents'
     | '/api/hermes-projects'
     | '/api/conductor/missions/$id'
@@ -2932,6 +2954,7 @@ export interface FileRouteTypes {
     | '/api/workflow-events'
     | '/api/workflow-features'
     | '/api/workflow-runs'
+    | '/api/workflow-schedules'
     | '/api/workspace'
     | '/chat/$sessionKey'
     | '/docs/$'
@@ -3045,6 +3068,7 @@ export interface FileRouteTypes {
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
     | '/api/workflow-runs/$runId'
+    | '/api/workflow-schedules/$id'
     | '/api/workspace/agents'
     | '/api/hermes-projects/'
     | '/api/conductor/missions/$id'
@@ -3187,6 +3211,7 @@ export interface RootRouteChildren {
   ApiWorkflowEventsRoute: typeof ApiWorkflowEventsRoute
   ApiWorkflowFeaturesRoute: typeof ApiWorkflowFeaturesRoute
   ApiWorkflowRunsRoute: typeof ApiWorkflowRunsRouteWithChildren
+  ApiWorkflowSchedulesRoute: typeof ApiWorkflowSchedulesRouteWithChildren
   ApiWorkspaceRoute: typeof ApiWorkspaceRouteWithChildren
   ChatSessionKeyRoute: typeof ChatSessionKeyRoute
   WebsiteSplatRoute: typeof WebsiteSplatRoute
@@ -3506,6 +3531,13 @@ declare module '@tanstack/react-router' {
       path: '/api/workspace'
       fullPath: '/api/workspace'
       preLoaderRoute: typeof ApiWorkspaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflow-schedules': {
+      id: '/api/workflow-schedules'
+      path: '/api/workflow-schedules'
+      fullPath: '/api/workflow-schedules'
+      preLoaderRoute: typeof ApiWorkflowSchedulesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/workflow-runs': {
@@ -3927,6 +3959,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/workspace/agents'
       preLoaderRoute: typeof ApiWorkspaceAgentsRouteImport
       parentRoute: typeof ApiWorkspaceRoute
+    }
+    '/api/workflow-schedules/$id': {
+      id: '/api/workflow-schedules/$id'
+      path: '/$id'
+      fullPath: '/api/workflow-schedules/$id'
+      preLoaderRoute: typeof ApiWorkflowSchedulesIdRouteImport
+      parentRoute: typeof ApiWorkflowSchedulesRoute
     }
     '/api/workflow-runs/$runId': {
       id: '/api/workflow-runs/$runId'
@@ -5343,6 +5382,17 @@ const ApiWorkflowRunsRouteWithChildren = ApiWorkflowRunsRoute._addFileChildren(
   ApiWorkflowRunsRouteChildren,
 )
 
+interface ApiWorkflowSchedulesRouteChildren {
+  ApiWorkflowSchedulesIdRoute: typeof ApiWorkflowSchedulesIdRoute
+}
+
+const ApiWorkflowSchedulesRouteChildren: ApiWorkflowSchedulesRouteChildren = {
+  ApiWorkflowSchedulesIdRoute: ApiWorkflowSchedulesIdRoute,
+}
+
+const ApiWorkflowSchedulesRouteWithChildren =
+  ApiWorkflowSchedulesRoute._addFileChildren(ApiWorkflowSchedulesRouteChildren)
+
 interface ApiWorkspaceRouteChildren {
   ApiWorkspaceAgentsRoute: typeof ApiWorkspaceAgentsRoute
 }
@@ -5718,6 +5768,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkflowEventsRoute: ApiWorkflowEventsRoute,
   ApiWorkflowFeaturesRoute: ApiWorkflowFeaturesRoute,
   ApiWorkflowRunsRoute: ApiWorkflowRunsRouteWithChildren,
+  ApiWorkflowSchedulesRoute: ApiWorkflowSchedulesRouteWithChildren,
   ApiWorkspaceRoute: ApiWorkspaceRouteWithChildren,
   ChatSessionKeyRoute: ChatSessionKeyRoute,
   WebsiteSplatRoute: WebsiteSplatRoute,

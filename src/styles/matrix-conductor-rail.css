@@ -43,8 +43,32 @@
   .miss.sched {
     cursor: default;
   }
-  .miss.sched.off {
+  .miss.sched.off .body > :not(.sched-actions) {
     opacity: 0.55;
+  }
+  .miss.sched .sched-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+  .miss.sched .sched-actions button {
+    padding: 2px 8px;
+    cursor: pointer;
+    font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-strong, var(--theme-text));
+    background: transparent;
+    border: 1px solid var(--m-border, var(--theme-border));
+  }
+  .miss.sched .sched-actions button:hover:not(:disabled),
+  .miss.sched .sched-actions button:focus-visible {
+    border-color: var(--m-green-500, var(--theme-accent));
+  }
+  .miss.sched .sched-actions button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  .miss.sched .sched-err {
+    color: var(--m-danger, var(--theme-danger));
   }
 
   /* approval banner */

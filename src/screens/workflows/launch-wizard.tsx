@@ -16,6 +16,12 @@ import {
   useWorkflowParsed,
 } from './use-workflows'
 import { toEpochMs, useWorkflowRunIndex } from './run-status'
+import {
+  CRON_PRESETS,
+  cronError,
+  nextCronFire,
+  useRepeatBlockReason,
+} from './schedules-client'
 import type { WorkflowRunRow } from './api-client'
 import type {
   LaunchDialogProps,
@@ -458,13 +464,16 @@ function runShape(
 
 // ── Step 3 — when ────────────────────────────────────────────────────────────
 
-type WhenMode = 'now' | 'at'
+type WhenMode = 'now' | 'at' | 'repeat'
 
 function WhenStep({
   mode,
   setMode,
   datetime,
   setDatetime,
+  cron,
+  setCron,
+  repeatBlock,
   schedulerAlive,
   schedulerLine,
 }: {
@@ -472,10 +481,15 @@ function WhenStep({
   setMode: (m: WhenMode) => void
   datetime: string
   setDatetime: (v: string) => void
+  cron: string
+  setCron: (v: string) => void
+  repeatBlock: string | null
   schedulerAlive: boolean
   schedulerLine: string
 }) {
   const at = futureDate(datetime)
+  const cronErr = cronError(cron)
+  const nextFire = cronErr ? null : nextCronFire(cron)
   return (
     <>
       <div className="wfl-opts" role="radiogroup" aria-label="When to run">
@@ -531,15 +545,64 @@ function WhenStep({
             </div>
           )}
         </div>
-        <div className="wfl-opt is-off">
+        <div
+          className={`wfl-opt${mode === 'repeat' ? ' is-sel' : ''}${repeatBlock ? ' is-off' : ''}`}
+        >
           <label className="wfl-opt-t">
-            <input type="radio" name="wfl-when" disabled />
+            <input
+              type="radio"
+              name="wfl-when"
+              checked={mode === 'repeat'}
+              disabled={repeatBlock !== null && mode !== 'repeat'}
+              onChange={() => setMode('repeat')}
+            />
             Repeat
           </label>
           <span className="wfl-desc">
-            Repeating schedules aren&apos;t supported by the workflow engine
-            yet. Use a Hermes cron job that runs this workflow instead.
+            {repeatBlock ?? 'Runs on a cron schedule, in host local time.'}
           </span>
+          {mode === 'repeat' && (
+            <div className="wfl-field">
+              <label htmlFor="wfl-cron" className="wfl-label">
+                Cron expression
+              </label>
+              <div className="wfl-presets" role="group" aria-label="Presets">
+                {CRON_PRESETS.map((p) => (
+                  <button
+                    key={p.cron}
+                    type="button"
+                    className="wfl-link"
+                    aria-pressed={cron.trim() === p.cron}
+                    onClick={() => setCron(p.cron)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <input
+                id="wfl-cron"
+                type="text"
+                className="wfl-input"
+                value={cron}
+                placeholder="*/5 * * * *"
+                spellCheck={false}
+                autoComplete="off"
+                aria-invalid={cron !== '' && cronErr !== null}
+                aria-describedby="wfl-cron-msg"
+                onChange={(e) => setCron(e.target.value)}
+              />
+              <span
+                id="wfl-cron-msg"
+                className={cron && cronErr ? 'wfl-warn' : 'wfl-hint'}
+              >
+                {cron && cronErr
+                  ? cronErr
+                  : nextFire
+                    ? `next: ${nextFire.toLocaleString()} · ${Intl.DateTimeFormat().resolvedOptions().timeZone} (host local time)`
+                    : 'minute hour day month weekday'}
+              </span>
+            </div>
+          )}
         </div>
       </div>
       <span
@@ -552,6 +615,11 @@ function WhenStep({
       {mode === 'at' && !schedulerAlive && (
         <span className="wfl-warn" role="alert">
           {SCHEDULER_LOST}
+        </span>
+      )}
+      {mode === 'repeat' && repeatBlock && (
+        <span className="wfl-warn" role="alert">
+          {repeatBlock}
         </span>
       )}
     </>
@@ -568,9 +636,11 @@ function ConfirmStep({
   userMessage,
   mode,
   datetime,
+  cron,
   profile,
   error,
   scheduleBlocked,
+  blockReason,
   onEdit,
 }: {
   wf: WorkflowSummary | undefined
@@ -580,9 +650,11 @@ function ConfirmStep({
   userMessage: string
   mode: WhenMode
   datetime: string
+  cron: string
   profile: string | null | undefined
   error: string | null
   scheduleBlocked: boolean
+  blockReason: string | null
   onEdit: (step: LaunchDialogStep) => void
 }) {
   const at = mode === 'at' ? futureDate(datetime) : null
@@ -643,7 +715,11 @@ function ConfirmStep({
         <div className="wfl-kv">
           <span>schedule</span>
           <span>
-            {at ? `${longDate(at)} (${fromNow(at)})` : 'Now — starts on launch'}
+            {mode === 'repeat'
+              ? `Repeats: ${cron.trim()}${nextCronFire(cron) ? ` — next ${nextCronFire(cron)!.toLocaleString()}` : ''} (host local time)`
+              : at
+                ? `${longDate(at)} (${fromNow(at)})`
+                : 'Now — starts on launch'}
           </span>
         </div>
       </section>
@@ -677,7 +753,7 @@ function ConfirmStep({
       </section>
       {scheduleBlocked && (
         <div className="wfl-warn" role="alert">
-          {SCHEDULER_LOST}
+          {mode === 'repeat' ? blockReason : SCHEDULER_LOST}
         </div>
       )}
       {error && (
@@ -709,6 +785,7 @@ function LaunchDialogBody({
   const [userMessage, setUserMessage] = useState('')
   const [mode, setMode] = useState<WhenMode>('now')
   const [datetime, setDatetime] = useState('')
+  const [cron, setCron] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const defs = useWorkflowDefinitions()
@@ -739,7 +816,10 @@ function LaunchDialogBody({
     [sched.data],
   )
   // "At a time" chosen, then the scheduler dropped: block, never fold into a run-now.
-  const scheduleBlocked = mode === 'at' && !schedulerAlive
+  const repeatBlock = useRepeatBlockReason()
+  const scheduleBlocked =
+    (mode === 'at' && !schedulerAlive) ||
+    (mode === 'repeat' && repeatBlock !== null)
 
   const modalRef = useRef<HTMLDivElement>(null)
   const close = () => {
@@ -771,7 +851,10 @@ function LaunchDialogBody({
         ? inputsReady && Boolean(wf)
         : step === 'when'
           ? mode === 'now' ||
-            (!scheduleBlocked && futureDate(datetime) !== null)
+            (!scheduleBlocked &&
+              (mode === 'repeat'
+                ? cronError(cron) === null
+                : futureDate(datetime) !== null))
           : false
   const idx = STEPS.findIndex((s) => s.id === step)
 
@@ -783,6 +866,10 @@ function LaunchDialogBody({
       if (v) variables[f.name] = v
     }
     const at = mode === 'at' ? futureDate(datetime) : null
+    if (mode === 'repeat' && cronError(cron)) {
+      setError('Fix the cron expression first.')
+      return
+    }
     if (mode === 'at' && !at) {
       setError('Scheduled time has passed — pick a new time.')
       return
@@ -794,7 +881,12 @@ function LaunchDialogBody({
         conversation_id: crypto.randomUUID(),
         user_message: userMessage.trim() || `Launch ${wf.name}`,
         variables: Object.keys(variables).length ? variables : undefined,
-        schedule: at ? { type: 'at', at: at.toISOString() } : { type: 'now' },
+        schedule:
+          mode === 'repeat'
+            ? { type: 'cron', cron: cron.trim() }
+            : at
+              ? { type: 'at', at: at.toISOString() }
+              : { type: 'now' },
         priority: 50,
         maxRuntimeSeconds: MAX_RUNTIME_SECONDS,
       },
@@ -802,7 +894,8 @@ function LaunchDialogBody({
         onSuccess: (result) => {
           onClose()
           // A scheduled row is not a run yet — nothing to select until the daemon fires it.
-          if (at) toast(`Scheduled ${wf.name} for ${at.toLocaleString()}`)
+          if (mode === 'repeat') toast(`Scheduled ${wf.name}: ${cron.trim()}`)
+          else if (at) toast(`Scheduled ${wf.name} for ${at.toLocaleString()}`)
           else onRunLaunched(result.run.id, wf.id)
         },
         onError: (err) => {
@@ -946,6 +1039,9 @@ function LaunchDialogBody({
                 setMode={setMode}
                 datetime={datetime}
                 setDatetime={setDatetime}
+                cron={cron}
+                setCron={setCron}
+                repeatBlock={repeatBlock}
                 schedulerAlive={schedulerAlive}
                 schedulerLine={schedulerLine}
               />
@@ -958,9 +1054,11 @@ function LaunchDialogBody({
                 userMessage={userMessage}
                 mode={mode}
                 datetime={datetime}
+                cron={cron}
                 profile={sched.data?.profile}
                 error={error}
                 scheduleBlocked={scheduleBlocked}
+                blockReason={repeatBlock}
                 onEdit={setStep}
               />
             )}
@@ -989,11 +1087,13 @@ function LaunchDialogBody({
                 className="wfw-btn wfw-btn--primary"
                 onClick={submit}
                 disabled={launch.isPending || !wf || scheduleBlocked}
-                title={scheduleBlocked ? SCHEDULER_LOST : undefined}
+                title={
+                  scheduleBlocked ? (repeatBlock ?? SCHEDULER_LOST) : undefined
+                }
               >
                 {launch.isPending
                   ? 'Launching…'
-                  : mode === 'at'
+                  : mode !== 'now'
                     ? 'Schedule ▶'
                     : 'Launch ▶'}
               </button>

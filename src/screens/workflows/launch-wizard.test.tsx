@@ -50,6 +50,15 @@ const PARSED = {
 }
 let scheduler: { schedulerAlive: boolean } | undefined
 let schedulerError = false
+let features: {
+  features: Array<string>
+  schedulerAlive: boolean
+  profile: string | null
+} = {
+  features: [],
+  schedulerAlive: false,
+  profile: null,
+}
 let defs: { data?: typeof WFS; isLoading: boolean; isError?: boolean }
 
 vi.mock('./use-workflows', async () => {
@@ -60,6 +69,7 @@ vi.mock('./use-workflows', async () => {
       data: id === 'wf-a' ? PARSED : undefined,
       isLoading: false,
     }),
+    useWorkflowFeatures: () => ({ data: features, isError: false }),
     useLaunchWorkflowRun: () => useMutation({ mutationFn: launchWorkflowRun }),
   }
 })
@@ -96,6 +106,7 @@ beforeEach(() => {
   scheduler = { schedulerAlive: false }
   defs = { data: WFS, isLoading: false }
   schedulerError = false
+  features = { features: [], schedulerAlive: false, profile: null }
   launchWorkflowRun.mockReset().mockResolvedValue({ run: { id: 'run-1' } })
 })
 afterEach(cleanup)
@@ -345,5 +356,63 @@ describe('LaunchDialog', () => {
   it('renders nothing when closed', () => {
     mount({ open: false })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  describe('Repeat', () => {
+    const repeatRadio = () => screen.getByRole('radio', { name: /^Repeat/ })
+    const toWhen = () => {
+      mount({ initialWorkflowId: 'wf-b', initialStep: 'when' })
+    }
+    it.each([
+      [
+        'engine too old',
+        { features: [], schedulerAlive: true, profile: 'hermes-switch' },
+        /Engine too old/,
+      ],
+      [
+        'scheduler offline',
+        {
+          features: ['cron_schedule'],
+          schedulerAlive: false,
+          profile: 'hermes-switch',
+        },
+        /Scheduler offline/,
+      ],
+      [
+        'wrong profile',
+        {
+          features: ['cron_schedule'],
+          schedulerAlive: true,
+          profile: 'default',
+        },
+        /hermes-switch profile/,
+      ],
+    ])('is disabled with a reason: %s', (_n, f, reason) => {
+      features = f
+      toWhen()
+      expect((repeatRadio() as HTMLInputElement).disabled).toBe(true)
+      expect(screen.getAllByText(reason).length).toBeGreaterThan(0)
+    })
+
+    it('schedules a cron launch', async () => {
+      features = {
+        features: ['cron_schedule'],
+        schedulerAlive: true,
+        profile: 'hermes-switch',
+      }
+      toWhen()
+      fireEvent.click(repeatRadio())
+      fireEvent.change(input(/Cron expression/), { target: { value: 'nope' } })
+      expect(screen.getByRole('button', { name: /^Next/ }).disabled).toBe(true)
+      fireEvent.click(screen.getByRole('button', { name: 'Weekdays 09:00' }))
+      expect(screen.getByText(/^next: /)).toBeTruthy()
+      next()
+      fireEvent.click(screen.getByRole('button', { name: /^Schedule/ }))
+      await waitFor(() => expect(launchWorkflowRun).toHaveBeenCalled())
+      expect(launchWorkflowRun.mock.calls[0][0].schedule).toEqual({
+        type: 'cron',
+        cron: '0 9 * * 1-5',
+      })
+    })
   })
 })

@@ -6,7 +6,12 @@ import { MissionCard, formatClock } from './mission-card'
 import { groupRail } from './rail-grouping'
 import type { RailRow } from './rail-grouping'
 import type { Mission } from './use-conductor-queries'
+import type { ScheduledWorkflow } from '@/server/conductor-store'
 import type { FilterTab } from '@/stores/conductor-ui-store'
+import {
+  useDeleteSchedule,
+  useToggleSchedule,
+} from '@/screens/workflows/schedules-client'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 function filterMissions(
@@ -63,12 +68,21 @@ function RailRowView({ row }: { row: RailRow }) {
       </button>
     )
   }
-  const { item } = row
+  return <ScheduledRow item={row.item} />
+}
+
+function ScheduledRow({ item }: { item: ScheduledWorkflow }) {
+  const toggle = useToggleSchedule()
+  const del = useDeleteSchedule()
+  const native = item.source === 'native'
+  const name = item.title ?? item.workflowId
+  const busy = toggle.isPending || del.isPending
+  const failure = toggle.error ?? del.error
   return (
     <div className={`miss sched${item.enabled ? '' : ' off'}`}>
       <div className="rail" />
       <div className="body">
-        <div className="ttl">{item.workflowId}</div>
+        <div className="ttl">{name}</div>
         <div className="sub">{item.scheduleLabel}</div>
         <div className="badges">
           <span className="b">
@@ -83,6 +97,45 @@ function RailRowView({ row }: { row: RailRow }) {
           )}
           {item.lastStatus && <span className="b">{item.lastStatus}</span>}
         </div>
+        {item.lastError && (
+          <div className="sub sched-err" title={item.lastError}>
+            error: {item.lastError}
+          </div>
+        )}
+        {native && (
+          <div className="sched-actions">
+            <button
+              type="button"
+              disabled={busy}
+              aria-label={`${item.enabled ? 'Disable' : 'Enable'} schedule for ${name}`}
+              onClick={() =>
+                toggle.mutate({ id: item.id, enabled: !item.enabled })
+              }
+            >
+              {item.enabled ? 'DISABLE' : 'ENABLE'}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              aria-label={`Delete schedule for ${name}`}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Delete the schedule "${item.scheduleLabel}" for ${name}?`,
+                  )
+                )
+                  del.mutate(item.id)
+              }}
+            >
+              DELETE
+            </button>
+          </div>
+        )}
+        {failure && (
+          <div className="sub sched-err" role="alert">
+            {failure.message}
+          </div>
+        )}
       </div>
     </div>
   )

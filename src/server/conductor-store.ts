@@ -7,6 +7,7 @@
 
 import { formatUsageLabel } from '../lib/format-usage'
 import { getCronJobs } from './claude-dashboard-api'
+import { dashboardFetch } from './gateway-capabilities'
 import { getEngine } from './workflow-engine/factory'
 import { PluginClient } from './workflow-engine/clients/plugin-client'
 import type { WorkflowRun } from './workflow-engine/interface'
@@ -290,6 +291,11 @@ export interface ScheduledWorkflow {
   enabled: boolean
   lastRunAt: number | null
   lastStatus: string | null
+  /** 'native' = workflow-engine schedule (toggle/delete via /api/workflow-schedules). */
+  source?: 'native' | 'hermes'
+  /** Friendly workflow name (native rows). */
+  title?: string
+  lastError?: string | null
 }
 
 export interface ScheduledResponse {
@@ -300,17 +306,61 @@ export interface ScheduledResponse {
 
 const CRON_FETCH_TIMEOUT_MS = 8000
 
-const optMs = (d: string | null | undefined): number | null =>
+const optMs = (d: string | number | null | undefined): number | null =>
   d ? toMs(d, 0) || null : null
+
+interface NativeSchedule {
+  id: string
+  workflow_id: string
+  kind: string
+  cron: string | null
+  status: string
+  enabled: boolean
+  next_run_at: string | number | null
+  last_error: string | null
+}
+
+/** Engine cron schedules (plugin >= 0.4.0); [] when unsupported or down. */
+async function listNativeSchedules(
+  names: Map<string, string>,
+): Promise<Array<ScheduledWorkflow>> {
+  try {
+    const res = await dashboardFetch('/api/plugins/workflow-engine/schedules', {
+      signal: AbortSignal.timeout(CRON_FETCH_TIMEOUT_MS),
+    })
+    if (!res.ok) return []
+    const data = (await res.json()) as { schedules?: Array<NativeSchedule> }
+    return (data.schedules ?? [])
+      .filter((s) => s.kind === 'cron' && s.status !== 'cancelled')
+      .map((s) => ({
+        id: s.id,
+        workflowId: s.workflow_id,
+        cron: s.cron,
+        scheduleLabel: `cron ${s.cron ?? '—'}`,
+        nextRunAt: optMs(s.next_run_at),
+        enabled: s.enabled,
+        lastRunAt: null,
+        lastStatus: null,
+        source: 'native' as const,
+        title: names.get(s.workflow_id) ?? s.workflow_id,
+        lastError: s.last_error ?? null,
+      }))
+  } catch {
+    return []
+  }
+}
 
 /** Never throws: upstream failure degrades to offline / empty. */
 export async function listScheduledWorkflows(): Promise<ScheduledResponse> {
   const health = await pluginClient.health().catch(() => null)
   const profile = typeof health?.profile === 'string' ? health.profile : null
-  const jobs = await getCronJobs(
-    profile ?? undefined,
-    AbortSignal.timeout(CRON_FETCH_TIMEOUT_MS),
-  ).catch(() => [])
+  const [jobs, native] = await Promise.all([
+    getCronJobs(
+      profile ?? undefined,
+      AbortSignal.timeout(CRON_FETCH_TIMEOUT_MS),
+    ).catch(() => []),
+    getDefinitionNames().then(listNativeSchedules),
+  ])
   const scheduled = (Array.isArray(jobs) ? jobs : []).flatMap((j) => {
     let payload = (j as { payload?: unknown }).payload
     if (typeof payload === 'string') {
@@ -349,6 +399,6 @@ export async function listScheduledWorkflows(): Promise<ScheduledResponse> {
   return {
     schedulerAlive: health?.scheduler_alive === true,
     profile,
-    scheduled,
+    scheduled: [...native, ...scheduled],
   }
 }
