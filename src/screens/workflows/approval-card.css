@@ -1,0 +1,63 @@
+.wfac {
+  border: 1px solid var(--theme-warning, var(--m-accent, #ffb454));
+  border-radius: 4px;
+  padding: 12px;
+  background: color-mix(
+    in srgb,
+    var(--theme-warning, var(--m-accent, #ffb454)) 8%,
+    transparent
+  );
+}
+.wfac--compact {
+  padding: 8px;
+}
+.wfac-title {
+  color: var(--theme-warning, var(--m-accent, #ffb454));
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.wfac-msg {
+  font-size: 13px;
+  margin: 8px 0 12px;
+  white-space: pre-wrap;
+  max-height: 240px;
+  overflow-y: auto;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+}
+.wfac-label {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 4px;
+  color: var(--theme-muted, var(--m-text-muted));
+}
+.wfac-reply {
+  width: 100%;
+  font-size: 12px;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  background: transparent;
+  color: inherit;
+  border: 1px solid var(--theme-border, var(--m-border));
+  border-radius: 3px;
+  padding: 6px;
+  margin-bottom: 8px;
+  resize: vertical;
+}
+.wfac-error {
+  color: var(--theme-danger, #ff6b6b);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.wfac-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.wfac-approve {
+  border-color: var(--m-green-500, #4caf82);
+  color: var(--m-green-500, #4caf82);
+}
+.wfac-hint {
+  font-size: 11px;
+  color: var(--theme-muted, var(--m-text-muted));
+}

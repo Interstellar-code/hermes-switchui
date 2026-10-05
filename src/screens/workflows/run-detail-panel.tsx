@@ -4,7 +4,8 @@
  */
 import { useMemo, useState } from 'react'
 import '@/styles/workflow-ui.css'
-import { useApproveRun, useCancelRun, useWorkflowRun } from './use-workflows'
+import { ApprovalCard } from './approval-card'
+import { useCancelRun, useWorkflowRun } from './use-workflows'
 import { useWorkflowEvents } from './use-workflow-events'
 import type { NodeRunRow, WorkflowArtifactRef } from './api-client'
 
@@ -154,8 +155,6 @@ export function RunDetailPanel(props: Props) {
 function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
   const { data, isLoading, isError, refetch } = useWorkflowRun(runId)
   const cancelMutation = useCancelRun(runId)
-  const approveMutation = useApproveRun(runId)
-  const [approvalText, setApprovalText] = useState('')
   const [expandedSubgraphRows, setExpandedSubgraphRows] = useState<Set<string>>(
     new Set(),
   )
@@ -305,97 +304,7 @@ function RunDetailPanelInner({ runId, onClose, hideHeader = false }: Props) {
       <div className="wfrd-body">
         {/* ── Approval card ── */}
         {pendingApprovalNode && (
-          <section
-            className="wfrd-section"
-            style={{
-              border: '1px solid #ffb454',
-              borderRadius: 4,
-              padding: 12,
-              background: 'rgba(255, 180, 84, 0.06)',
-            }}
-          >
-            <div className="wfrd-section-title" style={{ color: '#ffb454' }}>
-              Approval Required · {pendingApprovalNode.dag_node_id}
-            </div>
-            <div
-              style={{
-                fontSize: 13,
-                margin: '8px 0 12px',
-                whiteSpace: 'pre-wrap',
-                maxHeight: 240,
-                overflowY: 'auto',
-                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
-              }}
-            >
-              {pendingApprovalNode.approval_message || 'Approval required'}
-            </div>
-            <label
-              htmlFor="wfrd-approval-reply"
-              style={{ display: 'block', fontSize: 12, marginBottom: 4 }}
-            >
-              Reply (optional)
-            </label>
-            <textarea
-              id="wfrd-approval-reply"
-              value={approvalText}
-              onChange={(e) => setApprovalText(e.target.value)}
-              placeholder="Reply to the prompt above, e.g. skip or 1,3,7"
-              rows={3}
-              disabled={approveMutation.isPending}
-              style={{
-                width: '100%',
-                fontSize: 12,
-                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
-                background: 'transparent',
-                color: 'inherit',
-                border: '1px solid #444',
-                borderRadius: 3,
-                padding: 6,
-                marginBottom: 8,
-                resize: 'vertical',
-              }}
-            />
-            {approveMutation.isError && (
-              <div style={{ color: '#ff6b6b', fontSize: 12, marginBottom: 8 }}>
-                {approveMutation.error.message}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                className="wfrd-btn"
-                disabled={approveMutation.isPending}
-                onClick={() =>
-                  approveMutation.mutate(
-                    {
-                      node_run_id: pendingApprovalNode.id,
-                      decision: 'approved',
-                      response: approvalText,
-                    },
-                    { onSuccess: () => setApprovalText('') },
-                  )
-                }
-                style={{ borderColor: '#4caf82', color: '#4caf82' }}
-              >
-                {approveMutation.isPending ? 'Sending…' : 'Approve'}
-              </button>
-              <button
-                className="wfrd-btn wfrd-btn--danger"
-                disabled={approveMutation.isPending}
-                onClick={() =>
-                  approveMutation.mutate(
-                    {
-                      node_run_id: pendingApprovalNode.id,
-                      decision: 'rejected',
-                      response: approvalText,
-                    },
-                    { onSuccess: () => setApprovalText('') },
-                  )
-                }
-              >
-                {approveMutation.isPending ? 'Sending…' : 'Reject'}
-              </button>
-            </div>
-          </section>
+          <ApprovalCard runId={runId} nodeRun={pendingApprovalNode} />
         )}
 
         {/* ── Phase timeline ── */}
