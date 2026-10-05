@@ -196,6 +196,28 @@ export interface RunEvent {
   created_at?: number;
 }
 
+export interface RunEventsQuery {
+  limit?: number;
+  node_run_id?: string;
+  type?: string;
+  after?: string;
+}
+
+export interface RunEventsPage {
+  events: Array<RunEvent>;
+  cursor?: string | number | null;
+}
+
+export interface EngineHealth {
+  ok: boolean;
+  version?: string;
+  profile?: string;
+  scheduler_alive?: boolean;
+  scheduler_heartbeat_at?: string | number | null;
+  /** Backend feature flags (B1+); absent on older plugins. */
+  features?: Array<string>;
+}
+
 export interface PhaseTransition {
   id: string;
   from_phase: string | null;
@@ -246,6 +268,11 @@ export interface WorkflowEngineInterface {
   appendWorkflowEvent: (event: RunEvent) => Promise<void>;
   listRecentWorkflowEvents: (runId: string, limit?: number) => Promise<Array<RunEvent>>;
   subscribeEvents: (runId?: string, signal?: AbortSignal) => AsyncIterable<RunEvent>;
+  /** Filtered/paged events query. Throws a `404` error when the backend lacks the endpoint or run. */
+  listRunEvents: (runId: string, q?: RunEventsQuery) => Promise<RunEventsPage>;
+
+  // ── Health ─────────────────────────────────────────────────────────────
+  health: () => Promise<EngineHealth>;
 
   // ── Phase transitions ──────────────────────────────────────────────────
   recordPhaseTransition: (input: {
@@ -262,6 +289,7 @@ export interface WorkflowEngineInterface {
     nodeRunId: string,
     decision: 'approve' | 'reject',
     comment?: string,
+    approvedBy?: string,
   ) => Promise<void>;
   tryClaimApprovalForResume: (
     runId: string,

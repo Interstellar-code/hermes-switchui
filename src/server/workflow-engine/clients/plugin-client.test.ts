@@ -284,6 +284,35 @@ describe('PluginClient.listPhaseTransitions', () => {
 // Approvals
 // ---------------------------------------------------------------------------
 
+describe('PluginClient.approve', () => {
+  it('forwards approved_by only when given', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }))
+    await client.approve('r1', 'n1', 'approve', 'ok', 'switchui')
+    expect(JSON.parse(lastInit()?.body as string).approved_by).toBe('switchui')
+    fetchMock.mockResolvedValue(fakeResponse({ ok: true }))
+    await client.approve('r1', 'n1', 'reject')
+    expect(JSON.parse(lastInit()?.body as string)).not.toHaveProperty(
+      'approved_by',
+    )
+  })
+})
+
+describe('PluginClient.listRunEvents', () => {
+  it('calls GET /runs/{id}/events with filters and returns cursor', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ events: [], cursor: 'c9' }))
+    const r = await client.listRunEvents('r1', {
+      limit: 10,
+      node_run_id: 'n1',
+      type: 'node_log',
+      after: 'c3',
+    })
+    expect(lastUrl()).toContain(
+      `${PLUGIN_BASE}/runs/r1/events?limit=10&node_run_id=n1&type=node_log&after=c3`,
+    )
+    expect(r).toEqual({ events: [], cursor: 'c9' })
+  })
+})
+
 describe('PluginClient.tryClaimApprovalForResume', () => {
   it('calls POST /runs/.../approval-claim with correct body', async () => {
     fetchMock.mockResolvedValue(

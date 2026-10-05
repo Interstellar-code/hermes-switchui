@@ -10,9 +10,12 @@
 import { dashboardFetch } from '../../gateway-capabilities.js'
 import type {
   ApprovalClaimResult,
+  EngineHealth,
   NodeRun,
   PhaseTransition,
   RunEvent,
+  RunEventsPage,
+  RunEventsQuery,
   RunSessions,
   TriggerInfo,
   WorkflowDefinitionRow,
@@ -130,13 +133,7 @@ async function _delete(path: string): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export class PluginClient implements WorkflowEngineInterface {
-  async health(): Promise<{
-    ok: boolean
-    version?: string
-    profile?: string
-    scheduler_alive?: boolean
-    scheduler_heartbeat_at?: string | number | null
-  }> {
+  async health(): Promise<EngineHealth> {
     return _get('/health')
   }
 
@@ -386,6 +383,23 @@ export class PluginClient implements WorkflowEngineInterface {
     return data.events
   }
 
+  async listRunEvents(
+    runId: string,
+    q: RunEventsQuery = {},
+  ): Promise<RunEventsPage> {
+    const params = new URLSearchParams()
+    if (q.limit != null) params.set('limit', String(q.limit))
+    if (q.node_run_id) params.set('node_run_id', q.node_run_id)
+    if (q.type) params.set('type', q.type)
+    if (q.after) params.set('after', q.after)
+    const qs = params.toString() ? `?${params}` : ''
+    const data = await _get<{
+      events: Array<RunEvent>
+      cursor?: string | number | null
+    }>(`/runs/${encodeURIComponent(runId)}/events${qs}`)
+    return { events: data.events, cursor: data.cursor ?? null }
+  }
+
   subscribeEvents(
     runId?: string,
     signal?: AbortSignal,
@@ -430,11 +444,13 @@ export class PluginClient implements WorkflowEngineInterface {
     nodeRunId: string,
     decision: 'approve' | 'reject',
     comment?: string,
+    approvedBy?: string,
   ): Promise<void> {
     await _send('POST', `/runs/${encodeURIComponent(runId)}/approve`, {
       node_run_id: nodeRunId,
       decision: decision === 'approve' ? 'approved' : 'rejected',
       response: comment,
+      ...(approvedBy ? { approved_by: approvedBy } : {}),
     })
   }
 

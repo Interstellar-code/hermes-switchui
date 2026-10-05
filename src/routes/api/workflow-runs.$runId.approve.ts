@@ -42,7 +42,8 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
 
         // Phase 2: always plugin path — plugin handles all approval logic server-side.
         const ifaceDecision = decision === 'approved' ? 'approve' : 'reject';
-        await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined);
+        // approved_by is server-set (self-reported, no per-user identity); any client value is ignored.
+        await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined, 'switchui');
         return Response.json({ ok: true, decision, resumedRunId: runId });
       },
     },

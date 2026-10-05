@@ -44,6 +44,7 @@ import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as ChatSessionKeyRouteImport } from './routes/chat/$sessionKey'
 import { Route as ApiWorkspaceRouteImport } from './routes/api/workspace'
 import { Route as ApiWorkflowRunsRouteImport } from './routes/api/workflow-runs'
+import { Route as ApiWorkflowFeaturesRouteImport } from './routes/api/workflow-features'
 import { Route as ApiWorkflowEventsRouteImport } from './routes/api/workflow-events'
 import { Route as ApiWorkflowDefinitionsRouteImport } from './routes/api/workflow-definitions'
 import { Route as ApiTerminalStreamRouteImport } from './routes/api/terminal-stream'
@@ -206,6 +207,7 @@ import { Route as ApiBackupsDeleteRouteImport } from './routes/api/backups/delet
 import { Route as ApiBackupsCreateRouteImport } from './routes/api/backups/create'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiApprovalsPendingRouteImport } from './routes/api/approvals.pending'
+import { Route as ApiWorkflowRunsRunIdEventsRouteImport } from './routes/api/workflow-runs.$runId.events'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
@@ -432,6 +434,11 @@ const ApiWorkspaceRoute = ApiWorkspaceRouteImport.update({
 const ApiWorkflowRunsRoute = ApiWorkflowRunsRouteImport.update({
   id: '/api/workflow-runs',
   path: '/api/workflow-runs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiWorkflowFeaturesRoute = ApiWorkflowFeaturesRouteImport.update({
+  id: '/api/workflow-features',
+  path: '/api/workflow-features',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiWorkflowEventsRoute = ApiWorkflowEventsRouteImport.update({
@@ -1254,6 +1261,12 @@ const ApiApprovalsPendingRoute = ApiApprovalsPendingRouteImport.update({
   path: '/api/approvals/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowRunsRunIdEventsRoute =
+  ApiWorkflowRunsRunIdEventsRouteImport.update({
+    id: '/events',
+    path: '/events',
+    getParentRoute: () => ApiWorkflowRunsRunIdRoute,
+  } as any)
 const ApiWorkflowRunsRunIdApproveRoute =
   ApiWorkflowRunsRunIdApproveRouteImport.update({
     id: '/approve',
@@ -1641,6 +1654,7 @@ export interface FileRoutesByFullPath {
   '/api/terminal-stream': typeof ApiTerminalStreamRoute
   '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
+  '/api/workflow-features': typeof ApiWorkflowFeaturesRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
@@ -1789,6 +1803,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
+  '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
@@ -1890,6 +1905,7 @@ export interface FileRoutesByTo {
   '/api/terminal-stream': typeof ApiTerminalStreamRoute
   '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
+  '/api/workflow-features': typeof ApiWorkflowFeaturesRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
@@ -2038,6 +2054,7 @@ export interface FileRoutesByTo {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
+  '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
@@ -2142,6 +2159,7 @@ export interface FileRoutesById {
   '/api/terminal-stream': typeof ApiTerminalStreamRoute
   '/api/workflow-definitions': typeof ApiWorkflowDefinitionsRouteWithChildren
   '/api/workflow-events': typeof ApiWorkflowEventsRoute
+  '/api/workflow-features': typeof ApiWorkflowFeaturesRoute
   '/api/workflow-runs': typeof ApiWorkflowRunsRouteWithChildren
   '/api/workspace': typeof ApiWorkspaceRouteWithChildren
   '/chat/$sessionKey': typeof ChatSessionKeyRoute
@@ -2290,6 +2308,7 @@ export interface FileRoutesById {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
+  '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
@@ -2395,6 +2414,7 @@ export interface FileRouteTypes {
     | '/api/terminal-stream'
     | '/api/workflow-definitions'
     | '/api/workflow-events'
+    | '/api/workflow-features'
     | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
@@ -2543,6 +2563,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
+    | '/api/workflow-runs/$runId/events'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
@@ -2644,6 +2665,7 @@ export interface FileRouteTypes {
     | '/api/terminal-stream'
     | '/api/workflow-definitions'
     | '/api/workflow-events'
+    | '/api/workflow-features'
     | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
@@ -2792,6 +2814,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
+    | '/api/workflow-runs/$runId/events'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
@@ -2895,6 +2918,7 @@ export interface FileRouteTypes {
     | '/api/terminal-stream'
     | '/api/workflow-definitions'
     | '/api/workflow-events'
+    | '/api/workflow-features'
     | '/api/workflow-runs'
     | '/api/workspace'
     | '/chat/$sessionKey'
@@ -3043,6 +3067,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
+    | '/api/workflow-runs/$runId/events'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
@@ -3147,6 +3172,7 @@ export interface RootRouteChildren {
   ApiTerminalStreamRoute: typeof ApiTerminalStreamRoute
   ApiWorkflowDefinitionsRoute: typeof ApiWorkflowDefinitionsRouteWithChildren
   ApiWorkflowEventsRoute: typeof ApiWorkflowEventsRoute
+  ApiWorkflowFeaturesRoute: typeof ApiWorkflowFeaturesRoute
   ApiWorkflowRunsRoute: typeof ApiWorkflowRunsRouteWithChildren
   ApiWorkspaceRoute: typeof ApiWorkspaceRouteWithChildren
   ChatSessionKeyRoute: typeof ChatSessionKeyRoute
@@ -3474,6 +3500,13 @@ declare module '@tanstack/react-router' {
       path: '/api/workflow-runs'
       fullPath: '/api/workflow-runs'
       preLoaderRoute: typeof ApiWorkflowRunsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workflow-features': {
+      id: '/api/workflow-features'
+      path: '/api/workflow-features'
+      fullPath: '/api/workflow-features'
+      preLoaderRoute: typeof ApiWorkflowFeaturesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/workflow-events': {
@@ -4610,6 +4643,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiApprovalsPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workflow-runs/$runId/events': {
+      id: '/api/workflow-runs/$runId/events'
+      path: '/events'
+      fullPath: '/api/workflow-runs/$runId/events'
+      preLoaderRoute: typeof ApiWorkflowRunsRunIdEventsRouteImport
+      parentRoute: typeof ApiWorkflowRunsRunIdRoute
+    }
     '/api/workflow-runs/$runId/approve': {
       id: '/api/workflow-runs/$runId/approve'
       path: '/approve'
@@ -5258,10 +5298,12 @@ const ApiWorkflowDefinitionsRouteWithChildren =
 
 interface ApiWorkflowRunsRunIdRouteChildren {
   ApiWorkflowRunsRunIdApproveRoute: typeof ApiWorkflowRunsRunIdApproveRoute
+  ApiWorkflowRunsRunIdEventsRoute: typeof ApiWorkflowRunsRunIdEventsRoute
 }
 
 const ApiWorkflowRunsRunIdRouteChildren: ApiWorkflowRunsRunIdRouteChildren = {
   ApiWorkflowRunsRunIdApproveRoute: ApiWorkflowRunsRunIdApproveRoute,
+  ApiWorkflowRunsRunIdEventsRoute: ApiWorkflowRunsRunIdEventsRoute,
 }
 
 const ApiWorkflowRunsRunIdRouteWithChildren =
@@ -5652,6 +5694,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiTerminalStreamRoute: ApiTerminalStreamRoute,
   ApiWorkflowDefinitionsRoute: ApiWorkflowDefinitionsRouteWithChildren,
   ApiWorkflowEventsRoute: ApiWorkflowEventsRoute,
+  ApiWorkflowFeaturesRoute: ApiWorkflowFeaturesRoute,
   ApiWorkflowRunsRoute: ApiWorkflowRunsRouteWithChildren,
   ApiWorkspaceRoute: ApiWorkspaceRouteWithChildren,
   ChatSessionKeyRoute: ChatSessionKeyRoute,

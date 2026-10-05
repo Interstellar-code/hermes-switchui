@@ -7,8 +7,10 @@ import {
   cancelWorkflowRun,
   deleteWorkflowDefinition,
   getWorkflowDefinitionParsed,
+  getWorkflowFeatures,
   getWorkflowRun,
   launchWorkflowRun,
+  listRunEvents,
   listWorkflowDefinitions,
   listWorkflowRuns,
   resetWorkflowDefinitionToFactory,
@@ -17,6 +19,7 @@ import {
 import type {
   ApproveWorkflowInput,
   LaunchWorkflowInput,
+  RunEventsQuery,
   UpsertWorkflowDefinitionInput,
   WorkflowDefinitionRow,
 } from './api-client'
@@ -98,6 +101,27 @@ export function useWorkflowRuns(workflowId: string | null) {
     queryFn: () => listWorkflowRuns({ workflow_id: workflowId! }),
     enabled: !!workflowId,
     staleTime: 10_000,
+  })
+}
+
+export function useRunEvents(
+  runId: string | null,
+  q: RunEventsQuery = {},
+  opts: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: ['workflow-runs', runId, 'events', q],
+    queryFn: () => listRunEvents(runId!, q),
+    enabled: !!runId && (opts.enabled ?? true),
+    staleTime: 10_000,
+  })
+}
+
+export function useWorkflowFeatures() {
+  return useQuery({
+    queryKey: ['workflow-features'],
+    queryFn: getWorkflowFeatures,
+    staleTime: 5 * 60_000,
   })
 }
 

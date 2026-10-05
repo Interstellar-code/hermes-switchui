@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { chatWorkflowWizard } from './api-client'
+import {
+  cancelWorkflowRun,
+  chatWorkflowWizard,
+  getWorkflowFeatures,
+  listRunEvents,
+} from './api-client'
 
 function createEventStream(events: Array<string>): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
@@ -144,5 +149,40 @@ describe('chatWorkflowWizard', () => {
       friendlyId: 'main',
       model: 'hermes-agent',
     })
+  })
+})
+
+describe('cancelWorkflowRun / listRunEvents / getWorkflowFeatures', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('cancel POSTs JSON content-type with a body (CSRF guard)', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(new Response('{}'))
+    vi.stubGlobal('fetch', fetchSpy)
+    await cancelWorkflowRun('r 1')
+    const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('/api/workflow-runs/r%201?action=cancel')
+    expect(init.headers).toEqual({ 'Content-Type': 'application/json' })
+    expect(init.body).toBe('{}')
+  })
+
+  it('listRunEvents builds the query and maps 404 to null', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{"events":[]}'))
+      .mockResolvedValueOnce(new Response('{}', { status: 404 }))
+    vi.stubGlobal('fetch', fetchSpy)
+    await listRunEvents('r1', { limit: 5, node_run_id: 'n1', after: 'c' })
+    expect(fetchSpy.mock.calls[0][0]).toBe(
+      '/api/workflow-runs/r1/events?limit=5&node_run_id=n1&after=c',
+    )
+    expect(await listRunEvents('r1')).toBeNull()
+  })
+
+  it('getWorkflowFeatures never throws', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('net')))
+    expect((await getWorkflowFeatures()).features).toEqual([])
   })
 })
