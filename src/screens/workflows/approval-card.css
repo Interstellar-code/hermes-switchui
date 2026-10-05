@@ -1,10 +1,10 @@
 .wfac {
-  border: 1px solid var(--theme-warning, var(--m-accent, #ffb454));
+  border: 1px solid var(--m-warning, var(--theme-warning));
   border-radius: 4px;
   padding: 12px;
   background: color-mix(
     in srgb,
-    var(--theme-warning, var(--m-accent, #ffb454)) 8%,
+    var(--m-warning, var(--theme-warning)) 8%,
     transparent
   );
 }
@@ -12,7 +12,7 @@
   padding: 8px;
 }
 .wfac-title {
-  color: var(--theme-warning, var(--m-accent, #ffb454));
+  color: var(--m-warning, var(--theme-warning));
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -29,7 +29,7 @@
   display: block;
   font-size: 12px;
   margin-bottom: 4px;
-  color: var(--theme-muted, var(--m-text-muted));
+  color: var(--m-text-muted, var(--theme-muted));
 }
 .wfac-reply {
   width: 100%;
@@ -37,14 +37,14 @@
   font-family: var(--m-font-mono, ui-monospace, monospace);
   background: transparent;
   color: inherit;
-  border: 1px solid var(--theme-border, var(--m-border));
+  border: 1px solid var(--m-border, var(--theme-border));
   border-radius: 3px;
   padding: 6px;
   margin-bottom: 8px;
   resize: vertical;
 }
 .wfac-error {
-  color: var(--theme-danger, #ff6b6b);
+  color: var(--m-danger, var(--theme-danger));
   font-size: 12px;
   margin-bottom: 8px;
 }
@@ -53,11 +53,39 @@
   gap: 8px;
   align-items: center;
 }
-.wfac-approve {
-  border-color: var(--m-green-500, #4caf82);
-  color: var(--m-green-500, #4caf82);
+.wfac .wfac-btn {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font: 600 11px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  border: 1px solid var(--m-border, var(--theme-border));
+  background: transparent;
+  color: var(--m-text, var(--theme-text));
+}
+.wfac .wfac-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.wfac .wfac-btn--approve {
+  border-color: var(--m-success, var(--theme-success));
+  color: var(--m-success, var(--theme-success));
+  background: color-mix(
+    in srgb,
+    var(--m-success, var(--theme-success)) 10%,
+    transparent
+  );
+}
+.wfac .wfac-btn--reject {
+  border-color: var(--m-danger, var(--theme-danger));
+  color: var(--m-danger, var(--theme-danger));
+  background: color-mix(
+    in srgb,
+    var(--m-danger, var(--theme-danger)) 10%,
+    transparent
+  );
 }
 .wfac-hint {
   font-size: 11px;
-  color: var(--theme-muted, var(--m-text-muted));
+  color: var(--m-text-muted, var(--theme-muted));
 }

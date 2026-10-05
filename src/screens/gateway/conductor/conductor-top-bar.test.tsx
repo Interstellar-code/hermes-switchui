@@ -25,7 +25,6 @@ const base = {
   live: 0,
   needsYou: 1,
   nodesRunning: 3,
-  oldestLiveElapsed: '—',
   tokens: '—',
   totalTokens: 0,
   oldestLiveStartedAt: null,
@@ -45,6 +44,12 @@ describe('ConductorTopBar', () => {
     expect(screen.getByText('none')).toBeTruthy()
     expect(screen.getByText('tok used').previousSibling?.textContent).toBe('0')
     expect(screen.queryByTitle('Theme')).toBeNull()
+  })
+
+  it('keeps the em-dash for tokens when no runs exist', () => {
+    state.data = { ...base, runsToday: 0 }
+    renderBar()
+    expect(screen.getByText('tok used').previousSibling?.textContent).toBe('—')
   })
 
   it('ticks OLDEST LIVE every second', () => {

@@ -268,7 +268,10 @@ export interface WorkflowEngineInterface {
   appendWorkflowEvent: (event: RunEvent) => Promise<void>;
   listRecentWorkflowEvents: (runId: string, limit?: number) => Promise<Array<RunEvent>>;
   subscribeEvents: (runId?: string, signal?: AbortSignal) => AsyncIterable<RunEvent>;
-  /** Filtered/paged events query. Throws a `404` error when the backend lacks the endpoint or run. */
+  /**
+   * Events query. Throws a `404` error for an unknown run. Filters (node_run_id/type/after)
+   * are only honoured when the `events_query` feature is present; callers must gate on it.
+   */
   listRunEvents: (runId: string, q?: RunEventsQuery) => Promise<RunEventsPage>;
 
   // ── Health ─────────────────────────────────────────────────────────────

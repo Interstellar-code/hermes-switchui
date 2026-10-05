@@ -18,6 +18,11 @@ import type { WorkflowDefinitionRow, WorkflowRunRow } from './api-client'
 import type { NodeType, ParsedWorkflow, WorkflowDagNode, WorkflowSource } from './types'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
+/** Editor palette: `subagent` is a run-view type, not authorable here. */
+const EDITOR_NODE_COLORS = Object.entries(NODE_COLOR).filter(
+  ([t]) => t !== 'subagent',
+)
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const TABS = [
@@ -610,7 +615,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
                 strokeWidth="1"
               />
             </pattern>
-            {Object.entries(NODE_COLOR).map(([t]) => (
+            {EDITOR_NODE_COLORS.map(([t]) => (
               <filter
                 key={t}
                 id={`glow-${t}`}
@@ -999,7 +1004,7 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
 
       {/* legend */}
       <div className="dag-legend">
-        {Object.entries(NODE_COLOR).map(([type, color]) => (
+        {EDITOR_NODE_COLORS.map(([type, color]) => (
           <span key={type} className="dag-leg-item">
             <span
               style={{

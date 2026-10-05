@@ -110,7 +110,7 @@ export function useRunEvents(
   opts: { enabled?: boolean } = {},
 ) {
   return useQuery({
-    queryKey: ['workflow-runs', runId, 'events', q],
+    queryKey: ['workflow-run-events', runId, q],
     queryFn: () => listRunEvents(runId!, q),
     enabled: !!runId && (opts.enabled ?? true),
     staleTime: 10_000,

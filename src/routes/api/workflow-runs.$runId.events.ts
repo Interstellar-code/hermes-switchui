@@ -34,10 +34,11 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/events')({
           return Response.json(page)
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
-          return Response.json(
-            { error: msg },
-            { status: msg.includes('404') ? 404 : 500 },
-          )
+          // PluginClient errors read "PluginClient GET <path>: <status> <body>".
+          const status = Number(/: (\d{3})\b/.exec(msg)?.[1])
+          return status === 404
+            ? Response.json({ error: 'Run not found' }, { status: 404 })
+            : Response.json({ error: 'Failed to load events' }, { status: 500 })
         }
       },
     },

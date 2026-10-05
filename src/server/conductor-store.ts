@@ -35,7 +35,6 @@ export interface ConductorStats {
   live: number
   needsYou: number
   nodesRunning: number
-  oldestLiveElapsed: string
   tokens: string
   /** Raw sum so the client can show `0` instead of `—` when runs exist. */
   totalTokens: number
@@ -172,19 +171,34 @@ const pluginClient = new PluginClient()
 
 const NAMES_TTL_MS = 60_000
 let namesMemo: { at: number; value: Map<string, string> } | null = null
+let namesInflight: Promise<Map<string, string>> | null = null
 
-/** workflow id → friendly name; cached ~60s, never throws. */
-async function getDefinitionNames(): Promise<Map<string, string>> {
+/** Test-only: drop the names cache + in-flight fetch. */
+export function resetDefinitionNamesCache(): void {
+  namesMemo = null
+  namesInflight = null
+}
+
+/**
+ * workflow id → friendly name; cached ~60s, never throws. A failed fetch is
+ * cached too (previous names, else empty) so a down plugin isn't re-hit on
+ * every poll; concurrent callers share one in-flight request.
+ */
+function getDefinitionNames(): Promise<Map<string, string>> {
   if (namesMemo && Date.now() - namesMemo.at < NAMES_TTL_MS)
-    return namesMemo.value
-  try {
-    const defs = await pluginClient.listDefinitions()
-    const value = new Map(defs.map((d) => [d.id, d.name]))
-    namesMemo = { at: Date.now(), value }
-    return value
-  } catch {
-    return namesMemo?.value ?? new Map()
-  }
+    return Promise.resolve(namesMemo.value)
+  namesInflight ??= pluginClient
+    .listDefinitions()
+    .then((defs) => new Map(defs.map((d) => [d.id, d.name])))
+    .catch(() => namesMemo?.value ?? new Map<string, string>())
+    .then((value) => {
+      namesMemo = { at: Date.now(), value }
+      return value
+    })
+    .finally(() => {
+      namesInflight = null
+    })
+  return namesInflight
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +212,7 @@ let memo: { at: number; value: Promise<ConductorSnapshot> } | null = null
  * snapshot taken within that window (state route); the default always refetches.
  */
 export function getConductorSnapshot(maxAgeMs = 0): Promise<ConductorSnapshot> {
-  if (memo && Date.now() - memo.at < maxAgeMs) return memo.value
+  if (maxAgeMs > 0 && memo && Date.now() - memo.at < maxAgeMs) return memo.value
   const value = buildSnapshot()
   const entry = { at: Date.now(), value }
   memo = entry
@@ -234,8 +248,6 @@ async function buildSnapshot(): Promise<ConductorSnapshot> {
       live: live.length,
       needsYou: missions.filter((m) => m.status === 'waiting').length,
       nodesRunning: active.filter((n) => n.status === 'running').length,
-      oldestLiveElapsed:
-        oldest == null ? '—' : formatElapsed(Date.now() - oldest),
       tokens: formatUsageLabel(totalTokens, totalCost),
       totalTokens,
       oldestLiveStartedAt: oldest,

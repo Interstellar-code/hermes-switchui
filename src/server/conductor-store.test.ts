@@ -1,8 +1,9 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   abortMission,
   getConductorSnapshot,
   listScheduledWorkflows,
+  resetDefinitionNamesCache,
 } from './conductor-store'
 
 const {
@@ -33,6 +34,9 @@ vi.mock('./workflow-engine/clients/plugin-client', () => ({
 }))
 vi.mock('./claude-dashboard-api', () => ({ getCronJobs }))
 
+// Fixed local noon: runsToday / dayGroup / elapsed assertions are exact.
+const NOW = new Date(2026, 9, 5, 12, 0, 0)
+
 const iso = (msAgo: number) => new Date(Date.now() - msAgo).toISOString()
 
 function run(over: Record<string, unknown> = {}) {
@@ -50,7 +54,14 @@ function run(over: Record<string, unknown> = {}) {
   }
 }
 
+afterEach(() => {
+  vi.useRealTimers()
+})
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(NOW)
+  resetDefinitionNamesCache()
   listRuns.mockReset()
   listActiveNodeRuns.mockReset().mockResolvedValue([])
   cancelRun.mockReset()
@@ -58,7 +69,6 @@ beforeEach(() => {
 })
 
 describe('getConductorSnapshot', () => {
-  // Must stay first: definition names are cached ~60s module-wide.
   it('uses the friendly definition name, errorLine and F4 stats', async () => {
     listDefinitions.mockResolvedValue([{ id: 'wf-names', name: 'Nice Name' }])
     listRuns.mockResolvedValue([
@@ -76,7 +86,19 @@ describe('getConductorSnapshot', () => {
     expect(missions[0].subtitle).toMatch(/^run · \d\d:\d\d · run abcdef12$/)
     expect(stats.totalTokens).toBe(0)
     expect(stats.oldestLiveStartedAt).toBe(missions[1].startedAt)
-    expect(stats.runsToday).toBeGreaterThanOrEqual(0)
+    expect(stats.runsToday).toBe(2)
+  })
+
+  it('caches a failed names fetch and dedupes concurrent fetches', async () => {
+    listDefinitions.mockRejectedValue(new Error('down'))
+    listRuns.mockResolvedValue([run()])
+    await Promise.all([getConductorSnapshot(), getConductorSnapshot()])
+    expect(listDefinitions).toHaveBeenCalledTimes(1)
+    await getConductorSnapshot()
+    expect(listDefinitions).toHaveBeenCalledTimes(1)
+    vi.setSystemTime(NOW.getTime() + 61_000)
+    await getConductorSnapshot()
+    expect(listDefinitions).toHaveBeenCalledTimes(2)
   })
 
   it('shows em-dash tokens when usage is absent, formatted usage + summed stats when present', async () => {

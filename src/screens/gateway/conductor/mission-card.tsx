@@ -70,6 +70,8 @@ export function MissionCard({ mission }: MissionCardProps) {
     })
   }
 
+  const subShowsError =
+    mission.dayGroup === 'yesterday' || mission.dayGroup === 'earlier'
   return (
     <div
       className={`miss ${status}${selectedRunId === id ? ' focus' : ''}`}
@@ -79,11 +81,11 @@ export function MissionCard({ mission }: MissionCardProps) {
       <div className="body">
         <div className="ttl">{title}</div>
         <div className="sub">
-          {mission.dayGroup === 'yesterday' || mission.dayGroup === 'earlier'
+          {subShowsError
             ? `${formatClock(mission.startedAt)} · ${mission.errorLine ?? mission.userMessage.slice(0, 80)}`
             : subtitle}
         </div>
-        {status === 'err' && mission.errorLine && (
+        {status === 'err' && mission.errorLine && !subShowsError && (
           <div className="err-line" title={mission.errorLine}>
             {mission.errorLine}
           </div>

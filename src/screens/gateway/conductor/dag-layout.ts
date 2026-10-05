@@ -89,9 +89,14 @@ export function fmtDuration(ms: number | null | undefined): string {
   return h ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`
 }
 
-/** "node x of y": completed/skipped count, +1 while a node is active. */
+/**
+ * "node x of y": completed/skipped count, +1 while a node is active. A failed
+ * run reports the first failed node's position (dag order) instead.
+ */
 export function nodeProgress(dag: DagModel): { x: number; y: number } {
   const y = dag.nodes.length + dag.hiddenCount
+  const failedAt = dag.nodes.findIndex((n) => n.status === 'failed')
+  if (failedAt >= 0) return { x: failedAt + 1, y }
   const done = dag.nodes.filter(
     (n) => n.status === 'completed' || n.status === 'skipped',
   ).length

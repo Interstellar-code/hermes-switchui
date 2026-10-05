@@ -30,8 +30,11 @@ export function ApprovalCard({
     ? `Reply · captured as ${nodeRun.dag_node_id}.output`
     : 'Reply'
   return (
-    <section className={compact ? 'wfac wfac--compact' : 'wfac'}>
-      <div className="wfac-title">
+    <section
+      className={compact ? 'wfac wfac--compact' : 'wfac'}
+      aria-labelledby={`wfac-title-${nodeRun.id}`}
+    >
+      <div className="wfac-title" id={`wfac-title-${nodeRun.id}`}>
         Approval Required · {nodeRun.dag_node_id}
       </div>
       <div className="wfac-msg">
@@ -50,18 +53,22 @@ export function ApprovalCard({
         disabled={approve.isPending}
       />
       {approve.isError && (
-        <div className="wfac-error">{approve.error.message}</div>
+        <div className="wfac-error" role="alert">
+          {approve.error.message}
+        </div>
       )}
       <div className="wfac-actions">
         <button
-          className="wfrd-btn wfac-approve"
+          type="button"
+          className="wfac-btn wfac-btn--approve"
           disabled={approve.isPending}
           onClick={() => decide('approved')}
         >
           {approve.isPending ? 'Sending…' : 'Approve'}
         </button>
         <button
-          className="wfrd-btn wfrd-btn--danger"
+          type="button"
+          className="wfac-btn wfac-btn--reject"
           disabled={approve.isPending}
           onClick={() => decide('rejected')}
         >

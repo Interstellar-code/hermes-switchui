@@ -15,8 +15,18 @@ import {
   useWorkflowDefinitions,
 } from './use-workflows'
 import { chatWorkflowWizard } from './api-client'
-import { NODE_COLOR, nodeColor as colorFor } from './node-colors'
+import { nodeColor as colorFor } from './node-colors'
 import type { NodeType, WorkflowSummary } from './types'
+
+/** Types shown in the wizard's DAG preview legend. */
+const WIZARD_LEGEND_TYPES = [
+  'prompt',
+  'bash',
+  'command',
+  'approval',
+  'router',
+  'loop',
+]
 
 // ── Module-level flags ──────────────────────────────────────────────────────
 let chatWarnFired = false
@@ -1069,9 +1079,7 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
           borderTop: '1px solid var(--m-border-subtle)',
         }}
       >
-        {Object.entries(NODE_COLOR)
-          .filter(([t]) => ['prompt', 'bash', 'command', 'approval', 'router', 'loop'].includes(t))
-          .map(([t, c]) => (
+        {WIZARD_LEGEND_TYPES.map((t) => [t, colorFor(t)] as const).map(([t, c]) => (
           <span
             key={t}
             style={{
@@ -1186,7 +1194,7 @@ function DesignStep({ yaml }: DesignStepProps) {
               </div>
             ) : (
               typeCounts.map(([t, n]) => {
-                const c = (NODE_COLOR as Record<string, string>)[t] ?? '#aaa'
+                const c = colorFor(t)
                 return (
                   <div key={t} className="nb-row">
                     <span
@@ -1282,7 +1290,7 @@ function ConfigureStep({
         <div className="wz-config-cards">
           {nodes.map((node) => {
             const selected = selectedNode?.id === node.id
-            const nodeColor = NODE_COLOR[node.type]
+            const nodeColor = colorFor(node.type)
             return (
               <button
                 key={node.id}

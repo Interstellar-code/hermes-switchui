@@ -97,4 +97,21 @@ describe('fmtDuration / nodeProgress', () => {
     expect(nodeProgress(dag)).toEqual({ x: 2, y: 4 })
     expect(nodeProgress(buildDag(parsed))).toEqual({ x: 0, y: 4 })
   })
+  it('reports the failed node position for a failed run (CondFailed-like)', () => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'apply', 'g', 'h', 'i', 'j']
+    const wf = {
+      ...parsed,
+      nodes: ids.map((id, i) => ({
+        id,
+        type: 'bash',
+        depends_on: i ? [ids[i - 1]] : [],
+      })),
+    } as unknown as ParsedWorkflow
+    const runs = ids.slice(0, 5).map((id) => ({
+      dag_node_id: id,
+      status: 'completed',
+    }))
+    runs.push({ dag_node_id: 'apply', status: 'failed' })
+    expect(nodeProgress(buildDag(wf, runs))).toEqual({ x: 6, y: 10 })
+  })
 })

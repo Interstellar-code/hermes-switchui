@@ -31,12 +31,11 @@ export function ConductorTopBar() {
     : oldestStart == null
       ? 'none'
       : formatTick(now - oldestStart)
-  // Runs exist but none report usage: show 0, not the shared '—' label.
-  const tokens = !data
-    ? '—'
-    : data.tokens === '—' && data.totalTokens === 0
+  // Runs exist but none report usage: show 0; no runs at all keeps '—'.
+  const tokens =
+    data && data.tokens === '—' && data.totalTokens === 0 && data.runsToday > 0
       ? '0'
-      : data.tokens
+      : (data?.tokens ?? '—')
 
   function refresh() {
     setRefreshing(true)

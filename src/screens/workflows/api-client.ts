@@ -248,7 +248,12 @@ export interface RunEventsPage {
   cursor?: string | number | null
 }
 
-/** Returns null when the backend lacks the endpoint (404). */
+/**
+ * The backend serves `/runs/{id}/events` itself; 404 means an unknown run
+ * (returns null). The `node_run_id` / `type` / `after` filters are only honoured
+ * when the `events_query` feature is present (see `getWorkflowFeatures`) —
+ * older backends ignore them, so callers must gate filtered queries on it.
+ */
 export async function listRunEvents(
   runId: string,
   q: RunEventsQuery = {},

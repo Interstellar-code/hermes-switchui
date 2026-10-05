@@ -26,8 +26,9 @@ export function StagePills({ stages }: { stages: Array<StagePill> }) {
           className={`st ${PILL_CLASS[s.status]}`}
           title={`${s.nodeIds.length} node(s) · ${s.status}`}
         >
-          {s.status === 'done' ? '✓ ' : s.status === 'failed' ? '✗ ' : ''}
           {s.stage}
+          {s.status === 'done' && <span aria-hidden="true"> ✓</span>}
+          {s.status === 'failed' && <span aria-hidden="true"> ✗</span>}
         </span>
       ))}
     </div>
