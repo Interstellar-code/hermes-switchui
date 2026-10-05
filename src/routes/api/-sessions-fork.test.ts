@@ -26,6 +26,7 @@ vi.mock('../../server/rate-limit', () => ({
 const hermes = vi.hoisted(() => ({
   forkSession: vi.fn(async () => ({
     session: { id: 'fork-id', parent_session_id: 'src-key' },
+    ended_source: true,
   })),
   ensureGatewayProbed: vi.fn(async () => ({ sessions: true })),
 }))
@@ -103,6 +104,7 @@ beforeEach(() => {
   hermes.forkSession.mockClear()
   hermes.forkSession.mockResolvedValue({
     session: { id: 'fork-id', parent_session_id: 'src-key' },
+    ended_source: true,
   })
   hermes.ensureGatewayProbed.mockClear()
   hermes.ensureGatewayProbed.mockResolvedValue({ sessions: true })
@@ -124,7 +126,10 @@ describe('POST /api/sessions/:sessionKey/fork', () => {
     // hop, which would route through the unscoped dashboard and 404 for
     // gateway-owned rows it does not carry.
     // readProfile() yields null (not undefined) for an unscoped request.
-    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', null)
+    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', null, {
+      atMessageId: undefined,
+      endSource: undefined,
+    })
     expect(body).toMatchObject({
       ok: true,
       sessionKey: 'fork-id',
@@ -137,7 +142,91 @@ describe('POST /api/sessions/:sessionKey/fork', () => {
     const res = await post('src-key', { profile: 'neo' })
 
     expect(res.status).toBe(200)
-    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', 'neo')
+    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', 'neo', {
+      atMessageId: undefined,
+      endSource: undefined,
+    })
+  })
+
+  it('forwards at_message_id and end_source to the server and echoes ended_source', async () => {
+    stubStatus(MULTIPLEX)
+    hermes.forkSession.mockResolvedValue({
+      session: { id: 'fork-id', parent_session_id: 'src-key' },
+      ended_source: false,
+    })
+    const res = await post('src-key', {
+      at_message_id: '42',
+      end_source: false,
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', null, {
+      atMessageId: '42',
+      endSource: false,
+    })
+    expect(body).toMatchObject({
+      ok: true,
+      sessionKey: 'fork-id',
+      ended_source: false,
+    })
+  })
+
+  it('rejects a non-string at_message_id before touching the gateway', async () => {
+    stubStatus(MULTIPLEX)
+    const res = await post('src-key', { at_message_id: 42 })
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.code).toBe('invalid_message_id')
+    expect(hermes.forkSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-boolean end_source before touching the gateway', async () => {
+    stubStatus(MULTIPLEX)
+    const res = await post('src-key', { end_source: 'no' })
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.code).toBe('invalid_end_source')
+    expect(hermes.forkSession).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-string title before touching the gateway', async () => {
+    stubStatus(MULTIPLEX)
+    const res = await post('src-key', { title: 42 })
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.code).toBe('invalid_title')
+    expect(hermes.forkSession).not.toHaveBeenCalled()
+  })
+
+  it('forwards a title to the server', async () => {
+    stubStatus(MULTIPLEX)
+    const res = await post('src-key', {
+      title: 'Branch plan',
+      at_message_id: '42',
+    })
+
+    expect(res.status).toBe(200)
+    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', null, {
+      atMessageId: '42',
+      endSource: undefined,
+      title: 'Branch plan',
+    })
+  })
+
+  it('drops a trim-empty title instead of forwarding it', async () => {
+    stubStatus(MULTIPLEX)
+    const res = await post('src-key', { title: '   ' })
+
+    expect(res.status).toBe(200)
+    expect(hermes.forkSession).toHaveBeenCalledWith('src-key', null, {
+      atMessageId: undefined,
+      endSource: undefined,
+      title: undefined,
+    })
   })
 
   it('fails closed when the gateway is not multiplexing', async () => {

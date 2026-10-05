@@ -77,6 +77,48 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/fork')({
           }
         }
 
+        // Same fail-closed ordering as the profile guard: type mismatches
+        // must 400 before any write reaches the gateway.
+        if (
+          body.at_message_id !== undefined &&
+          typeof body.at_message_id !== 'string'
+        ) {
+          return Response.json(
+            { ok: false, error: 'at_message_id must be a string', code: 'invalid_message_id' },
+            { status: 400 },
+          )
+        }
+        if (
+          body.end_source !== undefined &&
+          typeof body.end_source !== 'boolean'
+        ) {
+          return Response.json(
+            { ok: false, error: 'end_source must be a boolean', code: 'invalid_end_source' },
+            { status: 400 },
+          )
+        }
+        if (
+          body.title !== undefined &&
+          typeof body.title !== 'string'
+        ) {
+          return Response.json(
+            { ok: false, error: 'title must be a string', code: 'invalid_title' },
+            { status: 400 },
+          )
+        }
+        const atMessageId =
+          typeof body.at_message_id === 'string' && body.at_message_id.trim()
+            ? body.at_message_id
+            : undefined
+        const endSource =
+          typeof body.end_source === 'boolean' ? body.end_source : undefined
+        // Blank titles read as "no title given" — let the gateway apply its
+        // lineage auto-numbering ("Foo #2") instead of naming it whitespace.
+        const title =
+          typeof body.title === 'string' && body.title.trim()
+            ? body.title
+            : undefined
+
         // Local sessions live in the workspace portable store and have no
         // gateway row to branch from.
         if (getLocalSession(sessionKey)) {
@@ -97,7 +139,11 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/fork')({
           // which 404s for gateway-owned rows it does not carry — verified
           // live: a session the gateway had just created was invisible to
           // :9119, so pre-resolving would have failed the fork before trying.
-          const result = await forkSession(sessionKey, profile)
+          const result = await forkSession(sessionKey, profile, {
+            atMessageId,
+            endSource,
+            title,
+          })
           const forked = result.session
 
           return Response.json({
@@ -106,6 +152,7 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/fork')({
             friendlyId: forked.id,
             forkedFrom: forked.parent_session_id ?? sessionKey,
             entry: toSessionSummary(forked),
+            ended_source: result.ended_source,
           })
         } catch (err) {
           if (isProfileScopeError(err)) {

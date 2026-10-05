@@ -493,7 +493,16 @@ export async function searchSessions(
 export async function forkSession(
   sessionId: string,
   profile?: string | null,
-): Promise<{ session: ClaudeSession; forked_from?: string }> {
+  options?: {
+    atMessageId?: string
+    endSource?: boolean
+    title?: string
+  },
+): Promise<{
+  session: ClaudeSession
+  forked_from?: string
+  ended_source?: boolean
+}> {
   // A fork is a write. Unscoped, it resolves the raw session ID against
   // whichever state.db the gateway is running on, so an explicitly scoped
   // fork MUST go through the gateway chokepoint (claudePost -> scopedPath),
@@ -503,6 +512,7 @@ export async function forkSession(
       return (await forkDashboardSession(sessionId)) as {
         session: ClaudeSession
         forked_from?: string
+        ended_source?: boolean
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -518,7 +528,18 @@ export async function forkSession(
   // _read_json_body() unconditionally, which returns 400 "Invalid JSON in
   // request body" for a bodyless POST. claudePost() only serialises a truthy
   // body, so passing `undefined` here made every real fork fail.
-  return claudePost(`/api/sessions/${sessionId}/fork`, {}, undefined, profile)
+  return claudePost(
+    `/api/sessions/${sessionId}/fork`,
+    {
+      ...(options?.atMessageId ? { at_message_id: options.atMessageId } : {}),
+      ...(typeof options?.endSource === 'boolean'
+        ? { end_source: options.endSource }
+        : {}),
+      ...(options?.title ? { title: options.title } : {}),
+    },
+    undefined,
+    profile,
+  )
 }
 
 // ── Conversion helpers (Claude → Chat format) ─────────────────

@@ -5,7 +5,10 @@ import { profileBody, readSendFailure } from '@/lib/session-scope'
 
 export type ForkSessionResult = {
   /** Resolves to the new session's key. */
-  forkSession: (sessionKey: string) => Promise<string>
+  forkSession: (
+    sessionKey: string,
+    options?: { atMessageId?: string; endSource?: boolean; title?: string },
+  ) => Promise<string>
   forking: boolean
   error: string | null
 }
@@ -14,6 +17,7 @@ type ForkSessionResponse = {
   ok?: boolean
   sessionKey?: string
   forkedFrom?: string
+  ended_source?: boolean
 }
 
 /**
@@ -31,13 +35,27 @@ export function useForkSession(): ForkSessionResult {
   const mutation = useMutation({
     mutationFn: async function forkSessionRequest(payload: {
       sessionKey: string
+      atMessageId?: string
+      endSource?: boolean
+      title?: string
     }) {
       const res = await fetch(
         `/api/sessions/${encodeURIComponent(payload.sessionKey)}/fork`,
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...profileBody() }),
+          // Optional params are omitted entirely when unset so existing
+          // callers' bodies stay byte-identical and gateway defaults apply.
+          body: JSON.stringify({
+            ...profileBody(),
+            ...(payload.atMessageId
+              ? { at_message_id: payload.atMessageId }
+              : {}),
+            ...(typeof payload.endSource === 'boolean'
+              ? { end_source: payload.endSource }
+              : {}),
+            ...(payload.title ? { title: payload.title } : {}),
+          }),
         },
       )
       if (!res.ok) throw new Error(await readSendFailure(res))
@@ -64,10 +82,17 @@ export function useForkSession(): ForkSessionResult {
   })
 
   const forkSession = useCallback(
-    async (sessionKey: string) => {
+    async (
+      sessionKey: string,
+      options?: {
+        atMessageId?: string
+        endSource?: boolean
+        title?: string
+      },
+    ) => {
       if (!sessionKey) throw new Error('sessionKey required')
       setForking(true)
-      return mutation.mutateAsync({ sessionKey })
+      return mutation.mutateAsync({ sessionKey, ...options })
     },
     [mutation],
   )
