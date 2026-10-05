@@ -14,6 +14,8 @@ export interface RunDefinition {
   pinned: boolean
   current_checksum: string | null
   current_updated_at: number | string | null
+  /** {subgraph ref: checksum} pinned at run start; absent on older plugins. */
+  subgraphs_pinned?: Record<string, string>
 }
 
 export type RunDefinitionResponse =

@@ -65,8 +65,10 @@ export interface NodePanelProps {
   onAllNodeRuns: (nodeId: string) => void
   /** Live SSE events for this run (from ConductorLiveContext). */
   events: Array<WorkflowSseEvent>
-  /** Resume a failed run; the button stays disabled until this and `retry_run` exist. */
-  onResume?: (runId: string) => void
+  /** Resume a failed run from `fromNodeId`; the button stays disabled until this and `retry_run` exist. */
+  onResume?: (runId: string, fromNodeId?: string) => void
+  /** A resume request is in flight. */
+  resuming?: boolean
 }
 
 export function NodePanel({
@@ -79,6 +81,7 @@ export function NodePanel({
   onAllNodeRuns,
   events,
   onResume,
+  resuming = false,
 }: NodePanelProps) {
   const runQ = useWorkflowRun(runId)
   const parsedQ = useWorkflowParsed(runQ.data?.run.workflow_id ?? null)
@@ -277,6 +280,7 @@ export function NodePanel({
                 d={data}
                 onAllNodeRuns={() => onAllNodeRuns(nodeId)}
                 onResume={onResume}
+                resuming={resuming}
               />
             )}
             {tab === 'events' && <NodeEvents items={items} />}

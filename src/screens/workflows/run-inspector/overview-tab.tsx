@@ -42,7 +42,7 @@ export function OverviewTab({
   ctx: InspectorCtx
   extra?: ReactNode
 }) {
-  const { run, nodeRuns, phaseTransitions, onOpenNode, runId } = ctx
+  const { run, nodeRuns, phaseTransitions, onOpenNode, onOpenRun, runId } = ctx
   const meta = run.metadata ?? {}
   const trigger = (meta.trigger ?? {}) as Record<string, unknown>
   const pause = meta.pause as { captureResponse?: boolean } | undefined
@@ -178,6 +178,32 @@ export function OverviewTab({
               {fmtDuration(duration)}
             </Row>
             <Row k="current phase">{run.current_phase}</Row>
+            {run.retry_epoch != null && (
+              <Row k="attempt">
+                {run.retry_epoch + 1}
+                {run.retry_epoch > 0 ? ' (resumed in place)' : ''}
+              </Row>
+            )}
+            <Row k="re-run of" na={!run.parent_run_id}>
+              {!run.parent_run_id ? (
+                'none'
+              ) : onOpenRun ? (
+                <button
+                  type="button"
+                  className="wfri-link"
+                  onClick={() => onOpenRun(run.parent_run_id!)}
+                >
+                  run {run.parent_run_id.slice(0, 8)}
+                </button>
+              ) : (
+                `run ${run.parent_run_id.slice(0, 8)}`
+              )}
+            </Row>
+            <Row k="definition" na={!run.definition_checksum}>
+              {run.definition_checksum
+                ? `pinned${run.definition_version != null ? ` v${run.definition_version}` : ''} · ${run.definition_checksum.slice(0, 12)}`
+                : 'not pinned (current)'}
+            </Row>
           </dl>
         </section>
         <section className="wfri-card">

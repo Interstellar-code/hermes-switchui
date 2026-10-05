@@ -179,6 +179,8 @@ export interface TriggerInfo {
   user_message: string;
   parent_conversation_id?: string;
   codebase_id?: string;
+  /** RUN AGAIN lineage (feature `parent_run`). */
+  parent_run_id?: string;
   schedule?: { type: 'now' | 'at' | 'cron'; at?: string; cron?: string };
   priority?: number;
   maxRuntimeSeconds?: number;
@@ -255,6 +257,11 @@ export interface WorkflowEngineInterface {
   ) => Promise<WorkflowRun>;
   cancelRun: (runId: string) => Promise<void>;
   resumeWorkflowRun: (id: string) => Promise<WorkflowRun>;
+  /**
+   * Re-run a failed/cancelled/crashed run in place (feature `retry_run`).
+   * Throws a `WorkflowRetryError` carrying the plugin's status (400/404/409) and message.
+   */
+  retryRun: (id: string, opts?: { from_node_id?: string; actor?: string }) => Promise<WorkflowRun>;
   findRunByConversationId: (conversationId: string) => Promise<WorkflowRun | null>;
   getActiveWorkflowRunByPath: (path: string) => Promise<WorkflowRun | null>;
 

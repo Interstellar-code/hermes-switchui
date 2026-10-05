@@ -69,6 +69,7 @@ export function DefinitionTab({ ctx }: { ctx: InspectorCtx }) {
     isPinned &&
     pinned.current_checksum != null &&
     pinned.current_checksum !== pinned.checksum
+  const subgraphs = Object.entries(pinned?.subgraphs_pinned ?? {})
 
   return (
     <div className="wfri-def">
@@ -85,6 +86,14 @@ export function DefinitionTab({ ctx }: { ctx: InspectorCtx }) {
         <span>
           updated <b>{updatedMs ? fmtDateTime(updatedMs) : 'n/a'}</b>
         </span>
+        {subgraphs.length > 0 && (
+          <span title={subgraphs.map(([r, c]) => `${r} · ${c}`).join('\n')}>
+            subgraphs pinned{' '}
+            <b>
+              {subgraphs.map(([r, c]) => `${r}@${c.slice(0, 8)}`).join(', ')}
+            </b>
+          </span>
+        )}
         <span className="wfri-grow" />
         <span>read-only</span>
       </div>

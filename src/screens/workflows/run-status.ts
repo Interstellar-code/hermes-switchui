@@ -10,6 +10,9 @@ import type { LaunchWorkflowInput, WorkflowRunRow } from './api-client'
 import type { Mission } from '@/server/conductor-store'
 
 export const RUN_INDEX_LIMIT = 200
+
+/** Run statuses `POST /retry` accepts (a crashed run reads as failed). */
+export const RESUMABLE = new Set(['failed', 'cancelled'])
 const RECENT = 10
 
 export type StageLabel = 'PLAN' | 'ROUTE' | 'EXECUTE' | 'REVIEW' | 'REPORT'

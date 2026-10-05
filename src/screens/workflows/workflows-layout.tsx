@@ -26,9 +26,11 @@ export function WorkflowsLayout() {
   const [filteredWorkflows, setFilteredWorkflows] =
     useState<Array<WorkflowSummary>>(workflows)
 
-  // Read ?wizard=<id> and ?run=<id> query params on mount
+  // Read ?wf=<id> (OPEN IN EDITOR), ?wizard=<id> and ?run=<id> on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const wfId = params.get('wf')
+    if (wfId) setSelectedWorkflowId(wfId)
     const wizardId = params.get('wizard')
     if (wizardId) setWizardOpenForId(wizardId)
     const runId = params.get('run')

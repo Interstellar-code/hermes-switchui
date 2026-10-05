@@ -91,6 +91,8 @@ export interface LaunchWorkflowInput {
   schedule?: LaunchSchedule
   priority?: number
   maxRuntimeSeconds?: number
+  /** RUN AGAIN lineage; only send when the backend has `parent_run`. */
+  parent_run_id?: string
 }
 
 export interface PhaseTransition {
@@ -134,6 +136,8 @@ export interface WorkflowRunRow {
   parent_run_id?: string | null
   definition_checksum?: string | null
   definition_version?: string | number | null
+  /** Bumped by each in-place retry (feature `retry_run`); attempt = retry_epoch + 1. */
+  retry_epoch?: number | null
 }
 
 export type WorkflowArtifactRef = {
@@ -224,16 +228,19 @@ export async function approveWorkflowRun(
   }
 }
 
+/** A persisted event as `/runs/{id}/events` returns it. */
 export interface WorkflowEventRow {
   id: string
+  /** DB rowid; ascending, the paging cursor and the dedupe key. */
+  seq: number
   workflow_run_id: string
   event_type: string
-  data: string | null
-  created_at: number
+  data: Record<string, unknown> | null
+  /** ISO 8601. */
+  created_at: string
   node_run_id?: string | null
   step_index?: number | null
   step_name?: string | null
-  seq?: number | null
 }
 
 export interface RunEventsQuery {
@@ -364,6 +371,37 @@ export async function cancelWorkflowRun(runId: string): Promise<void> {
   if (!res.ok) {
     throw new Error(`cancelWorkflowRun failed (${res.status})`)
   }
+}
+
+export type RetryErrorCode = 'live_owner' | 'already_retried' | 'not_retryable'
+
+/**
+ * Resume a failed/cancelled run in place (`retry_run`). Throws an Error with
+ * `status` and, on 409, `code` (see the route for the codes).
+ */
+export async function retryWorkflowRun(
+  runId: string,
+  input: { from_node_id?: string } = {},
+): Promise<{ run: WorkflowRunRow }> {
+  const res = await wfFetch(
+    `/api/workflow-runs/${encodeURIComponent(runId)}/retry`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as {
+      error?: string
+      code?: RetryErrorCode
+    }
+    throw Object.assign(
+      new Error(body.error || `retryWorkflowRun failed (${res.status})`),
+      { status: res.status, code: body.code },
+    )
+  }
+  return (await res.json()) as { run: WorkflowRunRow }
 }
 
 export async function launchWorkflowRun(

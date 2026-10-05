@@ -1,11 +1,17 @@
 import { useEffect, useState } from 'react'
 import { fmtDuration, nodeProgress } from './dag-layout'
 import { useRunDag } from './use-run-dag'
-import { useAbortMission, useConductorMissions } from './use-conductor-queries'
+import {
+  useAbortMission,
+  useConductorMissions,
+  useResumeRun,
+} from './use-conductor-queries'
 import type { StagePill } from './dag-model'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/toast'
-import { toEpochMs } from '@/screens/workflows/run-status'
+import { RESUMABLE, toEpochMs } from '@/screens/workflows/run-status'
+import { useRunDefinition } from '@/screens/workflows/run-definition-client'
+import { useWorkflowFeatures } from '@/screens/workflows/use-workflows'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 const PILL_CLASS: Record<StagePill['status'], string> = {
@@ -49,7 +55,19 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
   const { data: missions = [] } = useConductorMissions()
   const mission = missions.find((m) => m.id === runId)
   const setDrawerRunId = useConductorUIStore((s) => s.setDrawerRunId)
+  const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
   const abort = useAbortMission()
+  const resumeRun = useResumeRun()
+  const features = useWorkflowFeatures().data?.features ?? []
+  const pinnedQ = useRunDefinition(
+    runId,
+    features.includes('definition_pin') && !!run?.definition_checksum,
+  )
+  const pinned = pinnedQ.data?.available ? pinnedQ.data.definition : null
+  const defChanged =
+    pinned?.pinned === true &&
+    pinned.current_checksum != null &&
+    pinned.current_checksum !== pinned.checksum
   const [confirmOpen, setConfirmOpen] = useState(false)
 
   const active = run ? ACTIVE.has(run.status) : false
@@ -72,6 +90,9 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
   const progress = dag ? nodeProgress(dag) : null
   const failed = run?.status === 'failed'
   const terminal = !active && run != null
+  const canResume =
+    features.includes('retry_run') && RESUMABLE.has(run?.status ?? '')
+  const attempt = (run?.retry_epoch ?? 0) + 1
   const statusChip =
     run?.status === 'paused'
       ? '⏸ waiting · approval'
@@ -100,6 +121,7 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
         <div className="lbl">
           <span className="chip-status">{statusChip}</span>
           run {runId.slice(0, 8)}
+          {attempt > 1 && ` · attempt ${attempt}`}
         </div>
         <div className="prompt">{title}</div>
         <div className="sub-line">
@@ -114,6 +136,28 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
         </div>
         <div className="meta">
           {trigger && <span className="chip-trg">{trigger}</span>}
+          {run?.parent_run_id && (
+            <>
+              {' '}
+              · re-run of{' '}
+              <button
+                type="button"
+                className="now-link"
+                onClick={() => setSelectedRunId(run.parent_run_id!)}
+              >
+                {run.parent_run_id.slice(0, 8)}
+              </button>
+            </>
+          )}
+          {defChanged && (
+            <span
+              className="now-warn"
+              title={`Pinned ${pinned.checksum?.slice(0, 12)}, current ${pinned.current_checksum?.slice(0, 12)}`}
+            >
+              {' '}
+              · definition changed since run
+            </span>
+          )}
           {mission && (
             <>
               {' '}
@@ -131,7 +175,17 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
         >
           inspect
         </button>
-        {/* RESUME slot for a failed run lands with F5a (POST /retry). */}
+        {canResume && (
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={resumeRun.isPending}
+            title="Re-run the failed nodes and what follows; completed nodes are kept"
+            onClick={() => resumeRun.resume(runId)}
+          >
+            {resumeRun.isPending ? 'resuming…' : 'resume'}
+          </button>
+        )}
         {active && (
           <button
             type="button"

@@ -108,6 +108,21 @@ describe('#157 POST /api/workflow-runs — malformed body returns 400', () => {
     const body = await res.json() as { error: string }
     expect(body.error).toBe('Invalid JSON body')
   })
+
+  it('forwards parent_run_id to the engine (RUN AGAIN lineage) and validates it', async () => {
+    const handler = await getRunsPostHandler()
+    mockStartRun.mockResolvedValue({ id: 'r2' })
+    const req = (parent: unknown) =>
+      new Request('http://localhost/api/workflow-runs', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ workflow_id: 'wf', conversation_id: 'c', user_message: 'go', parent_run_id: parent }),
+      })
+    expect((await handler({ request: req('r1') })).status).toBe(201)
+    expect(mockStartRun.mock.calls[0][2]).toMatchObject({ parent_run_id: 'r1' })
+    expect((await handler({ request: req('../x') })).status).toBe(400)
+    expect(mockStartRun).toHaveBeenCalledTimes(1)
+  })
 })
 
 // ---------------------------------------------------------------------------

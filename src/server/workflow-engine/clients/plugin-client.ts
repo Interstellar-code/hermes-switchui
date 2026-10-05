@@ -68,6 +68,17 @@ export class WorkflowForbiddenError extends Error {
   }
 }
 
+/** POST /runs/{id}/retry rejected: `status` is the plugin's 400/404/409, `message` its error text. */
+export class WorkflowRetryError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message)
+    this.name = 'WorkflowRetryError'
+  }
+}
+
 // Shape returned by GET /node-runs/active (hermes-agent#16)
 export interface ActiveNodeRunSummary {
   runId: string
@@ -276,6 +287,9 @@ export class PluginClient implements WorkflowEngineInterface {
       variables: inputs,
       parent_conversation_id: trigger.parent_conversation_id,
       codebase_id: trigger.codebase_id,
+      ...(trigger.parent_run_id != null && {
+        parent_run_id: trigger.parent_run_id,
+      }),
       ...(trigger.schedule != null && { schedule: trigger.schedule }),
       ...(trigger.priority != null && { priority: trigger.priority }),
       ...(trigger.maxRuntimeSeconds != null && {
@@ -294,6 +308,33 @@ export class PluginClient implements WorkflowEngineInterface {
       'POST',
       `/runs/${encodeURIComponent(id)}/resume`,
     )
+    return data.run
+  }
+
+  async retryRun(
+    id: string,
+    opts: { from_node_id?: string; actor?: string } = {},
+  ): Promise<WorkflowRun> {
+    const res = await _proxyFetch(
+      `${PLUGIN_BASE}/runs/${encodeURIComponent(id)}/retry`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(opts),
+      },
+    )
+    if (!res.ok) {
+      const body = (await res.json().catch(() => null)) as {
+        error?: unknown
+      } | null
+      const msg = typeof body?.error === 'string' ? body.error : ''
+      if ([400, 404, 409].includes(res.status))
+        throw new WorkflowRetryError(res.status, msg)
+      throw new Error(
+        `PluginClient POST /runs/${id}/retry: ${res.status} ${msg}`,
+      )
+    }
+    const data = (await res.json()) as { run: WorkflowRun }
     return data.run
   }
 

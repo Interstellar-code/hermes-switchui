@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PluginClient } from './plugin-client.js'
+import { PluginClient, WorkflowRetryError } from './plugin-client.js'
 
 // ── Mock gateway-capabilities before importing PluginClient ──────────────────
 vi.mock('../../gateway-capabilities.js', () => ({
@@ -153,6 +153,50 @@ describe('PluginClient.startRun', () => {
     expect(body.workflow_id).toBe('hello-world')
     expect(body.conversation_id).toBe('conv-1')
     expect(body.variables).toEqual({ key: 'val' })
+    expect(body).not.toHaveProperty('parent_run_id')
+  })
+
+  it('forwards parent_run_id (RUN AGAIN lineage)', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r2' } }, 201))
+    await client.startRun(
+      'hello-world',
+      {},
+      {
+        kind: 'manual',
+        conversation_id: 'c',
+        user_message: 'go',
+        parent_run_id: 'r1',
+      },
+    )
+    expect(JSON.parse(lastInit()?.body as string).parent_run_id).toBe('r1')
+  })
+})
+
+describe('PluginClient.retryRun', () => {
+  it('POSTs /runs/{id}/retry with the body', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ run: { id: 'r5' } }))
+    const run = await client.retryRun('r5', {
+      from_node_id: 'b',
+      actor: 'switchui',
+    })
+    expect(run.id).toBe('r5')
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/runs/r5/retry`)
+    expect(JSON.parse(lastInit()?.body as string)).toEqual({
+      from_node_id: 'b',
+      actor: 'switchui',
+    })
+  })
+
+  it('throws WorkflowRetryError with the plugin status and message', async () => {
+    fetchMock.mockResolvedValue(
+      fakeResponse({ error: 'run still owned by a live process' }, 409),
+    )
+    const err = await client.retryRun('r5').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(WorkflowRetryError)
+    expect(err).toMatchObject({
+      status: 409,
+      message: 'run still owned by a live process',
+    })
   })
 })
 

@@ -15,6 +15,7 @@ import {
   listWorkflowDefinitions,
   listWorkflowRuns,
   resetWorkflowDefinitionToFactory,
+  retryWorkflowRun,
   upsertWorkflowDefinition,
 } from './api-client'
 import type {
@@ -163,6 +164,31 @@ export function useApproveRun(runId: string) {
       approveWorkflowRun(runId, input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-runs', runId] })
+    },
+  })
+}
+
+/**
+ * Resume a failed/cancelled run in place. A lost race ("already retried")
+ * resolves as success: the run is being retried either way.
+ */
+export function useRetryRun() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (v: { runId: string; fromNodeId?: string }) => {
+      try {
+        await retryWorkflowRun(
+          v.runId,
+          v.fromNodeId ? { from_node_id: v.fromNodeId } : {},
+        )
+      } catch (e) {
+        if ((e as { code?: string }).code !== 'already_retried') throw e
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['workflow-runs'] })
+      void queryClient.invalidateQueries({ queryKey: ['workflow-run-events'] })
+      void queryClient.invalidateQueries({ queryKey: ['conductor'] })
     },
   })
 }

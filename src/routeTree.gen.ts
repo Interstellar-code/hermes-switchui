@@ -209,6 +209,7 @@ import { Route as ApiBackupsDeleteRouteImport } from './routes/api/backups/delet
 import { Route as ApiBackupsCreateRouteImport } from './routes/api/backups/create'
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiApprovalsPendingRouteImport } from './routes/api/approvals.pending'
+import { Route as ApiWorkflowRunsRunIdRetryRouteImport } from './routes/api/workflow-runs.$runId.retry'
 import { Route as ApiWorkflowRunsRunIdEventsRouteImport } from './routes/api/workflow-runs.$runId.events'
 import { Route as ApiWorkflowRunsRunIdDefinitionRouteImport } from './routes/api/workflow-runs.$runId.definition'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
@@ -1274,6 +1275,12 @@ const ApiApprovalsPendingRoute = ApiApprovalsPendingRouteImport.update({
   path: '/api/approvals/pending',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkflowRunsRunIdRetryRoute =
+  ApiWorkflowRunsRunIdRetryRouteImport.update({
+    id: '/retry',
+    path: '/retry',
+    getParentRoute: () => ApiWorkflowRunsRunIdRoute,
+  } as any)
 const ApiWorkflowRunsRunIdEventsRoute =
   ApiWorkflowRunsRunIdEventsRouteImport.update({
     id: '/events',
@@ -1826,6 +1833,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
+  '/api/workflow-runs/$runId/retry': typeof ApiWorkflowRunsRunIdRetryRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
@@ -2080,6 +2088,7 @@ export interface FileRoutesByTo {
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
+  '/api/workflow-runs/$runId/retry': typeof ApiWorkflowRunsRunIdRetryRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
@@ -2337,6 +2346,7 @@ export interface FileRoutesById {
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
+  '/api/workflow-runs/$runId/retry': typeof ApiWorkflowRunsRunIdRetryRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
   '/api/hermes-kanban/boards/$slug/save-as-template': typeof ApiHermesKanbanBoardsSlugSaveAsTemplateRoute
@@ -2595,6 +2605,7 @@ export interface FileRouteTypes {
     | '/api/workflow-runs/$runId/approve'
     | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
+    | '/api/workflow-runs/$runId/retry'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
@@ -2849,6 +2860,7 @@ export interface FileRouteTypes {
     | '/api/workflow-runs/$runId/approve'
     | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
+    | '/api/workflow-runs/$runId/retry'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
@@ -3105,6 +3117,7 @@ export interface FileRouteTypes {
     | '/api/workflow-runs/$runId/approve'
     | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
+    | '/api/workflow-runs/$runId/retry'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
     | '/api/hermes-kanban/boards/$slug/save-as-template'
@@ -4695,6 +4708,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiApprovalsPendingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workflow-runs/$runId/retry': {
+      id: '/api/workflow-runs/$runId/retry'
+      path: '/retry'
+      fullPath: '/api/workflow-runs/$runId/retry'
+      preLoaderRoute: typeof ApiWorkflowRunsRunIdRetryRouteImport
+      parentRoute: typeof ApiWorkflowRunsRunIdRoute
+    }
     '/api/workflow-runs/$runId/events': {
       id: '/api/workflow-runs/$runId/events'
       path: '/events'
@@ -5359,12 +5379,14 @@ interface ApiWorkflowRunsRunIdRouteChildren {
   ApiWorkflowRunsRunIdApproveRoute: typeof ApiWorkflowRunsRunIdApproveRoute
   ApiWorkflowRunsRunIdDefinitionRoute: typeof ApiWorkflowRunsRunIdDefinitionRoute
   ApiWorkflowRunsRunIdEventsRoute: typeof ApiWorkflowRunsRunIdEventsRoute
+  ApiWorkflowRunsRunIdRetryRoute: typeof ApiWorkflowRunsRunIdRetryRoute
 }
 
 const ApiWorkflowRunsRunIdRouteChildren: ApiWorkflowRunsRunIdRouteChildren = {
   ApiWorkflowRunsRunIdApproveRoute: ApiWorkflowRunsRunIdApproveRoute,
   ApiWorkflowRunsRunIdDefinitionRoute: ApiWorkflowRunsRunIdDefinitionRoute,
   ApiWorkflowRunsRunIdEventsRoute: ApiWorkflowRunsRunIdEventsRoute,
+  ApiWorkflowRunsRunIdRetryRoute: ApiWorkflowRunsRunIdRetryRoute,
 }
 
 const ApiWorkflowRunsRunIdRouteWithChildren =

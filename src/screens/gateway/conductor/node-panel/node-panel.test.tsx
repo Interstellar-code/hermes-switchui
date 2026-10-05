@@ -107,7 +107,7 @@ describe('NodePanel', () => {
     })
     expect(on.hasAttribute('disabled')).toBe(false)
     fireEvent.click(on)
-    expect(onResume).toHaveBeenCalledWith('r')
+    expect(onResume).toHaveBeenCalledWith('r', 'apply')
   })
 
   it('Esc closes the panel', () => {

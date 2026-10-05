@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AgentsPanel } from './agents-panel'
 import { useConductorLiveContext } from './conductor-live-context'
-import { useAbortMission } from './use-conductor-queries'
+import { useAbortMission, useResumeRun } from './use-conductor-queries'
 import { useNow } from './flow/use-now'
 import { useRunDag } from './use-run-dag'
 import type { LaunchWorkflowInput } from '@/screens/workflows/api-client'
@@ -16,7 +16,11 @@ import {
   statusTone,
   triggerText,
 } from '@/screens/workflows/run-inspector/inspector-model'
-import { runAgainInput, toEpochMs } from '@/screens/workflows/run-status'
+import {
+  RESUMABLE,
+  runAgainInput,
+  toEpochMs,
+} from '@/screens/workflows/run-status'
 import {
   useLaunchWorkflowRun,
   useWorkflowFeatures,
@@ -43,6 +47,7 @@ export function MissionDetailDrawer() {
   const featuresQ = useWorkflowFeatures()
   const abort = useAbortMission()
   const launch = useLaunchWorkflowRun()
+  const resumeRun = useResumeRun()
   const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cancellable =
@@ -55,13 +60,14 @@ export function MissionDetailDrawer() {
   const startedMs = toEpochMs(run?.started_at)
   const endMs = toEpochMs(run?.completed_at) ?? (cancellable ? now : Date.now())
   const tone = statusTone(run?.status ?? '')
+  const features = featuresQ.data?.features ?? []
+  const canResume =
+    features.includes('retry_run') && RESUMABLE.has(run?.status ?? '')
 
   function runAgain() {
     if (!run || !rerun) return
-    const input: LaunchWorkflowInput = featuresQ.data?.features.includes(
-      'parent_run',
-    )
-      ? ({ ...rerun, parent_run_id: run.id } as LaunchWorkflowInput)
+    const input: LaunchWorkflowInput = features.includes('parent_run')
+      ? { ...rerun, parent_run_id: run.id }
       : rerun
     launch.mutate(input, {
       onSuccess: (r) => {
@@ -100,6 +106,17 @@ export function MissionDetailDrawer() {
                 </>
               )}
               <span className="wfri-grow" />
+              {canResume && (
+                <button
+                  type="button"
+                  className="wfri-btn"
+                  disabled={resumeRun.isPending}
+                  title="Re-run the failed nodes and what follows; completed nodes are kept"
+                  onClick={() => resumeRun.resume(drawerRunId)}
+                >
+                  {resumeRun.isPending ? 'RESUMING…' : 'RESUME'}
+                </button>
+              )}
               <button
                 type="button"
                 className="wfri-btn"
@@ -170,6 +187,10 @@ export function MissionDetailDrawer() {
                 { runId: drawerRunId, nodeId: id },
                 panelTab ?? 'overview',
               )
+            }}
+            onOpenRun={(id) => {
+              setSelectedRunId(id)
+              setDrawerRunId(id)
             }}
             extraOverview={<AgentsPanel runId={drawerRunId} />}
           />

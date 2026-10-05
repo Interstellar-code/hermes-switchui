@@ -32,10 +32,12 @@ export function NodeOutput({
   d,
   onAllNodeRuns,
   onResume,
+  resuming = false,
 }: {
   d: NodePanelData
   onAllNodeRuns: () => void
-  onResume?: (runId: string) => void
+  onResume?: (runId: string, fromNodeId?: string) => void
+  resuming?: boolean
 }) {
   const nr = d.sel.nodeRun
   const summary = (nr?.summary ?? '').trim()
@@ -139,11 +141,15 @@ export function NodeOutput({
               <button
                 type="button"
                 className="cnp-btn"
-                disabled={!canResume}
-                title={canResume ? undefined : 'available after backend update'}
-                onClick={() => onResume?.(d.runId)}
+                disabled={!canResume || resuming}
+                title={
+                  canResume
+                    ? `Re-run ${d.nodeId} and what follows; completed nodes are kept`
+                    : 'available after backend update'
+                }
+                onClick={() => onResume?.(d.runId, d.nodeId)}
               >
-                RESUME RUN
+                {resuming ? 'RESUMING…' : 'RESUME RUN'}
               </button>
             )}
             <button type="button" className="cnp-btn" onClick={onAllNodeRuns}>

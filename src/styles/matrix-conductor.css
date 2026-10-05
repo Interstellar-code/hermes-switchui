@@ -216,6 +216,27 @@
     letter-spacing: 0.15em;
   }
 
+  .now .meta .now-link {
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--m-green-500, var(--theme-accent));
+    background: none;
+    border: 0;
+    padding: 0;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .now .meta .now-link:focus-visible {
+    outline: 2px solid var(--m-green-400, var(--theme-accent));
+    outline-offset: 2px;
+  }
+
+  .now .meta .now-warn {
+    color: var(--m-warning, var(--theme-warning));
+  }
+
   .now .meta b {
     color: var(--m-text, var(--theme-text));
     font-weight: 500;

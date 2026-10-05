@@ -46,6 +46,7 @@ vi.mock('./use-conductor-queries', () => ({
   useConductorMissions: () => ({ data: h.missions }),
   useConductorScheduled: () => ({ data: undefined }),
   useAbortMission: () => ({ mutate: vi.fn(), isPending: false }),
+  useResumeRun: () => ({ resume: vi.fn(), isPending: false }),
 }))
 vi.mock('./use-run-dag', () => ({
   useRunDag: (runId: string | null) => ({

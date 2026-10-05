@@ -9,6 +9,9 @@ import type {
   Mission,
   ScheduledResponse,
 } from '../../../server/conductor-store'
+import { toast } from '@/components/ui/toast'
+import { useRetryRun } from '@/screens/workflows/use-workflows'
+import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 // ---------------------------------------------------------------------------
 // Fetchers
@@ -130,6 +133,33 @@ export function useAbortMission() {
       void queryClient.invalidateQueries({ queryKey: ['workflow-runs'] })
     },
   })
+}
+
+/**
+ * RESUME (strip, node panel, Inspect drawer): retry the run in place, then
+ * focus it on the canvas. A "still stopping" conflict reads as a hint.
+ */
+export function useResumeRun() {
+  const retry = useRetryRun()
+  const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
+  const resume = (runId: string, fromNodeId?: string, onDone?: () => void) =>
+    retry.mutate(
+      { runId, fromNodeId },
+      {
+        onSuccess: () => {
+          setSelectedRunId(runId)
+          onDone?.()
+        },
+        onError: (e) =>
+          toast(
+            (e as { code?: string }).code === 'live_owner'
+              ? 'Still stopping — try again shortly'
+              : e.message || 'Resume failed',
+            { type: 'error' },
+          ),
+      },
+    )
+  return { resume, isPending: retry.isPending }
 }
 
 export type { Mission }

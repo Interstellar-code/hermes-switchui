@@ -440,6 +440,21 @@
   color: var(--ri-accent);
 }
 
+.wfri-link {
+  font: inherit;
+  color: var(--ri-accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.wfri-link:focus-visible {
+  outline: 2px solid var(--ri-accent);
+  outline-offset: 2px;
+}
+
 .wfri-mini {
   width: 100%;
   border-collapse: collapse;

@@ -29,6 +29,8 @@ export interface RunInspectorProps {
   events?: Array<WorkflowSseEvent>
   /** Shown only when passed. */
   onOpenNode?: InspectorCtx['onOpenNode']
+  /** "re-run of" link target; plain text when absent. */
+  onOpenRun?: InspectorCtx['onOpenRun']
   initialTab?: InspectTab
   onTabChange?: (tab: InspectTab) => void
   expandedNodeId?: string | null
@@ -49,6 +51,7 @@ export function RunInspector({
   runId,
   events,
   onOpenNode,
+  onOpenRun,
   initialTab = 'overview',
   onTabChange,
   expandedNodeId = null,
@@ -118,6 +121,7 @@ export function RunInspector({
     parsed,
     features: featuresQ.data?.features ?? [],
     onOpenNode,
+    onOpenRun,
   }
 
   const select = (t: InspectTab) => {

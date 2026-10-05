@@ -59,6 +59,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
           variables?: Record<string, unknown>;
           parent_conversation_id?: string;
           codebase_id?: string;
+          parent_run_id?: string;
           schedule?: { type: 'now' | 'at' | 'cron'; at?: string; cron?: string };
           priority?: number;
           maxRuntimeSeconds?: number;
@@ -81,6 +82,12 @@ export const Route = createFileRoute('/api/workflow-runs')({
         if (typeof body.user_message !== 'string' || body.user_message.length === 0) {
           return Response.json({ error: 'user_message must be a non-empty string' }, { status: 400 });
         }
+        if (
+          body.parent_run_id !== undefined &&
+          (typeof body.parent_run_id !== 'string' || !WORKFLOW_ID_RE.test(body.parent_run_id))
+        ) {
+          return Response.json({ error: 'parent_run_id must be 1-128 chars of [A-Za-z0-9_:.-]' }, { status: 400 });
+        }
         if (body.working_path !== undefined) {
           if (typeof body.working_path !== 'string' || !body.working_path.startsWith('/') || body.working_path.includes('..')) {
             return Response.json({ error: 'working_path must be an absolute path with no .. segments' }, { status: 400 });
@@ -98,6 +105,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
             user_message: body.user_message,
             parent_conversation_id: body.parent_conversation_id,
             codebase_id: body.codebase_id,
+            parent_run_id: body.parent_run_id,
             schedule: body.schedule,
             priority: body.priority,
             maxRuntimeSeconds: body.maxRuntimeSeconds,

@@ -18,6 +18,7 @@ import { useRunDag } from './use-run-dag'
 import {
   useConductorMissions,
   useConductorScheduled,
+  useResumeRun,
 } from './use-conductor-queries'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
@@ -62,6 +63,7 @@ export function ConductorLayout() {
   const setNodePanelTab = useConductorUIStore((s) => s.setNodePanelTab)
   const openInspector = useConductorUIStore((s) => s.openInspector)
   const { dag } = useRunDag(focusRunId)
+  const resumeRun = useResumeRun()
 
   // URL <-> store. A changed URL (deep link, back/forward, our own write
   // landing) is applied first; then the store is reflected in ONE navigate so
@@ -199,6 +201,8 @@ export function ConductorLayout() {
                       })
                     }
                     events={live.events}
+                    onResume={resumeRun.resume}
+                    resuming={resumeRun.isPending}
                   />
                 )}
               </div>

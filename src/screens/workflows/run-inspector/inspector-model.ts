@@ -300,6 +300,8 @@ export interface InspectorCtx {
   features: Array<string>
   /** Called to open a node in the host (Conductor's docked panel); absent on /workflows. */
   onOpenNode?: (dagNodeId: string, panelTab?: 'output') => void
+  /** Called to open another run (the "re-run of" parent); absent = plain text. */
+  onOpenRun?: (runId: string) => void
 }
 
 /** Run status → chip tone. */
