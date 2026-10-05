@@ -5,6 +5,10 @@ import { nodeTableRows } from './inspector-model'
 import type { CSSProperties } from 'react'
 import type { InspectorCtx } from './inspector-model'
 import { Markdown } from '@/components/prompt-kit/markdown'
+import {
+  LOG_TYPES,
+  NodeLog,
+} from '@/screens/gateway/conductor/node-panel/node-log'
 
 /** JSON output reads better pretty-printed; anything else is markdown. */
 function OutputBody({ text }: { text: string }) {
@@ -19,7 +23,8 @@ function OutputBody({ text }: { text: string }) {
 }
 
 export function OutputTab({ ctx }: { ctx: InspectorCtx }) {
-  const { run, nodeRuns, parsed } = ctx
+  const { run, nodeRuns, parsed, runId, features, subscribeNodeLog } = ctx
+  const logFeature = features.includes('node_log')
   const [open, setOpen] = useState<Set<string>>(new Set())
   const report = finalReport(parsed, nodeRuns, run.error)
   const latest = latestOutput(nodeRuns)
@@ -74,6 +79,7 @@ export function OutputTab({ ctx }: { ctx: InspectorCtx }) {
             const nr = r.nodeRun!
             const body = [nr.summary, nr.error].filter(Boolean).join('\n\n')
             const isOpen = open.has(r.id)
+            const hasLog = logFeature && LOG_TYPES.has(r.type)
             const lines = nr.summary ? nr.summary.split('\n').length : 0
             const suffix =
               r.status === 'failed'
@@ -87,7 +93,7 @@ export function OutputTab({ ctx }: { ctx: InspectorCtx }) {
                   type="button"
                   className="wfri-oh"
                   aria-expanded={isOpen}
-                  disabled={!body}
+                  disabled={!body && !hasLog}
                   onClick={() => toggle(r.id)}
                 >
                   <svg
@@ -109,12 +115,21 @@ export function OutputTab({ ctx }: { ctx: InspectorCtx }) {
                   {r.id}
                   <span className="m">{suffix}</span>
                 </button>
-                {isOpen && (
+                {isOpen && body && (
                   <pre
                     className={`wfri-code${r.status === 'failed' ? ' wfri-code--err' : ''}`}
                   >
                     {body}
                   </pre>
+                )}
+                {isOpen && hasLog && (
+                  <NodeLog
+                    runId={runId}
+                    nodeRunId={nr.id}
+                    live={nr.status === 'running'}
+                    subscribe={subscribeNodeLog}
+                    label={`LOG · ${r.id}`}
+                  />
                 )}
               </div>
             )

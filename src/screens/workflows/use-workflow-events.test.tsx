@@ -70,4 +70,25 @@ describe('useWorkflowEvents replay filter', () => {
     })
     expect(hook.result.current.events.map((e) => e.type)).toEqual(types)
   })
+
+  it('fans node_log out to subscribers without buffering it', () => {
+    const hook = renderHook(() => useWorkflowEvents('run-1'))
+    const got: Array<unknown> = []
+    const off = hook.result.current.subscribeNodeLog((env) => got.push(env.seq))
+    act(() => {
+      const es = FakeEventSource.instances.at(-1)!
+      es.listeners.get('node_log')!({
+        data: JSON.stringify({ seq: 7, data: { text: 'hi' } }),
+      } as MessageEvent)
+      vi.advanceTimersByTime(100)
+    })
+    off()
+    act(() => {
+      FakeEventSource.instances.at(-1)!.listeners.get('node_log')!({
+        data: JSON.stringify({ seq: 8 }),
+      } as MessageEvent)
+    })
+    expect(got).toEqual([7])
+    expect(hook.result.current.events).toEqual([])
+  })
 })

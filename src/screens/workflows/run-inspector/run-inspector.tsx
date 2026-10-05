@@ -29,6 +29,8 @@ export interface RunInspectorProps {
   events?: Array<WorkflowSseEvent>
   /** Shown only when passed. */
   onOpenNode?: InspectorCtx['onOpenNode']
+  /** `node_log` subscription on the host's stream (pair with `events`). */
+  subscribeNodeLog?: InspectorCtx['subscribeNodeLog']
   /** "re-run of" link target; plain text when absent. */
   onOpenRun?: InspectorCtx['onOpenRun']
   initialTab?: InspectTab
@@ -52,6 +54,7 @@ export function RunInspector({
   events,
   onOpenNode,
   onOpenRun,
+  subscribeNodeLog,
   initialTab = 'overview',
   onTabChange,
   expandedNodeId = null,
@@ -122,6 +125,7 @@ export function RunInspector({
     features: featuresQ.data?.features ?? [],
     onOpenNode,
     onOpenRun,
+    subscribeNodeLog: events ? subscribeNodeLog : own.subscribeNodeLog,
   }
 
   const select = (t: InspectTab) => {

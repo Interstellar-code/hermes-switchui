@@ -1,4 +1,6 @@
+import { useConductorLiveContext } from '../conductor-live-context'
 import { exitCode, lastErrorLine, stderrTail } from './node-panel-model'
+import { LOG_TYPES, NodeLog } from './node-log'
 import type { NodePanelData } from './node-panel'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import {
@@ -47,13 +49,18 @@ export function NodeOutput({
     d.features.includes('retry_run') && d.run?.status === 'failed' && !!onResume
   const code = failed ? exitCode(nr.error) : null
   const took = failed && d.durationMs != null ? fmtDuration(d.durationMs) : null
+  const live = useConductorLiveContext()
+  const hasLog =
+    !!nr && d.features.includes('node_log') && LOG_TYPES.has(d.type)
 
   const empty = !nr
     ? 'This node has not been reached yet.'
     : failed
       ? 'No output — the step exited before writing a summary.'
       : nr.status === 'running' || nr.status === 'pending'
-        ? 'Still running — output appears when the step completes.'
+        ? hasLog
+          ? 'Still running — the final summary appears when the step exits.'
+          : 'Still running — output appears when the step exits.'
         : nr.status === 'paused'
           ? 'Waiting — no output yet.'
           : 'No output recorded.'
@@ -88,11 +95,24 @@ export function NodeOutput({
               <div className="cnp-empty">No error text recorded.</div>
             )}
             <span className="cnp-meta">
-              from node_runs.error · captured when the step exited (no live log
-              stream)
+              from node_runs.error · captured when the step exited
+              {hasLog ? '' : ' (no live log stream)'}
             </span>
           </div>
         </>
+      )}
+
+      {hasLog && (
+        <div className="cnp-box">
+          <NodeLog
+            runId={d.runId}
+            nodeRunId={nr.id}
+            live={nr.status === 'running'}
+            subscribe={
+              live.runId === d.runId ? live.subscribeNodeLog : undefined
+            }
+          />
+        </div>
       )}
 
       <div className="cnp-box">
@@ -115,7 +135,7 @@ export function NodeOutput({
         )}
         {summary && (
           <span className="cnp-meta">
-            final summary · live output is not streamed yet
+            final summary{hasLog ? '' : ' · live output is not streamed'}
           </span>
         )}
       </div>

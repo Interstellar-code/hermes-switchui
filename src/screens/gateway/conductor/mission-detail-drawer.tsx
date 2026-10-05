@@ -179,6 +179,9 @@ export function MissionDetailDrawer() {
             onExpandedChange={setExpandedNodeId}
             // The layout's single stream, when it is this run's; otherwise the inspector opens its own.
             events={live.runId === drawerRunId ? live.events : undefined}
+            subscribeNodeLog={
+              live.runId === drawerRunId ? live.subscribeNodeLog : undefined
+            }
             onOpenNode={(id, panelTab) => {
               // Run first: selecting a different run clears the node selection.
               setSelectedRunId(drawerRunId)

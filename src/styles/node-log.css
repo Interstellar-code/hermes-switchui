@@ -1,0 +1,108 @@
+/* node-log.css — terminal-style node output (node-panel/node-log.tsx). Theme tokens only. */
+
+.nlog {
+  --nl-text: var(--m-text, var(--theme-text));
+  --nl-muted: var(--m-text-muted, var(--theme-muted));
+  --nl-border: var(--m-border-subtle, var(--theme-border));
+  --nl-accent: var(--m-green-500, var(--theme-accent));
+  --nl-err: var(--m-danger, var(--theme-danger));
+  --nl-bg: var(--m-bg, var(--theme-bg));
+  --nl-mono: var(--m-font-mono, ui-monospace, monospace);
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nlog-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nlog-lbl {
+  font: 9px var(--nl-mono);
+  letter-spacing: 0.14em;
+  color: var(--nl-muted);
+}
+
+.nlog-live {
+  color: var(--nl-accent);
+}
+
+.nlog-grow {
+  flex: 1 1 auto;
+}
+
+.nlog-btn {
+  padding: 2px 8px;
+  font: 600 9px var(--nl-mono);
+  letter-spacing: 0.1em;
+  color: var(--nl-text);
+  background: none;
+  border: 1px solid var(--nl-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.nlog-btn[aria-pressed='true'] {
+  color: var(--nl-accent);
+  border-color: var(--nl-accent);
+}
+
+.nlog-btn:hover:not([disabled]) {
+  color: var(--nl-accent);
+  border-color: var(--nl-accent);
+}
+
+.nlog-btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.nlog-btn:focus-visible,
+.nlog-box:focus-visible {
+  outline: 2px solid var(--nl-accent);
+  outline-offset: 2px;
+}
+
+.nlog-box {
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px 10px;
+  background: var(--nl-bg);
+  border: 1px solid var(--nl-border);
+  border-radius: 4px;
+}
+
+.nlog-pre {
+  margin: 0;
+  font: 10.5px/1.55 var(--nl-mono);
+  color: var(--nl-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nlog-err {
+  color: var(--nl-err);
+}
+
+.nlog-sep {
+  color: var(--nl-muted);
+}
+
+/* Inside the Inspect OUTPUT tab's per-node row. */
+.wfri-oi > .nlog {
+  padding: 4px 10px 10px;
+}
+
+.nlog-empty {
+  font-size: 11px;
+  color: var(--nl-muted);
+}
+
+.nlog-meta {
+  font: 10px var(--nl-mono);
+  color: var(--nl-muted);
+}

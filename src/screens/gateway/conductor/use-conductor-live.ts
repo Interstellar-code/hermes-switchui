@@ -14,9 +14,12 @@ export const LIVE_INVALIDATE_MS = 1000
 const RELEVANT = /^(node_|workflow_|loop_iteration_|approval_|subgraph_)/
 
 export function useConductorLive(selectedRunId: string | null) {
-  const { events, status } = useWorkflowEvents(selectedRunId, {
-    skipReplayed: true,
-  })
+  const { events, status, subscribeNodeLog } = useWorkflowEvents(
+    selectedRunId,
+    {
+      skipReplayed: true,
+    },
+  )
   const queryClient = useQueryClient()
   const lastSeen = useRef<WorkflowSseEvent | null>(null)
   const lastFired = useRef(0)
@@ -59,5 +62,5 @@ export function useConductorLive(selectedRunId: string | null) {
     else timer.current ??= setTimeout(fire, wait)
   }, [events, selectedRunId, queryClient])
 
-  return { events, status }
+  return { events, status, subscribeNodeLog }
 }

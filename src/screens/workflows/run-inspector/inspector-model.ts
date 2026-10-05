@@ -5,6 +5,7 @@
 import { toEpochMs } from '../run-status'
 import type { NodeRunRow, PhaseTransition, WorkflowRunRow } from '../api-client'
 import type { ParsedWorkflow } from '../types'
+import type { SubscribeNodeLog } from '../use-workflow-events'
 
 export type InspectTab =
   | 'overview'
@@ -302,6 +303,8 @@ export interface InspectorCtx {
   onOpenNode?: (dagNodeId: string, panelTab?: 'output') => void
   /** Called to open another run (the "re-run of" parent); absent = plain text. */
   onOpenRun?: (runId: string) => void
+  /** Live `node_log` chunks for this run's stream (absent = history only). */
+  subscribeNodeLog?: SubscribeNodeLog
 }
 
 /** Run status → chip tone. */

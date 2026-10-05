@@ -52,8 +52,13 @@ export function ConductorLayout() {
   const focusRunId = focus.kind === 'run' ? focus.runId : null
   const live = useConductorLive(focusRunId)
   const liveValue = useMemo(
-    () => ({ runId: focusRunId, events: live.events, status: live.status }),
-    [focusRunId, live.events, live.status],
+    () => ({
+      runId: focusRunId,
+      events: live.events,
+      status: live.status,
+      subscribeNodeLog: live.subscribeNodeLog,
+    }),
+    [focusRunId, live.events, live.status, live.subscribeNodeLog],
   )
 
   // Docked node panel: selection lives in the store stamped with its run.

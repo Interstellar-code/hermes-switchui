@@ -1,10 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export interface WorkflowSseEvent {
   type: string
   data: Record<string, unknown>
   receivedAt: number
 }
+
+/** A raw SSE envelope (`{seq, node_run_id, data, …}`) for a stream-only event type. */
+export type NodeLogListener = (envelope: Record<string, unknown>) => void
+export type SubscribeNodeLog = (fn: NodeLogListener) => () => void
 
 const MAX_BUFFER = 500
 const FLUSH_INTERVAL_MS = 80
@@ -15,7 +19,16 @@ export function useWorkflowEvents(
 ): {
   events: Array<WorkflowSseEvent>
   status: 'idle' | 'connecting' | 'open' | 'error' | 'closed'
+  /** `node_log` chunks bypass the 500-event buffer; consumers subscribe instead. */
+  subscribeNodeLog: SubscribeNodeLog
 } {
+  const logListeners = useRef(new Set<NodeLogListener>())
+  const subscribeNodeLog = useCallback<SubscribeNodeLog>((fn) => {
+    logListeners.current.add(fn)
+    return () => {
+      logListeners.current.delete(fn)
+    }
+  }, [])
   const [events, setEvents] = useState<Array<WorkflowSseEvent>>([])
   const [status, setStatus] = useState<'idle' | 'connecting' | 'open' | 'error' | 'closed'>('idle')
   const esRef = useRef<EventSource | null>(null)
@@ -118,6 +131,18 @@ export function useWorkflowEvents(
       es.addEventListener(type, (e: MessageEvent) => pushEvent(type, e.data))
     }
 
+    // High-volume live output: never buffered, only fanned out to subscribers.
+    es.addEventListener('node_log', (e: MessageEvent) => {
+      if (logListeners.current.size === 0) return
+      let env: Record<string, unknown>
+      try {
+        env = JSON.parse(e.data as string) as Record<string, unknown>
+      } catch {
+        return
+      }
+      for (const fn of logListeners.current) fn(env)
+    })
+
     return () => {
       es.close()
       esRef.current = null
@@ -130,5 +155,5 @@ export function useWorkflowEvents(
     }
   }, [runId])
 
-  return { events, status }
+  return { events, status, subscribeNodeLog }
 }
