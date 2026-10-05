@@ -208,6 +208,7 @@ import { Route as ApiBackupsCreateRouteImport } from './routes/api/backups/creat
 import { Route as ApiArtifactsArtifactIdRouteImport } from './routes/api/artifacts.$artifactId'
 import { Route as ApiApprovalsPendingRouteImport } from './routes/api/approvals.pending'
 import { Route as ApiWorkflowRunsRunIdEventsRouteImport } from './routes/api/workflow-runs.$runId.events'
+import { Route as ApiWorkflowRunsRunIdDefinitionRouteImport } from './routes/api/workflow-runs.$runId.definition'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
@@ -1267,6 +1268,12 @@ const ApiWorkflowRunsRunIdEventsRoute =
     path: '/events',
     getParentRoute: () => ApiWorkflowRunsRunIdRoute,
   } as any)
+const ApiWorkflowRunsRunIdDefinitionRoute =
+  ApiWorkflowRunsRunIdDefinitionRouteImport.update({
+    id: '/definition',
+    path: '/definition',
+    getParentRoute: () => ApiWorkflowRunsRunIdRoute,
+  } as any)
 const ApiWorkflowRunsRunIdApproveRoute =
   ApiWorkflowRunsRunIdApproveRouteImport.update({
     id: '/approve',
@@ -1803,6 +1810,7 @@ export interface FileRoutesByFullPath {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
+  '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
@@ -2054,6 +2062,7 @@ export interface FileRoutesByTo {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
+  '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
@@ -2308,6 +2317,7 @@ export interface FileRoutesById {
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
+  '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
   '/api/conductor/missions/$id/abort': typeof ApiConductorMissionsIdAbortRoute
   '/api/conductor/runs/$id/sessions': typeof ApiConductorRunsIdSessionsRoute
@@ -2563,6 +2573,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
+    | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
@@ -2814,6 +2825,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
+    | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
@@ -3067,6 +3079,7 @@ export interface FileRouteTypes {
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
     | '/api/workflow-runs/$runId/approve'
+    | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
     | '/api/conductor/missions/$id/abort'
     | '/api/conductor/runs/$id/sessions'
@@ -4650,6 +4663,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkflowRunsRunIdEventsRouteImport
       parentRoute: typeof ApiWorkflowRunsRunIdRoute
     }
+    '/api/workflow-runs/$runId/definition': {
+      id: '/api/workflow-runs/$runId/definition'
+      path: '/definition'
+      fullPath: '/api/workflow-runs/$runId/definition'
+      preLoaderRoute: typeof ApiWorkflowRunsRunIdDefinitionRouteImport
+      parentRoute: typeof ApiWorkflowRunsRunIdRoute
+    }
     '/api/workflow-runs/$runId/approve': {
       id: '/api/workflow-runs/$runId/approve'
       path: '/approve'
@@ -5298,11 +5318,13 @@ const ApiWorkflowDefinitionsRouteWithChildren =
 
 interface ApiWorkflowRunsRunIdRouteChildren {
   ApiWorkflowRunsRunIdApproveRoute: typeof ApiWorkflowRunsRunIdApproveRoute
+  ApiWorkflowRunsRunIdDefinitionRoute: typeof ApiWorkflowRunsRunIdDefinitionRoute
   ApiWorkflowRunsRunIdEventsRoute: typeof ApiWorkflowRunsRunIdEventsRoute
 }
 
 const ApiWorkflowRunsRunIdRouteChildren: ApiWorkflowRunsRunIdRouteChildren = {
   ApiWorkflowRunsRunIdApproveRoute: ApiWorkflowRunsRunIdApproveRoute,
+  ApiWorkflowRunsRunIdDefinitionRoute: ApiWorkflowRunsRunIdDefinitionRoute,
   ApiWorkflowRunsRunIdEventsRoute: ApiWorkflowRunsRunIdEventsRoute,
 }
 
