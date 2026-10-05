@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Copy01Icon, RefreshIcon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
-import { Reply, TextQuote } from 'lucide-react'
+import { Reply, TextQuote, GitBranch } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { ContextMenuPoint } from '@/lib/context-menu'
 import { clampContextMenuPosition } from '@/lib/context-menu'
@@ -17,6 +17,7 @@ type MessageContextMenuProps = {
   onClose: () => void
   onReply?: () => void
   onQuote?: () => void
+  onBranch?: () => void
   onRetry?: () => void
 }
 
@@ -52,6 +53,7 @@ export function MessageContextMenu({
   onClose,
   onReply,
   onQuote,
+  onBranch,
   onRetry,
 }: MessageContextMenuProps) {
   const [copied, setCopied] = useState(false)
@@ -82,17 +84,19 @@ export function MessageContextMenu({
       position,
       {
         width: 188,
-        height: onQuote
-          ? onReply && onRetry
-            ? 184
-            : 148
-          : onReply && onRetry
-            ? 148
-            : 112,
+        height:
+          (onBranch ? 36 : 0) +
+          (onQuote
+            ? onReply && onRetry
+              ? 184
+              : 148
+            : onReply && onRetry
+              ? 148
+              : 112),
       },
       { width: window.innerWidth, height: window.innerHeight },
     )
-  }, [onQuote, onReply, onRetry, position])
+  }, [onBranch, onQuote, onReply, onRetry, position])
 
   const canCopy = text.trim().length > 0
 
@@ -152,6 +156,16 @@ export function MessageContextMenu({
           label="Quote"
           onClick={() => {
             onQuote()
+            onClose()
+          }}
+        />
+      ) : null}
+      {onBranch ? (
+        <MenuAction
+          icon={<GitBranch size={15} strokeWidth={1.8} />}
+          label="Branch from here"
+          onClick={() => {
+            onBranch()
             onClose()
           }}
         />

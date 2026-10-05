@@ -700,6 +700,7 @@ type ChatMessageListProps = {
   messages: Array<ChatMessage>
   onRetryMessage?: (message: ChatMessage) => void
   onReplyMessage?: (message: ChatMessage, selectedText?: string) => void
+  onBranchMessage?: (message: ChatMessage) => void
   onRefresh?: () => void | Promise<unknown>
   onThinkingIndicatorChange?: (visible: boolean) => void
   loading: boolean
@@ -789,6 +790,7 @@ function ChatMessageListComponent({
   messages,
   onRetryMessage,
   onReplyMessage,
+  onBranchMessage,
   onRefresh: _onRefresh,
   onThinkingIndicatorChange,
   loading,
@@ -1560,6 +1562,7 @@ function ChatMessageListComponent({
             attachedToolMessages={entry.attachedToolMessages}
             onRetryMessage={effectiveOnRetry}
             onReplyMessage={onReplyMessage}
+            onBranchMessage={onBranchMessage}
             toolResultsByCallId={hasToolCalls ? toolResultsByCallId : undefined}
             forceActionsVisible={forceActionsVisible}
             wrapperClassName={spacingClass}
@@ -1589,6 +1592,7 @@ function ChatMessageListComponent({
         attachedToolMessages={entry.attachedToolMessages}
         onRetryMessage={effectiveOnRetry}
         onReplyMessage={onReplyMessage}
+        onBranchMessage={onBranchMessage}
         toolResultsByCallId={hasToolCalls ? toolResultsByCallId : undefined}
         forceActionsVisible={forceActionsVisible}
         wrapperClassName={spacingClass}
@@ -2302,6 +2306,7 @@ function areChatMessageListEqual(
     prev.messages === next.messages &&
     prev.onRetryMessage === next.onRetryMessage &&
     prev.onReplyMessage === next.onReplyMessage &&
+    prev.onBranchMessage === next.onBranchMessage &&
     prev.onRefresh === next.onRefresh &&
     prev.onThinkingIndicatorChange === next.onThinkingIndicatorChange &&
     prev.loading === next.loading &&

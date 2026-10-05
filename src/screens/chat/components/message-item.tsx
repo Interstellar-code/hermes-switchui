@@ -292,6 +292,7 @@ export type MessageItemProps = {
   clarifyCard?: ReactNode
   onRetryMessage?: (message: ChatMessage) => void
   onReplyMessage?: (message: ChatMessage, selectedText?: string) => void
+  onBranchMessage?: (message: ChatMessage) => void
   forceActionsVisible?: boolean
   wrapperRef?: React.RefObject<HTMLDivElement | null>
   wrapperClassName?: string
@@ -2119,6 +2120,7 @@ function MessageItemComponent({
   delegationActions,
   onRetryMessage,
   onReplyMessage,
+  onBranchMessage,
   forceActionsVisible = false,
   wrapperRef,
   wrapperClassName,
@@ -2645,6 +2647,15 @@ function MessageItemComponent({
     onReplyMessage && messageContextMenu?.selectedText
       ? () => onReplyMessage(message, messageContextMenu.selectedText)
       : undefined
+  // Gateway-backed rows carry the server message id as `msg-<id>`
+  // (toChatMessage); optimistic/streaming/local rows never do, so the
+  // prefix doubles as the fork-anchor gate.
+  const branchMessageAction =
+    onBranchMessage &&
+    typeof message.id === 'string' &&
+    message.id.startsWith('msg-')
+      ? () => onBranchMessage(message)
+      : undefined
 
   const delegationComplete = isUser ? message.__delegationComplete : undefined
   if (delegationComplete) {
@@ -3034,6 +3045,7 @@ function MessageItemComponent({
               onClose={() => setMessageContextMenu(null)}
               onReply={replyMessageAction}
               onQuote={quoteMessageAction}
+              onBranch={branchMessageAction}
               onRetry={retryMessageAction}
             />
           ) : null}
@@ -3086,6 +3098,7 @@ export function areMessagesEqual(
   if (prevProps.wrapperClassName !== nextProps.wrapperClassName) return false
   if (prevProps.onRetryMessage !== nextProps.onRetryMessage) return false
   if (prevProps.onReplyMessage !== nextProps.onReplyMessage) return false
+  if (prevProps.onBranchMessage !== nextProps.onBranchMessage) return false
   if (prevProps.toolCalls !== nextProps.toolCalls) return false
   if (prevProps.lifecycleEvents !== nextProps.lifecycleEvents) return false
   if (prevProps.clarifyCard !== nextProps.clarifyCard) return false

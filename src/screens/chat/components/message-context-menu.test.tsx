@@ -96,3 +96,22 @@ it('fires quote when the Quote action is clicked', () => {
   fireEvent.click(quoteButton!)
   expect(onQuote).toHaveBeenCalledTimes(1)
 })
+
+it('fires branch when the Branch from here action is clicked', () => {
+  const onClose = vi.fn()
+  const onBranch = vi.fn()
+  renderMenu(
+    <MessageContextMenu
+      position={{ x: 120, y: 80 }}
+      text="branchable text"
+      onClose={onClose}
+      onBranch={onBranch}
+    />,
+  )
+
+  const branchButton = Array.from(document.body.querySelectorAll('[role="menuitem"]')).find((node) => node.textContent.includes('Branch from here'))
+  expect(branchButton).toBeTruthy()
+  fireEvent.click(branchButton!)
+  expect(onBranch).toHaveBeenCalledTimes(1)
+  expect(onClose).toHaveBeenCalledTimes(1)
+})
