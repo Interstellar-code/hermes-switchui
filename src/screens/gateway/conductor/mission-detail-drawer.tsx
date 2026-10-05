@@ -1,88 +1,164 @@
 import { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { AgentsPanel } from './agents-panel'
 import { useAbortMission } from './use-conductor-queries'
 import { useRunDag } from './use-run-dag'
+import type { LaunchWorkflowInput } from '@/screens/workflows/api-client'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/toast'
 import { useFocusTrap } from '@/components/ui/use-focus-trap'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
-import { RunDetailPanel } from '@/screens/workflows/run-detail-panel'
-
-const badgeTone = (status: string) =>
-  status === 'running' || status === 'pending'
-    ? 'live'
-    : status === 'completed'
-      ? 'done'
-      : status === 'failed'
-        ? 'err'
-        : status === 'cancelled'
-          ? 'cancelled'
-          : ''
+import { RunInspector } from '@/screens/workflows/run-inspector/run-inspector'
+import {
+  fmtClockDuration,
+  statusTone,
+  triggerText,
+} from '@/screens/workflows/run-inspector/inspector-model'
+import { runAgainInput, toEpochMs } from '@/screens/workflows/run-status'
+import {
+  useLaunchWorkflowRun,
+  useWorkflowFeatures,
+  useWorkflowParsed,
+} from '@/screens/workflows/use-workflows'
 
 export function MissionDetailDrawer() {
   const drawerRunId = useConductorUIStore((s) => s.drawerRunId)
   const setDrawerRunId = useConductorUIStore((s) => s.setDrawerRunId)
+  const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
+  const inspectTab = useConductorUIStore((s) => s.inspectTab)
+  const setInspectTab = useConductorUIStore((s) => s.setInspectTab)
+  const expandedNodeId = useConductorUIStore((s) => s.expandedNodeId)
+  const setExpandedNodeId = useConductorUIStore((s) => s.setExpandedNodeId)
 
   const panelRef = useRef<HTMLElement>(null)
   const close = () => setDrawerRunId(null)
 
   useFocusTrap(!!drawerRunId, panelRef, close)
-  const { run } = useRunDag(drawerRunId)
+  const { run, workflowId } = useRunDag(drawerRunId)
+  const parsedQ = useWorkflowParsed(workflowId)
+  const featuresQ = useWorkflowFeatures()
   const abort = useAbortMission()
+  const launch = useLaunchWorkflowRun()
+  const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cancellable =
     run != null && ['running', 'pending', 'paused'].includes(run.status)
 
   if (!drawerRunId) return null
 
+  const rerun = run ? runAgainInput(run) : null
+  const startedMs = toEpochMs(run?.started_at)
+  const endMs = toEpochMs(run?.completed_at) ?? Date.now()
+  const tone = statusTone(run?.status ?? '')
+
+  function runAgain() {
+    if (!run || !rerun) return
+    const input: LaunchWorkflowInput = featuresQ.data?.features.includes(
+      'parent_run',
+    )
+      ? ({ ...rerun, parent_run_id: run.id } as LaunchWorkflowInput)
+      : rerun
+    launch.mutate(input, {
+      onSuccess: (r) => {
+        void queryClient.invalidateQueries({ queryKey: ['conductor'] })
+        setSelectedRunId(r.run.id)
+        setDrawerRunId(r.run.id)
+      },
+      onError: (e) =>
+        toast(e instanceof Error ? e.message : 'Run again failed', {
+          type: 'error',
+        }),
+    })
+  }
+
   return (
-    <div className="mdd-backdrop">
-      <aside
-        ref={panelRef}
-        className="mdd"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Mission detail"
-        tabIndex={-1}
-      >
-        <div className="mdd-head">
-          <span className="mdd-title">
-            Mission detail · {drawerRunId.slice(0, 8)}
-          </span>
-          {run && (
-            <span className={`mdd-badge ${badgeTone(run.status)}`}>
-              {run.status}
-            </span>
-          )}
-          {cancellable && (
-            <button
-              type="button"
-              className="btn-kill"
-              disabled={abort.isPending}
-              onClick={() => setConfirmOpen(true)}
-            >
-              cancel
-            </button>
-          )}
-          <button
-            type="button"
-            className="mdd-close"
-            onClick={close}
-            aria-label="Close mission detail"
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-            >
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
-          </button>
-        </div>
-        <AgentsPanel runId={drawerRunId} />
-        <RunDetailPanel runId={drawerRunId} onClose={close} hideHeader />
-      </aside>
+    <>
+      <div className="wfri-backdrop" onClick={close}>
+        <aside
+          ref={panelRef}
+          className="wfri-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Run inspector"
+          tabIndex={-1}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="wfri-dh">
+            <div className="wfri-dh-r">
+              <span className="wfri-dt">
+                {parsedQ.data?.definition.name ?? workflowId ?? 'Run'}
+              </span>
+              {run && (
+                <>
+                  <span className={`wfri-chip ${tone}`}>{run.status}</span>
+                  <span className="wfri-chip">{triggerText(run)}</span>
+                </>
+              )}
+              <span className="wfri-grow" />
+              <button
+                type="button"
+                className="wfri-btn"
+                disabled={!rerun || launch.isPending}
+                title={rerun ? undefined : 'No message recorded for this run'}
+                onClick={runAgain}
+              >
+                RUN AGAIN
+              </button>
+              <button
+                type="button"
+                className="wfri-btn"
+                disabled={!cancellable || abort.isPending}
+                title={cancellable ? undefined : 'Run already finished'}
+                onClick={() => setConfirmOpen(true)}
+              >
+                CANCEL
+              </button>
+              <button
+                type="button"
+                className="wfri-ib"
+                onClick={close}
+                aria-label="Close inspector"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 6l12 12M18 6L6 18" />
+                </svg>
+              </button>
+            </div>
+            <div className="wfri-dh-meta">
+              <span>run {drawerRunId.slice(0, 8)}</span>
+              {startedMs != null && (
+                <>
+                  <span>·</span>
+                  <span>elapsed {fmtClockDuration(endMs - startedMs)}</span>
+                </>
+              )}
+              {featuresQ.data?.profile && (
+                <>
+                  <span>·</span>
+                  <span>profile {featuresQ.data.profile}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <RunInspector
+            runId={drawerRunId}
+            initialTab={inspectTab}
+            onTabChange={setInspectTab}
+            expandedNodeId={expandedNodeId}
+            onExpandedChange={setExpandedNodeId}
+            extraOverview={<AgentsPanel runId={drawerRunId} />}
+          />
+        </aside>
+      </div>
       <ConfirmDialog
         open={confirmOpen}
         title="Cancel this run?"
@@ -102,6 +178,6 @@ export function MissionDetailDrawer() {
           })
         }
       />
-    </div>
+    </>
   )
 }

@@ -1,0 +1,322 @@
+/* run-inspector-tabs.css — Events, Output and Definition tabs (scoped under .wfri). */
+
+/* ── events ── */
+.wfri-events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+  min-height: 320px;
+}
+
+.wfri-fb {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.wfri-sel,
+.wfri-search {
+  font: 10px var(--ri-mono);
+  background: transparent;
+  color: var(--ri-text);
+  border: 1px solid var(--ri-border-strong);
+  border-radius: 4px;
+  padding: 5px 8px;
+}
+
+.wfri-search {
+  min-width: 200px;
+}
+
+.wfri-fc {
+  font: 9px var(--ri-mono);
+  letter-spacing: 0.04em;
+  background: none;
+  color: var(--ri-muted);
+  border: 1px solid var(--ri-border);
+  border-radius: 999px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+
+.wfri-fc[aria-pressed='true'] {
+  color: var(--ri-accent);
+  border-color: var(--ri-accent);
+  background: var(--ri-fill);
+}
+
+.wfri-tg {
+  font: 10px var(--ri-mono);
+  color: var(--ri-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+}
+
+.wfri-lv {
+  font: 9px var(--ri-mono);
+  letter-spacing: 0.12em;
+  color: var(--ri-faint);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.wfri-lv.on {
+  color: var(--ri-accent);
+}
+
+.wfri-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.wfri-lv.on .wfri-pulse {
+  animation: wfri-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes wfri-pulse {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wfri-lv.on .wfri-pulse {
+    animation: none;
+  }
+}
+
+.wfri-log {
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: calc(100vh - 360px);
+  overflow-y: auto;
+  border: 1px solid var(--ri-border);
+  border-radius: 6px;
+  background: var(--ri-card);
+  font: 10px var(--ri-mono);
+}
+
+.wfri-ev {
+  display: grid;
+  grid-template-columns: 60px 140px 120px 1fr;
+  gap: 8px;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--ri-border);
+  align-items: baseline;
+}
+
+.wfri-ev.fail {
+  background: color-mix(in srgb, var(--ri-err) 8%, transparent);
+}
+
+.wfri-ev .t {
+  color: var(--ri-faint);
+}
+
+.wfri-ev .k {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wfri-ev .k-wf {
+  color: var(--ri-info);
+}
+
+.wfri-ev .k-st {
+  color: var(--ri-accent);
+}
+
+.wfri-ev .k-ok {
+  color: var(--ri-ok);
+}
+
+.wfri-ev .k-er {
+  color: var(--ri-err);
+}
+
+.wfri-ev .k-ap {
+  color: var(--ri-warn);
+}
+
+.wfri-ev .k-sk {
+  color: var(--ri-muted);
+}
+
+.wfri-ev .n {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wfri-ev .m {
+  color: var(--ri-muted);
+  overflow-wrap: anywhere;
+}
+
+.wfri-ft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 9px var(--ri-mono);
+  color: var(--ri-muted);
+}
+
+/* ── output ── */
+.wfri-emptybox {
+  border: 1px dashed var(--ri-border-strong);
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--ri-muted);
+}
+
+.wfri-emptybox b {
+  color: var(--ri-text);
+}
+
+.wfri-rep {
+  border: 1px solid var(--ri-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--ri-card);
+  font-size: 12px;
+  line-height: 1.55;
+  margin-bottom: 8px;
+  overflow-wrap: anywhere;
+}
+
+.wfri-rep .wfri-code {
+  border: 0;
+  padding: 0;
+  background: none;
+  max-height: none;
+}
+
+.wfri-ol {
+  border: 1px solid var(--ri-border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.wfri-oi {
+  border-bottom: 1px solid var(--ri-border);
+}
+
+.wfri-oi:last-child {
+  border-bottom: 0;
+}
+
+.wfri-oh {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  color: var(--ri-text);
+  font: 11px var(--ri-mono);
+  padding: 8px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.wfri-oh[disabled] {
+  cursor: default;
+}
+
+.wfri-oh:hover:not([disabled]) {
+  background: var(--ri-fill);
+}
+
+.wfri-oh--static {
+  cursor: default;
+}
+
+.wfri-oh .m {
+  margin-left: auto;
+  color: var(--ri-muted);
+  font-size: 10px;
+}
+
+.wfri-oi .wfri-code {
+  margin: 0 10px 10px;
+}
+
+/* ── definition ── */
+.wfri-def {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wfri-dm {
+  display: flex;
+  gap: 16px;
+  font: 10px var(--ri-mono);
+  color: var(--ri-muted);
+  flex-wrap: wrap;
+}
+
+.wfri-dm b {
+  color: var(--ri-text);
+  font-weight: 600;
+}
+
+.wfri-note--banner {
+  margin: 0;
+  border: 1px solid var(--ri-warn);
+  border-radius: 6px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--ri-warn) 8%, transparent);
+  color: var(--ri-text);
+}
+
+.wfri-yaml {
+  border: 1px solid var(--ri-border);
+  border-radius: 6px;
+  background: var(--ri-card);
+  font: 10.5px/1.6 var(--ri-mono);
+  max-height: calc(100vh - 380px);
+  min-height: 200px;
+  overflow: auto;
+  padding: 6px 0;
+}
+
+.wfri-yl {
+  display: flex;
+  white-space: pre;
+}
+
+.wfri-yl .n {
+  flex: none;
+  width: 40px;
+  text-align: right;
+  padding-right: 12px;
+  color: var(--ri-faint);
+  user-select: none;
+}
+
+.wfri-yl.hl {
+  background: color-mix(in srgb, var(--ri-err) 14%, transparent);
+  box-shadow: inset 2px 0 0 var(--ri-err);
+}
+
+.wfri-yl .y-k {
+  color: var(--ri-accent);
+}
+
+.wfri-yl .y-c {
+  color: var(--ri-faint);
+}

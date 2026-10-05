@@ -1,0 +1,657 @@
+/* run-inspector.css — RunInspector shell, Overview, Node runs and the Conductor drawer.
+   Theme tokens only (var(--m-x, var(--theme-y))); scoped under .wfri / .wfri-drawer. */
+
+.wfri,
+.wfri-drawer,
+.wfrd-panel {
+  --ri-text: var(--m-text, var(--theme-text));
+  --ri-strong: var(--m-text-strong, var(--theme-text));
+  --ri-muted: var(--m-text-muted, var(--theme-muted));
+  --ri-faint: var(--m-text-faint, var(--theme-muted));
+  --ri-border: var(--m-border-subtle, var(--theme-border));
+  --ri-border-strong: var(--m-border, var(--theme-border));
+  --ri-accent: var(--m-green-500, var(--theme-accent));
+  --ri-ok: var(--m-success, var(--theme-success));
+  --ri-err: var(--m-danger, var(--theme-danger));
+  --ri-warn: var(--m-warning, var(--theme-warning));
+  --ri-info: var(--m-info, var(--theme-accent-secondary));
+  --ri-bg: var(--m-bg, var(--theme-bg));
+  --ri-card: var(--m-panel, var(--theme-card));
+  --ri-fill: var(--m-fill-subtle, var(--theme-accent-subtle));
+  --ri-mono: var(--m-font-mono, ui-monospace, monospace);
+  color: var(--ri-text);
+}
+
+/* ── drawer (Conductor) ── */
+.wfri-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: color-mix(in srgb, var(--m-bg, var(--theme-bg)) 55%, transparent);
+}
+
+.wfri-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(760px, 100vw);
+  z-index: 81;
+  display: flex;
+  flex-direction: column;
+  background: var(--m-sidebar, var(--theme-card));
+  border-left: 1px solid var(--ri-border-strong);
+  box-shadow: -24px 0 48px
+    color-mix(in srgb, var(--m-bg, var(--theme-bg)) 70%, transparent);
+  font-family: var(--m-font-sans, system-ui);
+  animation: wfri-slide-in 180ms ease-out;
+}
+
+@keyframes wfri-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wfri-drawer {
+    animation: none;
+  }
+}
+
+.wfri-dh {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid var(--ri-border);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.wfri-dh-r {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wfri-dt {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--ri-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wfri-chip {
+  font: 600 9px var(--ri-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  padding: 2px 6px;
+  color: var(--ri-muted);
+  white-space: nowrap;
+}
+
+.wfri-chip.ok {
+  color: var(--ri-ok);
+}
+
+.wfri-chip.err {
+  color: var(--ri-err);
+}
+
+.wfri-chip.live {
+  color: var(--ri-accent);
+}
+
+.wfri-chip.hold {
+  color: var(--ri-warn);
+}
+
+.wfri-dh-meta {
+  font: 10px var(--ri-mono);
+  color: var(--ri-muted);
+  display: flex;
+  gap: 8px;
+}
+
+.wfri-ib {
+  background: none;
+  border: 1px solid var(--ri-border-strong);
+  border-radius: 4px;
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ri-text);
+  cursor: pointer;
+}
+
+.wfri-ib:hover {
+  background: var(--ri-fill);
+}
+
+/* ── shell ── */
+.wfri {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-family: var(--m-font-sans, system-ui);
+  font-size: 12px;
+}
+
+.wfri-state {
+  padding: 24px;
+  font: 12px var(--ri-mono);
+  color: var(--ri-muted);
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.wfri-state--err {
+  color: var(--ri-err);
+}
+
+.wfri-tabs {
+  display: flex;
+  gap: 22px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--ri-border);
+  flex: none;
+  overflow-x: auto;
+}
+
+.wfri-tab {
+  font: 10px var(--ri-mono);
+  letter-spacing: 0.14em;
+  background: none;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 0;
+  color: var(--ri-muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wfri-tab:hover {
+  color: var(--ri-text);
+}
+
+.wfri-tab.on {
+  color: var(--ri-accent);
+  border-bottom-color: var(--ri-accent);
+  font-weight: 700;
+}
+
+.wfri-tab:focus-visible,
+.wfri-btn:focus-visible,
+.wfri-ib:focus-visible,
+.wfri-chev:focus-visible,
+.wfri-fc:focus-visible,
+.wfri-oh:focus-visible {
+  outline: 2px solid var(--ri-accent);
+  outline-offset: 2px;
+}
+
+.wfri-tab-n {
+  margin-left: 6px;
+  color: var(--ri-faint);
+}
+
+.wfri-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 18px;
+}
+
+.wfri-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wfri-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.wfri-card {
+  border: 1px solid var(--ri-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--ri-card);
+  min-width: 0;
+}
+
+.wfri-sec {
+  font: 9px var(--ri-mono);
+  letter-spacing: 0.16em;
+  color: var(--ri-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+
+.wfri-meta {
+  font: 10px var(--ri-mono);
+  color: var(--ri-muted);
+}
+
+.wfri-na,
+.wfri .na {
+  color: var(--ri-faint);
+}
+
+.wfri-grow {
+  flex-grow: 1;
+}
+
+.wfri-empty {
+  font: 11px var(--ri-mono);
+  color: var(--ri-muted);
+  padding: 4px 0;
+}
+
+.wfri-note {
+  font-size: 10px;
+  color: var(--ri-muted);
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+.wfri .t-ok {
+  color: var(--ri-ok);
+}
+
+.wfri .t-err {
+  color: var(--ri-err);
+}
+
+.wfri .t-live {
+  color: var(--ri-accent);
+}
+
+.wfri .t-hold {
+  color: var(--ri-warn);
+}
+
+.wfri .t-muted {
+  color: var(--ri-muted);
+}
+
+/* ── buttons ── */
+.wfri-btn {
+  font: 10px var(--ri-mono);
+  letter-spacing: 0.1em;
+  background: none;
+  border: 1px solid var(--ri-border-strong);
+  border-radius: 4px;
+  padding: 6px 11px;
+  color: var(--ri-accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.wfri-btn:hover:not([disabled]) {
+  background: var(--ri-fill);
+}
+
+.wfri-btn[disabled] {
+  color: var(--ri-faint);
+  cursor: not-allowed;
+}
+
+.wfri-btn--err {
+  color: var(--ri-err);
+  border-color: var(--ri-err);
+}
+
+.wfri-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+/* ── overview ── */
+.wfri-errb {
+  border: 1px solid var(--ri-err);
+  background: color-mix(in srgb, var(--ri-err) 8%, transparent);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.wfri-errb-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ri-err);
+}
+
+.wfri-errb pre {
+  margin: 0;
+  font: 10px/1.55 var(--ri-mono);
+  color: var(--ri-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.wfri-phases {
+  display: flex;
+  height: 26px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--ri-border);
+}
+
+.wfri-phase {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font: 9px var(--ri-mono);
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  flex-basis: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--ri-bg);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.wfri-phase:first-child {
+  border-left: 0;
+}
+
+.wfri-phase-rows {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  font: 10px var(--ri-mono);
+  color: var(--ri-muted);
+}
+
+.wfri-kv {
+  display: grid;
+  grid-template-columns: 112px 1fr;
+  gap: 5px 10px;
+  margin: 0;
+  font-size: 11px;
+}
+
+.wfri-kv--wide {
+  grid-template-columns: 150px 1fr;
+  margin-top: 10px;
+}
+
+.wfri-kv dt {
+  color: var(--ri-muted);
+  font: 10px var(--ri-mono);
+  letter-spacing: 0.04em;
+}
+
+.wfri-kv dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wfri-kv--x {
+  grid-template-columns: 96px 1fr;
+}
+
+.wfri-kv dd a {
+  color: var(--ri-accent);
+}
+
+.wfri-cp {
+  background: none;
+  border: 0;
+  color: var(--ri-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+}
+
+.wfri-cp:hover {
+  color: var(--ri-accent);
+}
+
+.wfri-mini {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.wfri-mini th {
+  text-align: left;
+  font: 9px var(--ri-mono);
+  letter-spacing: 0.12em;
+  color: var(--ri-muted);
+  padding: 2px 6px 4px 0;
+}
+
+.wfri-mini td {
+  padding: 3px 6px 3px 0;
+  border-top: 1px solid var(--ri-border);
+  overflow-wrap: anywhere;
+}
+
+.wfri-mini td.k {
+  font-family: var(--ri-mono);
+  color: var(--ri-muted);
+  width: 38%;
+}
+
+.wfri-msg {
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ── node runs ── */
+.wfri-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wfri-sum {
+  font: 11px var(--ri-mono);
+  color: var(--ri-muted);
+  margin-right: auto;
+}
+
+.wfri-legend {
+  display: flex;
+  gap: 10px;
+  font: 9px var(--ri-mono);
+  color: var(--ri-muted);
+  flex-wrap: wrap;
+}
+
+.wfri-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wfri-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.wfri-tablewrap {
+  overflow-x: auto;
+  border: 1px solid var(--ri-border);
+  border-radius: 6px;
+}
+
+.wfri-nt {
+  width: 100%;
+  border-collapse: collapse;
+  font: 11px var(--ri-mono);
+  table-layout: fixed;
+  min-width: 640px;
+}
+
+.wfri-nt col:nth-child(1),
+.wfri-nt th:nth-child(1) {
+  width: 27%;
+}
+
+.wfri-nt th {
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  font-weight: 500;
+  color: var(--ri-muted);
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--ri-border);
+  background: var(--ri-card);
+}
+
+.wfri-nt td {
+  padding: 7px 8px;
+  border-bottom: 1px solid var(--ri-border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wfri-row.pend td,
+.wfri-row.skip td {
+  opacity: 0.6;
+}
+
+.wfri-row.sel td {
+  background: var(--ri-fill);
+}
+
+.wfri-nm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.wfri-nm--child {
+  padding-left: 22px;
+}
+
+.wfri-ty {
+  color: var(--ri-faint);
+  font-size: 9px;
+}
+
+.wfri-chev,
+.wfri-sg {
+  background: none;
+  border: 0;
+  color: var(--ri-muted);
+  cursor: pointer;
+  padding: 2px;
+  display: inline-flex;
+  font: 9px var(--ri-mono);
+}
+
+.wfri-chev-sp {
+  display: inline-block;
+  width: 14px;
+  flex: none;
+}
+
+.wfri-chev:hover,
+.wfri-sg:hover {
+  color: var(--ri-accent);
+}
+
+.wfri-model {
+  font-size: 10px;
+}
+
+.wfri-exp > td {
+  white-space: normal;
+  background: var(--ri-bg);
+  padding: 12px;
+}
+
+.wfri-xg {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 14px;
+}
+
+.wfri-xl {
+  font: 9px var(--ri-mono);
+  letter-spacing: 0.14em;
+  color: var(--ri-muted);
+  margin: 8px 0 4px;
+}
+
+.wfri-xl:first-child {
+  margin-top: 0;
+}
+
+.wfri-code {
+  margin: 0;
+  padding: 8px 10px;
+  font: 10px/1.55 var(--ri-mono);
+  background: var(--ri-card);
+  border: 1px solid var(--ri-border);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.wfri-code--err {
+  color: var(--ri-err);
+  border-color: var(--ri-err);
+}
+
+.wfri-artifacts {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wfri-art {
+  font: 10px var(--ri-mono);
+  color: var(--ri-accent);
+  overflow-wrap: anywhere;
+}
+
+/* ── /workflows host ── */
+.wfrd-panel > .wfri {
+  flex: 1 1 auto;
+}

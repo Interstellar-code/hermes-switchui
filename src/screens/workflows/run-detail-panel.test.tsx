@@ -18,7 +18,13 @@ vi.mock('@/styles/workflow-ui.css', () => ({}))
 vi.mock('./use-workflow-events', () => ({
   useWorkflowEvents: () => ({ events: [] }),
 }))
+vi.mock('./run-definition-client', () => ({
+  useRunDefinition: () => ({ data: undefined, isLoading: false }),
+}))
 vi.mock('./use-workflows', () => ({
+  useRunEvents: () => ({ data: { events: [] } }),
+  useWorkflowFeatures: () => ({ data: { features: [] } }),
+  useWorkflowParsed: () => ({ data: undefined, isLoading: false }),
   useCancelRun: () => ({ mutate: vi.fn(), isPending: false }),
   useApproveRun: () => ({ mutate: approve, isPending: false }),
   useWorkflowRun: () => ({
@@ -62,5 +68,49 @@ describe('RunDetailPanel approval controls', () => {
       decision: 'approved',
       response: '1,3,7',
     })
+  })
+})
+
+describe('RunDetailPanel inspector tabs', () => {
+  it('renders the five tabs and switches with arrow keys', () => {
+    nodeRuns = [nodeRun({ approval_message: 'ok?' })]
+    render(<RunDetailPanel runId="run-1" onClose={() => {}} />)
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((t) => t.textContent.replace(/\d+$/, ''))).toEqual([
+      'OVERVIEW',
+      'OUTPUT',
+      'NODE RUNS',
+      'EVENTS',
+      'DEFINITION',
+    ])
+    expect(tabs[0].getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(tabs[0], { key: 'ArrowRight' })
+    expect(
+      screen.getByRole('tab', { name: 'OUTPUT' }).getAttribute('aria-selected'),
+    ).toBe('true')
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'OUTPUT' }), {
+      key: 'End',
+    })
+    expect(
+      screen
+        .getByRole('tab', { name: 'DEFINITION' })
+        .getAttribute('aria-selected'),
+    ).toBe('true')
+  })
+
+  it('degrades attempts without the node_attempts feature', () => {
+    nodeRuns = [
+      nodeRun({
+        node_type: 'bash',
+        dag_node_id: 'b',
+        status: 'completed',
+        retries: 2,
+      }),
+    ]
+    render(<RunDetailPanel runId="run-1" onClose={() => {}} />)
+    fireEvent.click(screen.getByRole('tab', { name: /NODE RUNS/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Expand b details/ }))
+    expect(screen.getByText('attempt 1 · retries not recorded')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'OPEN LOG' })).toBeNull()
   })
 })
