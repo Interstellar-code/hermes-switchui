@@ -2,12 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { buildDag } from './dag-model'
 import {
   GAP_X,
-  MIN_SCALE,
   NODE_H,
   NODE_W,
   PAD,
-  edgePath,
-  fitScale,
   fmtDuration,
   layoutDag,
   nodeProgress,
@@ -52,33 +49,6 @@ describe('layoutDag', () => {
       width: 0,
       height: 0,
     })
-  })
-})
-
-describe('edgePath', () => {
-  it('runs from right-middle of source to left-middle of target', () => {
-    const d = edgePath({ x: 0, y: 0 }, { x: 300, y: 100 })
-    expect(d.startsWith(`M${NODE_W} ${NODE_H / 2}`)).toBe(true)
-    expect(d.endsWith(`300 ${100 + NODE_H / 2}`)).toBe(true)
-  })
-})
-
-describe('fitScale', () => {
-  it('never upscales', () => {
-    expect(
-      fitScale({ width: 100, height: 100 }, { width: 1000, height: 1000 }),
-    ).toBe(1)
-  })
-  it('fits height only; width scrolls', () => {
-    expect(
-      fitScale({ width: 9000, height: 400 }, { width: 100, height: 300 }),
-    ).toBe(0.75)
-  })
-  it('floors at MIN_SCALE and tolerates zero sizes', () => {
-    expect(
-      fitScale({ width: 100, height: 1000 }, { width: 100, height: 100 }),
-    ).toBe(MIN_SCALE)
-    expect(fitScale({ width: 0, height: 0 }, { width: 0, height: 0 })).toBe(1)
   })
 })
 

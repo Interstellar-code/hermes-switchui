@@ -1,0 +1,397 @@
+/* conductor-flow.css — React Flow mission canvas (flow/*), scoped to [data-screen="conductor"].
+   Legacy .dag-* / absolute .dn rules in matrix-conductor.css are overridden here; F8 deletes them. */
+
+[data-screen='conductor'] {
+  .flow-host {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 0;
+    border: 1px solid var(--m-border-faint, var(--theme-border));
+    border-radius: var(--m-radius-lg, 8px);
+    overflow: hidden;
+  }
+
+  .idle-prev .flow-host {
+    border: none;
+    border-radius: 0;
+  }
+
+  .react-flow {
+    --xy-background-color: var(--m-bg, var(--theme-bg));
+    --xy-background-pattern-color: var(--m-border-faint, var(--theme-border));
+    --xy-edge-stroke: var(--m-border-strong, var(--theme-border));
+    --xy-edge-stroke-width: 1.4;
+    --xy-node-border-radius: 6px;
+    --xy-minimap-background-color: var(--m-card, var(--theme-card));
+    --xy-minimap-mask-background-color: color-mix(
+      in srgb,
+      var(--m-bg, var(--theme-bg)) 55%,
+      transparent
+    );
+    --xy-minimap-mask-stroke-color: var(--m-text, var(--theme-text));
+    --xy-minimap-mask-stroke-width: 1;
+    --xy-minimap-node-background-color: var(--m-text-faint, var(--theme-muted));
+    --xy-handle-background-color: var(--m-bg, var(--theme-bg));
+    font-family: var(--m-font-mono, ui-monospace, monospace);
+  }
+
+  .flow-host.preview .react-flow__renderer {
+    opacity: 0.75;
+  }
+
+  /* ── stage lanes (screen-space x, full height) ── */
+  .flow-lanes {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  .flow-lane {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--m-border-faint, var(--theme-border));
+  }
+
+  .flow-lane:nth-child(even) {
+    background: color-mix(
+      in srgb,
+      var(--m-text, var(--theme-text)) 2%,
+      transparent
+    );
+  }
+
+  .flow-lane span {
+    position: absolute;
+    left: 8px;
+    top: 6px;
+    font-size: 8px;
+    letter-spacing: 0.18em;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  /* ── header extras (legend, hint, reset) ── */
+  .flow-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    font: 500 8.5px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  .flow-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .flow-legend i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--node-ink, var(--node-c));
+  }
+
+  .flow-hint {
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-faint, var(--theme-muted));
+    white-space: nowrap;
+  }
+
+  .flow-reset {
+    padding: 4px 9px;
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.12em;
+    color: var(--m-green-500, var(--theme-accent));
+    background: none;
+    border: 1px solid var(--m-green-700, var(--theme-accent-border));
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .flow-reset:hover {
+    border-color: var(--m-green-500, var(--theme-accent));
+  }
+
+  .flow-reset:focus-visible {
+    outline: 2px solid var(--m-green-400, var(--theme-focus));
+    outline-offset: 2px;
+  }
+
+  /* ── node card (overrides the legacy absolute .dn) ── */
+  .react-flow__node-dag {
+    border-radius: var(--xy-node-border-radius);
+  }
+
+  .react-flow__node .dn {
+    --node-ink: var(--node-c);
+    position: relative;
+    width: 100%;
+    height: 100%;
+    justify-content: flex-start;
+    gap: 3px;
+    padding: 8px 8px 0;
+    cursor: inherit;
+  }
+
+  .react-flow__node .dn::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    top: -1px;
+    height: 3px;
+    background: var(--node-ink);
+    border-radius: 6px 6px 0 0;
+  }
+
+  .react-flow__node .dn:focus-visible {
+    outline: 2px solid var(--m-green-400, var(--theme-focus));
+    outline-offset: 3px;
+  }
+
+  .react-flow__node.selected .dn {
+    outline: 1px solid var(--m-text, var(--theme-text));
+    outline-offset: 3px;
+  }
+
+  .react-flow__node .dn .k {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 8.5px;
+    letter-spacing: 0.1em;
+    color: var(--node-ink);
+  }
+
+  .react-flow__node .dn .k .loop {
+    color: var(--m-warning, var(--theme-warning));
+  }
+
+  .react-flow__node .dn .x {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  .react-flow__node .dn .nm {
+    font-size: 11px;
+  }
+
+  .react-flow__node .dn .s {
+    /* reset the idle stat-tile `.idle .s` box that also matches here */
+    padding: 0;
+    border: none;
+    border-radius: 0;
+    background: none;
+    font-size: 9.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .react-flow__node .dn.wait {
+    opacity: 1;
+  }
+
+  .react-flow__node .dn.wait .nm {
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .react-flow__node .dn.done .x,
+  .react-flow__node .dn.run .x {
+    color: var(--m-green-500, var(--theme-success));
+  }
+
+  .react-flow__node .dn.hold {
+    box-shadow: 0 0 12px
+      color-mix(
+        in srgb,
+        var(--m-warning, var(--theme-warning)) 35%,
+        transparent
+      );
+  }
+
+  .react-flow__node .dn.hold .x {
+    color: var(--m-warning, var(--theme-warning));
+  }
+
+  .react-flow__node .dn.fail {
+    background: color-mix(
+      in srgb,
+      var(--m-danger, var(--theme-danger)) 8%,
+      var(--m-card, var(--theme-card))
+    );
+  }
+
+  .react-flow__node .dn.fail .x {
+    color: var(--m-danger, var(--theme-danger));
+  }
+
+  .react-flow__node .dn.skip {
+    opacity: 0.42;
+  }
+
+  /* Pulse ring: green while running, amber while waiting on approval. */
+  .react-flow__node .dn.run::after,
+  .react-flow__node .dn.hold::after {
+    content: '';
+    position: absolute;
+    inset: -5px;
+    border-radius: 10px;
+    border: 2px solid var(--m-green-500, var(--theme-accent));
+    pointer-events: none;
+    animation: cnd-ring 1.6s ease-out infinite;
+  }
+
+  .react-flow__node .dn.hold::after {
+    border-color: var(--m-warning, var(--theme-warning));
+    animation-duration: 2.2s;
+  }
+
+  @keyframes cnd-ring {
+    0% {
+      opacity: 0.85;
+      transform: scale(1);
+    }
+    100% {
+      opacity: 0;
+      transform: scale(1.12);
+    }
+  }
+
+  .react-flow__node .dn .agents-chip {
+    bottom: 6px;
+  }
+
+  /* Handles: decorative dots, never connectable. */
+  .react-flow__handle {
+    width: 6px;
+    height: 6px;
+    min-width: 0;
+    min-height: 0;
+    background: var(--xy-handle-background-color);
+    border: 1px solid var(--m-border-strong, var(--theme-border));
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .flow-host.preview .react-flow__handle {
+    opacity: 0; /* not display:none — edges anchor on handle bounds */
+  }
+
+  /* ── edges ── */
+  .react-flow__edge-path {
+    stroke-dasharray: 3 4;
+  }
+
+  .react-flow__edge.done .react-flow__edge-path {
+    stroke: var(--m-green-700, var(--theme-accent));
+    stroke-dasharray: none;
+  }
+
+  .react-flow__edge.live .react-flow__edge-path {
+    stroke: var(--m-green-500, var(--theme-accent));
+    stroke-dasharray: 6 4;
+    animation: cnd-dash 0.7s linear infinite;
+  }
+
+  .react-flow__edge.hold .react-flow__edge-path {
+    stroke: var(--m-warning, var(--theme-warning));
+    stroke-dasharray: 6 4;
+    animation: cnd-dash 1.4s linear infinite;
+  }
+
+  .react-flow__edge.fail .react-flow__edge-path {
+    stroke: var(--m-danger, var(--theme-danger));
+    stroke-dasharray: none;
+  }
+
+  @keyframes cnd-dash {
+    to {
+      stroke-dashoffset: -10;
+    }
+  }
+
+  /* ── controls + readout + minimap ── */
+  .flow-ctl-panel {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    margin: 12px;
+  }
+
+  .flow-ctl {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--m-card, var(--theme-card));
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 5px;
+  }
+
+  .flow-ctl button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 28px;
+    padding: 0;
+    font: 600 8px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.06em;
+    color: var(--m-text, var(--theme-text));
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--m-border-faint, var(--theme-border));
+    cursor: pointer;
+  }
+
+  .flow-ctl button:last-child {
+    border-bottom: none;
+  }
+
+  .flow-ctl button:hover,
+  .flow-ctl button[aria-pressed='true'] {
+    color: var(--m-green-500, var(--theme-accent));
+  }
+
+  .flow-ctl button:focus-visible {
+    outline: 2px solid var(--m-green-400, var(--theme-focus));
+    outline-offset: -2px;
+  }
+
+  .flow-zm {
+    font-size: 9px;
+    color: var(--m-text-faint, var(--theme-muted));
+    white-space: nowrap;
+  }
+
+  .react-flow__minimap {
+    margin: 12px;
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .react-flow__node .dn.run,
+    .react-flow__node .dn.run::after,
+    .react-flow__node .dn.hold::after,
+    .react-flow__edge.live .react-flow__edge-path,
+    .react-flow__edge.hold .react-flow__edge-path {
+      animation: none;
+    }
+  }
+}
+
+/* Light themes: neon NODE_COLOR hexes are unreadable on pale cards; pull them toward the text colour. */
+[data-theme$='-light'] [data-screen='conductor'] {
+  .react-flow__node .dn,
+  .flow-legend span {
+    --node-ink: color-mix(in oklab, var(--node-c) 55%, var(--theme-text));
+  }
+}

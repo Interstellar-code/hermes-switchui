@@ -32,6 +32,9 @@ export interface DagNodeRun {
   agent_profile_hint?: string | null
   /** B1 — absent until the backend reports it. */
   total_tokens?: number | null
+  error?: string | null
+  skip_reason?: string | null
+  approval_response?: string | null
 }
 
 export type Tier = 1 | 2 | 3
@@ -57,6 +60,10 @@ export interface DagNode {
   sessions: Array<RunSessionNode>
   /** Kept for C2; tier bands are not rendered yet (D4/D5). */
   tier: Tier
+  /** Own row's error / skip_reason / approval_response (null when absent). */
+  error: string | null
+  skipReason: string | null
+  approvalResponse: string | null
 }
 
 export interface StagePill {
@@ -285,6 +292,9 @@ export function buildDag(
         loopIterations: iterations.size,
         subgraph: Boolean(n.subgraph) || n.type === 'subgraph',
       }),
+      error: own?.error ?? null,
+      skipReason: own?.skip_reason ?? null,
+      approvalResponse: own?.approval_response ?? null,
     }
   })
 

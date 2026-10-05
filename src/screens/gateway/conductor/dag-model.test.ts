@@ -318,3 +318,38 @@ describe('buildDag — linked sessions (C3)', () => {
     expect(byId(dag, 'analyze').sessions).toEqual([])
   })
 })
+
+describe('buildDag — F1 overlay fields', () => {
+  it('copies error / skip_reason / approval_response from the own row', () => {
+    const def = parsed({
+      name: 't',
+      description: '',
+      edges: [],
+      nodes: [
+        { id: 'a', type: 'bash' },
+        { id: 'b', type: 'approval', depends_on: ['a'] },
+      ],
+    })
+    const dag = buildDag(def, [
+      { dag_node_id: 'a', status: 'failed', error: 'exited with code 2: x' },
+      {
+        dag_node_id: 'b',
+        status: 'skipped',
+        skip_reason: 'upstream',
+        approval_response: 'ok',
+      },
+    ])
+    expect(byId(dag, 'a')).toMatchObject({
+      error: 'exited with code 2: x',
+      skipReason: null,
+    })
+    expect(byId(dag, 'b')).toMatchObject({
+      skipReason: 'upstream',
+      approvalResponse: 'ok',
+    })
+    expect(buildDag(def).nodes[0]).toMatchObject({
+      error: null,
+      approvalResponse: null,
+    })
+  })
+})

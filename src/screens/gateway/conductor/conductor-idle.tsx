@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { Suspense, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { DagView } from './mission-canvas'
+import { FlowCanvas, graphLoading } from './mission-canvas'
 import { buildDag } from './dag-model'
 import { fmtDuration } from './dag-layout'
 import { useConductorScheduled } from './use-conductor-queries'
@@ -68,7 +68,14 @@ function PreviewGraph({ workflowId }: { workflowId: string }) {
     <div className="idle-prev" aria-label={`Preview of ${workflowId}`}>
       <span className="pl">PREVIEW · {workflowId} graph</span>
       {dag && dag.nodes.length > 0 ? (
-        <DagView dag={dag} preview />
+        <Suspense fallback={graphLoading}>
+          <FlowCanvas
+            key={workflowId}
+            dag={dag}
+            workflowId={workflowId}
+            preview
+          />
+        </Suspense>
       ) : (
         <div className="dag-empty">Loading graph…</div>
       )}
