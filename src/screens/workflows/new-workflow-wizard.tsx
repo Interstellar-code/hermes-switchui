@@ -15,6 +15,7 @@ import {
   useWorkflowDefinitions,
 } from './use-workflows'
 import { chatWorkflowWizard } from './api-client'
+import { NODE_COLOR, nodeColor as colorFor } from './node-colors'
 import type { NodeType, WorkflowSummary } from './types'
 
 // ── Module-level flags ──────────────────────────────────────────────────────
@@ -760,16 +761,6 @@ function DescribeStep({
 
 // ── Step 2: Design — live DAG preview ───────────────────────────────────────
 
-/** Node type → Matrix neon color. Matches launch-wizard.tsx + workflow-editor.tsx palette. */
-const NODE_COLOR: Record<string, string> = {
-  prompt: '#00ff41',
-  bash: '#5ad3ff',
-  command: '#bf97ff',
-  approval: '#ffb454',
-  router: '#ff6b6b',
-  loop: '#ffd700',
-}
-
 interface RawNode {
   id: string
   type: NodeType
@@ -1009,7 +1000,7 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
 
         {/* nodes */}
         {positioned.map((n) => {
-          const c = NODE_COLOR[n.type] ?? '#00ff41'
+          const c = colorFor(n.type)
           return (
             <g key={n.id} style={{ cursor: 'default' }}>
               <rect
@@ -1078,7 +1069,9 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
           borderTop: '1px solid var(--m-border-subtle)',
         }}
       >
-        {Object.entries(NODE_COLOR).map(([t, c]) => (
+        {Object.entries(NODE_COLOR)
+          .filter(([t]) => ['prompt', 'bash', 'command', 'approval', 'router', 'loop'].includes(t))
+          .map(([t, c]) => (
           <span
             key={t}
             style={{
@@ -1193,7 +1186,7 @@ function DesignStep({ yaml }: DesignStepProps) {
               </div>
             ) : (
               typeCounts.map(([t, n]) => {
-                const c = NODE_COLOR[t] ?? '#aaa'
+                const c = (NODE_COLOR as Record<string, string>)[t] ?? '#aaa'
                 return (
                   <div key={t} className="nb-row">
                     <span
@@ -1289,8 +1282,7 @@ function ConfigureStep({
         <div className="wz-config-cards">
           {nodes.map((node) => {
             const selected = selectedNode?.id === node.id
-            const nodeColor =
-              NODE_COLOR[node.type] ?? 'var(--m-green-500, #00ff41)'
+            const nodeColor = NODE_COLOR[node.type]
             return (
               <button
                 key={node.id}

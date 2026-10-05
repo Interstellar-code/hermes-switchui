@@ -110,6 +110,8 @@ export function useWorkflowEvents(
       'ralph_story_started', 'ralph_story_completed', 'ralph_story_failed',
       'approval_requested', 'approval_received',
       'platform_message', 'platform_chunk', 'platform_retract',
+      'node_paused', 'workflow_resumed', 'workflow_resumed_execute',
+      'node_session_started', 'node_retrying', 'workflow_retried',
     ] as const
 
     for (const type of workflowEventTypes) {

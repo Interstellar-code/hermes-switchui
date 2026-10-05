@@ -12,6 +12,7 @@ import {
   PROVENANCE_LABEL,
   provenanceOf,
 } from './provenance'
+import { NODE_COLOR } from './node-colors'
 import type React from 'react'
 import type { WorkflowDefinitionRow, WorkflowRunRow } from './api-client'
 import type { NodeType, ParsedWorkflow, WorkflowDagNode, WorkflowSource } from './types'
@@ -27,18 +28,6 @@ const TABS = [
   'History',
 ] as const
 type Tab = (typeof TABS)[number]
-
-const NODE_COLOR: Record<NodeType, string> = {
-  prompt: '#00ff41',
-  bash: '#5ad3ff',
-  command: '#bf97ff',
-  approval: '#ffb454',
-  router: '#ff6b6b',
-  loop: '#ffd700',
-  cancel: '#ff6b6b',
-  script: '#5ad3ff',
-  subgraph: '#bf97ff',
-}
 
 function formatRunStartedAt(value: WorkflowRunRow['started_at']): string {
   const ms =

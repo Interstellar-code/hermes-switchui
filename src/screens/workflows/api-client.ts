@@ -124,6 +124,16 @@ export interface WorkflowRunRow {
   metadata?: Record<string, unknown> | null
   /** Absent/null until the backend reports tokens. */
   usage?: RunUsage | null
+  priority?: number | null
+  max_runtime_s?: number | null
+  scheduled_for?: string | number | null
+  last_heartbeat?: string | number | null
+  owner_session?: string | null
+  parent_conversation_id?: string | null
+  codebase_id?: string | null
+  parent_run_id?: string | null
+  definition_checksum?: string | null
+  definition_version?: string | number | null
 }
 
 export type WorkflowArtifactRef = {
@@ -159,12 +169,32 @@ export interface NodeRunRow {
   cost_usd?: number | null
   model?: string | null
   provider?: string | null
+  retries?: number | null
+  max_retries?: number | null
+  retry_delay_ms?: number | null
+  retry_on_error?: string | boolean | null
+  skip_reason?: string | null
+  assigned_agent?: string | null
+  agent_profile_hint?: string | null
+  /** JSON columns: string | array | null. */
+  skills?: string | Array<string> | null
+  model_hint?: string | null
+  allowed_tools?: string | Array<string> | null
+  denied_tools?: string | Array<string> | null
+  idle_timeout_ms?: number | null
+  max_runtime_seconds?: number | null
+  metadata?: string | Record<string, unknown> | null
+  depends_on?: string | Array<string> | null
+  session_id?: string | null
+  gateway_run_id?: string | null
 }
 
 export interface ApproveWorkflowInput {
   node_run_id: string
   decision: 'approved' | 'rejected'
   response?: string
+  /** Ignored by the server (it sets 'switchui'); accepted for forward-compat. */
+  approved_by?: string
 }
 
 export async function approveWorkflowRun(
@@ -200,6 +230,59 @@ export interface WorkflowEventRow {
   event_type: string
   data: string | null
   created_at: number
+  node_run_id?: string | null
+  step_index?: number | null
+  step_name?: string | null
+  seq?: number | null
+}
+
+export interface RunEventsQuery {
+  limit?: number
+  node_run_id?: string
+  type?: string
+  after?: string
+}
+
+export interface RunEventsPage {
+  events: Array<WorkflowEventRow>
+  cursor?: string | number | null
+}
+
+/** Returns null when the backend lacks the endpoint (404). */
+export async function listRunEvents(
+  runId: string,
+  q: RunEventsQuery = {},
+): Promise<RunEventsPage | null> {
+  const params = new URLSearchParams()
+  if (q.limit != null) params.set('limit', String(q.limit))
+  if (q.node_run_id) params.set('node_run_id', q.node_run_id)
+  if (q.type) params.set('type', q.type)
+  if (q.after) params.set('after', q.after)
+  const qs = params.toString() ? `?${params}` : ''
+  const res = await wfFetch(
+    `/api/workflow-runs/${encodeURIComponent(runId)}/events${qs}`,
+  )
+  if (res.status === 404) return null
+  if (!res.ok) throw new Error(`listRunEvents failed (${res.status})`)
+  return (await res.json()) as RunEventsPage
+}
+
+export interface WorkflowFeatures {
+  features: Array<string>
+  schedulerAlive: boolean
+  profile: string | null
+}
+
+/** Never throws: any failure degrades to "no features". */
+export async function getWorkflowFeatures(): Promise<WorkflowFeatures> {
+  const none = { features: [], schedulerAlive: false, profile: null }
+  try {
+    const res = await wfFetch('/api/workflow-features')
+    if (!res.ok) return none
+    return (await res.json()) as WorkflowFeatures
+  } catch {
+    return none
+  }
 }
 
 export interface WorkflowRunDetail {
@@ -246,6 +329,8 @@ export async function cancelWorkflowRun(runId: string): Promise<void> {
     `/api/workflow-runs/${encodeURIComponent(runId)}?action=cancel`,
     {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
     },
   )
   if (!res.ok) {

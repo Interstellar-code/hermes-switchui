@@ -99,6 +99,12 @@ describe('useConductorLive', () => {
     expect(invalidate).toHaveBeenCalledTimes(4) // non-node events don't invalidate
   })
 
+  it('new event types (node_paused, node_retrying) invalidate the run', () => {
+    const { invalidate } = setup('run-1')
+    emit('node_paused', { event_type: 'node_paused' })
+    expect(invalidate).toHaveBeenCalledTimes(2)
+  })
+
   it("does not rescan the previous run's events after switching runs", () => {
     const { hook, invalidate } = setup('run-1')
     emit('node_started', { event_type: 'node_started' })
