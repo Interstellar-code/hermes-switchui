@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { LaunchDialog } from '../../workflows/launch-wizard'
@@ -21,6 +21,9 @@ import {
 } from './use-conductor-queries'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
+const searchStr = (v: unknown): string | null =>
+  v == null || v === '' ? null : String(v)
+
 export function ConductorLayout() {
   const [launch, setLaunch] = useState<{ open: boolean; workflowId?: string }>({
     open: false,
@@ -31,31 +34,10 @@ export function ConductorLayout() {
   const { data: missions = [] } = useConductorMissions()
   const { data: sched } = useConductorScheduled()
 
-  // ?run=<id> deep link selects that run on the canvas.
   const search: Record<string, unknown> = useSearch({ strict: false })
-  const runParam = search.run
   const navigate = useNavigate()
-  useEffect(() => {
-    if (runParam != null && runParam !== '') setSelectedRunId(String(runParam))
-  }, [runParam, setSelectedRunId])
-
-  // Reflect selection back into ?run= (only when it differs, so no loop).
-  useEffect(() => {
-    const current =
-      runParam == null || runParam === '' ? null : String(runParam)
-    if (selectedRunId === current) return
-    // An unset selection with a ?run= still pending is the deep link above landing.
-    if (selectedRunId == null && current != null) return
-    void navigate({
-      to: '/conductor',
-      // `run` is not in the route's typed search; the reducer is untyped on purpose.
-      search: ((s: Record<string, unknown>) => ({
-        ...s,
-        run: selectedRunId ?? undefined,
-      })) as never,
-      replace: true,
-    })
-  }, [selectedRunId, runParam, navigate])
+  const urlRun = searchStr(search.run)
+  const urlNode = searchStr(search.node)
 
   // Preview only when the scheduler is alive; otherwise the idle view says "offline".
   const nextScheduled = sched?.schedulerAlive
@@ -73,43 +55,64 @@ export function ConductorLayout() {
     [focusRunId, live.events, live.status],
   )
 
-  // Docked node panel: selection lives in the store, mirrored to ?node=.
-  const selectedNodeId = useConductorUIStore((s) => s.selectedNodeId)
+  // Docked node panel: selection lives in the store stamped with its run.
+  const selectedNode = useConductorUIStore((s) => s.selectedNode)
   const nodePanelTab = useConductorUIStore((s) => s.nodePanelTab)
   const selectNode = useConductorUIStore((s) => s.selectNode)
   const setNodePanelTab = useConductorUIStore((s) => s.setNodePanelTab)
   const openInspector = useConductorUIStore((s) => s.openInspector)
   const { dag } = useRunDag(focusRunId)
-  const nodeParam = search.node
+
+  // URL <-> store. A changed URL (deep link, back/forward, our own write
+  // landing) is applied first; then the store is reflected in ONE navigate so
+  // ?run= and ?node= never race each other.
+  const appliedUrl = useRef<string | null>(null)
   useEffect(() => {
-    if (nodeParam != null && nodeParam !== '') selectNode(String(nodeParam))
-  }, [nodeParam, selectNode])
-  const prevNode = useRef(selectedNodeId)
-  useEffect(() => {
-    if (prevNode.current === selectedNodeId) return
-    prevNode.current = selectedNodeId
+    const key = `${urlRun ?? ''}|${urlNode ?? ''}`
+    if (appliedUrl.current !== key) {
+      // ?node= without ?run= belongs to the auto-focused run: wait for one.
+      const nodeRun = urlRun ?? focusRunId
+      if (urlNode && !nodeRun) return
+      appliedUrl.current = key
+      if (urlRun) setSelectedRunId(urlRun)
+      if (urlNode && nodeRun) selectNode({ runId: nodeRun, nodeId: urlNode })
+    }
+    const st = useConductorUIStore.getState()
+    const run = st.selectedRunId
+    const node =
+      st.selectedNode && st.selectedNode.runId === (run ?? focusRunId)
+        ? st.selectedNode.nodeId
+        : null
+    if (run === urlRun && node === urlNode) return
     void navigate({
       to: '/conductor',
+      // `run`/`node` are not in the route's typed search; the reducer is untyped on purpose.
       search: ((s: Record<string, unknown>) => ({
         ...s,
-        node: selectedNodeId ?? undefined,
+        run: run ?? undefined,
+        node: node ?? undefined,
       })) as never,
       replace: true,
     })
-  }, [selectedNodeId, navigate])
-  // The auto-focused run can change without a selection; the panel follows the run.
-  const prevRun = useRef(focusRunId)
-  useEffect(() => {
-    if (prevRun.current !== focusRunId && prevRun.current != null)
-      selectNode(null)
-    prevRun.current = focusRunId
-  }, [focusRunId, selectNode])
-  const panelNode =
-    focusRunId &&
-    selectedNodeId &&
-    dag?.nodes.some((n) => n.id === selectedNodeId)
-      ? selectedNodeId
+  }, [
+    urlRun,
+    urlNode,
+    focusRunId,
+    selectedRunId,
+    selectedNode,
+    setSelectedRunId,
+    selectNode,
+    navigate,
+  ])
+
+  // A selection made on another run (auto-focus moved on) is simply not shown.
+  const selNodeId =
+    focusRunId && selectedNode?.runId === focusRunId
+      ? selectedNode.nodeId
       : null
+  const panelNode =
+    selNodeId && dag?.nodes.some((n) => n.id === selNodeId) ? selNodeId : null
+  const hiddenNode = selNodeId && dag && !panelNode ? selNodeId : null
 
   // Centre only once the panel has docked: the canvas resizes after the commit.
   const [centreId, setCentreId] = useState<string | null>(null)
@@ -123,21 +126,25 @@ export function ConductorLayout() {
   }, [panelNode])
 
   function selectFromCanvas(id: string) {
+    if (!focusRunId) return
     const node = dag?.nodes.find((n) => n.id === id)
-    selectNode(id, node?.status === 'failed' ? 'output' : 'overview')
-  }
-  function closePanel() {
-    const id = selectedNodeId
-    selectNode(null)
-    // Focus returns to the node on the canvas (React Flow wrapper carries data-id).
-    requestAnimationFrame(() =>
-      document
-        .querySelector<HTMLElement>(
-          `.react-flow__node[data-id="${CSS.escape(id ?? '')}"]`,
-        )
-        ?.focus(),
+    selectNode(
+      { runId: focusRunId, nodeId: id },
+      node?.status === 'failed' ? 'output' : 'overview',
     )
   }
+  // Stable so the panel's Esc listener is not re-bound every render.
+  const closePanel = useCallback(() => {
+    const id = useConductorUIStore.getState().selectedNode?.nodeId
+    selectNode(null)
+    if (!id) return
+    // Focus returns to the focusable node card on the canvas.
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(`[data-node-id="${CSS.escape(id)}"]`)
+        ?.focus(),
+    )
+  }, [selectNode])
 
   // A launch selects the new run on the canvas; the drawer stays closed.
   function handleRunLaunched(runId: string) {
@@ -165,6 +172,14 @@ export function ConductorLayout() {
                     focusNodeId={centreId}
                   />
                   <MissionTimeline runId={focus.runId} />
+                  {hiddenNode && (
+                    <div className="cnd-node-notice" role="status">
+                      Node “{hiddenNode}” is not shown on the canvas.
+                      <button type="button" onClick={() => selectNode(null)}>
+                        Dismiss
+                      </button>
+                    </div>
+                  )}
                 </div>
                 {panelNode && (
                   <NodePanel
@@ -174,7 +189,9 @@ export function ConductorLayout() {
                     tab={nodePanelTab}
                     onTab={setNodePanelTab}
                     onClose={closePanel}
-                    onSelectNode={(id) => selectNode(id)}
+                    onSelectNode={(id) =>
+                      selectNode({ runId: focus.runId, nodeId: id })
+                    }
                     onAllNodeRuns={(id) =>
                       openInspector(focus.runId, {
                         tab: 'nodes',

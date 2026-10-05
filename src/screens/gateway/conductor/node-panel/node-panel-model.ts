@@ -198,18 +198,32 @@ export function artifactLabels(nr: NodeRunRow | null): Array<string> {
     .map((r) => r.label ?? r.path ?? r.url ?? r.type ?? 'artifact')
 }
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === 'object' && !Array.isArray(v)
+
+/** `key: value` lines; one nested object level is flattened the same way, indented. */
+function kvLines(obj: Record<string, unknown>, nested: boolean): string {
+  return Object.entries(obj)
+    .map(([k, val]) => {
+      const t =
+        nested && isRecord(val)
+          ? kvLines(val, false).replace(/^/gm, '  ')
+          : typeof val === 'string'
+            ? val
+            : JSON.stringify(val, null, 2)
+      return t.includes('\n') || (nested && isRecord(val))
+        ? `${k}:\n${t}`
+        : `${k}: ${t}`
+    })
+    .join('\n')
+}
+
 /** Definition config arrives as a JSON string; show `key: value` with scripts unescaped. */
 export function configText(def: DefNode | null): string {
   const raw = (def?.config ?? def?.config_preview ?? '').trim()
   try {
     const v = JSON.parse(raw) as unknown
-    if (v && typeof v === 'object' && !Array.isArray(v))
-      return Object.entries(v)
-        .map(([k, val]) => {
-          const t = typeof val === 'string' ? val : JSON.stringify(val, null, 2)
-          return t.includes('\n') ? `${k}:\n${t}` : `${k}: ${t}`
-        })
-        .join('\n')
+    if (isRecord(v)) return kvLines(v, true)
   } catch {
     /* already plain text, or a truncated preview */
   }

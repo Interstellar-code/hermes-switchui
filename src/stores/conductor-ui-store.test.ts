@@ -40,21 +40,22 @@ describe('node panel selection', () => {
     const s = useConductorUIStore
     s.setState({
       selectedRunId: 'r1',
-      selectedNodeId: null,
+      selectedNode: null,
       nodePanelTab: 'overview',
     })
-    s.getState().selectNode('a', 'output')
-    expect([s.getState().selectedNodeId, s.getState().nodePanelTab]).toEqual([
-      'a',
+    s.getState().selectNode({ runId: 'r1', nodeId: 'a' }, 'output')
+    expect([s.getState().selectedNode, s.getState().nodePanelTab]).toEqual([
+      { runId: 'r1', nodeId: 'a' },
       'output',
     ])
-    s.getState().selectNode('a')
+    s.getState().selectNode({ runId: 'r1', nodeId: 'a' })
     expect(s.getState().nodePanelTab).toBe('output')
-    s.getState().selectNode('b')
+    s.getState().selectNode({ runId: 'r9', nodeId: 'a' })
     expect(s.getState().nodePanelTab).toBe('overview')
+    s.getState().selectNode({ runId: 'r1', nodeId: 'b' })
     s.getState().setSelectedRunId('r1')
-    expect(s.getState().selectedNodeId).toBe('b')
+    expect(s.getState().selectedNode).toEqual({ runId: 'r1', nodeId: 'b' })
     s.getState().setSelectedRunId('r2')
-    expect(s.getState().selectedNodeId).toBeNull()
+    expect(s.getState().selectedNode).toBeNull()
   })
 })

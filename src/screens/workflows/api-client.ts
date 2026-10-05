@@ -368,7 +368,7 @@ export async function cancelWorkflowRun(runId: string): Promise<void> {
 
 export async function launchWorkflowRun(
   input: LaunchWorkflowInput,
-): Promise<{ run: { id: string } }> {
+): Promise<{ run: { id: string; next_run_at?: string | number | null } }> {
   const res = await wfFetch(`/api/workflow-runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -378,7 +378,9 @@ export async function launchWorkflowRun(
     const text = await res.text()
     throw new Error(`launchWorkflowRun failed (${res.status}): ${text}`)
   }
-  return (await res.json()) as { run: { id: string } }
+  return (await res.json()) as {
+    run: { id: string; next_run_at?: string | number | null }
+  }
 }
 
 export interface UpsertWorkflowDefinitionInput {

@@ -86,6 +86,9 @@ describe('NodePanel', () => {
     )
     expect(screen.getByText(/exit status 1/)).toBeTruthy()
     expect(screen.getByText(/STDERR TAIL/)).toBeTruthy()
+    // The upstream approval's reply is the input this node acted on.
+    expect(screen.getByText('input reply')).toBeTruthy()
+    expect(screen.getByText('“apply all”')).toBeTruthy()
     const resume = screen.getByRole('button', {
       name: 'RESUME RUN',
     })
@@ -113,5 +116,16 @@ describe('NodePanel', () => {
     render(<NodePanel {...base} nodeId="apply" onClose={onClose} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Esc inside a text field does not close the panel', () => {
+    h.nodeRuns = fixture.nodeRuns
+    const onClose = vi.fn()
+    render(<NodePanel {...base} nodeId="apply" onClose={onClose} />)
+    const field = document.createElement('textarea')
+    document.body.appendChild(field)
+    fireEvent.keyDown(field, { key: 'Escape' })
+    field.remove()
+    expect(onClose).not.toHaveBeenCalled()
   })
 })

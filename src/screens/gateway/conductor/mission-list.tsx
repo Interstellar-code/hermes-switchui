@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import {
   useConductorMissions,
   useConductorScheduled,
@@ -78,8 +79,34 @@ function ScheduledRow({ item }: { item: ScheduledWorkflow }) {
   const name = item.title ?? item.workflowId
   const busy = toggle.isPending || del.isPending
   const failure = toggle.error ?? del.error
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  // The row unmounts once the list refetches: hand focus to the next row, else a heading.
+  function remove() {
+    if (
+      !window.confirm(
+        `Delete the schedule "${item.scheduleLabel}" for ${name}?`,
+      )
+    )
+      return
+    const row = rowRef.current
+    const list = row?.closest('.h-list')
+    const next = row?.nextElementSibling
+    const target =
+      (next?.matches('button') ? next : next?.querySelector('button')) ??
+      row?.closest('section')?.querySelector('.h-day')
+    del.mutateAsync(item.id).then(
+      () =>
+        (target?.isConnected
+          ? (target as HTMLElement)
+          : list?.querySelector<HTMLElement>('.h-day')
+        )?.focus(),
+      () => {}, // shown via del.error
+    )
+  }
+
   return (
-    <div className={`miss sched${item.enabled ? '' : ' off'}`}>
+    <div ref={rowRef} className={`miss sched${item.enabled ? '' : ' off'}`}>
       <div className="rail" />
       <div className="body">
         <div className="ttl">{name}</div>
@@ -118,14 +145,7 @@ function ScheduledRow({ item }: { item: ScheduledWorkflow }) {
               type="button"
               disabled={busy}
               aria-label={`Delete schedule for ${name}`}
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Delete the schedule "${item.scheduleLabel}" for ${name}?`,
-                  )
-                )
-                  del.mutate(item.id)
-              }}
+              onClick={remove}
             >
               DELETE
             </button>
@@ -156,7 +176,7 @@ export function MissionList({ search = '' }: { search?: string }) {
     <div className="h-list">
       {groups.map((g) => (
         <section key={g.key} aria-label={g.label}>
-          <div className="h-day">
+          <div className="h-day" tabIndex={-1}>
             {g.label}
             {g.key === 'scheduled' && (
               <span

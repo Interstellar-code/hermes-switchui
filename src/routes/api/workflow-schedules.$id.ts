@@ -6,9 +6,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
 import { requireJsonContentType } from '../../server/rate-limit'
 import { dashboardFetch } from '../../server/gateway-capabilities'
+import { WORKFLOW_ID_RE } from '../../server/workflow-id'
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine'
-const ID_RE = /^[A-Za-z0-9_:.-]{1,128}$/
 const PASS = new Set([400, 404, 409, 501])
 
 async function forward(id: string, init: RequestInit): Promise<Response> {
@@ -37,7 +37,7 @@ export const Route = createFileRoute('/api/workflow-schedules/$id')({
         }
         const csrf = requireJsonContentType(request)
         if (csrf) return csrf
-        if (!ID_RE.test(params.id)) {
+        if (!WORKFLOW_ID_RE.test(params.id)) {
           return Response.json(
             { error: 'Invalid schedule id' },
             { status: 400 },
@@ -67,7 +67,7 @@ export const Route = createFileRoute('/api/workflow-schedules/$id')({
         }
         const csrf = requireJsonContentType(request)
         if (csrf) return csrf
-        if (!ID_RE.test(params.id)) {
+        if (!WORKFLOW_ID_RE.test(params.id)) {
           return Response.json(
             { error: 'Invalid schedule id' },
             { status: 400 },

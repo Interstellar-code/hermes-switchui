@@ -73,17 +73,26 @@ vi.mock('./use-workflows', async () => {
     useLaunchWorkflowRun: () => useMutation({ mutationFn: launchWorkflowRun }),
   }
 })
-vi.mock('./run-status', () => ({
+vi.mock('./run-status', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
   useWorkflowRunIndex: () => ({ data: undefined }),
 }))
+const toast = vi.hoisted(() => vi.fn())
+vi.mock('@/components/ui/toast', () => ({ toast }))
 vi.mock('@/screens/gateway/conductor/use-conductor-queries', () => ({
   useConductorScheduled: () => ({ data: scheduler, isError: schedulerError }),
 }))
+
+let invalidated: Array<unknown> = []
 
 function mount(props: Partial<React.ComponentProps<typeof LaunchDialog>> = {}) {
   const onClose = vi.fn()
   const onRunLaunched = vi.fn()
   const client = new QueryClient()
+  vi.spyOn(client, 'invalidateQueries').mockImplementation((f) => {
+    invalidated.push(f?.queryKey)
+    return Promise.resolve()
+  })
   const tree = () => (
     <QueryClientProvider client={client}>
       <LaunchDialog
@@ -108,6 +117,8 @@ beforeEach(() => {
   schedulerError = false
   features = { features: [], schedulerAlive: false, profile: null }
   launchWorkflowRun.mockReset().mockResolvedValue({ run: { id: 'run-1' } })
+  invalidated = []
+  toast.mockReset()
 })
 afterEach(cleanup)
 
@@ -403,9 +414,16 @@ describe('LaunchDialog', () => {
       toWhen()
       fireEvent.click(repeatRadio())
       fireEvent.change(input(/Cron expression/), { target: { value: 'nope' } })
-      expect(screen.getByRole('button', { name: /^Next/ }).disabled).toBe(true)
+      expect(
+        screen.getByRole('button', { name: /^Next/ }).hasAttribute('disabled'),
+      ).toBe(true)
       fireEvent.click(screen.getByRole('button', { name: 'Weekdays 09:00' }))
-      expect(screen.getByText(/^next: /)).toBeTruthy()
+      expect(
+        screen.getByText(/^next: .*your local time \(preview\)/),
+      ).toBeTruthy()
+      launchWorkflowRun.mockResolvedValue({
+        run: { id: 'sch1', next_run_at: '2026-10-08T07:00:00Z' },
+      })
       next()
       fireEvent.click(screen.getByRole('button', { name: /^Schedule/ }))
       await waitFor(() => expect(launchWorkflowRun).toHaveBeenCalled())
@@ -413,6 +431,27 @@ describe('LaunchDialog', () => {
         type: 'cron',
         cron: '0 9 * * 1-5',
       })
+      // The toast carries the server's next fire time, not the client preview.
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          `Scheduled Beta: 0 9 * * 1-5 — next run ${new Date('2026-10-08T07:00:00Z').toLocaleString()}`,
+        ),
+      )
+      expect(invalidated).toContainEqual(['conductor', 'scheduled'])
+    })
+
+    it('says when no run falls inside the preview horizon', () => {
+      features = {
+        features: ['cron_schedule'],
+        schedulerAlive: true,
+        profile: 'hermes-switch',
+      }
+      toWhen()
+      fireEvent.click(repeatRadio())
+      fireEvent.change(input(/Cron expression/), {
+        target: { value: '0 0 31 2 *' },
+      })
+      expect(screen.getByText(/preview unavailable/)).toBeTruthy()
     })
   })
 })

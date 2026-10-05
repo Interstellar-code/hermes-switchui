@@ -11,7 +11,7 @@ import { NodeEvents } from './node-events'
 import { NodeOutput } from './node-output'
 import { NodeOverview } from './node-overview'
 import { durationMs, isAwaitingApproval, selectNode } from './node-panel-model'
-import type { KeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import type { SelectedNode } from './node-panel-model'
 import type { NodePanelTab } from '@/stores/conductor-ui-store'
 import type { WorkflowSseEvent } from '@/screens/workflows/use-workflow-events'
@@ -42,6 +42,8 @@ export interface NodePanelData {
   stage: string
   tone: ReturnType<typeof statusTone>
   durationMs: number | null
+  /** Reply given at an upstream approval gate (the input this node acted on). */
+  inputReply: string | null
 }
 
 const TABS: Array<{ id: NodePanelTab; label: string }> = [
@@ -82,22 +84,27 @@ export function NodePanel({
   const parsedQ = useWorkflowParsed(runQ.data?.run.workflow_id ?? null)
   const featuresQ = useWorkflowFeatures()
   const features = featuresQ.data?.features ?? []
-  const pageAll = features.includes('events_query')
-  const eventsQ = useRunEvents(
-    runId,
-    { limit: 1000 },
-    { pageAll, enabled: !featuresQ.isLoading },
-  )
-  const { dag } = useRunDag(runId)
-  const ref = useRef<HTMLElement>(null)
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-
   const nodeRuns = runQ.data?.nodeRuns
   const parsed = parsedQ.data?.parsed ?? null
   const sel = useMemo(
     () => selectNode(parsed, nodeRuns ?? [], nodeId),
     [parsed, nodeRuns, nodeId],
   )
+  const pageAll = features.includes('events_query')
+  // With events_query the server filters by node_run_id; loops span several
+  // node_runs (and skips have none), so those still filter client-side.
+  const nodeRunId =
+    pageAll && sel.nodeRun && sel.iterations.length === 0
+      ? sel.nodeRun.id
+      : undefined
+  const eventsQ = useRunEvents(
+    runId,
+    { limit: 1000, node_run_id: nodeRunId },
+    { pageAll, enabled: !featuresQ.isLoading },
+  )
+  const { dag } = useRunDag(runId)
+  const ref = useRef<HTMLElement>(null)
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const items = useMemo(
     () =>
       filterEvents(
@@ -131,6 +138,14 @@ export function NodePanel({
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return
       if (document.querySelector('[aria-modal="true"], .dag-wrap.full')) return
+      // Esc in a text field (the approval reply) belongs to the field.
+      if (
+        e.target instanceof Element &&
+        e.target.closest(
+          'input, textarea, select, [contenteditable=""], [contenteditable="true"]',
+        )
+      )
+        return
       onClose()
     }
     document.addEventListener('keydown', onKey)
@@ -148,6 +163,10 @@ export function NodePanel({
     stage: dagNode?.stage ?? '—',
     tone,
     durationMs: durationMs(nr, now),
+    inputReply:
+      (nodeRuns ?? []).find(
+        (r) => sel.dependsOn.includes(r.dag_node_id) && r.approval_response,
+      )?.approval_response ?? null,
   }
 
   const onTabKey = (e: KeyboardEvent, i: number) => {
@@ -180,10 +199,7 @@ export function NodePanel({
       }
     >
       <div className="cnp-h">
-        <span
-          className="cnp-tc"
-          style={{ background: `color-mix(in srgb, ${dot} 85%, transparent)` }}
-        >
+        <span className="cnp-tc" style={{ '--node-c': dot } as CSSProperties}>
           {type.toUpperCase()}
         </span>
         <span className="cnp-nt" title={nodeId}>

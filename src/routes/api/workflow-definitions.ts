@@ -6,6 +6,7 @@ import { createHash } from 'node:crypto';
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { requireJsonContentType } from '../../server/rate-limit';
+import { WORKFLOW_ID_RE } from '../../server/workflow-id';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { summariseWorkflowYaml } from '../../server/workflow-yaml-summary';
 
@@ -75,7 +76,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         // source: enum.
         // scope_path: must be absolute + no '..' segments.
         // tags: array of strings if provided.
-        if (typeof body.id !== 'string' || !/^[A-Za-z0-9_:.-]{1,128}$/.test(body.id)) {
+        if (typeof body.id !== 'string' || !WORKFLOW_ID_RE.test(body.id)) {
           return Response.json({ error: 'id must be 1-128 chars of [A-Za-z0-9_:.-]' }, { status: 400 });
         }
         if (typeof body.name !== 'string' || body.name.length < 1 || body.name.length > 256) {

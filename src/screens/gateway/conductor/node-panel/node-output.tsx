@@ -121,6 +121,12 @@ export function NodeOutput({
       {failed && (
         <>
           <dl className="cnp-kv">
+            {d.inputReply && (
+              <>
+                <dt>input reply</dt>
+                <dd>&ldquo;{d.inputReply}&rdquo;</dd>
+              </>
+            )}
             <dt>started</dt>
             <dd>{fmtTime(nr.started_at)}</dd>
             <dt>finished</dt>

@@ -13,7 +13,9 @@ const {
   health,
   getCronJobs,
   listDefinitions,
+  dashboardFetch,
 } = vi.hoisted(() => ({
+  dashboardFetch: vi.fn(),
   health: vi.fn(),
   getCronJobs: vi.fn(),
   listRuns: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('./workflow-engine/clients/plugin-client', () => ({
   },
 }))
 vi.mock('./claude-dashboard-api', () => ({ getCronJobs }))
+vi.mock('./gateway-capabilities', () => ({ dashboardFetch }))
 
 // Fixed local noon: runsToday / dayGroup / elapsed assertions are exact.
 const NOW = new Date(2026, 9, 5, 12, 0, 0)
@@ -66,6 +69,10 @@ beforeEach(() => {
   listActiveNodeRuns.mockReset().mockResolvedValue([])
   cancelRun.mockReset()
   listDefinitions.mockReset().mockResolvedValue([])
+  // No engine schedules unless a test says so.
+  dashboardFetch
+    .mockReset()
+    .mockResolvedValue(new Response('', { status: 404 }))
 })
 
 describe('getConductorSnapshot', () => {
@@ -338,6 +345,86 @@ describe('listScheduledWorkflows', () => {
       schedulerAlive: false,
       profile: null,
       scheduled: [],
+    })
+  })
+
+  describe('native engine schedules', () => {
+    const native = (over: Record<string, unknown> = {}) => ({
+      id: 'n1',
+      workflow_id: 'wf-names',
+      kind: 'cron',
+      cron: '0 9 * * 1-5',
+      status: 'active',
+      enabled: true,
+      next_run_at: '2026-10-06T09:00:00+02:00',
+      last_error: null,
+      ...over,
+    })
+    beforeEach(() => {
+      health.mockResolvedValue({ ok: true, scheduler_alive: true })
+      getCronJobs.mockResolvedValue([
+        {
+          id: 'h1',
+          enabled: true,
+          schedule: { expr: '0 8 * * *' },
+          payload: { switchui_workflow_id: 'wf' },
+        },
+      ])
+      listDefinitions.mockResolvedValue([{ id: 'wf-names', name: 'Nice Name' }])
+    })
+
+    it('keeps active cron rows, converts ISO to ms, titles them, and lists them first', async () => {
+      dashboardFetch.mockResolvedValue(
+        Response.json({
+          schedules: [
+            native(),
+            native({ id: 'n2', kind: 'at' }),
+            native({ id: 'n3', status: 'cancelled' }),
+            native({
+              id: 'n4',
+              workflow_id: 'wf-unknown',
+              enabled: false,
+              next_run_at: null,
+              last_error: 'boom',
+            }),
+          ],
+        }),
+      )
+      const r = await listScheduledWorkflows()
+      expect(dashboardFetch.mock.calls[0][0]).toBe(
+        '/api/plugins/workflow-engine/schedules',
+      )
+      expect(r.scheduled.map((s) => s.id)).toEqual(['n1', 'n4', 'h1'])
+      expect(r.scheduled[0]).toEqual({
+        id: 'n1',
+        workflowId: 'wf-names',
+        cron: '0 9 * * 1-5',
+        scheduleLabel: 'cron 0 9 * * 1-5',
+        nextRunAt: Date.parse('2026-10-06T09:00:00+02:00'),
+        enabled: true,
+        lastRunAt: null,
+        lastStatus: null,
+        source: 'native',
+        title: 'Nice Name',
+        lastError: null,
+      })
+      expect(r.scheduled[1]).toMatchObject({
+        title: 'wf-unknown',
+        enabled: false,
+        nextRunAt: null,
+        lastError: 'boom',
+      })
+    })
+
+    it('degrades to hermes rows only when the engine fails', async () => {
+      dashboardFetch.mockResolvedValue(new Response('x', { status: 500 }))
+      expect(
+        (await listScheduledWorkflows()).scheduled.map((s) => s.id),
+      ).toEqual(['h1'])
+      dashboardFetch.mockRejectedValue(new Error('down'))
+      expect(
+        (await listScheduledWorkflows()).scheduled.map((s) => s.id),
+      ).toEqual(['h1'])
     })
   })
 })

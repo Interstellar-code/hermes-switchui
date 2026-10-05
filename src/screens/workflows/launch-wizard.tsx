@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import '@/styles/workflow-ui.css'
 import {
   useLaunchWorkflowRun,
@@ -18,6 +19,7 @@ import {
 import { toEpochMs, useWorkflowRunIndex } from './run-status'
 import {
   CRON_PRESETS,
+  CRON_PREVIEW_YEARS,
   cronError,
   nextCronFire,
   useRepeatBlockReason,
@@ -489,7 +491,10 @@ function WhenStep({
 }) {
   const at = futureDate(datetime)
   const cronErr = cronError(cron)
-  const nextFire = cronErr ? null : nextCronFire(cron)
+  const nextFire = useMemo(
+    () => (cronErr ? null : nextCronFire(cron)),
+    [cron, cronErr],
+  )
   return (
     <>
       <div className="wfl-opts" role="radiogroup" aria-label="When to run">
@@ -598,8 +603,10 @@ function WhenStep({
                 {cron && cronErr
                   ? cronErr
                   : nextFire
-                    ? `next: ${nextFire.toLocaleString()} · ${Intl.DateTimeFormat().resolvedOptions().timeZone} (host local time)`
-                    : 'minute hour day month weekday'}
+                    ? `next: ${nextFire.toLocaleString()} · your local time (preview)`
+                    : cron
+                      ? `next: preview unavailable (no run within ${CRON_PREVIEW_YEARS} years)`
+                      : 'minute hour day month weekday'}
               </span>
             </div>
           )}
@@ -658,6 +665,10 @@ function ConfirmStep({
   onEdit: (step: LaunchDialogStep) => void
 }) {
   const at = mode === 'at' ? futureDate(datetime) : null
+  const nextFire = useMemo(
+    () => (mode === 'repeat' ? nextCronFire(cron) : null),
+    [mode, cron],
+  )
   const nodes = parsed?.nodes ?? []
   const gates = approvalIds(parsed)
   const n = nodes.length || wf?.node_count
@@ -716,7 +727,7 @@ function ConfirmStep({
           <span>schedule</span>
           <span>
             {mode === 'repeat'
-              ? `Repeats: ${cron.trim()}${nextCronFire(cron) ? ` — next ${nextCronFire(cron)!.toLocaleString()}` : ''} (host local time)`
+              ? `Repeats: ${cron.trim()} — ${nextFire ? `next ${nextFire.toLocaleString()}, your local time (preview)` : 'next run preview unavailable'}`
               : at
                 ? `${longDate(at)} (${fromNow(at)})`
                 : 'Now — starts on launch'}
@@ -800,6 +811,7 @@ function LaunchDialogBody({
   const parsedWf = parsed.data?.parsed
   const fields = inputFields(parsedWf)
   const launch = useLaunchWorkflowRun()
+  const queryClient = useQueryClient()
   // Scheduled-run support: 404 / error / offline all mean "not alive" (an error
   // wins over stale data React Query keeps from an earlier success).
   const sched = useConductorScheduled()
@@ -894,7 +906,16 @@ function LaunchDialogBody({
         onSuccess: (result) => {
           onClose()
           // A scheduled row is not a run yet — nothing to select until the daemon fires it.
-          if (mode === 'repeat') toast(`Scheduled ${wf.name}: ${cron.trim()}`)
+          // The scheduler's own next fire time, not the client preview.
+          const next = toEpochMs(result.run.next_run_at)
+          if (mode !== 'now')
+            void queryClient.invalidateQueries({
+              queryKey: ['conductor', 'scheduled'],
+            })
+          if (mode === 'repeat')
+            toast(
+              `Scheduled ${wf.name}: ${cron.trim()}${next ? ` — next run ${new Date(next).toLocaleString()}` : ''}`,
+            )
           else if (at) toast(`Scheduled ${wf.name} for ${at.toLocaleString()}`)
           else onRunLaunched(result.run.id, wf.id)
         },

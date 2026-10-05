@@ -166,7 +166,10 @@ export function MissionDetailDrawer() {
               // Run first: selecting a different run clears the node selection.
               setSelectedRunId(drawerRunId)
               setDrawerRunId(null)
-              selectNode(id, panelTab ?? 'overview')
+              selectNode(
+                { runId: drawerRunId, nodeId: id },
+                panelTab ?? 'overview',
+              )
             }}
             extraOverview={<AgentsPanel runId={drawerRunId} />}
           />

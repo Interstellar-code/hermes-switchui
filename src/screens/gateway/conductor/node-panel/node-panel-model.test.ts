@@ -136,4 +136,9 @@ describe('configText', () => {
     )
     expect(configText(null)).toBe('')
   })
+  it('flattens one nested object level', () => {
+    expect(
+      configText({ id: 'a', config: '{"env":{"A":"1","B":{"x":1}}}' }),
+    ).toBe('env:\n  A: 1\n  B:\n  {\n    "x": 1\n  }')
+  })
 })

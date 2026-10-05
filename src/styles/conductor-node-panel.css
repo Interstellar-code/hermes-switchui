@@ -15,6 +15,26 @@
   min-height: 0;
 }
 
+.cnd-node-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  font: 11px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+  border-top: 1px solid var(--m-border-subtle, var(--theme-border));
+}
+
+.cnd-node-notice button {
+  font: inherit;
+  color: var(--m-text, var(--theme-text));
+  background: none;
+  border: 1px solid var(--m-border-subtle, var(--theme-border));
+  border-radius: 4px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
 .cnp {
   --np-text: var(--m-text, var(--theme-text));
   --np-strong: var(--m-text-strong, var(--theme-text));
@@ -67,7 +87,14 @@
   padding: 2px 7px;
   border-radius: 3px;
   color: var(--m-bg, var(--theme-bg));
+  background: color-mix(in srgb, var(--node-c) 85%, transparent);
   flex: none;
+}
+
+/* Neon on a light page fails contrast: ink-darkened tint, page-colour text (>= 4.5:1). */
+[data-theme$='-light'] .cnp-tc {
+  background: color-mix(in oklab, var(--node-c) 35%, var(--theme-text));
+  color: var(--theme-bg);
 }
 
 .cnp-nt {

@@ -5,6 +5,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { requireJsonContentType } from '../../server/rate-limit';
+import { WORKFLOW_ID_RE } from '../../server/workflow-id';
 import { getEngine } from '../../server/workflow-engine/factory';
 import { WORKFLOW_RUN_STATUS } from '../../server/workflow-engine/interface';
 
@@ -71,7 +72,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
           return Response.json({ error: 'workflow_id, conversation_id, user_message required' }, { status: 400 });
         }
         // Codex Bundle 5 Q4 — Input validation.
-        if (typeof body.workflow_id !== 'string' || !/^[A-Za-z0-9_:.-]{1,128}$/.test(body.workflow_id)) {
+        if (typeof body.workflow_id !== 'string' || !WORKFLOW_ID_RE.test(body.workflow_id)) {
           return Response.json({ error: 'workflow_id must be 1-128 chars of [A-Za-z0-9_:.-]' }, { status: 400 });
         }
         if (typeof body.conversation_id !== 'string' || body.conversation_id.length < 1 || body.conversation_id.length > 256) {

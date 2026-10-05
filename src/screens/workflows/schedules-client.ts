@@ -89,53 +89,113 @@ export const CRON_PRESETS: Array<{ label: string; cron: string }> = [
 
 const FIELD_RE = /^(\*|\d+(-\d+)?)(\/\d+)?(,(\*|\d+(-\d+)?)(\/\d+)?)*$/
 
-/** Tiny client check (5 fields); the server validates authoritatively. */
+/** Standard aliases (no @reboot: it has no next fire time). */
+const ALIASES: Record<string, string> = {
+  '@hourly': '0 * * * *',
+  '@daily': '0 0 * * *',
+  '@weekly': '0 0 * * 0',
+  '@monthly': '0 0 1 * *',
+  '@yearly': '0 0 1 1 *',
+}
+
+const FIELDS: Array<{ name: string; lo: number; hi: number }> = [
+  { name: 'minute', lo: 0, hi: 59 },
+  { name: 'hour', lo: 0, hi: 23 },
+  { name: 'day', lo: 1, hi: 31 },
+  { name: 'month', lo: 1, hi: 12 },
+  { name: 'weekday', lo: 0, hi: 7 },
+]
+
+/** Allowed values of one field, or null when a range or step is out of bounds. */
+function expand(f: string, lo: number, hi: number): Set<number> | null {
+  const out = new Set<number>()
+  for (const part of f.split(',')) {
+    const [range, stepS] = part.split('/')
+    const step = stepS ? Number(stepS) : 1
+    let a = lo
+    let b = hi
+    if (range !== '*') {
+      const [x, y] = range.split('-').map(Number)
+      a = x
+      b = range.includes('-') ? y : stepS ? hi : x
+    }
+    if (step < 1 || a < lo || b > hi || a > b) return null
+    for (let v = a; v <= b; v += step) out.add(v)
+  }
+  return out
+}
+
+/** 5 fields with aliases expanded, or null for an alias we do not accept. */
+function fieldsOf(expr: string): Array<string> | null {
+  const t = expr.trim()
+  if (!t.startsWith('@')) return t.split(/\s+/)
+  const a = ALIASES[t.toLowerCase()]
+  return a ? a.split(' ') : null
+}
+
+/** Tiny client check; the server validates authoritatively. */
 export function cronError(expr: string): string | null {
   const t = expr.trim()
   if (!t) return 'Enter a cron expression.'
   if (t.length > 128) return 'Too long (128 characters max).'
-  if (t.startsWith('@'))
-    return 'Aliases like @daily aren’t supported; use 5 fields.'
-  const parts = t.split(/\s+/)
+  const parts = fieldsOf(t)
+  if (!parts)
+    return 'Supported aliases: @hourly, @daily, @weekly, @monthly, @yearly.'
   if (parts.length !== 5) return 'Use 5 fields: minute hour day month weekday.'
   if (!parts.every((p) => FIELD_RE.test(p)))
     return 'Fields may use numbers, *, ranges (1-5), lists (1,3) and steps (*/5).'
+  for (let i = 0; i < 5; i++) {
+    const { name, lo, hi } = FIELDS[i]
+    if (!expand(parts[i], lo, hi))
+      return `${name} must be ${lo}-${hi} (steps 1 or more).`
+  }
   return null
 }
 
-/** Next local fire time for a 5-field cron, or null (scan ≤ 1 year of minutes). */
+/** Years scanned for the next fire; long enough for Feb 29. */
+export const CRON_PREVIEW_YEARS = 5
+
+/**
+ * Next local fire time, or null when none within CRON_PREVIEW_YEARS. Skips
+ * whole months / days / hours that cannot match, so the worst case is a few
+ * thousand steps.
+ */
 export function nextCronFire(expr: string, from = new Date()): Date | null {
   if (cronError(expr)) return null
-  const [mi, ho, dm, mo, dw] = expr.trim().split(/\s+/)
-  const match = (f: string, v: number, lo: number): boolean =>
-    f.split(',').some((part) => {
-      const [range, step] = part.split('/')
-      const n = step ? Number(step) : 1
-      let a = lo
-      let b = Infinity
-      if (range !== '*') {
-        const [x, y] = range.split('-').map(Number)
-        a = x
-        b = range.includes('-') ? y : step ? Infinity : x
-      }
-      return v >= a && v <= b && (v - a) % n === 0
-    })
+  const parts = fieldsOf(expr)!
+  const [mi, ho, dm, mo, dw] = parts.map((p, i) =>
+    expand(p, FIELDS[i].lo, FIELDS[i].hi),
+  ) as Array<Set<number>>
+  if (dw.has(7)) dw.add(0)
+  // cron: when both day fields are restricted, either may match.
+  const either = !parts[2].startsWith('*') && !parts[4].startsWith('*')
   const d = new Date(from)
   d.setSeconds(0, 0)
-  for (let i = 0; i < 366 * 24 * 60; i++) {
-    d.setMinutes(d.getMinutes() + 1)
-    const dow = d.getDay()
-    const domOk = match(dm, d.getDate(), 1)
-    const dowOk = match(dw, dow, 0) || (dow === 0 && match(dw, 7, 0))
-    // cron: when both day fields are restricted, either may match.
-    const dayOk = dm !== '*' && dw !== '*' ? domOk || dowOk : domOk && dowOk
-    if (
-      match(mi, d.getMinutes(), 0) &&
-      match(ho, d.getHours(), 0) &&
-      match(mo, d.getMonth() + 1, 1) &&
-      dayOk
-    )
-      return d
+  d.setMinutes(d.getMinutes() + 1)
+  const end = new Date(from)
+  end.setFullYear(end.getFullYear() + CRON_PREVIEW_YEARS)
+  while (d < end) {
+    if (!mo.has(d.getMonth() + 1)) {
+      d.setMonth(d.getMonth() + 1, 1)
+      d.setHours(0, 0, 0, 0)
+      continue
+    }
+    const domOk = dm.has(d.getDate())
+    const dowOk = dw.has(d.getDay())
+    if (!(either ? domOk || dowOk : domOk && dowOk)) {
+      d.setDate(d.getDate() + 1)
+      d.setHours(0, 0, 0, 0)
+      continue
+    }
+    if (!ho.has(d.getHours())) {
+      d.setHours(d.getHours() + 1, 0, 0, 0)
+      continue
+    }
+    if (!mi.has(d.getMinutes())) {
+      d.setMinutes(d.getMinutes() + 1, 0, 0)
+      continue
+    }
+    return d
   }
   return null
 }
