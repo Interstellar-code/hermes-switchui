@@ -34,3 +34,27 @@ describe('conductor-ui-store inspector', () => {
     })
   })
 })
+
+describe('node panel selection', () => {
+  it('selects a node with a tab, resets the tab on a new node, and clears on run change', () => {
+    const s = useConductorUIStore
+    s.setState({
+      selectedRunId: 'r1',
+      selectedNodeId: null,
+      nodePanelTab: 'overview',
+    })
+    s.getState().selectNode('a', 'output')
+    expect([s.getState().selectedNodeId, s.getState().nodePanelTab]).toEqual([
+      'a',
+      'output',
+    ])
+    s.getState().selectNode('a')
+    expect(s.getState().nodePanelTab).toBe('output')
+    s.getState().selectNode('b')
+    expect(s.getState().nodePanelTab).toBe('overview')
+    s.getState().setSelectedRunId('r1')
+    expect(s.getState().selectedNodeId).toBe('b')
+    s.getState().setSelectedRunId('r2')
+    expect(s.getState().selectedNodeId).toBeNull()
+  })
+})

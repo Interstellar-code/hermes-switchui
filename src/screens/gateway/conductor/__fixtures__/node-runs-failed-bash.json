@@ -1,0 +1,22 @@
+{
+  "run": { "id": "3c8ed0e5-0000-0000-0000-000000000000", "status": "failed", "metadata": {} },
+  "parsed": {
+    "name": "yt-intake",
+    "description": "",
+    "nodes": [
+      { "id": "dedup-verify", "type": "prompt", "depends_on": [] },
+      { "id": "approval-gate", "type": "approval", "depends_on": ["dedup-verify"], "config": "message: ok\ncapture_response: true" },
+      { "id": "apply", "type": "bash", "depends_on": ["approval-gate"], "config": "python3 apply.py" }
+    ],
+    "edges": [["dedup-verify", "approval-gate"], ["approval-gate", "apply"]],
+    "has_loop": false,
+    "has_approval": true,
+    "required_inputs": [],
+    "optional_inputs": [],
+    "node_count": 3
+  },
+  "nodeRuns": [
+    { "id": "1d07b3e2-aaaa", "workflow_run_id": "3c8ed0e5", "dag_node_id": "approval-gate", "node_type": "approval", "status": "completed", "approval_message": "ready?", "approval_response": "apply all", "metadata": "{\"approved_by\":\"switchui\"}", "started_at": "2026-10-05T14:06:56Z", "completed_at": "2026-10-05T14:07:10Z" },
+    { "id": "7a91c0de-bbbb", "workflow_run_id": "3c8ed0e5", "dag_node_id": "apply", "node_type": "bash", "status": "failed", "started_at": "2026-10-05T14:15:20Z", "completed_at": "2026-10-05T14:16:01Z", "summary": null, "error": "bash exited with code 1: [apply] loading plan\n[apply] guard\nTraceback (most recent call last):\n  File \"apply.py\", line 212, in main\nGuardError: 3 rows would change artifact_type (expected 0)\n", "max_runtime_seconds": 600 }
+  ]
+}

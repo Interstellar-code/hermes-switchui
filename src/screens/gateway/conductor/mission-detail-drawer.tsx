@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AgentsPanel } from './agents-panel'
+import { useConductorLiveContext } from './conductor-live-context'
 import { useAbortMission } from './use-conductor-queries'
 import { useNow } from './flow/use-now'
 import { useRunDag } from './use-run-dag'
@@ -30,6 +31,8 @@ export function MissionDetailDrawer() {
   const setInspectTab = useConductorUIStore((s) => s.setInspectTab)
   const expandedNodeId = useConductorUIStore((s) => s.expandedNodeId)
   const setExpandedNodeId = useConductorUIStore((s) => s.setExpandedNodeId)
+  const selectNode = useConductorUIStore((s) => s.selectNode)
+  const live = useConductorLiveContext()
 
   const panelRef = useRef<HTMLElement>(null)
   const close = () => setDrawerRunId(null)
@@ -157,6 +160,14 @@ export function MissionDetailDrawer() {
             onTabChange={setInspectTab}
             expandedNodeId={expandedNodeId}
             onExpandedChange={setExpandedNodeId}
+            // The layout's single stream, when it is this run's; otherwise the inspector opens its own.
+            events={live.runId === drawerRunId ? live.events : undefined}
+            onOpenNode={(id, panelTab) => {
+              // Run first: selecting a different run clears the node selection.
+              setSelectedRunId(drawerRunId)
+              setDrawerRunId(null)
+              selectNode(id, panelTab ?? 'overview')
+            }}
             extraOverview={<AgentsPanel runId={drawerRunId} />}
           />
         </aside>

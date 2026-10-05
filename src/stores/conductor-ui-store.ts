@@ -9,6 +9,7 @@ import type { InspectTab } from '@/screens/workflows/run-inspector/inspector-mod
 
 export type CanvasView = 'flow' | 'org'
 export type LaneScale = '1M' | '5M' | '15M' | '1H'
+export type NodePanelTab = 'overview' | 'output' | 'events'
 export type FilterTab = 'all' | 'live' | 'waiting' | 'done' | 'err'
 
 type ConductorUIState = {
@@ -20,6 +21,9 @@ type ConductorUIState = {
   inspectTab: InspectTab
   /** Node row expanded in the inspector's NODE RUNS tab. */
   expandedNodeId: string | null
+  /** Node docked on the canvas (null = panel closed). Cleared when the run changes. */
+  selectedNodeId: string | null
+  nodePanelTab: NodePanelTab
 }
 
 type ConductorUIActions = {
@@ -35,6 +39,9 @@ type ConductorUIActions = {
   ) => void
   setInspectTab: (tab: InspectTab) => void
   setExpandedNodeId: (id: string | null) => void
+  /** Select a node (or close the panel with null); a new node resets the tab. */
+  selectNode: (id: string | null, tab?: NodePanelTab) => void
+  setNodePanelTab: (tab: NodePanelTab) => void
 }
 
 export const useConductorUIStore = create<
@@ -47,11 +54,18 @@ export const useConductorUIStore = create<
   drawerRunId: null,
   inspectTab: 'overview',
   expandedNodeId: null,
+  selectedNodeId: null,
+  nodePanelTab: 'overview',
 
   setCanvasView: (canvasView) => set({ canvasView }),
   setLaneScale: (laneScale) => set({ laneScale }),
   setFilterTab: (filterTab) => set({ filterTab }),
-  setSelectedRunId: (selectedRunId) => set({ selectedRunId }),
+  setSelectedRunId: (selectedRunId) =>
+    set((s) =>
+      selectedRunId === s.selectedRunId
+        ? {}
+        : { selectedRunId, selectedNodeId: null, nodePanelTab: 'overview' },
+    ),
   // Same run: no-op. Otherwise the expanded row clears; the tab resets to
   // Overview only when opening from closed (switching run keeps the tab).
   setDrawerRunId: (drawerRunId) =>
@@ -84,4 +98,12 @@ export const useConductorUIStore = create<
     }),
   setInspectTab: (inspectTab) => set({ inspectTab }),
   setExpandedNodeId: (expandedNodeId) => set({ expandedNodeId }),
+  selectNode: (selectedNodeId, tab) =>
+    set((s) => ({
+      selectedNodeId,
+      nodePanelTab:
+        tab ??
+        (selectedNodeId === s.selectedNodeId ? s.nodePanelTab : 'overview'),
+    })),
+  setNodePanelTab: (nodePanelTab) => set({ nodePanelTab }),
 }))
