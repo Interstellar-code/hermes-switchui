@@ -23,9 +23,15 @@ const row = (o: Record<string, unknown>): WorkflowEventRow =>
     created_at: '2026-10-05T10:00:00.000Z',
     ...o,
   }) as unknown as WorkflowEventRow
-const live = (type: string, data: Record<string, unknown> = {}, at = 5) => ({
+// Live SSE frame = bus wrapper (engine/emitter/bus.py `_row_payload`).
+const live = (
+  type: string,
+  env: Record<string, unknown> = {},
+  data: Record<string, unknown> = {},
+  at = 5,
+) => ({
   type,
-  data,
+  data: { run_id: 'r', event_type: type, node_run_id: null, ...env, data },
   receivedAt: at,
 })
 
@@ -49,7 +55,8 @@ describe('mergeEvents', () => {
     expect(items[0].nodeId).toBe('apply')
     expect(items[0].summary).toBe('hi · 4ms')
   })
-  it('dedupes by seq, then id, then (type,node,created_at); skips replayed live', () => {
+  it('dedupes by seq, then id; skips replayed live; reads node from env.data', () => {
+    const T = Date.parse('2026-10-05T10:00:00.000Z')
     const items = mergeEvents(
       [
         row({ id: 'a', seq: 1 }),
@@ -57,22 +64,20 @@ describe('mergeEvents', () => {
           id: 'b',
           seq: 2,
           event_type: 'node_failed',
+          node_run_id: 'nr',
           data: { error: 'x', node_id: 'n' },
         }),
       ],
       [
-        live('node_started', { seq: 1 }),
+        live('node_started', { seq: 1, id: 'other' }),
         live('node_started', { id: 'a' }),
-        live('node_failed', {
-          node_id: 'n',
-          created_at: '2026-10-05T10:00:00.000Z',
-          error: 'x',
-        }),
-        live('node_started', { _replayed: true, node_id: 'z' }),
-        live('node_paused', {
-          node_id: 'live-only',
-          created_at: '2026-10-05T10:00:09.000Z',
-        }),
+        live('node_started', { _replayed: true, id: 'z' }, { node_id: 'z' }),
+        live(
+          'node_paused',
+          { id: 'p', seq: 9 },
+          { node_id: 'live-only' },
+          T + 9000,
+        ),
       ],
       [],
       [],
@@ -81,6 +86,32 @@ describe('mergeEvents', () => {
       'node_started',
       'node_failed',
       'node_paused',
+    ])
+    expect(items[2]).toMatchObject({ nodeId: 'live-only', key: 'live:s:9' })
+  })
+  it('id-less live (0.1.0) dedupes vs DB on (type, node_run_id ?? node_id) within 2s', () => {
+    const T = Date.parse('2026-10-05T10:00:00.000Z')
+    const items = mergeEvents(
+      [
+        row({
+          id: 'b',
+          event_type: 'node_failed',
+          node_run_id: 'nr',
+          data: { error: 'x', node_id: 'n' },
+        }),
+      ],
+      [
+        live('node_failed', { node_run_id: 'nr' }, { error: 'x' }, T + 1500),
+        live('node_failed', { node_run_id: 'nr' }, { error: 'y' }, T + 2500),
+        live('node_completed', {}, { node_id: 'n', output: 'ok' }, T + 100),
+      ],
+      [],
+      [],
+    )
+    expect(items.map((i) => `${i.type}:${i.summary}`)).toEqual([
+      'node_failed:x',
+      'node_completed:ok',
+      'node_failed:y',
     ])
   })
   it('merges phase transitions as workflow_phase rows in time order', () => {

@@ -111,25 +111,44 @@ function fromRow(
   }
 }
 
+/**
+ * A live SSE frame is the bus wrapper (engine/emitter/bus.py `_row_payload`):
+ * `{id, seq, run_id, event_type, node_run_id, data:{node_id, …}, created_at?, _replayed?}`.
+ * Live-emitted frames carry no `created_at`, so they fall back to receivedAt.
+ */
 function fromLive(ev: WorkflowSseEvent, i: number): EventItem {
-  const d = ev.data
-  const created = d.created_at
+  const env = ev.data
+  const d = asObject(env.data)
+  const seq = typeof env.seq === 'number' ? env.seq : null
+  const id = typeof env.id === 'string' ? env.id : null
+  const nodeRunId = typeof env.node_run_id === 'string' ? env.node_run_id : null
+  const nodeId = str(d.node_id) || null
   return {
-    key: `live:${i}`,
-    ts: toEpochMs(created as string | number | undefined) ?? ev.receivedAt,
+    key:
+      seq != null
+        ? `live:s:${seq}`
+        : id
+          ? `live:i:${id}`
+          : `live:${ev.receivedAt}:${ev.type}:${i}`,
+    ts:
+      toEpochMs(env.created_at as string | number | undefined) ?? ev.receivedAt,
     type: ev.type,
-    nodeId: str(d.node_id) || null,
+    nodeId,
     summary: eventSummary(ev.type, d),
     data: d,
-    seq: typeof d.seq === 'number' ? d.seq : null,
-    id: typeof d.id === 'string' ? d.id : null,
-    nodeRunId: typeof d.node_run_id === 'string' ? d.node_run_id : null,
+    seq,
+    id,
+    nodeRunId,
   }
 }
 
+/** Window for matching an id-less live event (0.1.0 backend) to a DB row. */
+const LOOSE_MS = 2000
+
 /**
  * DB rows + live SSE + synthetic `workflow_phase` rows, oldest first.
- * Dedupe: seq, then id, then (type, node, created_at).
+ * Dedupe: seq, then id; a live event with neither matches a DB row on
+ * (type, node_run_id ?? node_id) within ±2s.
  */
 export function mergeEvents(
   rows: Array<WorkflowEventRow>,
@@ -138,27 +157,43 @@ export function mergeEvents(
   transitions: Array<PhaseTransition>,
 ): Array<EventItem> {
   const nodeById = new Map(nodeRuns.map((n) => [n.id, n]))
-  const items = [
-    ...rows.map((r) => fromRow(r, nodeById)),
-    // `_replayed` live events are the last 50 DB rows we already fetched.
-    ...live
-      .filter((e) => e.data._replayed !== true)
-      .map((e, i) => fromLive(e, i)),
-  ].filter((e) => !HIDDEN.has(e.type))
   const seen = new Set<string>()
+  // (type|node) → DB row timestamps, for id-less live events.
+  const dbTimes = new Map<string, Array<number>>()
+  const looseKey = (e: EventItem) => `${e.type}|${e.nodeRunId ?? e.nodeId}`
   const out: Array<EventItem> = []
-  for (const e of items) {
-    const ids = [
-      ...(e.seq != null ? [`s:${e.seq}`] : []),
-      ...(e.id ? [`i:${e.id}`] : []),
-    ]
-    // A live event without id/seq may still equal a DB row at the same instant.
-    const loose = `t:${e.type}|${e.nodeRunId ?? e.nodeId}|${e.ts}`
-    const isLive = e.key.startsWith('live:')
-    if (ids.some((k) => seen.has(k)) || (isLive && seen.has(loose))) continue
-    ids.forEach((k) => seen.add(k))
-    seen.add(loose)
+  const add = (e: EventItem) => {
+    if (e.seq != null) seen.add(`s:${e.seq}`)
+    if (e.id) seen.add(`i:${e.id}`)
     out.push(e)
+  }
+  for (const r of rows) {
+    const e = fromRow(r, nodeById)
+    if (HIDDEN.has(e.type)) continue
+    if ((e.seq != null && seen.has(`s:${e.seq}`)) || seen.has(`i:${e.id}`))
+      continue
+    add(e)
+    const k = looseKey(e)
+    dbTimes.set(k, [...(dbTimes.get(k) ?? []), e.ts])
+  }
+  // `_replayed` live events are the last 50 DB rows we already fetched.
+  for (const [i, ev] of live.entries()) {
+    if (ev.data._replayed === true || HIDDEN.has(ev.type)) continue
+    const e = fromLive(ev, i)
+    if (e.seq != null || e.id) {
+      if (
+        (e.seq != null && seen.has(`s:${e.seq}`)) ||
+        (e.id && seen.has(`i:${e.id}`))
+      )
+        continue
+    } else if (
+      (dbTimes.get(looseKey(e)) ?? []).some(
+        (t) => Math.abs(t - e.ts) <= LOOSE_MS,
+      )
+    ) {
+      continue
+    }
+    add(e)
   }
   for (const t of transitions) {
     out.push({

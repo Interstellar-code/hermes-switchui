@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { AgentsPanel } from './agents-panel'
 import { useAbortMission } from './use-conductor-queries'
+import { useNow } from './flow/use-now'
 import { useRunDag } from './use-run-dag'
 import type { LaunchWorkflowInput } from '@/screens/workflows/api-client'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -43,12 +44,13 @@ export function MissionDetailDrawer() {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cancellable =
     run != null && ['running', 'pending', 'paused'].includes(run.status)
+  const now = useNow(!!drawerRunId && cancellable)
 
   if (!drawerRunId) return null
 
   const rerun = run ? runAgainInput(run) : null
   const startedMs = toEpochMs(run?.started_at)
-  const endMs = toEpochMs(run?.completed_at) ?? Date.now()
+  const endMs = toEpochMs(run?.completed_at) ?? (cancellable ? now : Date.now())
   const tone = statusTone(run?.status ?? '')
 
   function runAgain() {

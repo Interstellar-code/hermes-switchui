@@ -12,6 +12,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  getViewportForBounds,
   useNodesInitialized,
   useNodesState,
   useReactFlow,
@@ -41,11 +42,15 @@ export interface FlowCanvasProps {
 }
 
 // Pixel padding: a long chain is width-bound, so % padding would waste zoom.
+const PAD_X = 24
 const FIT = {
-  padding: { x: '24px', y: '32px' },
+  padding: { x: `${PAD_X}px`, y: '32px' },
   maxZoom: 1.25,
-  minZoom: 0.3,
+  /** Card text stays readable; wider graphs pan horizontally. */
+  minZoom: 0.85,
 } as const
+/** The idle preview cannot pan, so it fits whole. */
+const PREVIEW_MIN_ZOOM = 0.3
 const nodeTypes = { dag: FlowNodeComponent }
 
 type Mode = 'fit' | 'free' | { centredOn: string }
@@ -58,7 +63,8 @@ function FlowCanvasInner({
   focusNodeId = null,
   resetKey = 0,
 }: FlowCanvasProps) {
-  const { fitView, setCenter, getNodes, getNode } = useReactFlow<FlowNode>()
+  const { setViewport, setCenter, getNodes, getNode, getNodesBounds } =
+    useReactFlow<FlowNode>()
   const hostRef = useRef<HTMLDivElement>(null)
   const saved = useConductorLayoutStore((s) =>
     workflowId ? s.layouts[workflowId] : undefined,
@@ -98,10 +104,30 @@ function FlowCanvasInner({
   // Auto-fit follows container resizes until the user pans / zooms.
   const autoFit = useRef(true)
   const [mode, setMode] = useState<Mode>('fit')
+  // fitView, except a graph clamped at the zoom floor shows its start
+  // (left edge) instead of a cropped middle.
+  const fitRef = useRef((_duration?: number) => {})
+  fitRef.current = (duration = 0) => {
+    const el = hostRef.current
+    const all = getNodes()
+    if (!el || all.length === 0) return
+    const b = getNodesBounds(all)
+    const vp = getViewportForBounds(
+      b,
+      el.clientWidth,
+      el.clientHeight,
+      preview ? PREVIEW_MIN_ZOOM : FIT.minZoom,
+      FIT.maxZoom,
+      FIT.padding,
+    )
+    if (b.width * vp.zoom > el.clientWidth - 2 * PAD_X)
+      vp.x = PAD_X - b.x * vp.zoom
+    void setViewport(vp, { duration })
+  }
   const refit = (duration = 0) => {
     autoFit.current = true
     setMode('fit')
-    void fitView({ ...FIT, duration })
+    fitRef.current(duration)
   }
   useEffect(() => {
     const el = hostRef.current
@@ -110,7 +136,7 @@ function FlowCanvasInner({
     const ro = new ResizeObserver(() => {
       clearTimeout(t)
       t = setTimeout(() => {
-        if (autoFit.current) void fitView(FIT)
+        if (autoFit.current) fitRef.current()
       }, 60)
     })
     ro.observe(el)
@@ -118,7 +144,7 @@ function FlowCanvasInner({
       ro.disconnect()
       clearTimeout(t)
     }
-  }, [fitView])
+  }, [])
 
   const resetSeen = useRef(resetKey)
   useEffect(() => {
@@ -129,8 +155,8 @@ function FlowCanvasInner({
     )
     autoFit.current = true
     setMode('fit')
-    requestAnimationFrame(() => void fitView({ ...FIT, duration: 200 }))
-  }, [resetKey, seed, setNodes, fitView])
+    requestAnimationFrame(() => fitRef.current(200))
+  }, [resetKey, seed, setNodes])
 
   const initialised = useNodesInitialized()
   const focused = useRef(false)
@@ -141,7 +167,7 @@ function FlowCanvasInner({
         focused.current = false
         autoFit.current = true
         setMode('fit')
-        void fitView({ ...FIT, duration: 200 })
+        fitRef.current(200)
       }
       return
     }
@@ -154,7 +180,7 @@ function FlowCanvasInner({
       zoom: 1,
       duration: 250,
     })
-  }, [focusNodeId, initialised, getNode, setCenter, fitView])
+  }, [focusNodeId, initialised, getNode, setCenter])
 
   const [minimap, setMinimap] = useState(true)
   const manual = () => {
@@ -170,6 +196,7 @@ function FlowCanvasInner({
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
+        deleteKeyCode={null}
         nodesConnectable={false}
         nodesDraggable={!locked && !preview}
         nodesFocusable={false}
@@ -180,8 +207,11 @@ function FlowCanvasInner({
         zoomOnDoubleClick={!preview}
         preventScrolling={!preview}
         fitView
-        fitViewOptions={FIT}
-        minZoom={FIT.minZoom}
+        fitViewOptions={{
+          ...FIT,
+          minZoom: preview ? PREVIEW_MIN_ZOOM : FIT.minZoom,
+        }}
+        minZoom={PREVIEW_MIN_ZOOM}
         maxZoom={2}
         snapToGrid
         snapGrid={[8, 8]}
@@ -196,10 +226,15 @@ function FlowCanvasInner({
         }
         onNodeDragStop={(_, __, dragged) => {
           if (!workflowId) return
+          const current = new Map(getNodes().map((n) => [n.id, n.position]))
+          for (const n of dragged) current.set(n.id, n.position)
+          // Only moved nodes persist; the rest keep following the seed.
           const positions = Object.fromEntries(
-            getNodes().map((n) => [n.id, n.position]),
+            [...current].filter(
+              ([id, p]) =>
+                !(id in seed) || seed[id].x !== p.x || seed[id].y !== p.y,
+            ),
           )
-          for (const n of dragged) positions[n.id] = n.position
           savePositions(workflowId, positions)
         }}
       >
@@ -209,6 +244,7 @@ function FlowCanvasInner({
           <>
             <FlowControls
               locked={locked}
+              lockDisabled={!workflowId}
               onToggleLock={() => workflowId && setLocked(workflowId, !locked)}
               minimap={minimap}
               onToggleMinimap={() => setMinimap((m) => !m)}
@@ -220,7 +256,9 @@ function FlowCanvasInner({
               <MiniMap
                 ariaLabel="Mission flow minimap"
                 style={{ width: 176, height: 104 }}
-                nodeColor={(n: FlowNode) => nodeColor(n.data.node.type)}
+                nodeColor={(n: FlowNode) =>
+                  `color-mix(in oklab, ${nodeColor(n.data.node.type)} var(--mm-mix, 100%), var(--theme-text))`
+                }
                 nodeBorderRadius={2}
                 pannable
                 zoomable

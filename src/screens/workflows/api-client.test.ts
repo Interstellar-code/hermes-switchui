@@ -5,6 +5,7 @@ import {
   chatWorkflowWizard,
   getWorkflowFeatures,
   listRunEvents,
+  listRunEventsPaged,
 } from './api-client'
 
 function createEventStream(events: Array<string>): ReadableStream<Uint8Array> {
@@ -179,6 +180,32 @@ describe('cancelWorkflowRun / listRunEvents / getWorkflowFeatures', () => {
       '/api/workflow-runs/r1/events?limit=5&node_run_id=n1&after=c',
     )
     expect(await listRunEvents('r1')).toBeNull()
+  })
+
+  it('listRunEventsPaged pages with after=cursor until a short page or the cap', async () => {
+    const page = (n: number, cursor: number) =>
+      new Response(
+        JSON.stringify({
+          events: Array.from({ length: n }, () => ({})),
+          cursor,
+        }),
+      )
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(page(2, 2))
+      .mockResolvedValueOnce(page(1, 3))
+    vi.stubGlobal('fetch', fetchSpy)
+    const r = await listRunEventsPaged('r1', { limit: 2 })
+    expect(r).toMatchObject({ complete: true, cursor: 3 })
+    expect(r?.events).toHaveLength(3)
+    expect(fetchSpy.mock.calls.map((c) => c[0])).toEqual([
+      '/api/workflow-runs/r1/events?limit=2&after=0',
+      '/api/workflow-runs/r1/events?limit=2&after=2',
+    ])
+    fetchSpy.mockReset().mockImplementation(() => Promise.resolve(page(2, 9)))
+    const capped = await listRunEventsPaged('r1', { limit: 2 }, 2)
+    expect(capped).toMatchObject({ complete: false })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
   })
 
   it('getWorkflowFeatures never throws', async () => {

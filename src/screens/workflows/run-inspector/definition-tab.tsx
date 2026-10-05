@@ -38,8 +38,15 @@ export function DefinitionTab({ ctx }: { ctx: InspectorCtx }) {
   )
   const lines = useMemo(() => yaml.split('\n'), [yaml])
   const hlRef = useRef<HTMLSpanElement>(null)
+  const yamlRef = useRef<HTMLDivElement>(null)
+  // Scroll only the YAML box; scrollIntoView would also scroll the drawer/page.
   useEffect(() => {
-    hlRef.current?.scrollIntoView({ block: 'center' })
+    const box = yamlRef.current
+    const hl = hlRef.current
+    if (!box || !hl) return
+    const b = box.getBoundingClientRect()
+    const h = hl.getBoundingClientRect()
+    box.scrollTop += h.top - b.top - (box.clientHeight - h.height) / 2
   }, [range?.start, yaml])
 
   if ((pinFeature && pinnedQ.isLoading) || currentQ.isLoading)
@@ -52,6 +59,7 @@ export function DefinitionTab({ ctx }: { ctx: InspectorCtx }) {
     )
 
   const isPinned = pinned?.pinned === true
+  const pinError = pinFeature && pinnedQ.isError
   const checksum = pinned?.checksum ?? current?.checksum ?? null
   const version = pinned?.version ?? current?.version ?? null
   const updated = current?.updated_at
@@ -81,7 +89,19 @@ export function DefinitionTab({ ctx }: { ctx: InspectorCtx }) {
         <span>read-only</span>
       </div>
       <div className="wfri-note wfri-note--banner" role="note">
-        {isPinned ? (
+        {pinError ? (
+          <>
+            Pinned definition unavailable — showing current.{' '}
+            <button
+              type="button"
+              className="wfri-btn"
+              disabled={pinnedQ.isFetching}
+              onClick={() => void pinnedQ.refetch()}
+            >
+              RETRY
+            </button>
+          </>
+        ) : isPinned ? (
           <>
             Definition as run · checksum {checksum?.slice(0, 12)}.
             {changed ? ' The workflow has changed since this run.' : ''}
@@ -97,6 +117,7 @@ export function DefinitionTab({ ctx }: { ctx: InspectorCtx }) {
         )}
       </div>
       <div
+        ref={yamlRef}
         className="wfri-yaml"
         role="region"
         aria-label="Workflow definition YAML"

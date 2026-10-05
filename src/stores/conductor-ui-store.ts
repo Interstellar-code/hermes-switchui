@@ -28,6 +28,11 @@ type ConductorUIActions = {
   setFilterTab: (tab: FilterTab) => void
   setSelectedRunId: (id: string | null) => void
   setDrawerRunId: (id: string | null) => void
+  /** Open (or switch) the inspector with tab / expanded row in one update. */
+  openInspector: (
+    runId: string,
+    opts?: { tab?: InspectTab; expandedNodeId?: string | null },
+  ) => void
   setInspectTab: (tab: InspectTab) => void
   setExpandedNodeId: (id: string | null) => void
 }
@@ -47,7 +52,8 @@ export const useConductorUIStore = create<
   setLaneScale: (laneScale) => set({ laneScale }),
   setFilterTab: (filterTab) => set({ filterTab }),
   setSelectedRunId: (selectedRunId) => set({ selectedRunId }),
-  // Opening (or switching run) starts clean: Overview, nothing expanded.
+  // Same run: no-op. Otherwise the expanded row clears; the tab resets to
+  // Overview only when opening from closed (switching run keeps the tab).
   setDrawerRunId: (drawerRunId) =>
     set((s) =>
       drawerRunId === s.drawerRunId
@@ -60,6 +66,22 @@ export const useConductorUIStore = create<
               : {}),
           },
     ),
+  // Given opts win; whatever is not given follows setDrawerRunId's rules.
+  openInspector: (drawerRunId, opts = {}) =>
+    set((s) => {
+      const same = drawerRunId === s.drawerRunId
+      return {
+        drawerRunId,
+        inspectTab:
+          opts.tab ?? (s.drawerRunId == null ? 'overview' : s.inspectTab),
+        expandedNodeId:
+          opts.expandedNodeId !== undefined
+            ? opts.expandedNodeId
+            : same
+              ? s.expandedNodeId
+              : null,
+      }
+    }),
   setInspectTab: (inspectTab) => set({ inspectTab }),
   setExpandedNodeId: (expandedNodeId) => set({ expandedNodeId }),
 }))

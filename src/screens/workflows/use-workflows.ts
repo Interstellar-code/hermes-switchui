@@ -11,6 +11,7 @@ import {
   getWorkflowRun,
   launchWorkflowRun,
   listRunEvents,
+  listRunEventsPaged,
   listWorkflowDefinitions,
   listWorkflowRuns,
   resetWorkflowDefinitionToFactory,
@@ -19,6 +20,7 @@ import {
 import type {
   ApproveWorkflowInput,
   LaunchWorkflowInput,
+  RunEventsPage,
   RunEventsQuery,
   UpsertWorkflowDefinitionInput,
   WorkflowDefinitionRow,
@@ -107,11 +109,14 @@ export function useWorkflowRuns(workflowId: string | null) {
 export function useRunEvents(
   runId: string | null,
   q: RunEventsQuery = {},
-  opts: { enabled?: boolean } = {},
+  /** pageAll: page forward from seq 0 (needs `events_query`). */
+  opts: { enabled?: boolean; pageAll?: boolean } = {},
 ) {
+  const pageAll = opts.pageAll ?? false
   return useQuery({
-    queryKey: ['workflow-run-events', runId, q],
-    queryFn: () => listRunEvents(runId!, q),
+    queryKey: ['workflow-run-events', runId, q, pageAll],
+    queryFn: (): Promise<(RunEventsPage & { complete?: boolean }) | null> =>
+      pageAll ? listRunEventsPaged(runId!, q) : listRunEvents(runId!, q),
     enabled: !!runId && (opts.enabled ?? true),
     staleTime: 10_000,
   })

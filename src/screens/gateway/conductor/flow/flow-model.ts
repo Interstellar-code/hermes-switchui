@@ -86,7 +86,7 @@ export function statusText(
   }
 }
 
-/** Saved positions win for known ids; unknown saved ids drop; new ids get the seed. */
+/** Saved positions win for known ids (finite x/y only); unknown saved ids drop; new ids get the seed. */
 export function mergePositions(
   seed: Record<string, Point>,
   saved: Record<string, Point> | undefined,
@@ -94,7 +94,13 @@ export function mergePositions(
 ): Record<string, Point> {
   const out: Record<string, Point> = {}
   for (const id of ids) {
-    const p = saved?.[id] ?? (id in seed ? seed[id] : null)
+    const s = saved?.[id]
+    const p =
+      s && Number.isFinite(s.x) && Number.isFinite(s.y)
+        ? s
+        : id in seed
+          ? seed[id]
+          : null
     if (p) out[id] = p
   }
   return out
@@ -148,6 +154,7 @@ export function toFlow(
       width: NODE_W,
       height: NODE_H,
       connectable: false,
+      deletable: false,
       data: {
         node: n,
         upstreamFailed: blocked.has(n.id) && n.status !== 'failed',

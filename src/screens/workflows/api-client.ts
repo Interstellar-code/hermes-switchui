@@ -272,6 +272,29 @@ export async function listRunEvents(
   return (await res.json()) as RunEventsPage
 }
 
+/**
+ * Pages forward with `after` (only with the `events_query` feature) until a
+ * short page or `maxPages`. `complete` = false means the cap was hit.
+ */
+export async function listRunEventsPaged(
+  runId: string,
+  q: RunEventsQuery = {},
+  maxPages = 5,
+): Promise<(RunEventsPage & { complete: boolean }) | null> {
+  const limit = q.limit ?? 1000
+  const events: Array<WorkflowEventRow> = []
+  let after = q.after ?? '0'
+  for (let i = 0; i < maxPages; i++) {
+    const page = await listRunEvents(runId, { ...q, limit, after })
+    if (!page) return null
+    events.push(...page.events)
+    if (page.events.length < limit || page.cursor == null)
+      return { events, cursor: page.cursor ?? null, complete: true }
+    after = String(page.cursor)
+  }
+  return { events, cursor: after, complete: false }
+}
+
 export interface WorkflowFeatures {
   features: Array<string>
   schedulerAlive: boolean

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { nodeColor } from '../node-colors'
 import { finalReport, latestOutput } from './events-model'
 import { nodeTableRows } from './inspector-model'
+import type { CSSProperties } from 'react'
 import type { InspectorCtx } from './inspector-model'
 import { Markdown } from '@/components/prompt-kit/markdown'
 
@@ -103,7 +104,7 @@ export function OutputTab({ ctx }: { ctx: InspectorCtx }) {
                   </svg>
                   <i
                     className="wfri-dot"
-                    style={{ background: nodeColor(r.type) }}
+                    style={{ '--node-c': nodeColor(r.type) } as CSSProperties}
                   />
                   {r.id}
                   <span className="m">{suffix}</span>

@@ -2,6 +2,8 @@ import { Panel, useReactFlow, useStore } from '@xyflow/react'
 
 interface FlowControlsProps {
   locked: boolean
+  /** No workflow id = nothing to persist the lock to. */
+  lockDisabled?: boolean
   onToggleLock: () => void
   minimap: boolean
   onToggleMinimap: () => void
@@ -28,6 +30,7 @@ const icon = (d: string) => (
 
 export function FlowControls({
   locked,
+  lockDisabled = false,
   onToggleLock,
   minimap,
   onToggleMinimap,
@@ -75,6 +78,7 @@ export function FlowControls({
           type="button"
           aria-label="Lock node positions"
           aria-pressed={locked}
+          disabled={lockDisabled}
           onClick={onToggleLock}
         >
           {icon(

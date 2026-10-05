@@ -11,6 +11,7 @@ import {
   nodeTableRows,
   summaryCounts,
 } from './inspector-model'
+import type { CSSProperties } from 'react'
 import type { InspectorCtx, NodeTableRow } from './inspector-model'
 import type { NodeRunRow, WorkflowArtifactRef } from '../api-client'
 import { compactTokens } from '@/lib/format-usage'
@@ -248,10 +249,7 @@ export function NodeRunsTab({
           : 'none'
     return {
       tokens,
-      model:
-        r.status === 'skipped' && r.skipReason
-          ? r.skipReason
-          : (r.model ?? (LLM_TYPES.has(r.type) ? '—' : 'n/a')),
+      model: r.model ?? (LLM_TYPES.has(r.type) ? '—' : 'n/a'),
     }
   }
 
@@ -275,7 +273,10 @@ export function NodeRunsTab({
         <div className="wfri-legend" aria-label="Node type legend">
           {LEGEND.map(([type, label]) => (
             <span key={type}>
-              <i className="wfri-dot" style={{ background: nodeColor(type) }} />
+              <i
+                className="wfri-dot"
+                style={{ '--node-c': nodeColor(type) } as CSSProperties}
+              />
               {label}
             </span>
           ))}
@@ -338,7 +339,9 @@ export function NodeRunsTab({
                         )}
                         <i
                           className="wfri-dot"
-                          style={{ background: nodeColor(r.type) }}
+                          style={
+                            { '--node-c': nodeColor(r.type) } as CSSProperties
+                          }
                         />
                         {r.id} <span className="wfri-ty">{r.type}</span>
                         {isGroup && r.nodeRun && (
@@ -360,6 +363,11 @@ export function NodeRunsTab({
                           </button>
                         )}
                       </span>
+                      {r.status === 'skipped' && r.skipReason && (
+                        <span className="wfri-skr" title={r.skipReason}>
+                          {r.skipReason}
+                        </span>
+                      )}
                     </td>
                     <td>{r.stage}</td>
                     <td className={`t-${r.tone}`}>{r.status}</td>
@@ -389,7 +397,6 @@ export function NodeRunsTab({
                           ? 'na wfri-model'
                           : 'wfri-model'
                       }
-                      title={r.skipReason ?? undefined}
                     >
                       {c.model}
                     </td>
@@ -412,7 +419,11 @@ export function NodeRunsTab({
                           <span className="wfri-nm wfri-nm--child">
                             <i
                               className="wfri-dot"
-                              style={{ background: nodeColor(k.node_type) }}
+                              style={
+                                {
+                                  '--node-c': nodeColor(k.node_type),
+                                } as CSSProperties
+                              }
                             />
                             {k.dag_node_id}{' '}
                             <span className="wfri-ty">{k.node_type}</span>

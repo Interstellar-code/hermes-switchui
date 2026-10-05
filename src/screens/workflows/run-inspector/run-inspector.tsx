@@ -66,7 +66,12 @@ export function RunInspector({
   const runQ = useWorkflowRun(runId)
   const parsedQ = useWorkflowParsed(runQ.data?.run.workflow_id ?? null)
   const featuresQ = useWorkflowFeatures()
-  const eventsQ = useRunEvents(runId, { limit: 1000 })
+  const pageAll = featuresQ.data?.features.includes('events_query') ?? false
+  const eventsQ = useRunEvents(
+    runId,
+    { limit: 1000 },
+    { pageAll, enabled: !featuresQ.isLoading },
+  )
   const own = useWorkflowEvents(events ? null : runId)
   const live = events ?? own.events
   const streamStatus = events ? 'open' : own.status
@@ -190,7 +195,15 @@ export function RunInspector({
           <EventsTab
             ctx={ctx}
             items={eventItems}
-            truncated={(eventsQ.data?.events.length ?? 0) >= 1000}
+            historyNote={
+              pageAll
+                ? eventsQ.data?.complete === false
+                  ? `showing first ${eventsQ.data.events.length} events`
+                  : null
+                : (eventsQ.data?.events.length ?? 0) >= 1000
+                  ? 'showing newest 1000 events · older events may be missing'
+                  : 'backend cannot page history · a gap may exist'
+            }
             streamStatus={streamStatus}
             nodeFilter={eventsNode}
             onNodeFilter={setEventsNode}

@@ -111,6 +111,11 @@ describe('mergePositions', () => {
       a: { x: 0, y: 0 },
     })
   })
+  it('falls back to the seed for non-finite saved x/y', () => {
+    const seed = { a: { x: 0, y: 0 }, b: { x: 10, y: 0 } }
+    const saved = { a: { x: NaN, y: 5 }, b: { x: 3, y: null as never } }
+    expect(mergePositions(seed, saved, ['a', 'b'])).toEqual(seed)
+  })
 })
 
 describe('toFlow', () => {

@@ -3,6 +3,7 @@ import { nodeColor } from '../node-colors'
 import { DEFAULT_CHIPS, EVENT_CHIPS, filterEvents } from './events-model'
 import { TERMINAL, fmtTime } from './inspector-model'
 import type { EventChip, EventItem } from './events-model'
+import type { CSSProperties } from 'react'
 import type { InspectorCtx } from './inspector-model'
 
 function kindClass(type: string) {
@@ -17,14 +18,15 @@ function kindClass(type: string) {
 export function EventsTab({
   ctx,
   items,
-  truncated,
+  historyNote,
   streamStatus,
   nodeFilter,
   onNodeFilter,
 }: {
   ctx: InspectorCtx
   items: Array<EventItem>
-  truncated: boolean
+  /** Footer caveat about DB history coverage; null = complete. */
+  historyNote: string | null
   streamStatus: string
   nodeFilter: string | null
   onNodeFilter: (id: string | null) => void
@@ -173,11 +175,13 @@ export function EventsTab({
                 <>
                   <i
                     className="wfri-dot"
-                    style={{
-                      background: nodeColor(
-                        nodeTypes.get(e.nodeId) ?? 'prompt',
-                      ),
-                    }}
+                    style={
+                      {
+                        '--node-c': nodeColor(
+                          nodeTypes.get(e.nodeId) ?? 'prompt',
+                        ),
+                      } as CSSProperties
+                    }
                   />
                   {e.nodeId}
                 </>
@@ -192,7 +196,7 @@ export function EventsTab({
       <div className="wfri-ft">
         <span>
           newest at bottom · {follow ? 'following' : 'paused'}
-          {truncated ? ' · showing first 1000 events' : ''}
+          {historyNote ? ` · ${historyNote}` : ''}
         </span>
         <span className="wfri-grow" />
         <span>

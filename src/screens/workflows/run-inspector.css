@@ -507,6 +507,12 @@
   height: 7px;
   border-radius: 50%;
   flex: none;
+  background: var(--node-c);
+}
+
+/* Light themes: neon NODE_COLOR hexes wash out on pale cards (as conductor-flow.css). */
+[data-theme$='-light'] .wfri-dot {
+  background: color-mix(in oklab, var(--node-c) 55%, var(--theme-text));
 }
 
 .wfri-tablewrap {
@@ -568,6 +574,17 @@
 }
 
 .wfri-ty {
+  color: var(--ri-faint);
+  font-size: 9px;
+}
+
+.wfri-skr {
+  display: block;
+  padding-left: 33px;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--ri-faint);
   font-size: 9px;
 }
