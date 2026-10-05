@@ -20,6 +20,7 @@ import { ChatNoticeBanners } from './components/chat-notice-banners'
 import { StreamingTextContext } from './components/streaming-text-context'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
+import { BranchMessageDialog } from './components/branch-message-dialog'
 import { InlineClarifyCard } from './components/inline-clarify-card'
 import { CommandOutputList } from './components/command-output-card'
 import { GoalProgressList } from './components/goal-progress-card'
@@ -105,8 +106,10 @@ import { cn } from '@/lib/utils'
 import { FileExplorerSidebar } from '@/components/file-explorer'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { useTerminalPanelStore } from '@/stores/terminal-panel-store'
+import { useSessionModelStore } from '@/stores/session-model-store'
 import { useEnabledUserCommands } from '@/lib/commands-api'
 import { useHermesCommandCatalog } from '@/lib/hermes-commands-api'
+import { toast } from '@/components/ui/toast'
 import { MobileSessionsPanel } from '@/components/mobile-sessions-panel'
 import { ContextAlertModal } from '@/components/usage-meter/context-alert-modal'
 import { ErrorToastContainer } from '@/components/error-toast'
@@ -711,6 +714,7 @@ export function ChatScreen({
     thinkingLevelRef,
     handleThinkingLevelChange,
     currentModel,
+    availableModelIds,
     modelsQuery,
     currentModelQuery,
   } = useThinkingLevel({ activeFriendlyId, modelSessionKey })
@@ -1424,6 +1428,80 @@ export function ChatScreen({
     },
     [realtimeMessages],
   )
+  // Non-destructive fork anchored at a message: the gateway copies the
+  // transcript up to and including it. `end_source` (and the optional title
+  // and model pick) come from the BranchMessageDialog confirm step — the
+  // popover IS the confirmation, so this handler only gates and opens it.
+  const [branchDialogMessage, setBranchDialogMessage] =
+    useState<ChatMessage | null>(null)
+  const handleBranchMessage = useCallback((msg: ChatMessage) => {
+    const rawId = typeof msg.id === 'string' ? msg.id : ''
+    if (!rawId.startsWith('msg-')) {
+      toast('Cannot branch — message is not synced to the server yet', {
+        type: 'info',
+      })
+      return
+    }
+    setBranchDialogMessage(msg)
+  }, [])
+  const handleConfirmBranch = useCallback(
+    (opts: { title?: string; endSource: boolean; model?: string }) => {
+      const msg = branchDialogMessage
+      setBranchDialogMessage(null)
+      if (!msg) return
+      const rawId = typeof msg.id === 'string' ? msg.id : ''
+      const serverMessageId = rawId.startsWith('msg-') ? rawId.slice(4) : ''
+      const sessionKey =
+        forcedSessionKey ||
+        resolvedSessionKey ||
+        activeSessionKey ||
+        activeFriendlyId
+      if (!serverMessageId || !sessionKey) {
+        toast('Cannot branch — message is not synced to the server yet', {
+          type: 'info',
+        })
+        return
+      }
+      void forkSession(sessionKey, {
+        atMessageId: serverMessageId,
+        endSource: opts.endSource,
+        ...(opts.title ? { title: opts.title } : {}),
+      })
+        .then((newSessionKey) => {
+          // Same per-session override the composer picker writes; the forked
+          // session's next send carries it as the `model` body field.
+          if (opts.model) {
+            useSessionModelStore
+              .getState()
+              .setModel(newSessionKey, opts.model)
+          }
+          toast(
+            opts.endSource
+              ? 'Branched to new session'
+              : 'Branched to new session — original stays open',
+            { type: 'success' },
+          )
+          navigate({
+            to: '/chat/$sessionKey',
+            params: { sessionKey: newSessionKey },
+          })
+        })
+        .catch((error: unknown) => {
+          toast(error instanceof Error ? error.message : 'Branch failed', {
+            type: 'error',
+          })
+        })
+    },
+    [
+      activeFriendlyId,
+      activeSessionKey,
+      branchDialogMessage,
+      forcedSessionKey,
+      forkSession,
+      navigate,
+      resolvedSessionKey,
+    ],
+  )
   const handleEmptyStateSuggestion = useCallback((prompt: string) => {
     composerHandleRef.current?.setValue(prompt + ' ')
   }, [])
@@ -1640,6 +1718,11 @@ export function ChatScreen({
                 messages={finalDisplayMessages}
                 onRetryMessage={handleRetryMessage}
                 onReplyMessage={handleReplyMessage}
+                onBranchMessage={
+                  !isPortableMode && !derivedStreamingInfo.isStreaming
+                    ? handleBranchMessage
+                    : undefined
+                }
                 onRefresh={handleRefreshHistory}
                 loading={historyLoading}
                 empty={historyEmpty}
@@ -1776,6 +1859,20 @@ export function ChatScreen({
           }}
         />
       )}
+
+      {branchDialogMessage ? (
+        <BranchMessageDialog
+          message={branchDialogMessage}
+          messageCount={stableMessageSeq(
+            realtimeMessages,
+            branchDialogMessage,
+          )}
+          defaultModel={currentModel || undefined}
+          modelOptions={availableModelIds}
+          onConfirm={handleConfirmBranch}
+          onClose={() => setBranchDialogMessage(null)}
+        />
+      ) : null}
 
       <ContextAlertModal
         open={alertOpen}
