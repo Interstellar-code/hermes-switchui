@@ -1,57 +1,60 @@
 import { AnimatePresence, motion } from 'motion/react'
-import { HugeiconsIcon } from '@hugeicons/react'
-import { ArrowDown01Icon } from '@hugeicons/core-free-icons'
-import { Button } from '@/components/ui/button'
+import { ArrowDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-const MotionButton = motion.create(Button)
-
-type ScrollToBottomButtonProps = {
+export type ScrollToBottomButtonProps = {
   className?: string
   isVisible: boolean
   unreadCount: number
   onClick: () => void
+  label?: string
 }
 
-function ScrollToBottomButton({
+export function ScrollToBottomButton({
   className,
   isVisible,
   unreadCount,
   onClick,
+  label = 'Latest',
 }: ScrollToBottomButtonProps) {
   return (
     <AnimatePresence>
       {isVisible ? (
-        <MotionButton
+        <motion.button
           type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Scroll to bottom"
+          aria-label={
+            unreadCount > 0
+              ? `Scroll to latest (${unreadCount} new)`
+              : 'Scroll to latest'
+          }
+          data-testid="scroll-to-bottom-pill"
+          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 8, scale: 0.95 }}
+          transition={{ duration: 0.18, ease: 'easeOut' }}
+          onClick={onClick}
           className={cn(
-            'pointer-events-auto relative rounded-full text-white shadow-lg transition-colors hover:opacity-90',
+            'pointer-events-auto inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-mono font-medium shadow-md transition-all cursor-pointer select-none',
+            'border border-[var(--theme-border)] bg-[var(--theme-card)] text-[var(--theme-text)] hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)] backdrop-blur-md',
             className,
           )}
           style={{
-            background: 'var(--theme-accent)',
             boxShadow:
-              '0 4px 12px color-mix(in srgb, var(--theme-accent) 35%, transparent)',
+              '0 4px 14px color-mix(in srgb, var(--theme-accent, #10b981) 18%, rgba(0,0,0,0.12))',
           }}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 10 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-          onClick={onClick}
         >
-          <HugeiconsIcon icon={ArrowDown01Icon} size={20} strokeWidth={1.5} />
-          {unreadCount > 0 ? (
-            <span className="absolute -right-1 -top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-primary-900 px-1.5 text-xs font-medium tabular-nums text-primary-50">
-              {unreadCount > 99 ? '99+' : unreadCount}
+          <ArrowDown className="size-3.5 shrink-0 text-[var(--theme-accent)]" />
+          <span>{label}</span>
+          {unreadCount > 0 && (
+            <span
+              data-testid="scroll-to-bottom-unread"
+              className="inline-flex items-center justify-center rounded-full bg-[var(--theme-accent)] text-black dark:text-black font-semibold text-[10px] px-1.5 py-0.2 min-w-4 h-4 ml-0.5 tabular-nums"
+            >
+              {unreadCount > 99 ? '99+' : `${unreadCount} new`}
             </span>
-          ) : null}
-        </MotionButton>
+          )}
+        </motion.button>
       ) : null}
     </AnimatePresence>
   )
 }
-
-export { ScrollToBottomButton }

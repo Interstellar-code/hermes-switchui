@@ -50,6 +50,11 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import { formatOutgoingMessage } from '../quote-markers'
 import { ContextBar } from './context-bar'
+import { ComposerAttachmentTray } from './composer-attachment-tray'
+import {
+  ComposerMobileActionsMenu,
+  type ComposerMobileActionItem,
+} from './composer-mobile-actions'
 import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENT_FILE_SIZE,
@@ -617,6 +622,87 @@ function ChatComposerShadcn({
     value,
   ])
 
+  // Mobile collapsed action menu items (<sm viewport)
+  const mobileActions = React.useMemo<Array<ComposerMobileActionItem>>(() => {
+    const list: Array<ComposerMobileActionItem> = [
+      {
+        id: 'attach',
+        label: 'Attach file',
+        description: 'Upload files or images',
+        icon: Paperclip,
+        onClick: () => fileInputRef.current?.click(),
+        disabled,
+      },
+    ]
+
+    if (voiceInput.isSupported) {
+      list.push({
+        id: 'voice',
+        label: voiceInput.isListening ? 'Stop voice' : 'Voice input',
+        description: voiceInput.isListening ? 'Listening…' : 'Dictate message',
+        icon: Mic,
+        onClick: toggleVoice,
+        disabled,
+        active: voiceInput.isListening,
+      })
+    }
+
+    if (onToggleSystemMessages) {
+      list.push({
+        id: 'system-messages',
+        label: systemMessagesHidden
+          ? 'Show system messages'
+          : 'Hide system messages',
+        description: 'Toggle system event visibility',
+        icon: systemMessagesHidden ? EyeOff : Eye,
+        onClick: onToggleSystemMessages,
+        active: !systemMessagesHidden,
+      })
+    }
+
+    if (onCycleToolDisplayMode) {
+      list.push({
+        id: 'tools-mode',
+        label:
+          toolDisplayMode === 'expanded'
+            ? 'Collapse tools'
+            : toolDisplayMode === 'collapsed'
+              ? 'Hide tools'
+              : 'Expand tools',
+        description: `Currently: ${toolDisplayMode}`,
+        icon:
+          toolDisplayMode === 'expanded'
+            ? ListTree
+            : toolDisplayMode === 'collapsed'
+              ? ListCollapse
+              : Wrench,
+        onClick: onCycleToolDisplayMode,
+      })
+    }
+
+    if (onNewSession) {
+      list.push({
+        id: 'new-chat',
+        label: 'New chat',
+        description: 'Start a fresh session',
+        icon: SquarePen,
+        onClick: onNewSession,
+      })
+    }
+
+    return list
+  }, [
+    disabled,
+    onCycleToolDisplayMode,
+    onNewSession,
+    onToggleSystemMessages,
+    systemMessagesHidden,
+    toggleVoice,
+    toolDisplayMode,
+    voiceInput.isListening,
+    voiceInput.isSupported,
+  ])
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // While the slash menu is open AND showing something, route arrows / enter
     // to it. The `hasItems` guard matters because the menu also stays "open"
@@ -669,35 +755,10 @@ function ChatComposerShadcn({
         )}
       >
         {/* attachment thumbnails / chips */}
-        {attachments.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 px-1">
-            {attachments.map((att) => (
-              <div
-                key={att.id}
-                className="group/att relative flex items-center gap-2 rounded-lg border border-border bg-card px-2 py-1 text-xs text-card-foreground"
-              >
-                {att.previewUrl ? (
-                  <img
-                    src={att.previewUrl}
-                    alt={att.name}
-                    className="size-8 rounded object-cover"
-                  />
-                ) : (
-                  <Paperclip className="size-3.5 text-muted-foreground" />
-                )}
-                <span className="max-w-40 truncate">{att.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeAttachment(att.id)}
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                  aria-label="Remove attachment"
-                >
-                  <X className="size-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+        <ComposerAttachmentTray
+          attachments={attachments}
+          onRemove={removeAttachment}
+        />
 
         {/* quote chips — one per quoted passage, stacked above the reply chip */}
         {quotes.length > 0 && (
@@ -956,29 +1017,17 @@ function ChatComposerShadcn({
                 accept={ATTACHMENT_ACCEPT}
                 onChange={handleFilePick}
               />
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    disabled={disabled}
-                    onClick={() => fileInputRef.current?.click()}
-                    aria-label="Attach file"
-                  >
-                    <Paperclip className="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Attach file</TooltipContent>
-              </Tooltip>
 
-              <SlashCommandPicker
-                disabled={disabled}
-                onSelect={handleSelectSlashCommand}
-              />
+              {/* Mobile 390 compact action menu: folded under single '+' button on mobile */}
+              <div className="inline-flex sm:hidden">
+                <ComposerMobileActionsMenu
+                  actions={mobileActions}
+                  disabled={disabled}
+                />
+              </div>
 
-              {/* voice (mic) — preserves switchui voice parity */}
-              {voiceInput.isSupported && (
+              {/* Desktop / tablet toolbar controls (sm+) */}
+              <div className="hidden sm:inline-flex items-center gap-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -986,111 +1035,136 @@ function ChatComposerShadcn({
                       variant="ghost"
                       size="icon-sm"
                       disabled={disabled}
-                      onClick={toggleVoice}
-                      aria-label="Voice input"
-                      className={cn(
-                        voiceInput.isListening && 'text-destructive',
-                      )}
+                      onClick={() => fileInputRef.current?.click()}
+                      aria-label="Attach file"
                     >
-                      <Mic className="size-4" />
+                      <Paperclip className="size-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>
-                    {voiceInput.isListening ? 'Listening…' : 'Voice input'}
-                  </TooltipContent>
+                  <TooltipContent>Attach file</TooltipContent>
                 </Tooltip>
-              )}
 
-              {/* system-messages toggle — Eye/EyeOff based on systemMessagesHidden */}
-              {onToggleSystemMessages && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={onToggleSystemMessages}
-                      aria-label={
-                        systemMessagesHidden
-                          ? 'Show system messages'
-                          : 'Hide system messages'
-                      }
-                      aria-pressed={!systemMessagesHidden}
-                      className={cn(!systemMessagesHidden && 'text-primary')}
-                    >
-                      {systemMessagesHidden ? (
-                        <EyeOff className="size-4" />
-                      ) : (
-                        <Eye className="size-4" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {systemMessagesHidden
-                      ? 'Show system messages'
-                      : 'Hide system messages'}
-                  </TooltipContent>
-                </Tooltip>
-              )}
+                {/* voice (mic) — preserves switchui voice parity */}
+                {voiceInput.isSupported && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        disabled={disabled}
+                        onClick={toggleVoice}
+                        aria-label="Voice input"
+                        className={cn(
+                          voiceInput.isListening && 'text-destructive',
+                        )}
+                      >
+                        <Mic className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {voiceInput.isListening ? 'Listening…' : 'Voice input'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
-              {/* tool-display mode cycle: expanded → collapsed → hidden */}
-              {onCycleToolDisplayMode && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={onCycleToolDisplayMode}
-                      aria-label={
-                        toolDisplayMode === 'expanded'
-                          ? 'Tool sections expanded — click to collapse'
-                          : toolDisplayMode === 'collapsed'
-                            ? 'Tool sections collapsed — click to hide'
-                            : 'Tool sections hidden — click to expand'
-                      }
-                      aria-pressed={toolDisplayMode !== 'hidden'}
-                      className={cn(
-                        toolDisplayMode === 'expanded' && 'text-primary',
-                        toolDisplayMode === 'hidden' && 'opacity-40',
-                      )}
-                    >
-                      {toolDisplayMode === 'expanded' ? (
-                        <ListTree className="size-4" />
-                      ) : toolDisplayMode === 'collapsed' ? (
-                        <ListCollapse className="size-4" />
-                      ) : (
-                        <Wrench className="size-4" />
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {toolDisplayMode === 'expanded'
-                      ? 'Tools: expanded'
-                      : toolDisplayMode === 'collapsed'
-                        ? 'Tools: collapsed'
-                        : 'Tools: hidden'}
-                  </TooltipContent>
-                </Tooltip>
-              )}
+                {/* system-messages toggle — Eye/EyeOff based on systemMessagesHidden */}
+                {onToggleSystemMessages && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onToggleSystemMessages}
+                        aria-label={
+                          systemMessagesHidden
+                            ? 'Show system messages'
+                            : 'Hide system messages'
+                        }
+                        aria-pressed={!systemMessagesHidden}
+                        className={cn(!systemMessagesHidden && 'text-primary')}
+                      >
+                        {systemMessagesHidden ? (
+                          <EyeOff className="size-4" />
+                        ) : (
+                          <Eye className="size-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {systemMessagesHidden
+                        ? 'Show system messages'
+                        : 'Hide system messages'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
 
-              {/* new-chat button */}
-              {onNewSession && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={onNewSession}
-                      aria-label="New chat"
-                    >
-                      <SquarePen className="size-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>New chat</TooltipContent>
-                </Tooltip>
-              )}
+                {/* tool-display mode cycle: expanded → collapsed → hidden */}
+                {onCycleToolDisplayMode && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onCycleToolDisplayMode}
+                        aria-label={
+                          toolDisplayMode === 'expanded'
+                            ? 'Tool sections expanded — click to collapse'
+                            : toolDisplayMode === 'collapsed'
+                              ? 'Tool sections collapsed — click to hide'
+                              : 'Tool sections hidden — click to expand'
+                        }
+                        aria-pressed={toolDisplayMode !== 'hidden'}
+                        className={cn(
+                          toolDisplayMode === 'expanded' && 'text-primary',
+                          toolDisplayMode === 'hidden' && 'opacity-40',
+                        )}
+                      >
+                        {toolDisplayMode === 'expanded' ? (
+                          <ListTree className="size-4" />
+                        ) : toolDisplayMode === 'collapsed' ? (
+                          <ListCollapse className="size-4" />
+                        ) : (
+                          <Wrench className="size-4" />
+                        )}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      {toolDisplayMode === 'expanded'
+                        ? 'Tools: expanded'
+                        : toolDisplayMode === 'collapsed'
+                          ? 'Tools: collapsed'
+                          : 'Tools: hidden'}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+
+                {/* new-chat button */}
+                {onNewSession && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={onNewSession}
+                        aria-label="New chat"
+                      >
+                        <SquarePen className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>New chat</TooltipContent>
+                  </Tooltip>
+                )}
+              </div>
+
+              {/* Slash command picker available on all viewports */}
+              <SlashCommandPicker
+                disabled={disabled}
+                onSelect={handleSelectSlashCommand}
+              />
 
               <div className="flex-1" />
 
