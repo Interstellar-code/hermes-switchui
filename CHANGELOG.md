@@ -3,6 +3,32 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.12.0] — 2026-10-06
+
+Conductor v2: a React Flow mission canvas, node panel, run inspector, resume and repeat schedules.
+
+### Added
+
+- **Conductor v2 canvas**: A React Flow mission canvas with draggable nodes (layout saved per workflow), lock, reset, fit and a minimap. Live steps pulse, approval steps turn amber, reduced motion is respected and light themes stay legible. `@xyflow/react` loads lazily (~43 kB gz).
+- **Node Panel**: A docked panel per step with Overview, Output and Events tabs, a live stdout/stderr log for bash and script steps, an approval reply box, and the error plus stderr tail for failed steps. Esc closes it; `?run=&node=` deep links open it.
+- **Run Inspector**: Tabbed inspector (Overview, Node runs, Events with filters, follow and export, Output, Definition) shared with `/workflows`.
+- **Resume**: Failed, cancelled or crashed runs can be resumed; completed steps are kept.
+- **Pinned Definitions & Lineage**: Runs are pinned to the definition they started with and warn "changed since" when it has moved on. Runs show "re-run of", retry #N and a re-runs list.
+- **Repeat Schedules**: Cron schedules from the Run workflow / New mission dialog (needs hermes-switch with the scheduler alive), managed under SCHEDULED.
+- **Top Bar & Rail**: Top bar shows tokens, oldest live run and runs today; the rail gains search and friendly names.
+- **Run Workflow Dialog**: Four-step Run workflow / New mission dialog.
+
+### Fixed
+
+- Workflow cancel sent no JSON content type (415).
+- Live events from gateway/daemon-run workflows now stream.
+- Approve maps plugin errors to generic 404/400/502 responses, and run, node and workflow ids are validated uniformly on the run definition, events, approve and schedules routes.
+
+### Notes
+
+- Needs workflow-engine plugin 0.4.0 (migrations 009-011); older plugins hide the new controls.
+- Approver and actor labels are self-reported (single-user).
+
 ## [2.11.0] — 2026-10-04
 
 Conductor shows tokens, loop iterations and the agents behind each run.
