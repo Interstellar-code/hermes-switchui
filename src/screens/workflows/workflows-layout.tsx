@@ -85,7 +85,11 @@ export function WorkflowsLayout() {
         <main
           className={`wf-editor${activeRunId ? ' wf-editor--with-run' : ''}`}
         >
-          <WorkflowsTopBar templateCount={workflows.length} />
+          <WorkflowsTopBar
+            workflows={workflows}
+            templateCount={workflows.length}
+            onRefresh={() => void refetchWorkflows()}
+          />
           <div className="wf-editor-content">
             {selectedWorkflowId ? (
               <WorkflowEditor
@@ -99,6 +103,7 @@ export function WorkflowsLayout() {
               <WorkflowGrid
                 workflows={filteredWorkflows}
                 onSelect={setSelectedWorkflowId}
+                onOpenLaunchWizard={handleOpenLaunchWizard}
                 loadError={workflowsError?.message ?? null}
                 onRetry={() => void refetchWorkflows()}
               />

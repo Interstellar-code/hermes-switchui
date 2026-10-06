@@ -1,49 +1,33 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NewWorkflowWizard } from './new-workflow-wizard'
+import { nodeColor } from './node-colors'
+import { isWithin7Days } from './workflows-top-bar'
 import type { NodeType, WorkflowSummary } from './types'
 
-const ORIGIN_OPTIONS = [
-  { value: 'all', label: 'All origins' },
-  { value: 'bundled', label: 'Built-in' },
-  { value: 'user', label: 'User' },
-  { value: 'project', label: 'Project' },
-] as const
+export type OriginFilter = 'all' | 'bundled' | 'user' | 'project'
+export type StateFilter = 'any' | 'edited7d' | 'valid' | 'yaml-error'
 
-type OriginFilter = 'all' | 'bundled' | 'user' | 'project'
-type NodeTypeFilter = 'all' | NodeType
-type TaskFilter = 'all' | 'hermes' | 'local'
-
-const NODE_TYPE_OPTIONS: ReadonlyArray<{
-  value: NodeTypeFilter
-  label: string
-}> = [
-  { value: 'all', label: 'All' },
-  { value: 'prompt', label: 'prompt' },
-  { value: 'command', label: 'command' },
-  { value: 'bash', label: 'bash' },
-  { value: 'script', label: 'script' },
-  { value: 'loop', label: 'loop' },
-  { value: 'approval', label: 'approval' },
-  { value: 'router', label: 'router' },
-  { value: 'cancel', label: 'cancel' },
+const DISPLAY_NODE_TYPES: ReadonlyArray<NodeType> = [
+  'prompt',
+  'bash',
+  'script',
+  'command',
+  'loop',
+  'approval',
+  'cancel',
+  'router',
 ]
 
-const TASK_OPTIONS: ReadonlyArray<{
-  value: TaskFilter
-  label: string
-}> = [
-  { value: 'all', label: 'All' },
-  { value: 'hermes', label: 'Hermes tasks' },
-  { value: 'local', label: 'Local only' },
-]
-
-function detectNodeTypes(workflow: WorkflowSummary): Set<NodeType> {
-  const yaml = workflow.yaml
-  const found = new Set<NodeType>()
+function detectNodeTypes(workflow: WorkflowSummary): Set<string> {
+  if (workflow.node_types && workflow.node_types.length > 0) {
+    return new Set(workflow.node_types)
+  }
+  const yaml = workflow.yaml || ''
+  const found = new Set<string>()
   const matcher =
     /^\s+(prompt|bash|command|approval|router|loop|cancel|script):/gm
   for (const match of yaml.matchAll(matcher)) {
-    found.add(match[1] as NodeType)
+    found.add(match[1])
   }
   if (found.size === 0) {
     found.add('prompt')
@@ -51,8 +35,12 @@ function detectNodeTypes(workflow: WorkflowSummary): Set<NodeType> {
   return found
 }
 
-function hasHermesTask(workflow: WorkflowSummary): boolean {
-  return /^\s+hermes_task:/m.test(workflow.yaml)
+function isScheduled(workflow: WorkflowSummary): boolean {
+  return /^\s+(schedule|cron):/m.test(workflow.yaml || '')
+}
+
+function hasInputs(workflow: WorkflowSummary): boolean {
+  return workflow.required_inputs.length + workflow.optional_inputs.length > 0
 }
 
 function slugify(name: string): string {
@@ -70,29 +58,27 @@ export interface WorkflowLibraryProps {
   collapsed: boolean
   onToggleCollapse: () => void
   onFilteredChange?: (workflows: Array<WorkflowSummary>) => void
-  /** B.4: live workflow definitions (adapted from /api/workflow-definitions). */
   workflows: Array<WorkflowSummary>
 }
 
 export function WorkflowLibrary({
   selectedId,
-  onSelectWorkflow: _onSelectWorkflow,
   onClearSelection,
   collapsed,
   onToggleCollapse,
   onFilteredChange,
   workflows,
 }: WorkflowLibraryProps) {
-  const TOTAL = workflows.length
-  const [, setSkeleton] = useState(true)
   const [search, setSearch] = useState('')
-  const deferredSearch = useDeferredValue(search)
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all')
-  const [nodeTypeFilter, setNodeTypeFilter] = useState<NodeTypeFilter>('all')
-  const [taskFilter, setTaskFilter] = useState<TaskFilter>('all')
+  const [nodeTypeFilter, setNodeTypeFilter] = useState<string | null>(null)
+  const [hasApprovalFilter, setHasApprovalFilter] = useState(false)
+  const [scheduledFilter, setScheduledFilter] = useState(false)
+  const [hasInputsFilter, setHasInputsFilter] = useState(false)
   const [showSubgraphs, setShowSubgraphs] = useState(false)
+  const [stateFilter, setStateFilter] = useState<StateFilter>('any')
 
-  // Modal state
+  // Modal for new/imported workflow
   const [modalOpen, setModalOpen] = useState(false)
   const [modalInitialYaml, setModalInitialYaml] = useState<string | undefined>(
     undefined,
@@ -101,80 +87,145 @@ export function WorkflowLibrary({
     undefined,
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
+  // Keyboard shortcut '/' focuses search
   useEffect(() => {
-    const t = setTimeout(() => setSkeleton(false), 280)
-    return () => clearTimeout(t)
+    function handleKeyDown(e: KeyboardEvent) {
+      const activeEl = document.activeElement
+      if (
+        e.key === '/' &&
+        (!activeEl ||
+          !['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName))
+      ) {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const normalizedSearch = deferredSearch.trim().toLowerCase()
-
-  // origin counts (unfiltered)
+  // Origin counts
   const originCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: TOTAL }
+    const counts = { all: workflows.length, bundled: 0, user: 0, project: 0 }
     for (const w of workflows) {
-      counts[w.source] = (counts[w.source] || 0) + 1
+      if (w.source === 'user') counts.user++
+      else if (w.source === 'project') counts.project++
+      else counts.bundled++
     }
     return counts
-  }, [workflows, TOTAL])
+  }, [workflows])
 
+  // Node type counts across all workflows
   const nodeTypeCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: TOTAL }
-    for (const workflow of workflows) {
-      const types = detectNodeTypes(workflow)
-      for (const type of types) {
-        counts[type] = (counts[type] || 0) + 1
+    const counts: Record<string, number> = {}
+    for (const t of DISPLAY_NODE_TYPES) {
+      counts[t] = 0
+    }
+    for (const w of workflows) {
+      const types = detectNodeTypes(w)
+      for (const t of types) {
+        counts[t] = (counts[t] || 0) + 1
       }
     }
     return counts
-  }, [workflows, TOTAL])
+  }, [workflows])
 
-  const taskCounts = useMemo(() => {
-    const counts: Record<TaskFilter, number> = {
-      all: TOTAL,
-      hermes: 0,
-      local: 0,
+  // Shape counts
+  const shapeCounts = useMemo(() => {
+    let approval = 0
+    let cron = 0
+    let inputs = 0
+    let subgraphs = 0
+    for (const w of workflows) {
+      if (w.has_approval) approval++
+      if (isScheduled(w)) cron++
+      if (hasInputs(w)) inputs++
+      if (w.kind === 'subgraph') subgraphs++
     }
-    for (const workflow of workflows) {
-      if (hasHermesTask(workflow)) counts.hermes += 1
-      else counts.local += 1
-    }
-    return counts
-  }, [workflows, TOTAL])
+    return { approval, cron, inputs, subgraphs }
+  }, [workflows])
 
+  // State counts
+  const stateCounts = useMemo(() => {
+    let edited7d = 0
+    for (const w of workflows) {
+      if (isWithin7Days(w.updated_at ?? w.created_at)) {
+        edited7d++
+      }
+    }
+    return {
+      any: workflows.length,
+      edited7d,
+      valid: workflows.length,
+      yamlError: 0,
+    }
+  }, [workflows])
+
+  // Filtered workflows computation
   const filtered = useMemo<Array<WorkflowSummary>>(() => {
+    const q = search.trim().toLowerCase()
     return workflows.filter((w) => {
-      // Subgraphs are infrastructure, not user-launchable workflows. Treat the
-      // "Show subgraphs" toggle as the sole gate for them — bypass the rest of
-      // the per-source / node-type / task filters so the toggle actually
-      // surfaces every subgraph regardless of the other rail selections.
+      // Subgraphs handling
       if (w.kind === 'subgraph') {
         if (!showSubgraphs) return false
-        if (normalizedSearch) {
-          if (
-            !w.name.toLowerCase().includes(normalizedSearch) &&
-            !w.description.toLowerCase().includes(normalizedSearch)
-          )
-            return false
+        if (q) {
+          const matchName = w.name.toLowerCase().includes(q)
+          const matchId = w.id.toLowerCase().includes(q)
+          const matchDesc = w.description.toLowerCase().includes(q)
+          if (!matchName && !matchId && !matchDesc) return false
         }
         return true
       }
+
+      // Origin filter
       if (originFilter !== 'all' && w.source !== originFilter) return false
-      if (nodeTypeFilter !== 'all' && !detectNodeTypes(w).has(nodeTypeFilter)) {
+
+      // Node type filter
+      if (nodeTypeFilter && !detectNodeTypes(w).has(nodeTypeFilter)) {
         return false
       }
-      if (taskFilter === 'hermes' && !hasHermesTask(w)) return false
-      if (taskFilter === 'local' && hasHermesTask(w)) return false
-      if (normalizedSearch) {
-        if (
-          !w.name.toLowerCase().includes(normalizedSearch) &&
-          !w.description.toLowerCase().includes(normalizedSearch)
-        )
-          return false
+
+      // Shape filters
+      if (hasApprovalFilter && !w.has_approval) return false
+      if (scheduledFilter && !isScheduled(w)) return false
+      if (hasInputsFilter && !hasInputs(w)) return false
+
+      // State filter
+      if (
+        stateFilter === 'edited7d' &&
+        !isWithin7Days(w.updated_at ?? w.created_at)
+      ) {
+        return false
       }
+      if (stateFilter === 'yaml-error') {
+        // No yaml errors in current data
+        return false
+      }
+
+      // Search query filter
+      if (q) {
+        const matchName = w.name.toLowerCase().includes(q)
+        const matchId = w.id.toLowerCase().includes(q)
+        const matchDesc = w.description.toLowerCase().includes(q)
+        const matchTags = w.tags.some((t) => t.toLowerCase().includes(q))
+        if (!matchName && !matchId && !matchDesc && !matchTags) return false
+      }
+
       return true
     })
-  }, [workflows, originFilter, nodeTypeFilter, taskFilter, normalizedSearch, showSubgraphs])
+  }, [
+    workflows,
+    search,
+    originFilter,
+    nodeTypeFilter,
+    hasApprovalFilter,
+    scheduledFilter,
+    hasInputsFilter,
+    showSubgraphs,
+    stateFilter,
+  ])
 
   useEffect(() => {
     onFilteredChange?.(filtered)
@@ -182,13 +233,33 @@ export function WorkflowLibrary({
 
   useEffect(() => {
     if (!selectedId) return
-    const selectedStillVisible = filtered.some(
-      (workflow) => workflow.id === selectedId,
-    )
+    const selectedStillVisible = filtered.some((w) => w.id === selectedId)
     if (!selectedStillVisible) {
       onClearSelection?.()
     }
   }, [filtered, onClearSelection, selectedId])
+
+  function handleClearAll() {
+    setSearch('')
+    setOriginFilter('all')
+    setNodeTypeFilter(null)
+    setHasApprovalFilter(false)
+    setScheduledFilter(false)
+    setHasInputsFilter(false)
+    setShowSubgraphs(false)
+    setStateFilter('any')
+    onClearSelection?.()
+  }
+
+  const hasActiveFilters =
+    Boolean(search) ||
+    originFilter !== 'all' ||
+    Boolean(nodeTypeFilter) ||
+    hasApprovalFilter ||
+    scheduledFilter ||
+    hasInputsFilter ||
+    showSubgraphs ||
+    stateFilter !== 'any'
 
   function handleNew() {
     setModalInitialYaml(undefined)
@@ -207,58 +278,331 @@ export function WorkflowLibrary({
     setModalInitialYaml(text)
     setModalInitialId(slugify(file.name))
     setModalOpen(true)
-    // Reset so the same file can be re-imported
     e.target.value = ''
-  }
-
-  function handleSearchChange(value: string) {
-    setSearch(value)
-    onClearSelection?.()
-  }
-
-  function handleOriginClick(next: OriginFilter) {
-    setOriginFilter(next)
-    onClearSelection?.()
-  }
-
-  function handleNodeTypeClick(next: NodeTypeFilter) {
-    setNodeTypeFilter(next)
-    onClearSelection?.()
-  }
-
-  function handleTaskFilterClick(next: TaskFilter) {
-    setTaskFilter(next)
-    onClearSelection?.()
   }
 
   if (collapsed) {
     return (
-      <div className="wfr-panel wfr-panel--collapsed">
+      <aside
+        className="crail wfr-panel--collapsed"
+        aria-label="Workflow filters (collapsed)"
+      >
         <button
           type="button"
-          className="wfr-expand-btn"
-          title="Expand rail"
-          aria-label="Expand rail"
+          className="ib"
+          aria-label="Expand filters"
+          aria-expanded="false"
           onClick={onToggleCollapse}
+          title="Expand filters"
         >
           <svg
-            viewBox="0 0 24 24"
+            width="12"
+            height="12"
+            viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
-            width="14"
-            height="14"
+            strokeWidth="1.5"
+            aria-hidden="true"
           >
-            <path d="M9 18l6-6-6-6" />
+            <circle cx="7" cy="7" r="4.5" />
+            <path d="M10.5 10.5L14 14" />
           </svg>
         </button>
-        <span className="wfr-collapsed-label">Workflows</span>
-      </div>
+        <span>FILTERS · {hasActiveFilters ? 'ACTIVE' : 'NONE'}</span>
+      </aside>
     )
   }
 
   return (
-    <>
+    <aside className="rail wf-rail" aria-label="Workflow filters">
+      <div className="rh">
+        <h2 className="rt">FILTERS</h2>
+        <span className="grow" />
+        {hasActiveFilters && (
+          <button
+            type="button"
+            className="btn sm gh"
+            onClick={handleClearAll}
+            title="Clear all filters"
+          >
+            CLEAR
+          </button>
+        )}
+        <button
+          type="button"
+          className="ib"
+          style={{ width: '22px', height: '22px', marginLeft: '4px' }}
+          aria-label="Collapse filters"
+          title="Collapse filters"
+          onClick={onToggleCollapse}
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden="true"
+          >
+            <path d="M11 2L5 8l6 6" />
+          </svg>
+        </button>
+      </div>
+
+      <label className="srch">
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          aria-hidden="true"
+        >
+          <circle cx="7" cy="7" r="4.5" />
+          <path d="M10.5 10.5L14 14" />
+        </svg>
+        <span className="sr">Search workflows</span>
+        <input
+          ref={searchInputRef}
+          type="search"
+          placeholder="Search name, id, trigger…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            onClearSelection?.()
+          }}
+        />
+        <kbd>/</kbd>
+      </label>
+
+      {/* ORIGIN */}
+      <div className="rs">
+        <fieldset>
+          <legend>ORIGIN</legend>
+          <div className="seg">
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={originFilter === 'all'}
+              onClick={() => {
+                setOriginFilter('all')
+                onClearSelection?.()
+              }}
+            >
+              All<span className="n">{originCounts.all}</span>
+            </button>
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={originFilter === 'bundled'}
+              onClick={() => {
+                setOriginFilter('bundled')
+                onClearSelection?.()
+              }}
+            >
+              Factory<span className="n">{originCounts.bundled}</span>
+            </button>
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={originFilter === 'user'}
+              onClick={() => {
+                setOriginFilter('user')
+                onClearSelection?.()
+              }}
+            >
+              User<span className="n">{originCounts.user}</span>
+            </button>
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={originFilter === 'project'}
+              onClick={() => {
+                setOriginFilter('project')
+                onClearSelection?.()
+              }}
+            >
+              Project<span className="n">{originCounts.project}</span>
+            </button>
+          </div>
+        </fieldset>
+      </div>
+
+      {/* CONTAINS NODE TYPE */}
+      <div className="rs">
+        <fieldset>
+          <legend>CONTAINS NODE TYPE</legend>
+          <div className="tcs">
+            {DISPLAY_NODE_TYPES.map((type) => {
+              const count = nodeTypeCounts[type] || 0
+              const isSelected = nodeTypeFilter === type
+              const color = nodeColor(type)
+              return (
+                <button
+                  key={type}
+                  type="button"
+                  className="tchip"
+                  style={{ '--c': color } as React.CSSProperties}
+                  aria-pressed={isSelected}
+                  disabled={count === 0}
+                  onClick={() => {
+                    setNodeTypeFilter(isSelected ? null : type)
+                    onClearSelection?.()
+                  }}
+                >
+                  <i />
+                  {type}
+                  <span className="n">{count}</span>
+                </button>
+              )
+            })}
+          </div>
+        </fieldset>
+      </div>
+
+      {/* SHAPE */}
+      <div className="rs">
+        <fieldset>
+          <legend>SHAPE</legend>
+          <label className="ck">
+            <input
+              type="checkbox"
+              checked={hasApprovalFilter}
+              onChange={(e) => {
+                setHasApprovalFilter(e.target.checked)
+                onClearSelection?.()
+              }}
+            />
+            Has approval gate<span className="n">{shapeCounts.approval}</span>
+          </label>
+          <label className="ck">
+            <input
+              type="checkbox"
+              checked={scheduledFilter}
+              onChange={(e) => {
+                setScheduledFilter(e.target.checked)
+                onClearSelection?.()
+              }}
+            />
+            Scheduled (cron)<span className="n">{shapeCounts.cron}</span>
+          </label>
+          <label className="ck">
+            <input
+              type="checkbox"
+              checked={hasInputsFilter}
+              onChange={(e) => {
+                setHasInputsFilter(e.target.checked)
+                onClearSelection?.()
+              }}
+            />
+            Takes inputs<span className="n">{shapeCounts.inputs}</span>
+          </label>
+          <label className="ck">
+            <input
+              type="checkbox"
+              checked={showSubgraphs}
+              onChange={(e) => {
+                setShowSubgraphs(e.target.checked)
+                onClearSelection?.()
+              }}
+            />
+            Show subgraphs<span className="n">{shapeCounts.subgraphs}</span>
+          </label>
+        </fieldset>
+      </div>
+
+      {/* STATE */}
+      <div className="rs">
+        <fieldset>
+          <legend>STATE</legend>
+          <div className="seg">
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={stateFilter === 'any'}
+              onClick={() => {
+                setStateFilter('any')
+                onClearSelection?.()
+              }}
+            >
+              Any<span className="n">{stateCounts.any}</span>
+            </button>
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={stateFilter === 'edited7d'}
+              onClick={() => {
+                setStateFilter('edited7d')
+                onClearSelection?.()
+              }}
+            >
+              Edited 7d<span className="n">{stateCounts.edited7d}</span>
+            </button>
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={stateFilter === 'valid'}
+              onClick={() => {
+                setStateFilter('valid')
+                onClearSelection?.()
+              }}
+            >
+              Valid<span className="n">{stateCounts.valid}</span>
+            </button>
+            <button
+              type="button"
+              className="opt"
+              aria-pressed={stateFilter === 'yaml-error'}
+              onClick={() => {
+                setStateFilter('yaml-error')
+                onClearSelection?.()
+              }}
+            >
+              YAML error<span className="n">{stateCounts.yamlError}</span>
+            </button>
+          </div>
+        </fieldset>
+      </div>
+
+      <div className="rf">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".yaml,.yml"
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+        <button
+          type="button"
+          className="btn gh"
+          onClick={handleImport}
+          title="Import workflow from YAML file"
+        >
+          IMPORT YAML
+        </button>
+        <button
+          type="button"
+          className="btn p"
+          onClick={handleNew}
+          title="Create a new workflow"
+        >
+          <svg
+            width="10"
+            height="10"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            aria-hidden="true"
+          >
+            <path d="M8 3v10M3 8h10" />
+          </svg>
+          NEW WORKFLOW
+        </button>
+      </div>
+
       {modalOpen && (
         <NewWorkflowWizard
           initialYaml={modalInitialYaml}
@@ -266,188 +610,6 @@ export function WorkflowLibrary({
           onClose={() => setModalOpen(false)}
         />
       )}
-
-      {/* Hidden file input for Import YAML */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".yml,.yaml,text/yaml"
-        style={{ display: 'none' }}
-        onChange={(e) => {
-          void handleFileChange(e)
-        }}
-      />
-
-      <div className="wfr-panel">
-        {/* ── Rail header ─────────────────────────────────── */}
-        <div className="wfr-header">
-          <h2>Filters</h2>
-          <span className="wfr-ct">{TOTAL}</span>
-          <div className="wfr-actions">
-            <button
-              type="button"
-              className="wfr-icon-btn"
-              title="Collapse rail"
-              aria-label="Collapse rail"
-              onClick={onToggleCollapse}
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                width="14"
-                height="14"
-              >
-                <path d="M15 18l-6-6 6-6" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        {/* ── CTA buttons ─────────────────────────────────── */}
-        <div className="wfr-ctas">
-          <button className="wfr-btn-import" onClick={handleImport}>
-            Import YAML
-          </button>
-          <button className="wfr-btn-new" onClick={handleNew}>
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              width="12"
-              height="12"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New
-          </button>
-        </div>
-
-        {/* ── Search ──────────────────────────────────────── */}
-        <div className="wfr-search-wrap">
-          <svg
-            className="wfr-search-ico"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.6"
-            width="13"
-            height="13"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.35-4.35" />
-          </svg>
-          <input
-            className="wfr-search"
-            type="text"
-            placeholder="Search workflows…"
-            value={search}
-            onChange={(e) => handleSearchChange(e.target.value)}
-            aria-label="Search workflows"
-          />
-          {search && (
-            <button
-              className="wfr-search-clear"
-              onClick={() => handleSearchChange('')}
-              aria-label="Clear search"
-            >
-              ×
-            </button>
-          )}
-        </div>
-
-        {/* ── Filter body ─────────────────────────────────── */}
-        <div className="wfr-body">
-          {/* ORIGIN section */}
-          <div className="wfr-section">
-            <div className="wfr-sec-label">Origin</div>
-            <div className="wfr-list">
-              {ORIGIN_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`wfr-opt-row${originFilter === opt.value ? ' on' : ''}`}
-                  onClick={() => handleOriginClick(opt.value)}
-                >
-                  <span className="wfr-dot" />
-                  <span>{opt.label}</span>
-                  <span className="wfr-row-ct">
-                    {originCounts[opt.value] ?? 0}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="wfr-section">
-            <div className="wfr-sec-label">Node type</div>
-            <div className="wfr-list">
-              {NODE_TYPE_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`wfr-opt-row${nodeTypeFilter === opt.value ? ' on' : ''}`}
-                  onClick={() => handleNodeTypeClick(opt.value)}
-                >
-                  <span className="wfr-dot" />
-                  <span>{opt.label}</span>
-                  <span className="wfr-row-ct">
-                    {nodeTypeCounts[opt.value] ?? 0}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="wfr-section">
-            <div className="wfr-sec-label">Tasks</div>
-            <div className="wfr-list">
-              {TASK_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  className={`wfr-opt-row${taskFilter === opt.value ? ' on' : ''}`}
-                  onClick={() => handleTaskFilterClick(opt.value)}
-                >
-                  <span className="wfr-dot" />
-                  <span>{opt.label}</span>
-                  <span className="wfr-row-ct">{taskCounts[opt.value]}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Subgraph toggle (A.7-subgraphs) ─────────────── */}
-          <div className="wfr-section">
-            <div className="wfr-sec-label">Kind</div>
-            <div className="wfr-list">
-              <button
-                type="button"
-                className={`wfr-opt-row${showSubgraphs ? ' on' : ''}`}
-                onClick={() => setShowSubgraphs((v) => !v)}
-                aria-pressed={showSubgraphs}
-              >
-                <span className="wfr-dot wfr-dot--subgraph" />
-                <span>Show subgraphs</span>
-                <span className="wfr-row-ct">
-                  {workflows.filter((w) => w.kind === 'subgraph').length}
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
-        <div className="wfr-foot">
-          <span>
-            <b>{filtered.length}</b> visible
-          </span>
-          <span className="wfr-foot-sep" />
-          <span>
-            mode <b>yaml filters</b>
-          </span>
-        </div>
-      </div>
-    </>
+    </aside>
   )
 }

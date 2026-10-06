@@ -68,6 +68,9 @@ export interface WorkflowSummary {
   /** sha256 of the factory yaml this row was seeded/reset from; null for pure user rows. */
   bundled_checksum?: string | null
   node_types?: Array<string>
+  updated_at?: number
+  created_at?: number
+  version?: string | null
 }
 
 /** One declared workflow input (`default` only when the YAML declares it). */

@@ -70,6 +70,11 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     dag_edges: [],
     yaml: row.yaml,
     kind: row.kind,
+    user_modified: row.user_modified,
+    bundled_checksum: row.bundled_checksum,
+    updated_at: row.updated_at,
+    created_at: row.created_at,
+    version: row.version ?? null,
   }
 }
 
