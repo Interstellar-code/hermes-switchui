@@ -234,6 +234,40 @@ code {
     'JetBrains Mono', Menlo, Monaco, Consolas, 'Courier New', monospace;
 }
 
+/* ─── Markdown Section Auto-Numbering ────────────────────────────────── */
+.numbered-sections {
+  counter-reset: section-h2;
+}
+
+.numbered-sections h2.numbered-heading {
+  counter-increment: section-h2;
+  counter-reset: section-h3;
+}
+
+.numbered-sections h2.numbered-heading::before {
+  content: counter(section-h2) " · ";
+  font-family: var(--m-font-mono, monospace);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--theme-accent);
+  margin-right: 0.25rem;
+  opacity: 0.9;
+}
+
+.numbered-sections h3.numbered-heading {
+  counter-increment: section-h3;
+}
+
+.numbered-sections h3.numbered-heading::before {
+  content: counter(section-h2) "." counter(section-h3) " · ";
+  font-family: var(--m-font-mono, monospace);
+  font-size: 0.85em;
+  font-weight: 600;
+  color: var(--theme-muted);
+  margin-right: 0.25rem;
+  opacity: 0.85;
+}
+
 /* ─── Matrix typography utilities ──────────────────────────────────────── */
 /* Single source of truth for the Matrix design system text styles.
    Use these classes instead of inline `fontFamily` / `fontSize` / `letterSpacing`. */

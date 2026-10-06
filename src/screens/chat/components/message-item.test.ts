@@ -4,6 +4,7 @@ import {
   buildInlineToolRenderPlan,
   compactInlineToolRenderPlan,
   detectAssistantCorruptionWarning,
+  extractMarkdownHeadings,
   withoutDelegateTaskToolSections,
   withoutUnnamedToolSections,
 } from './message-item'
@@ -222,3 +223,51 @@ describe('detectAssistantCorruptionWarning', () => {
     )
   })
 })
+
+describe('extractMarkdownHeadings', () => {
+  it('extracts h2 and h3 headings correctly with clean ids', () => {
+    const text = `
+## Answer
+Here is the core answer.
+
+### What the trial proved
+Details on the trial.
+
+## Options
+Here are the choices.
+
+### Next
+Wrap up.
+`
+    const headings = extractMarkdownHeadings(text)
+    expect(headings).toEqual([
+      { id: 'answer', title: 'Answer', level: 2, sectionNumber: '1' },
+      { id: 'what-the-trial-proved', title: 'What the trial proved', level: 3, sectionNumber: '1.1' },
+      { id: 'options', title: 'Options', level: 2, sectionNumber: '2' },
+      { id: 'next', title: 'Next', level: 3, sectionNumber: '2.1' },
+    ])
+  })
+
+  it('ignores headings inside fenced code blocks', () => {
+    const text = `
+## Real Heading
+
+\`\`\`markdown
+## Code Heading inside markdown fence
+\`\`\`
+
+### Another Real Heading
+`
+    const headings = extractMarkdownHeadings(text)
+    expect(headings).toEqual([
+      { id: 'real-heading', title: 'Real Heading', level: 2, sectionNumber: '1' },
+      { id: 'another-real-heading', title: 'Another Real Heading', level: 3, sectionNumber: '1.1' },
+    ])
+  })
+
+  it('returns empty array when text has no h2 or h3 headings', () => {
+    expect(extractMarkdownHeadings('Just plain text\n# Title only')).toEqual([])
+  })
+})
+
+
