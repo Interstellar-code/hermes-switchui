@@ -4,6 +4,7 @@ import { WorkflowsTopBar } from './workflows-top-bar'
 import { WorkflowLibrary } from './workflow-library'
 import { WorkflowEditor } from './workflow-editor'
 import { WorkflowGrid } from './workflow-grid'
+import { WorkflowDetail } from './workflow-detail'
 import { LaunchWizard } from './launch-wizard'
 import { RunDetailPanel } from './run-detail-panel'
 import type { WorkflowSummary } from './types'
@@ -12,6 +13,7 @@ export function WorkflowsLayout() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
     null,
   )
+  const [isEditingGraph, setIsEditingGraph] = useState(false)
   const [wizardOpenForId, setWizardOpenForId] = useState<string | null>(null)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [railCollapsed, setRailCollapsed] = useState(false)
@@ -74,8 +76,20 @@ export function WorkflowsLayout() {
         <aside className={`wf-library${railCollapsed ? ' is-collapsed' : ''}`}>
           <WorkflowLibrary
             selectedId={selectedWorkflowId}
-            onSelectWorkflow={setSelectedWorkflowId}
-            onClearSelection={() => setSelectedWorkflowId(null)}
+            onSelectWorkflow={(id) => {
+              setSelectedWorkflowId(id)
+              setIsEditingGraph(false)
+              const url = new URL(window.location.href)
+              url.searchParams.set('wf', id)
+              window.history.pushState(null, '', url.toString())
+            }}
+            onClearSelection={() => {
+              setSelectedWorkflowId(null)
+              setIsEditingGraph(false)
+              const url = new URL(window.location.href)
+              url.searchParams.delete('wf')
+              window.history.pushState(null, '', url.toString())
+            }}
             collapsed={railCollapsed}
             onToggleCollapse={() => setRailCollapsed((c) => !c)}
             onFilteredChange={handleFilteredChange}
@@ -92,17 +106,56 @@ export function WorkflowsLayout() {
           />
           <div className="wf-editor-content">
             {selectedWorkflowId ? (
-              <WorkflowEditor
-                selectedId={selectedWorkflowId}
-                onOpenRun={handleOpenRunPanel}
-                onOpenLaunchWizard={handleOpenLaunchWizard}
-                onDeselect={() => setSelectedWorkflowId(null)}
-                onSelectWorkflow={setSelectedWorkflowId}
-              />
+              isEditingGraph ? (
+                <WorkflowEditor
+                  selectedId={selectedWorkflowId}
+                  onOpenRun={handleOpenRunPanel}
+                  onOpenLaunchWizard={handleOpenLaunchWizard}
+                  onDeselect={() => {
+                    setSelectedWorkflowId(null)
+                    setIsEditingGraph(false)
+                    const url = new URL(window.location.href)
+                    url.searchParams.delete('wf')
+                    window.history.pushState(null, '', url.toString())
+                  }}
+                  onSelectWorkflow={(id) => {
+                    setSelectedWorkflowId(id)
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('wf', id)
+                    window.history.pushState(null, '', url.toString())
+                  }}
+                />
+              ) : (
+                <WorkflowDetail
+                  workflowId={selectedWorkflowId}
+                  onBack={() => {
+                    setSelectedWorkflowId(null)
+                    setIsEditingGraph(false)
+                    const url = new URL(window.location.href)
+                    url.searchParams.delete('wf')
+                    window.history.pushState(null, '', url.toString())
+                  }}
+                  onEditGraph={() => setIsEditingGraph(true)}
+                  onOpenLaunchWizard={handleOpenLaunchWizard}
+                  onSelectWorkflow={(id) => {
+                    setSelectedWorkflowId(id)
+                    setIsEditingGraph(false)
+                    const url = new URL(window.location.href)
+                    url.searchParams.set('wf', id)
+                    window.history.pushState(null, '', url.toString())
+                  }}
+                />
+              )
             ) : (
               <WorkflowGrid
                 workflows={filteredWorkflows}
-                onSelect={setSelectedWorkflowId}
+                onSelect={(id) => {
+                  setSelectedWorkflowId(id)
+                  setIsEditingGraph(false)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('wf', id)
+                  window.history.pushState(null, '', url.toString())
+                }}
                 onOpenLaunchWizard={handleOpenLaunchWizard}
                 loadError={workflowsError?.message ?? null}
                 onRetry={() => void refetchWorkflows()}

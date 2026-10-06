@@ -1,0 +1,410 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { WorkflowEngineUnavailableError } from '../api-client'
+import { WorkflowDetail } from './workflow-detail'
+import type { WorkflowDefinitionRow } from '../api-client'
+import type { ParsedWorkflow } from '../types'
+
+const mockDefinition: WorkflowDefinitionRow = {
+  id: 'youtube-catalog-intake',
+  name: 'YouTube catalog intake',
+  description: 'YouTube roundup catalog ingestion.',
+  source: 'user',
+  scope_path: '~/.hermes/profiles/hermes-switch',
+  yaml: `name: YouTube catalog intake\ndescription: YouTube roundup catalog ingestion.\nrequired_inputs:\n  - video_url\nnodes:\n  - id: resolve-input\n    bash: echo 1\n`,
+  checksum: '271ad435c4b123456789',
+  version: '2',
+  tags: JSON.stringify(['catalog', 'youtube']),
+  created_at: 1700000000,
+  updated_at: 1700001000,
+  node_count: 1,
+  run_count: 6,
+  last_used_at: null,
+  required_inputs: ['video_url'],
+  optional_inputs: [],
+}
+
+const mockParsed: ParsedWorkflow = {
+  name: 'YouTube catalog intake',
+  description: 'YouTube roundup catalog ingestion.',
+  nodes: [
+    {
+      id: 'resolve-input',
+      label: 'resolve-input',
+      type: 'bash',
+      phase: 'discover',
+      depends_on: null,
+    },
+  ],
+  edges: [],
+  has_loop: false,
+  has_approval: false,
+  required_inputs: ['video_url'],
+  optional_inputs: [],
+  node_count: 1,
+}
+
+let mockWorkflowData: {
+  definition: WorkflowDefinitionRow
+  parsed: ParsedWorkflow
+} | null = {
+  definition: mockDefinition,
+  parsed: mockParsed,
+}
+let mockIsLoading = false
+let mockError: Error | null = null
+let mockFeatures: Array<string> = []
+let mockValidationResult: unknown = null
+
+const deleteMutateMock = vi.fn()
+const resetMutateMock = vi.fn()
+const duplicateMutateMock = vi.fn()
+
+vi.mock('../use-workflows', () => ({
+  useWorkflowParsed: () => ({
+    data: mockWorkflowData,
+    isLoading: mockIsLoading,
+    error: mockError,
+    refetch: vi.fn(),
+  }),
+  useWorkflowRuns: () => ({
+    data: [{ id: 'run-1' }, { id: 'run-2' }],
+  }),
+  useWorkflowFeatures: () => ({
+    data: {
+      features: mockFeatures,
+      schedulerAlive: true,
+      profile: 'hermes-switch',
+    },
+  }),
+  useValidateWorkflowDefinition: () => ({
+    data: mockValidationResult,
+    isLoading: false,
+  }),
+  useDeleteWorkflowDefinition: () => ({
+    mutate: deleteMutateMock,
+    isPending: false,
+  }),
+  useResetWorkflowDefinitionToFactory: () => ({
+    mutate: resetMutateMock,
+    isPending: false,
+  }),
+  useUpsertWorkflowDefinition: () => ({
+    mutate: duplicateMutateMock,
+    isPending: false,
+  }),
+}))
+
+vi.mock('@/screens/gateway/conductor/use-conductor-queries', () => ({
+  useConductorScheduled: () => ({
+    data: {
+      schedulerAlive: true,
+      profile: 'hermes-switch',
+      scheduled: [
+        {
+          id: 'sched-1',
+          workflowId: 'youtube-catalog-intake',
+          cron: '0 9 * * 1',
+          scheduleLabel: 'cron 0 9 * * 1',
+          nextRunAt: 1750000000000,
+          enabled: true,
+        },
+      ],
+    },
+  }),
+}))
+
+// FlowCanvas stub to avoid loading heavy @xyflow/react in unit tests
+vi.mock('@/screens/gateway/conductor/mission-canvas', async () => {
+  const React = await import('react')
+  return {
+    FlowCanvas: ({ workflowId }: { workflowId: string }) =>
+      React.createElement(
+        'div',
+        { 'data-testid': 'flow-canvas' },
+        `FlowCanvas for ${workflowId}`,
+      ),
+    graphLoading: React.createElement('div', null, 'Loading graph…'),
+  }
+})
+
+afterEach(() => {
+  cleanup()
+  vi.clearAllMocks()
+  mockWorkflowData = { definition: mockDefinition, parsed: mockParsed }
+  mockIsLoading = false
+  mockError = null
+  mockFeatures = []
+  mockValidationResult = null
+})
+
+describe('WorkflowDetail', () => {
+  it('renders all default tabs (OVERVIEW, GRAPH, INPUTS, SCHEDULES, YAML)', () => {
+    mockFeatures = []
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('tab', { name: /^OVERVIEW/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^GRAPH/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^INPUTS/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^SCHEDULES/i })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: /^YAML/i })).toBeTruthy()
+
+    // VERSIONS tab is hidden because definition_versions is absent from features
+    expect(screen.queryByRole('tab', { name: /^VERSIONS/i })).toBeNull()
+  })
+
+  it('switches tabs when clicked', () => {
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    // Switch to YAML
+    fireEvent.click(screen.getByRole('tab', { name: /^YAML/i }))
+    expect(screen.getByText(/COPY YAML/i)).toBeTruthy()
+
+    // Switch to INPUTS
+    fireEvent.click(screen.getByRole('tab', { name: /^INPUTS/i }))
+    expect(screen.getByText('DECLARED WORKFLOW INPUTS (1)')).toBeTruthy()
+    expect(screen.getByText('video_url')).toBeTruthy()
+
+    // Switch to SCHEDULES
+    fireEvent.click(screen.getByRole('tab', { name: /^SCHEDULES/i }))
+    expect(
+      screen.getByText(/SCHEDULES FOR YOUTUBE-CATALOG-INTAKE/i),
+    ).toBeTruthy()
+    expect(screen.getByText('sched-1')).toBeTruthy()
+  })
+
+  it('shows DELETE for user workflow and requires confirmation before deletion', () => {
+    mockWorkflowData = {
+      definition: { ...mockDefinition, source: 'user' },
+      parsed: mockParsed,
+    }
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    const deleteBtn = screen.getByRole('button', { name: /DELETE/i })
+    expect(deleteBtn).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /^RESET$/i })).toBeNull()
+
+    // Click DELETE opens confirmation dialog
+    fireEvent.click(deleteBtn)
+    expect(screen.getByText('Delete workflow?')).toBeTruthy()
+    expect(deleteMutateMock).not.toHaveBeenCalled()
+
+    // Confirm in dialog
+    const confirmBtn = screen.getByRole('button', { name: 'Delete workflow' })
+    fireEvent.click(confirmBtn)
+    expect(deleteMutateMock).toHaveBeenCalledWith(
+      'youtube-catalog-intake',
+      expect.any(Object),
+    )
+  })
+
+  it('shows RESET instead of DELETE for factory (bundled) workflows and enables it when modified', () => {
+    mockWorkflowData = {
+      definition: {
+        ...mockDefinition,
+        source: 'bundled',
+        user_modified: 1,
+      },
+      parsed: mockParsed,
+    }
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    const resetBtn = screen.getByRole('button', { name: /^RESET$/i })
+    expect(resetBtn).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /DELETE/i })).toBeNull()
+    expect(resetBtn.hasAttribute('disabled')).toBe(false)
+
+    // Click RESET opens confirmation dialog
+    fireEvent.click(resetBtn)
+    expect(screen.getByText('Reset to factory default?')).toBeTruthy()
+    expect(resetMutateMock).not.toHaveBeenCalled()
+
+    // Confirm in dialog
+    const confirmBtn = screen.getByRole('button', { name: 'Reset workflow' })
+    fireEvent.click(confirmBtn)
+    expect(resetMutateMock).toHaveBeenCalledWith(
+      'youtube-catalog-intake',
+      expect.any(Object),
+    )
+  })
+
+  it('disables RESET button if factory workflow has not been modified', () => {
+    mockWorkflowData = {
+      definition: {
+        ...mockDefinition,
+        source: 'bundled',
+        user_modified: 0,
+      },
+      parsed: mockParsed,
+    }
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    const resetBtn = screen.getByRole('button', { name: /^RESET$/i })
+    expect(resetBtn).toBeTruthy()
+    expect(resetBtn.hasAttribute('disabled')).toBe(true)
+  })
+
+  it('hides VERSIONS tab and validation card without their backend features', () => {
+    mockFeatures = []
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.queryByRole('tab', { name: /^VERSIONS/i })).toBeNull()
+    expect(screen.queryByRole('heading', { name: 'VALIDATION' })).toBeNull()
+  })
+
+  it('shows VERSIONS tab and validation card when features are listed', () => {
+    mockFeatures = ['definition_versions', 'validate']
+    mockValidationResult = {
+      ok: false,
+      errors: [
+        {
+          code: 'cycle',
+          line: 12,
+          message: 'Cycle detected: step-1 -> step-2 -> step-1',
+        },
+      ],
+      warnings: [
+        {
+          code: 'risky_shell',
+          line: 5,
+          message: 'Bash node uses unrestricted shell access',
+        },
+      ],
+      id_available: true,
+    }
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    // VERSIONS tab is now visible
+    expect(screen.getByRole('tab', { name: /^VERSIONS/i })).toBeTruthy()
+
+    // VALIDATION card is now visible with errors & warnings listed
+    expect(screen.getByRole('heading', { name: 'VALIDATION' })).toBeTruthy()
+    expect(screen.getByText(/1 error\(s\)/i)).toBeTruthy()
+    expect(
+      screen.getByText('Cycle detected: step-1 -> step-2 -> step-1'),
+    ).toBeTruthy()
+    expect(
+      screen.getByText('Bash node uses unrestricted shell access'),
+    ).toBeTruthy()
+  })
+
+  it('renders loading state when isLoading is true', () => {
+    mockIsLoading = true
+    mockWorkflowData = null
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText(/LOADING WORKFLOW…/i)).toBeTruthy()
+  })
+
+  it('renders not-found state when 404 occurs', () => {
+    mockWorkflowData = null
+    const notFoundError = new Error('getWorkflowDefinitionParsed failed (404)')
+    Object.assign(notFoundError, { status: 404 })
+    mockError = notFoundError
+
+    render(
+      <WorkflowDetail
+        workflowId="non-existent-wf"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('WORKFLOW NOT FOUND')).toBeTruthy()
+    expect(screen.getByText('non-existent-wf')).toBeTruthy()
+  })
+
+  it('renders engine-down state when workflow engine is unavailable', () => {
+    mockWorkflowData = null
+    mockError = new WorkflowEngineUnavailableError(
+      'Workflow engine unavailable',
+    )
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('WORKFLOW ENGINE DOWN')).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: /Retry connection/i }),
+    ).toBeTruthy()
+  })
+
+  it('triggers EDIT GRAPH and RUN callbacks', () => {
+    const onEditGraph = vi.fn()
+    const onOpenLaunchWizard = vi.fn()
+
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={onEditGraph}
+        onOpenLaunchWizard={onOpenLaunchWizard}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /EDIT GRAPH/i }))
+    expect(onEditGraph).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /RUN…/i }))
+    expect(onOpenLaunchWizard).toHaveBeenCalledWith('youtube-catalog-intake')
+  })
+})

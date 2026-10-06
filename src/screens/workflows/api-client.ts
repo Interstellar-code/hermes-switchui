@@ -87,7 +87,10 @@ export async function getWorkflowDefinitionParsed(
     `/api/workflow-definitions/${encodeURIComponent(id)}/parsed`,
   )
   if (!res.ok) {
-    throw new Error(`getWorkflowDefinitionParsed failed (${res.status})`)
+    throw Object.assign(
+      new Error(`getWorkflowDefinitionParsed failed (${res.status})`),
+      { status: res.status },
+    )
   }
   return (await res.json()) as WorkflowDefinitionParsedResponse
 }
