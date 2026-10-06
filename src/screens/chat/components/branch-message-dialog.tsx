@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { ChatMessage } from '../types'
 import { textFromMessage } from '../utils'
+import type { ChatMessage } from '../types'
 
 /**
  * Pre-fork options for the message-anchored "Branch from here" action.

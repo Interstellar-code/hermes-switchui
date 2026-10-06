@@ -105,7 +105,7 @@ function fromRow(
     nodeId: nodeId || null,
     summary: eventSummary(row.event_type, data),
     data,
-    seq: row.seq ?? null,
+    seq: row.seq,
     id: row.id,
     nodeRunId,
   }

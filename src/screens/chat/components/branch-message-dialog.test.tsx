@@ -55,10 +55,10 @@ describe('BranchMessageDialog', () => {
     const preview = dialog!.querySelector('p[title]')!
     expect(preview.textContent).not.toContain('#')
     expect(preview.textContent).not.toContain('**')
-    expect(preview.textContent!.startsWith('“Heading Some bold text a link'))
-    expect(preview.textContent!.endsWith('…'))
+    expect(preview.textContent.startsWith('“Heading Some bold text a link'))
+    expect(preview.textContent.endsWith('…'))
     // 2 quote marks + ≤80-char slice + 1 ellipsis
-    expect(preview.textContent!.length).toBeLessThanOrEqual(2 + 80 + 1)
+    expect(preview.textContent.length).toBeLessThanOrEqual(2 + 80 + 1)
   })
 
   it('confirm passes trimmed title, endSource, and the picked model', () => {
