@@ -3,6 +3,27 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.12.1] — 2026-10-06
+
+SwitchUI chat experience upgrade: Markdown formatting kit (GFM callouts, zebra tables, interactive file chips, TOC jump bar, auto-numbered sections) and modernized chat composer (capacity ring, attachment tray with thumbnails, slash popover, floating latest pill, mobile 390 compact action menu).
+
+### Added
+
+- **Chat Message Formatting Kit (Track A)**:
+  - **GFM Alert Callouts**: Styled cards for `> [!RECOMMENDATION]`, `> [!DECISION]`, `> [!NOTE]`, `> [!WARNING]`, `> [!TIP]`, and `> [!CAUTION]`.
+  - **Zebra Comparison Tables**: Monospace headers, right-aligned numeric cells, and stylized verdict badges (`PICK` / `NO` / `YES`).
+  - **Interactive File Chips**: Detects path and code file patterns inline, rendering clickable badges linking directly to workspace files.
+  - **Inline TOC Jump Bar**: Extracts message `##` headings and renders horizontal pill jump bars for assistant replies with 3+ sections.
+  - **Automatic Section Numbering**: Automatically formats and numbers `##` headings (`## 1. Title`, `## 2. Title`).
+  - **Formatted User Message Bubbles**: User messages now support full markdown formatting.
+  - **Server-Level Format Directive**: Injected automatically on analytical/comparison turns via `send-stream.ts`.
+- **Chat Composer Modernization (Track B)**:
+  - **Context Capacity Ring (`ComposerContextRing`)**: Visual ring indicator displaying percent capacity and token usage (`21% used · 42k / 200k tokens · 158k left`) with progressive color thresholds.
+  - **Attachment Tray (`ComposerAttachmentTray`)**: Uppercase extension badges (`MD`, `PNG`, `PDF`), file size labels, image dimensions (`1720×1314`), rounded thumbnails, and accessible removal buttons.
+  - **Slash Command Popover (`ComposerSlashPopover`)**: Fast prefix-first filtering, matched keyword highlights in `--theme-accent`, and full keyboard navigation (`↑↓` navigate, `Tab` select, `Esc` dismiss).
+  - **Floating Latest Pill (`ScrollToBottomButton`)**: Redesigned docked pill above composer with "↓ Latest" and unread counter badge (`"N new"` / `"99+"`).
+  - **Mobile Compact Actions Menu (`ComposerMobileActionsMenu`)**: Folds composer toolbar actions into a single `+` popover on mobile viewports (<640px) to prevent toolbar overflow.
+
 ## [2.12.0] — 2026-10-06
 
 Conductor v2: a React Flow mission canvas, node panel, run inspector, resume and repeat schedules.
