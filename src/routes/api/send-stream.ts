@@ -78,6 +78,11 @@ import {
 const SEND_STREAM_RUN_TIMEOUT_MS = 600_000
 const SESSION_BOOTSTRAP_KEYS = new Set(['main', 'new'])
 
+const SWITCHUI_FORMAT_POLICY = `When the response is an analysis, recommendation, or comparison:
+- Use GFM Callouts (\`> [!RECOMMENDATION]\` or \`> [!DECISION]\`)
+- Use \`##\` section headings (enabling the inline TOC jump bar)
+- Use comparison tables with a \`Verdict\` column (\`PICK\` / \`NO\`)`
+
 function readNumber(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   return undefined
@@ -679,6 +684,12 @@ export const Route = createFileRoute('/api/send-stream')({
                           },
                         ]
                       : []
+                  const formatSystemMsg: Array<OpenAICompatMessage> = [
+                    {
+                      role: 'system',
+                      content: SWITCHUI_FORMAT_POLICY,
+                    },
+                  ]
                   // Load persisted history for this session, then append user message
                   const persistedMessages = getLocalMessages(portableSessionKey)
                   const persistedHistory = persistedMessages.map((m) => ({
@@ -698,6 +709,7 @@ export const Route = createFileRoute('/api/send-stream')({
                     persistedHistory.length > 0 ? persistedHistory : history
                   const portableMessages: Array<OpenAICompatMessage> = [
                     ...localeSystemMsg,
+                    ...formatSystemMsg,
                     ...effectiveHistory,
                     {
                       role: 'user',
@@ -1207,10 +1219,9 @@ export const Route = createFileRoute('/api/send-stream')({
                     // sticky, so it rides along on every send — see the note
                     // at the body parse above.
                     reasoning_effort: reasoningEffort,
-                    // No `system_message`: this used to carry the reasoning
-                    // *effort label*, which the gateway applies verbatim as
-                    // the turn's ephemeral system prompt. See the note at the
-                    // body parse above.
+                    // Ephemeral system message containing SwitchUI presentation policy
+                    // for analytical answers, comparisons, and recommendations.
+                    system_message: SWITCHUI_FORMAT_POLICY,
                     attachments: attachments || undefined,
                   },
                   {

@@ -66,6 +66,34 @@ const USER_REPLY_MARKDOWN_COMPONENTS = {
       <p className="text-pretty leading-relaxed text-current">{children}</p>
     )
   },
+  h1: function UserReplyH1({ children }) {
+    return (
+      <h1 className="mt-3 mb-1.5 text-xl font-semibold text-current leading-tight first:mt-0">
+        {children}
+      </h1>
+    )
+  },
+  h2: function UserReplyH2({ children }) {
+    return (
+      <h2 className="mt-2.5 mb-1 text-lg font-semibold text-current leading-tight first:mt-0">
+        {children}
+      </h2>
+    )
+  },
+  h3: function UserReplyH3({ children }) {
+    return (
+      <h3 className="mt-2 mb-1 text-base font-semibold text-current leading-tight first:mt-0">
+        {children}
+      </h3>
+    )
+  },
+  h4: function UserReplyH4({ children }) {
+    return (
+      <h4 className="mt-1.5 mb-0.5 text-sm font-semibold text-current leading-tight first:mt-0">
+        {children}
+      </h4>
+    )
+  },
   strong: function UserReplyStrong({ children }) {
     return <strong className="font-semibold text-current">{children}</strong>
   },
@@ -76,7 +104,7 @@ const USER_REPLY_MARKDOWN_COMPONENTS = {
     return (
       <a
         href={href}
-        className="text-current underline underline-offset-4"
+        className="text-current underline underline-offset-4 decoration-current/40 hover:decoration-current"
         target="_blank"
         rel="noopener noreferrer"
       >
@@ -87,32 +115,32 @@ const USER_REPLY_MARKDOWN_COMPONENTS = {
   code: function UserReplyCode({ children, className }) {
     if (className?.includes('language-')) {
       return (
-        <code className="block overflow-x-auto whitespace-pre rounded-md border border-border/60 bg-background/20 p-2 font-mono text-[0.9em] text-current">
+        <code className="block overflow-x-auto whitespace-pre rounded-md border border-current/20 bg-black/20 dark:bg-black/40 p-2 font-mono text-[0.9em] text-current">
           {children}
         </code>
       )
     }
     return (
-      <code className="rounded border border-border/60 bg-background/20 px-1.5 py-0.5 font-mono text-[0.9em] text-current">
+      <code className="rounded border border-current/20 bg-black/15 dark:bg-black/35 px-1.5 py-0.5 font-mono text-[0.9em] text-current">
         {children}
       </code>
     )
   },
   pre: function UserReplyPre({ children }) {
-    return <pre className="overflow-x-auto">{children}</pre>
+    return <pre className="overflow-x-auto my-1.5">{children}</pre>
   },
   ul: function UserReplyUnorderedList({ children }) {
-    return <ul className="ml-4 list-disc text-current">{children}</ul>
+    return <ul className="ml-4 list-disc text-current space-y-0.5">{children}</ul>
   },
   ol: function UserReplyOrderedList({ children }) {
-    return <ol className="ml-4 list-decimal text-current">{children}</ol>
+    return <ol className="ml-4 list-decimal text-current space-y-0.5">{children}</ol>
   },
   li: function UserReplyListItem({ children }) {
     return <li className="leading-relaxed text-current">{children}</li>
   },
   blockquote: function UserReplyBlockquote({ children }) {
     return (
-      <blockquote className="border-l-2 border-l-primary pl-3 text-current">
+      <blockquote className="my-1.5 border-l-2 border-current/50 pl-3 italic text-current/90">
         {children}
       </blockquote>
     )
@@ -120,13 +148,12 @@ const USER_REPLY_MARKDOWN_COMPONENTS = {
 } satisfies Partial<Components>
 
 // User messages render through Markdown so pasted structure (tables, lists,
-// bold) displays formatted in the user's own bubble. Extends the reply set
-// with table components that inherit the bubble foreground via text-current.
+// bold, headings, callouts) displays formatted in the user's own bubble.
 const USER_MARKDOWN_COMPONENTS = {
   ...USER_REPLY_MARKDOWN_COMPONENTS,
   table: function UserTable({ children }) {
     return (
-      <div className="my-2 max-w-full overflow-x-auto rounded-md border border-current/20">
+      <div className="my-2 max-w-full overflow-x-auto rounded-md border border-current/20 bg-black/10 dark:bg-black/20 shadow-xs">
         <table className="w-full border-collapse text-left text-[0.9em] text-current">
           {children}
         </table>
@@ -134,14 +161,14 @@ const USER_MARKDOWN_COMPONENTS = {
     )
   },
   thead: function UserThead({ children }) {
-    return <thead className="border-b border-current/20">{children}</thead>
+    return <thead className="border-b border-current/20 font-mono text-xs">{children}</thead>
   },
   tbody: function UserTbody({ children }) {
     return <tbody>{children}</tbody>
   },
   tr: function UserTr({ children }) {
     return (
-      <tr className="border-b border-current/10 last:border-0">{children}</tr>
+      <tr className="border-b border-current/10 last:border-0 odd:bg-current/[0.03]">{children}</tr>
     )
   },
   th: function UserTh({ children }) {
@@ -369,6 +396,56 @@ export function withoutUnnamedToolSections<
     const id = (section.type ?? section.name ?? '').trim().toLowerCase()
     return id !== 'tool'
   })
+}
+
+export type MarkdownHeading = {
+  id: string
+  title: string
+  level: 2 | 3
+  sectionNumber?: string
+}
+
+export function extractMarkdownHeadings(markdown: string): Array<MarkdownHeading> {
+  if (!markdown) return []
+  // Strip code blocks so comments or samples aren't recognized as headings
+  const textWithoutCode = markdown.replace(/```[\s\S]*?```/g, '')
+  const headingRegex = /^(#{2,3})\s+(.+)$/gm
+  const headings: Array<MarkdownHeading> = []
+  let match: RegExpExecArray | null
+  let h2Count = 0
+  let h3Count = 0
+
+  while ((match = headingRegex.exec(textWithoutCode)) !== null) {
+    const level = match[1].length as 2 | 3
+    const title = match[2].trim().replace(/[#*`_~]/g, '').trim()
+    const id = title
+      .toLowerCase()
+      .replace(/[^\w\s-]/g, '')
+      .replace(/\s+/g, '-')
+
+    if (level === 2) {
+      h2Count += 1
+      h3Count = 0
+    } else if (level === 3) {
+      h3Count += 1
+    }
+
+    const sectionNumber =
+      level === 2
+        ? `${h2Count}`
+        : `${h2Count > 0 ? `${h2Count}.` : ''}${h3Count}`
+
+    if (title.length > 0) {
+      headings.push({
+        id: id || `section-${headings.length + 1}`,
+        title,
+        level,
+        sectionNumber,
+      })
+    }
+  }
+
+  return headings
 }
 
 type InlineArtifact = {
@@ -2375,6 +2452,19 @@ function MessageItemComponent({
   const canRetryMessage =
     isUser && (hasText || hasAttachments || hasInlineImages)
 
+  // Track A: Inline TOC jump headings for assistant messages
+  const messageHeadings = useMemo(() => {
+    if (isUser) return []
+    return extractMarkdownHeadings(displayText)
+  }, [isUser, displayText])
+
+  // Track A: Past long message collapse fold (~550-600px cap or >3 sections)
+  const isPastAssistantMessage = !isUser && !isLastAssistant && !effectiveIsStreaming
+  const estimatedSectionCount = Math.max(1, messageHeadings.length)
+  const totalWordCount = useMemo(() => countWords(displayText), [displayText])
+  const isLongMessage = isPastAssistantMessage && (totalWordCount > 250 || estimatedSectionCount >= 3)
+  const [isExpanded, setIsExpanded] = useState(false)
+
   // Get tool calls from this message (for assistant messages)
   const toolCalls = role === 'assistant' ? getToolCallsFromMessage(message) : []
   const embeddedStreamToolCalls = useMemo(() => {
@@ -2842,11 +2932,10 @@ function MessageItemComponent({
               })
             }}
             className={cn(
-              'break-words whitespace-normal min-w-0 flex flex-col gap-2 px-3 py-2 max-w-[80%]',
-              '',
+              'break-words whitespace-normal min-w-0 flex flex-col gap-2 px-3.5 py-2.5',
               !isUser
-                ? 'border rounded-2xl rounded-tl-sm'
-                : 'text-white rounded-2xl rounded-tr-sm',
+                ? 'border rounded-2xl rounded-tl-sm w-fit max-w-[min(100%,70ch)] text-[14.5px] leading-[1.6]'
+                : 'border rounded-2xl rounded-tr-sm max-w-[80%] text-[14.5px] leading-[1.6]',
               isQueued && isUser && !isFailed && 'opacity-70',
               isFailed && isUser && 'bg-red-50/50 border border-red-300',
               bubbleClassName,
@@ -2873,6 +2962,37 @@ function MessageItemComponent({
             {isUser && userReplyReference ? (
               <ReplyReferenceBlock reference={userReplyReference} />
             ) : null}
+            {!isUser && messageHeadings.length >= 3 && (
+              <div
+                data-testid="inline-toc"
+                className="flex flex-wrap items-center gap-1.5 pb-2 mb-2 border-b border-[color-mix(in_srgb,var(--theme-border)_70%,transparent)] text-xs"
+              >
+                <span className="font-mono text-[10px] uppercase font-semibold text-[var(--theme-muted)] mr-1">
+                  Jump:
+                </span>
+                {messageHeadings.map((heading) => (
+                  <a
+                    key={heading.id}
+                    href={`#${heading.id}`}
+                    onClick={(e) => {
+                      const el = document.getElementById(heading.id)
+                      if (el) {
+                        e.preventDefault()
+                        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }
+                    }}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] bg-[color-mix(in_srgb,var(--theme-card2)_80%,transparent)] text-[var(--theme-text)] border border-[color-mix(in_srgb,var(--theme-border)_70%,transparent)] hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)] transition-colors no-underline"
+                  >
+                    {heading.sectionNumber ? (
+                      <span className="text-[var(--theme-accent)] font-semibold opacity-90">
+                        {heading.sectionNumber} ·
+                      </span>
+                    ) : null}
+                    <span>{heading.title}</span>
+                  </a>
+                ))}
+              </div>
+            )}
             {hasAttachments && (
               <div className="flex flex-wrap gap-2">
                 {attachments.map((attachment) => {
@@ -2977,50 +3097,72 @@ function MessageItemComponent({
                 )
               ) : hasRevealedText ? (
                 <div className="relative">
-                  {assistantCorruptionWarning ? (
-                    <div
-                      className="mb-3 rounded-xl border px-3 py-2 text-xs"
-                      style={{
-                        borderColor: 'rgba(245, 158, 11, 0.45)',
-                        background: 'rgba(245, 158, 11, 0.12)',
-                        color: 'var(--chat-assistant-foreground)',
-                      }}
-                    >
-                      <div className="font-semibold">
-                        {assistantCorruptionWarning.label}
+                  <div
+                    className={cn(
+                      'transition-all',
+                      isLongMessage && !isExpanded && 'max-h-[550px] overflow-hidden',
+                    )}
+                  >
+                    {assistantCorruptionWarning ? (
+                      <div
+                        className="mb-3 rounded-xl border px-3 py-2 text-xs"
+                        style={{
+                          borderColor: 'rgba(245, 158, 11, 0.45)',
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          color: 'var(--chat-assistant-foreground)',
+                        }}
+                      >
+                        <div className="font-semibold">
+                          {assistantCorruptionWarning.label}
+                        </div>
+                        <div className="mt-1 opacity-80">
+                          {assistantCorruptionWarning.detail}
+                        </div>
                       </div>
-                      <div className="mt-1 opacity-80">
-                        {assistantCorruptionWarning.detail}
+                    ) : null}
+                    {standaloneMarkdownDocument ? (
+                      <MarkdownMessageCard content={standaloneMarkdownDocument} />
+                    ) : (
+                      <div className="flex flex-col gap-3">
+                        {parsedInlineArtifacts.cleanedText ? (
+                          <MessageContent
+                            markdown
+                            className={cn(
+                              'text-primary-900 bg-transparent w-full text-pretty transition-all duration-100',
+                              effectiveIsStreaming && 'chat-streaming-content',
+                            )}
+                          >
+                            {parsedInlineArtifacts.cleanedText}
+                          </MessageContent>
+                        ) : null}
+                        {parsedInlineArtifacts.artifacts.map(
+                          (artifact, index) => (
+                            <InlineArtifactCard
+                              key={`${artifact.type}-${artifact.title}-${index}`}
+                              artifact={artifact}
+                            />
+                          ),
+                        )}
                       </div>
+                    )}
+                    {effectiveIsStreaming && (
+                      <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent-500 align-text-bottom" />
+                    )}
+                  </div>
+                  {isLongMessage && !isExpanded && (
+                    <div className="pt-8 -mt-12 relative z-10 flex flex-col items-center justify-end bg-gradient-to-t from-[var(--chat-assistant-bg)] via-[var(--chat-assistant-bg)]/80 to-transparent">
+                      <button
+                        type="button"
+                        onClick={() => setIsExpanded(true)}
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono text-xs font-medium border border-[color-mix(in_srgb,var(--theme-border)_80%,transparent)] bg-[var(--theme-card)] text-[var(--theme-accent)] shadow-xs hover:border-[var(--theme-accent)] transition-colors cursor-pointer"
+                      >
+                        <span>Show full reply</span>
+                        <span className="opacity-60 text-[10px]">
+                          ({estimatedSectionCount} sections · ~{totalWordCount} words)
+                        </span>
+                        <span aria-hidden="true">▾</span>
+                      </button>
                     </div>
-                  ) : null}
-                  {standaloneMarkdownDocument ? (
-                    <MarkdownMessageCard content={standaloneMarkdownDocument} />
-                  ) : (
-                    <div className="flex flex-col gap-3">
-                      {parsedInlineArtifacts.cleanedText ? (
-                        <MessageContent
-                          markdown
-                          className={cn(
-                            'text-primary-900 bg-transparent w-full text-pretty transition-all duration-100',
-                            effectiveIsStreaming && 'chat-streaming-content',
-                          )}
-                        >
-                          {parsedInlineArtifacts.cleanedText}
-                        </MessageContent>
-                      ) : null}
-                      {parsedInlineArtifacts.artifacts.map(
-                        (artifact, index) => (
-                          <InlineArtifactCard
-                            key={`${artifact.type}-${artifact.title}-${index}`}
-                            artifact={artifact}
-                          />
-                        ),
-                      )}
-                    </div>
-                  )}
-                  {effectiveIsStreaming && (
-                    <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent-500 align-text-bottom" />
                   )}
                 </div>
               ) : null)}
