@@ -64,6 +64,32 @@ describe('GET /api/workflow-runs/:runId/definition', () => {
     )
   })
 
+  it('re-projects parsed from the pinned yaml (with depends_on)', async () => {
+    mockDashboardFetch.mockResolvedValue(
+      Response.json({
+        definition: {
+          workflow_id: 'wf',
+          yaml: 'nodes:\n  - id: a\n    bash: echo\n  - id: b\n    depends_on: [a]\n    prompt: hi\n',
+        },
+        parsed: { id: 'wf', nodes: [{ id: 'a', type: 'bash' }] },
+      }),
+    )
+    const body = (await (await get()).json()) as {
+      parsed: { edges: Array<[string, string]>; nodes: Array<{ id: string }> }
+    }
+    expect(body.parsed.edges).toEqual([['a', 'b']])
+    expect(body.parsed.nodes.map((n) => n.id)).toEqual(['a', 'b'])
+  })
+
+  it('parsed is null when the pinned yaml does not parse', async () => {
+    mockDashboardFetch.mockResolvedValue(
+      Response.json({ definition: { yaml: 'a: [' }, parsed: {} }),
+    )
+    expect(((await (await get()).json()) as { parsed: unknown }).parsed).toBe(
+      null,
+    )
+  })
+
   it('502 on plugin failure', async () => {
     mockDashboardFetch.mockRejectedValue(new Error('down'))
     expect((await get()).status).toBe(502)

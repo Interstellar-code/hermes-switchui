@@ -2,6 +2,7 @@
  * use-conductor-queries.ts — TanStack Query hooks for Conductor API.
  */
 
+import { useCallback } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { RunSessions } from '../../../server/workflow-engine/interface'
 import type {
@@ -10,7 +11,7 @@ import type {
   ScheduledResponse,
 } from '../../../server/conductor-store'
 import { toast } from '@/components/ui/toast'
-import { useRetryRun } from '@/screens/workflows/use-workflows'
+import { useRetryPending, useRetryRun } from '@/screens/workflows/use-workflows'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 // ---------------------------------------------------------------------------
@@ -138,28 +139,33 @@ export function useAbortMission() {
 /**
  * RESUME (strip, node panel, Inspect drawer): retry the run in place, then
  * focus it on the canvas. A "still stopping" conflict reads as a hint.
+ * `isPending` is shared by every RESUME button of `runId`.
  */
-export function useResumeRun() {
-  const retry = useRetryRun()
+export function useResumeRun(runId: string | null) {
+  const { mutate } = useRetryRun()
   const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
-  const resume = (runId: string, fromNodeId?: string, onDone?: () => void) =>
-    retry.mutate(
-      { runId, fromNodeId },
-      {
-        onSuccess: () => {
-          setSelectedRunId(runId)
-          onDone?.()
+  // Stable: the node panel is memoised against it.
+  const resume = useCallback(
+    (id: string, fromNodeId?: string, onDone?: () => void) =>
+      mutate(
+        { runId: id, fromNodeId },
+        {
+          onSuccess: () => {
+            setSelectedRunId(id)
+            onDone?.()
+          },
+          onError: (e) =>
+            toast(
+              (e as { code?: string }).code === 'live_owner'
+                ? 'Still stopping — try again shortly'
+                : e.message || 'Resume failed',
+              { type: 'error' },
+            ),
         },
-        onError: (e) =>
-          toast(
-            (e as { code?: string }).code === 'live_owner'
-              ? 'Still stopping — try again shortly'
-              : e.message || 'Resume failed',
-            { type: 'error' },
-          ),
-      },
-    )
-  return { resume, isPending: retry.isPending }
+      ),
+    [mutate, setSelectedRunId],
+  )
+  return { resume, isPending: useRetryPending(runId) }
 }
 
 export type { Mission }

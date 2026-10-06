@@ -17,7 +17,7 @@ import {
   triggerText,
 } from '@/screens/workflows/run-inspector/inspector-model'
 import {
-  RESUMABLE,
+  isResumable,
   runAgainInput,
   toEpochMs,
 } from '@/screens/workflows/run-status'
@@ -47,7 +47,7 @@ export function MissionDetailDrawer() {
   const featuresQ = useWorkflowFeatures()
   const abort = useAbortMission()
   const launch = useLaunchWorkflowRun()
-  const resumeRun = useResumeRun()
+  const resumeRun = useResumeRun(drawerRunId)
   const queryClient = useQueryClient()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const cancellable =
@@ -61,8 +61,7 @@ export function MissionDetailDrawer() {
   const endMs = toEpochMs(run?.completed_at) ?? (cancellable ? now : Date.now())
   const tone = statusTone(run?.status ?? '')
   const features = featuresQ.data?.features ?? []
-  const canResume =
-    features.includes('retry_run') && RESUMABLE.has(run?.status ?? '')
+  const canResume = features.includes('retry_run') && isResumable(run, now)
 
   function runAgain() {
     if (!run || !rerun) return

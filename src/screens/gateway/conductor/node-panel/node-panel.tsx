@@ -3,7 +3,7 @@
  * · EVENTS. Approval nodes embed the shared ApprovalCard; failed nodes lead
  * with the error and stderr tail.
  */
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import '@/styles/conductor-node-panel.css'
 import { useNow } from '../flow/use-now'
 import { useRunDag } from '../use-run-dag'
@@ -14,7 +14,10 @@ import { durationMs, isAwaitingApproval, selectNode } from './node-panel-model'
 import type { CSSProperties, KeyboardEvent } from 'react'
 import type { SelectedNode } from './node-panel-model'
 import type { NodePanelTab } from '@/stores/conductor-ui-store'
-import type { WorkflowSseEvent } from '@/screens/workflows/use-workflow-events'
+import type {
+  SubscribeNodeLog,
+  WorkflowSseEvent,
+} from '@/screens/workflows/use-workflow-events'
 import type { WorkflowRunRow } from '@/screens/workflows/api-client'
 import { nodeColor } from '@/screens/workflows/node-colors'
 import { statusTone } from '@/screens/workflows/run-inspector/inspector-model'
@@ -26,7 +29,6 @@ import {
 import {
   useRunEvents,
   useWorkflowFeatures,
-  useWorkflowParsed,
   useWorkflowRun,
 } from '@/screens/workflows/use-workflows'
 
@@ -69,7 +71,11 @@ export interface NodePanelProps {
   onResume?: (runId: string, fromNodeId?: string) => void
   /** A resume request is in flight. */
   resuming?: boolean
+  /** Live `node_log` chunks of this run's stream (the OUTPUT tab's log). */
+  subscribeNodeLog?: SubscribeNodeLog
 }
+
+const NO_FEATURES: Array<string> = []
 
 export function NodePanel({
   runId,
@@ -82,13 +88,14 @@ export function NodePanel({
   events,
   onResume,
   resuming = false,
+  subscribeNodeLog,
 }: NodePanelProps) {
   const runQ = useWorkflowRun(runId)
-  const parsedQ = useWorkflowParsed(runQ.data?.run.workflow_id ?? null)
+  // The run's own (pinned) definition, the same one the canvas draws.
+  const { dag, parsed } = useRunDag(runId)
   const featuresQ = useWorkflowFeatures()
-  const features = featuresQ.data?.features ?? []
+  const features = featuresQ.data?.features ?? NO_FEATURES
   const nodeRuns = runQ.data?.nodeRuns
-  const parsed = parsedQ.data?.parsed ?? null
   const sel = useMemo(
     () => selectNode(parsed, nodeRuns ?? [], nodeId),
     [parsed, nodeRuns, nodeId],
@@ -105,7 +112,6 @@ export function NodePanel({
     { limit: 1000, node_run_id: nodeRunId },
     { pageAll, enabled: !featuresQ.isLoading },
   )
-  const { dag } = useRunDag(runId)
   const ref = useRef<HTMLElement>(null)
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const items = useMemo(
@@ -155,22 +161,33 @@ export function NodePanel({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const data: NodePanelData = {
-    runId,
-    nodeId,
-    sel,
-    run,
-    features,
-    now,
-    type,
-    stage: dagNode?.stage ?? '—',
-    tone,
-    durationMs: durationMs(nr, now),
-    inputReply:
-      (nodeRuns ?? []).find(
-        (r) => sel.dependsOn.includes(r.dag_node_id) && r.approval_response,
-      )?.approval_response ?? null,
-  }
+  const stage = dagNode?.stage ?? '—'
+  const dur = durationMs(nr, now)
+  // Memoised (with the callbacks below) so the memoised OUTPUT tab does not
+  // re-render on every live-events flush.
+  const data = useMemo<NodePanelData>(
+    () => ({
+      runId,
+      nodeId,
+      sel,
+      run,
+      features,
+      now,
+      type,
+      stage,
+      tone,
+      durationMs: dur,
+      inputReply:
+        (nodeRuns ?? []).find(
+          (r) => sel.dependsOn.includes(r.dag_node_id) && r.approval_response,
+        )?.approval_response ?? null,
+    }),
+    [runId, nodeId, sel, run, features, now, type, stage, tone, dur, nodeRuns],
+  )
+  const allNodeRuns = useCallback(
+    () => onAllNodeRuns(nodeId),
+    [onAllNodeRuns, nodeId],
+  )
 
   const onTabKey = (e: KeyboardEvent, i: number) => {
     const n = TABS.length
@@ -278,9 +295,10 @@ export function NodePanel({
             {tab === 'output' && (
               <NodeOutput
                 d={data}
-                onAllNodeRuns={() => onAllNodeRuns(nodeId)}
+                onAllNodeRuns={allNodeRuns}
                 onResume={onResume}
                 resuming={resuming}
+                subscribeNodeLog={subscribeNodeLog}
               />
             )}
             {tab === 'events' && <NodeEvents items={items} />}

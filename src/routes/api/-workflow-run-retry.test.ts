@@ -77,11 +77,35 @@ describe('POST /api/workflow-runs/:runId/retry', () => {
       'run is completed; only failed, cancelled or crashed runs can be retried',
       'not_retryable',
     ],
+    [
+      'run is paused; only failed, cancelled or crashed runs can be retried',
+      'not_retryable',
+    ],
   ])('409 %s → code %s', async (msg, code) => {
     mockRetry.mockRejectedValue(new WorkflowRetryError(409, msg))
     const res = await post({})
     expect(res.status).toBe(409)
     expect(((await res.json()) as { code: string }).code).toBe(code)
+  })
+
+  it.each([
+    [
+      "from_node_id 'apply' is not a node of the run's definition",
+      'Node "apply" is not part of this run',
+    ],
+    ['run definition could not be loaded', 'Invalid retry request'],
+  ])('400 %s → %s', async (msg, error) => {
+    mockRetry.mockRejectedValue(new WorkflowRetryError(400, msg))
+    const res = await post({ from_node_id: 'apply' })
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error })
+  })
+
+  it('400 without from_node_id is generic', async () => {
+    mockRetry.mockRejectedValue(new WorkflowRetryError(400, 'is not a node'))
+    expect(await (await post({})).json()).toEqual({
+      error: 'Invalid retry request',
+    })
   })
 
   it('maps 404 and unknown failures to generic errors', async () => {

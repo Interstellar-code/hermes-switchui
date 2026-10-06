@@ -14,7 +14,9 @@ vi.mock('@/screens/workflows/approval-card.css', () => ({}))
 vi.mock('@/components/prompt-kit/markdown', () => ({
   Markdown: ({ children }: { children: string }) => <div>{children}</div>,
 }))
-vi.mock('../use-run-dag', () => ({ useRunDag: () => ({ dag: null }) }))
+vi.mock('../use-run-dag', () => ({
+  useRunDag: () => ({ dag: null, parsed: fixture.parsed }),
+}))
 vi.mock('@/screens/workflows/use-workflows', () => ({
   useWorkflowRun: () => ({
     isLoading: false,

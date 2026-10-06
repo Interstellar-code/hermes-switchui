@@ -1,5 +1,6 @@
 import { ApprovalCard } from '../approval-card'
 import { runDurationMs } from '../run-status'
+import { useChildRuns } from '../use-workflows'
 import {
   fmtClockDuration,
   fmtDateTime,
@@ -42,7 +43,16 @@ export function OverviewTab({
   ctx: InspectorCtx
   extra?: ReactNode
 }) {
-  const { run, nodeRuns, phaseTransitions, onOpenNode, onOpenRun, runId } = ctx
+  const {
+    run,
+    nodeRuns,
+    phaseTransitions,
+    onOpenNode,
+    onOpenRun,
+    runId,
+    features,
+  } = ctx
+  const children = useChildRuns(runId, features.includes('parent_run')).data
   const meta = run.metadata ?? {}
   const trigger = (meta.trigger ?? {}) as Record<string, unknown>
   const pause = meta.pause as { captureResponse?: boolean } | undefined
@@ -179,9 +189,10 @@ export function OverviewTab({
             </Row>
             <Row k="current phase">{run.current_phase}</Row>
             {run.retry_epoch != null && (
-              <Row k="attempt">
-                {run.retry_epoch + 1}
-                {run.retry_epoch > 0 ? ' (resumed in place)' : ''}
+              <Row k="retries" na={run.retry_epoch === 0}>
+                {run.retry_epoch > 0
+                  ? `retry #${run.retry_epoch} (resumed in place)`
+                  : 'none'}
               </Row>
             )}
             <Row k="re-run of" na={!run.parent_run_id}>
@@ -199,6 +210,28 @@ export function OverviewTab({
                 `run ${run.parent_run_id.slice(0, 8)}`
               )}
             </Row>
+            {children && (
+              <Row k="re-runs" na={children.length === 0}>
+                {children.length === 0
+                  ? 'none'
+                  : children.map((c, i) => (
+                      <span key={c.id}>
+                        {i > 0 && ', '}
+                        {onOpenRun ? (
+                          <button
+                            type="button"
+                            className="wfri-link"
+                            onClick={() => onOpenRun(c.id)}
+                          >
+                            run {c.id.slice(0, 8)}
+                          </button>
+                        ) : (
+                          `run ${c.id.slice(0, 8)}`
+                        )}
+                      </span>
+                    ))}
+              </Row>
+            )}
             <Row k="definition" na={!run.definition_checksum}>
               {run.definition_checksum
                 ? `pinned${run.definition_version != null ? ` v${run.definition_version}` : ''} · ${run.definition_checksum.slice(0, 12)}`

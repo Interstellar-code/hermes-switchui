@@ -331,9 +331,11 @@ export async function listWorkflowRuns(params?: {
   workflow_id?: string
   status?: string | Array<string>
   limit?: number
+  parent_run_id?: string
 }): Promise<Array<WorkflowRunRow>> {
   const qs = new URLSearchParams()
   if (params?.workflow_id) qs.set('workflow_id', params.workflow_id)
+  if (params?.parent_run_id) qs.set('parent_run_id', params.parent_run_id)
   if (params?.limit) qs.set('limit', String(params.limit))
   if (params?.status)
     qs.set(

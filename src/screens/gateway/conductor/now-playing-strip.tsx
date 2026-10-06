@@ -9,7 +9,7 @@ import {
 import type { StagePill } from './dag-model'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from '@/components/ui/toast'
-import { RESUMABLE, toEpochMs } from '@/screens/workflows/run-status'
+import { isResumable, toEpochMs } from '@/screens/workflows/run-status'
 import { useRunDefinition } from '@/screens/workflows/run-definition-client'
 import { useWorkflowFeatures } from '@/screens/workflows/use-workflows'
 import { useConductorUIStore } from '@/stores/conductor-ui-store'
@@ -57,7 +57,7 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
   const setDrawerRunId = useConductorUIStore((s) => s.setDrawerRunId)
   const setSelectedRunId = useConductorUIStore((s) => s.setSelectedRunId)
   const abort = useAbortMission()
-  const resumeRun = useResumeRun()
+  const resumeRun = useResumeRun(runId)
   const features = useWorkflowFeatures().data?.features ?? []
   const pinnedQ = useRunDefinition(
     runId,
@@ -90,9 +90,9 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
   const progress = dag ? nodeProgress(dag) : null
   const failed = run?.status === 'failed'
   const terminal = !active && run != null
-  const canResume =
-    features.includes('retry_run') && RESUMABLE.has(run?.status ?? '')
-  const attempt = (run?.retry_epoch ?? 0) + 1
+  const canResume = features.includes('retry_run') && isResumable(run, now)
+  // Run-level retries; "attempt" is kept for node attempts.
+  const retries = run?.retry_epoch ?? 0
   const statusChip =
     run?.status === 'paused'
       ? '⏸ waiting · approval'
@@ -121,7 +121,7 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
         <div className="lbl">
           <span className="chip-status">{statusChip}</span>
           run {runId.slice(0, 8)}
-          {attempt > 1 && ` · attempt ${attempt}`}
+          {retries > 0 && ` · retry #${retries}`}
         </div>
         <div className="prompt">{title}</div>
         <div className="sub-line">

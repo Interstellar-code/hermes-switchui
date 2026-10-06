@@ -77,9 +77,10 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/retry')({
             }
             return Response.json(
               {
-                error: fromNodeId
-                  ? `Node "${fromNodeId}" is not part of this run`
-                  : 'Invalid retry request',
+                error:
+                  fromNodeId && err.message.includes('is not a node')
+                    ? `Node "${fromNodeId}" is not part of this run`
+                    : 'Invalid retry request',
               },
               { status: 400 },
             )

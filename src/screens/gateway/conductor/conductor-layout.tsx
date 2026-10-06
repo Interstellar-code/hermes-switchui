@@ -68,7 +68,7 @@ export function ConductorLayout() {
   const setNodePanelTab = useConductorUIStore((s) => s.setNodePanelTab)
   const openInspector = useConductorUIStore((s) => s.openInspector)
   const { dag } = useRunDag(focusRunId)
-  const resumeRun = useResumeRun()
+  const resumeRun = useResumeRun(focusRunId)
 
   // URL <-> store. A changed URL (deep link, back/forward, our own write
   // landing) is applied first; then the store is reflected in ONE navigate so
@@ -153,6 +153,14 @@ export function ConductorLayout() {
     )
   }, [selectNode])
 
+  const allNodeRuns = useCallback(
+    (id: string) => {
+      if (focusRunId)
+        openInspector(focusRunId, { tab: 'nodes', expandedNodeId: id })
+    },
+    [focusRunId, openInspector],
+  )
+
   // A launch selects the new run on the canvas; the drawer stays closed.
   function handleRunLaunched(runId: string) {
     void queryClient.invalidateQueries({ queryKey: ['conductor'] })
@@ -199,13 +207,9 @@ export function ConductorLayout() {
                     onSelectNode={(id) =>
                       selectNode({ runId: focus.runId, nodeId: id })
                     }
-                    onAllNodeRuns={(id) =>
-                      openInspector(focus.runId, {
-                        tab: 'nodes',
-                        expandedNodeId: id,
-                      })
-                    }
+                    onAllNodeRuns={allNodeRuns}
                     events={live.events}
+                    subscribeNodeLog={live.subscribeNodeLog}
                     onResume={resumeRun.resume}
                     resuming={resumeRun.isPending}
                   />

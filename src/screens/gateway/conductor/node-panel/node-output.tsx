@@ -1,7 +1,8 @@
-import { useConductorLiveContext } from '../conductor-live-context'
+import { memo } from 'react'
 import { exitCode, lastErrorLine, stderrTail } from './node-panel-model'
 import { LOG_TYPES, NodeLog } from './node-log'
 import type { NodePanelData } from './node-panel'
+import type { SubscribeNodeLog } from '@/screens/workflows/use-workflow-events'
 import { Markdown } from '@/components/prompt-kit/markdown'
 import {
   LLM_TYPES,
@@ -30,16 +31,19 @@ function Body({ text, type }: { text: string; type: string }) {
   )
 }
 
-export function NodeOutput({
+/** Memoised: the panel re-renders on every live-events flush; this tab need not. */
+export const NodeOutput = memo(function NodeOutputView({
   d,
   onAllNodeRuns,
   onResume,
   resuming = false,
+  subscribeNodeLog,
 }: {
   d: NodePanelData
   onAllNodeRuns: () => void
   onResume?: (runId: string, fromNodeId?: string) => void
   resuming?: boolean
+  subscribeNodeLog?: SubscribeNodeLog
 }) {
   const nr = d.sel.nodeRun
   const summary = (nr?.summary ?? '').trim()
@@ -49,7 +53,6 @@ export function NodeOutput({
     d.features.includes('retry_run') && d.run?.status === 'failed' && !!onResume
   const code = failed ? exitCode(nr.error) : null
   const took = failed && d.durationMs != null ? fmtDuration(d.durationMs) : null
-  const live = useConductorLiveContext()
   const hasLog =
     !!nr && d.features.includes('node_log') && LOG_TYPES.has(d.type)
 
@@ -108,9 +111,7 @@ export function NodeOutput({
             runId={d.runId}
             nodeRunId={nr.id}
             live={nr.status === 'running'}
-            subscribe={
-              live.runId === d.runId ? live.subscribeNodeLog : undefined
-            }
+            subscribe={subscribeNodeLog}
           />
         </div>
       )}
@@ -180,4 +181,4 @@ export function NodeOutput({
       )}
     </>
   )
-}
+})

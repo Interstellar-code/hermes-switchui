@@ -88,6 +88,7 @@ vi.mock('@/screens/workflows/use-workflows', () => ({
   }),
   useWorkflowParsed: () => ({ data: undefined, isLoading: false }),
   useWorkflowFeatures: () => ({ isLoading: false, data: { features: [] } }),
+  useChildRuns: () => ({ data: undefined }),
   useRunEvents: () => ({ data: { events: [] } }),
   useApproveRun: () => ({ mutate: vi.fn(), isPending: false, isError: false }),
   useLaunchWorkflowRun: () => ({ mutate: vi.fn(), isPending: false }),

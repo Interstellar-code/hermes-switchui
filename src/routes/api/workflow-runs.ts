@@ -1,5 +1,5 @@
 /**
- * GET  /api/workflow-runs   — list runs (filter via ?workflow_id, ?status comma-list, ?limit)
+ * GET  /api/workflow-runs   — list runs (filter via ?workflow_id, ?status comma-list, ?limit, ?parent_run_id)
  * POST /api/workflow-runs   — launch a run (Launch Wizard target)
  */
 import { createFileRoute } from '@tanstack/react-router';
@@ -18,6 +18,10 @@ export const Route = createFileRoute('/api/workflow-runs')({
         const engine = getEngine();
         const url = new URL(request.url);
         const workflowId = url.searchParams.get('workflow_id');
+        const parentRunId = url.searchParams.get('parent_run_id');
+        if (parentRunId !== null && !WORKFLOW_ID_RE.test(parentRunId)) {
+          return Response.json({ error: 'parent_run_id must be 1-128 chars of [A-Za-z0-9_:.-]' }, { status: 400 });
+        }
         const rawLimit = Number(url.searchParams.get('limit'));
         const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(Math.trunc(rawLimit), 500) || undefined : undefined;
         const rawStatus = url.searchParams.get('status');
@@ -38,7 +42,7 @@ export const Route = createFileRoute('/api/workflow-runs')({
 
         // Phase 2: always plugin path.
         try {
-          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined, limit, status });
+          const runs = await engine.listRuns({ workflowId: workflowId ?? undefined, limit, status, parentRunId: parentRunId ?? undefined });
           return Response.json({ runs });
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);

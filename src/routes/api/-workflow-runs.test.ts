@@ -16,6 +16,7 @@ const mockRequireJsonContentType = vi.fn()
 const mockCancelRun = vi.fn()
 const mockResumeWorkflowRun = vi.fn()
 const mockStartRun = vi.fn()
+const mockListRuns = vi.fn()
 
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: (_path: string) => (opts: unknown) => opts,
@@ -31,7 +32,7 @@ vi.mock('../../server/rate-limit', () => ({
 
 vi.mock('../../server/workflow-engine/factory', () => ({
   getEngine: () => ({
-    listRuns: vi.fn(),
+    listRuns: (...args: Array<unknown>) => mockListRuns(...args),
     startRun: (...args: Array<unknown>) => mockStartRun(...args),
     getRun: vi.fn().mockResolvedValue({ id: 'run-1', status: 'running' }),
     listNodeRuns: vi.fn().mockResolvedValue([]),
@@ -234,5 +235,31 @@ describe('#162 POST /api/workflow-runs/:runId — engine errors return 500 JSON'
     expect(res.status).toBe(200)
     const body = await res.json() as { ok: boolean }
     expect(body.ok).toBe(true)
+  })
+})
+
+describe('GET /api/workflow-runs ?parent_run_id', () => {
+  async function get(qs: string) {
+    const mod = await import('./workflow-runs')
+    const GET = (mod as unknown as {
+      Route: { server: { handlers: { GET: (ctx: { request: Request }) => Promise<Response> } } }
+    }).Route.server.handlers.GET
+    return GET({ request: new Request(`http://x/api/workflow-runs${qs}`) })
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockIsAuthenticated.mockReturnValue(true)
+    mockListRuns.mockResolvedValue([])
+  })
+
+  it('forwards parent_run_id to the engine', async () => {
+    expect((await get('?parent_run_id=r1')).status).toBe(200)
+    expect(mockListRuns).toHaveBeenCalledWith(expect.objectContaining({ parentRunId: 'r1' }))
+  })
+
+  it('rejects a malformed parent_run_id', async () => {
+    expect((await get('?parent_run_id=a%2Fb')).status).toBe(400)
+    expect(mockListRuns).not.toHaveBeenCalled()
   })
 })

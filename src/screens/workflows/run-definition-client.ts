@@ -20,7 +20,12 @@ export interface RunDefinition {
 
 export type RunDefinitionResponse =
   | { available: false }
-  | { available: true; definition: RunDefinition; parsed: ParsedWorkflow }
+  | {
+      available: true
+      definition: RunDefinition
+      /** Projected from the pinned yaml server-side; null when it won't parse. */
+      parsed: ParsedWorkflow | null
+    }
 
 export async function getRunDefinition(
   runId: string,

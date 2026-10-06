@@ -24,6 +24,7 @@ vi.mock('./run-definition-client', () => ({
 vi.mock('./use-workflows', () => ({
   useRunEvents: () => ({ data: { events: [] } }),
   useWorkflowFeatures: () => ({ data: { features: [] } }),
+  useChildRuns: () => ({ data: undefined }),
   useWorkflowParsed: () => ({ data: undefined, isLoading: false }),
   useCancelRun: () => ({ mutate: vi.fn(), isPending: false }),
   useApproveRun: () => ({ mutate: approve, isPending: false }),

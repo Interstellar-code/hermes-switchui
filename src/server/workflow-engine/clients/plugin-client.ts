@@ -252,9 +252,12 @@ export class PluginClient implements WorkflowEngineInterface {
     limit?: number
     /** Comma-separated run statuses. */
     status?: string
+    /** Re-runs of this run (feature `parent_run`). */
+    parentRunId?: string
   }): Promise<Array<WorkflowRun>> {
     const params = new URLSearchParams()
     if (opts?.workflowId) params.set('workflow_id', opts.workflowId)
+    if (opts?.parentRunId) params.set('parent_run_id', opts.parentRunId)
     if (opts?.limit != null) params.set('limit', String(opts.limit))
     if (opts?.status) params.set('status', opts.status)
     const qs = params.toString() ? `?${params}` : ''

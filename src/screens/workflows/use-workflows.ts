@@ -1,7 +1,12 @@
 /**
  * TanStack Query hooks for the /workflows page.
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import {
   approveWorkflowRun,
   cancelWorkflowRun,
@@ -107,6 +112,16 @@ export function useWorkflowRuns(workflowId: string | null) {
   })
 }
 
+/** Re-runs launched from `runId` (RUN AGAIN lineage, feature `parent_run`). */
+export function useChildRuns(runId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ['workflow-runs', 'children', runId],
+    queryFn: () => listWorkflowRuns({ parent_run_id: runId!, limit: 20 }),
+    enabled: !!runId && enabled,
+    staleTime: 10_000,
+  })
+}
+
 export function useRunEvents(
   runId: string | null,
   q: RunEventsQuery = {},
@@ -175,6 +190,7 @@ export function useApproveRun(runId: string) {
 export function useRetryRun() {
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: ['retry-run'],
     mutationFn: async (v: { runId: string; fromNodeId?: string }) => {
       try {
         await retryWorkflowRun(
@@ -191,6 +207,21 @@ export function useRetryRun() {
       void queryClient.invalidateQueries({ queryKey: ['conductor'] })
     },
   })
+}
+
+/** A retry of `runId` is in flight from any RESUME button. */
+export function useRetryPending(runId: string | null) {
+  return (
+    useMutationState({
+      filters: {
+        mutationKey: ['retry-run'],
+        status: 'pending',
+        predicate: (m) =>
+          (m.state.variables as { runId?: string } | undefined)?.runId ===
+          runId,
+      },
+    }).length > 0
+  )
 }
 
 export function useUpsertWorkflowDefinition() {

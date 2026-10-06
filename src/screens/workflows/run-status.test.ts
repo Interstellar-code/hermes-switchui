@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   fetchRunIndexRuns,
   indexRunsByWorkflow,
+  isResumable,
   phaseLabel,
   runAgainInput,
   runIndexInterval,
@@ -157,5 +158,30 @@ describe('fetchRunIndexRuns', () => {
     const runs = await fetchRunIndexRuns()
     expect(urls).toEqual(['/api/workflow-runs?limit=200'])
     expect(runs.map((r) => r.id)).toEqual(['r1'])
+  })
+})
+
+describe('isResumable', () => {
+  const now = Date.parse('2026-10-06T12:00:00Z')
+  const ago = (min: number) => new Date(now - min * 60_000).toISOString()
+  it('failed/cancelled always; pending/running only with a heartbeat older than 5 min', () => {
+    expect(isResumable({ status: 'failed' }, now)).toBe(true)
+    expect(isResumable({ status: 'cancelled' }, now)).toBe(true)
+    expect(isResumable({ status: 'completed' }, now)).toBe(false)
+    expect(
+      isResumable({ status: 'running', last_heartbeat: ago(1) }, now),
+    ).toBe(false)
+    expect(
+      isResumable({ status: 'running', last_heartbeat: ago(6) }, now),
+    ).toBe(true)
+    expect(
+      isResumable({ status: 'pending', last_heartbeat: ago(6) }, now),
+    ).toBe(true)
+    expect(isResumable({ status: 'running', last_heartbeat: null }, now)).toBe(
+      false,
+    )
+    expect(
+      isResumable({ status: 'paused', last_heartbeat: ago(60) }, now),
+    ).toBe(false)
   })
 })

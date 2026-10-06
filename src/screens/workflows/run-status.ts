@@ -11,8 +11,28 @@ import type { Mission } from '@/server/conductor-store'
 
 export const RUN_INDEX_LIMIT = 200
 
-/** Run statuses `POST /retry` accepts (a crashed run reads as failed). */
+/**
+ * Run statuses `POST /retry` accepts. The backend reaper marks a run whose
+ * owner died failed after 5 min (run_store STALE_MS / mark_crashed_runs).
+ */
 export const RESUMABLE = new Set(['failed', 'cancelled'])
+/** run_store STALE_MS: a pending/running run this quiet has lost its owner. */
+export const STALE_HEARTBEAT_MS = 5 * 60 * 1000
+
+/** RESUME applies: failed/cancelled, or pending/running with a stale heartbeat. */
+export function isResumable(
+  run: Pick<WorkflowRunRow, 'status' | 'last_heartbeat'> | null | undefined,
+  now = Date.now(),
+): boolean {
+  if (!run) return false
+  if (RESUMABLE.has(run.status)) return true
+  const beat = toEpochMs(run.last_heartbeat)
+  return (
+    (run.status === 'pending' || run.status === 'running') &&
+    beat != null &&
+    now - beat > STALE_HEARTBEAT_MS
+  )
+}
 const RECENT = 10
 
 export type StageLabel = 'PLAN' | 'ROUTE' | 'EXECUTE' | 'REVIEW' | 'REPORT'

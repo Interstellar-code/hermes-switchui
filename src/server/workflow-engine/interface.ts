@@ -248,7 +248,7 @@ export interface WorkflowEngineInterface {
   deleteWorkflowDefinition: (id: string) => Promise<number>;
 
   // ── Runs ───────────────────────────────────────────────────────────────
-  listRuns: (opts?: { workflowId?: string; limit?: number; status?: string }) => Promise<Array<WorkflowRun>>;
+  listRuns: (opts?: { workflowId?: string; limit?: number; status?: string; parentRunId?: string }) => Promise<Array<WorkflowRun>>;
   getRun: (runId: string) => Promise<WorkflowRun | null>;
   startRun: (
     workflowId: string,
