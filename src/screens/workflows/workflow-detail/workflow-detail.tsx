@@ -388,7 +388,11 @@ export function WorkflowDetail({
           <button
             type="button"
             className="wfd-btn wfd-btn-p"
-            onClick={onEditGraph}
+            onClick={() => {
+              // F4: land back on the GRAPH tab after the editor exits.
+              setActiveTab('GRAPH')
+              onEditGraph()
+            }}
           >
             <svg
               width="10"

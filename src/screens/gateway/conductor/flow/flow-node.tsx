@@ -11,6 +11,7 @@ import { nodeColor } from '@/screens/workflows/node-colors'
 
 function FlowNodeView({ data }: NodeProps<FlowNode>) {
   const { node: n, upstreamFailed, preview } = data
+  const editable = data.editable === true
   const now = useNow(
     !preview && (n.status === 'running' || n.status === 'paused'),
   )
@@ -18,7 +19,9 @@ function FlowNodeView({ data }: NodeProps<FlowNode>) {
   const nAgents = agentCount(n.sessions)
   const line = preview
     ? n.stage.toLowerCase()
-    : statusText(n, now, upstreamFailed)
+    : editable
+      ? (data.subtitle ?? n.stage.toLowerCase())
+      : statusText(n, now, upstreamFailed)
   const status = n.status === 'idle' ? 'pending' : n.status
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
@@ -30,7 +33,7 @@ function FlowNodeView({ data }: NodeProps<FlowNode>) {
 
   return (
     <div
-      className={`dn ${nodeClass(n.status)} t-${n.type}`}
+      className={`dn ${nodeClass(n.status)} t-${n.type}${editable && data.disconnected ? ' dn-new' : ''}`}
       style={{ '--node-c': nodeColor(n.type) } as CSSProperties}
       data-node-id={n.id}
       {...(preview
@@ -38,11 +41,11 @@ function FlowNodeView({ data }: NodeProps<FlowNode>) {
         : {
             tabIndex: 0,
             role: 'button',
-            'aria-label': `${n.label}, ${n.type} node, ${status}: ${line}. Open details`,
+            'aria-label': `${n.label}, ${n.type} node, ${status}: ${line}. ${editable && data.errorText ? `Error: ${data.errorText}. ` : ''}${editable ? 'Select to configure' : 'Open details'}`,
             onKeyDown,
           })}
     >
-      <Handle type="target" position={Position.Left} isConnectable={false} />
+      <Handle type="target" position={Position.Left} isConnectable={editable} />
       <span className="k">
         {n.type}
         {badge && <span className="loop">↻ {badge}</span>}
@@ -58,7 +61,16 @@ function FlowNodeView({ data }: NodeProps<FlowNode>) {
           ` · ${compactTokens(n.tokens)} tok`}
       </span>
       {nAgents > 0 && <span className="agents-chip">◇ {nAgents}</span>}
-      <Handle type="source" position={Position.Right} isConnectable={false} />
+      {editable && data.errorText && (
+        <span className="dn-errmsg" aria-hidden="true">
+          {data.errorText}
+        </span>
+      )}
+      <Handle
+        type="source"
+        position={Position.Right}
+        isConnectable={editable}
+      />
     </div>
   )
 }

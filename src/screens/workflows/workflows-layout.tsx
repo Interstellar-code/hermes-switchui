@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useWorkflowDefinitions } from './use-workflows'
 import { WorkflowsTopBar } from './workflows-top-bar'
 import { WorkflowLibrary } from './workflow-library'
-import { WorkflowEditor } from './workflow-editor'
+import { WorkflowGraphEditor } from './graph-editor/graph-editor'
 import { WorkflowGrid } from './workflow-grid'
 import { WorkflowDetail } from './workflow-detail'
 import { LaunchWizard } from './launch-wizard'
@@ -17,6 +17,8 @@ export function WorkflowsLayout() {
   const [wizardOpenForId, setWizardOpenForId] = useState<string | null>(null)
   const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [railCollapsed, setRailCollapsed] = useState(false)
+  // F4: while the graph editor is open, it registers a dirty-leave guard.
+  const graphLeaveGuardRef = useRef<(() => boolean) | null>(null)
 
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
   // B.4 Path B: Editor + Launch Wizard now load via useWorkflowParsed (parsed endpoint).
@@ -68,6 +70,15 @@ export function WorkflowsLayout() {
     [],
   )
 
+  // F4: in-app navigation away from a dirty graph editor goes through its guard
+  // (confirm-discard); non-editing navigation is untouched.
+  const leaveGraphEditor = useCallback((navigate: () => void) => {
+    const guard = graphLeaveGuardRef.current
+    if (guard && !guard()) return
+    setIsEditingGraph(false)
+    navigate()
+  }, [])
+
   return (
     <>
       <div
@@ -76,20 +87,22 @@ export function WorkflowsLayout() {
         <aside className={`wf-library${railCollapsed ? ' is-collapsed' : ''}`}>
           <WorkflowLibrary
             selectedId={selectedWorkflowId}
-            onSelectWorkflow={(id) => {
-              setSelectedWorkflowId(id)
-              setIsEditingGraph(false)
-              const url = new URL(window.location.href)
-              url.searchParams.set('wf', id)
-              window.history.pushState(null, '', url.toString())
-            }}
-            onClearSelection={() => {
-              setSelectedWorkflowId(null)
-              setIsEditingGraph(false)
-              const url = new URL(window.location.href)
-              url.searchParams.delete('wf')
-              window.history.pushState(null, '', url.toString())
-            }}
+            onSelectWorkflow={(id) =>
+              leaveGraphEditor(() => {
+                setSelectedWorkflowId(id)
+                const url = new URL(window.location.href)
+                url.searchParams.set('wf', id)
+                window.history.pushState(null, '', url.toString())
+              })
+            }
+            onClearSelection={() =>
+              leaveGraphEditor(() => {
+                setSelectedWorkflowId(null)
+                const url = new URL(window.location.href)
+                url.searchParams.delete('wf')
+                window.history.pushState(null, '', url.toString())
+              })
+            }
             collapsed={railCollapsed}
             onToggleCollapse={() => setRailCollapsed((c) => !c)}
             onFilteredChange={handleFilteredChange}
@@ -107,22 +120,11 @@ export function WorkflowsLayout() {
           <div className="wf-editor-content">
             {selectedWorkflowId ? (
               isEditingGraph ? (
-                <WorkflowEditor
-                  selectedId={selectedWorkflowId}
-                  onOpenRun={handleOpenRunPanel}
-                  onOpenLaunchWizard={handleOpenLaunchWizard}
-                  onDeselect={() => {
-                    setSelectedWorkflowId(null)
-                    setIsEditingGraph(false)
-                    const url = new URL(window.location.href)
-                    url.searchParams.delete('wf')
-                    window.history.pushState(null, '', url.toString())
-                  }}
-                  onSelectWorkflow={(id) => {
-                    setSelectedWorkflowId(id)
-                    const url = new URL(window.location.href)
-                    url.searchParams.set('wf', id)
-                    window.history.pushState(null, '', url.toString())
+                <WorkflowGraphEditor
+                  workflowId={selectedWorkflowId}
+                  onExit={() => setIsEditingGraph(false)}
+                  onRegisterGuard={(guard) => {
+                    graphLeaveGuardRef.current = guard
                   }}
                 />
               ) : (
