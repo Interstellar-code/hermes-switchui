@@ -4,6 +4,7 @@ import { nodeColor } from './node-colors'
 import { isWithin7Days } from './workflows-top-bar'
 import { useWorkflowParsed } from './use-workflows'
 import { relativeTime } from './types'
+import { WorkflowTable } from './workflow-table'
 import type { WorkflowSource, WorkflowSummary } from './types'
 import { buildDag } from '@/screens/gateway/conductor/dag-model'
 import { FlowCanvas } from '@/screens/gateway/conductor/mission-canvas'
@@ -649,7 +650,11 @@ export function WorkflowGrid({
             </section>
           </>
         ) : (
-          <WorkflowTable workflows={sortedWorkflows} onSelect={onSelect} />
+          <WorkflowTable
+            workflows={sortedWorkflows}
+            onSelect={onSelect}
+            onOpenLaunchWizard={onOpenLaunchWizard}
+          />
         )}
       </div>
 
@@ -660,99 +665,6 @@ export function WorkflowGrid({
           onClose={() => setDuplicateModalOpen(false)}
         />
       )}
-    </div>
-  )
-}
-
-function WorkflowTable({
-  workflows,
-  onSelect,
-}: {
-  workflows: Array<WorkflowSummary>
-  onSelect: (id: string) => void
-}) {
-  return (
-    <div className="tw">
-      <table>
-        <thead>
-          <tr>
-            <th scope="col" style={{ width: '320px' }}>
-              <button type="button">NAME</button>
-            </th>
-            <th scope="col" style={{ width: '90px' }}>
-              <button type="button">ORIGIN</button>
-            </th>
-            <th scope="col" style={{ width: '60px' }}>
-              <button type="button">NODES</button>
-            </th>
-            <th scope="col" style={{ width: '120px' }}>
-              <button type="button">TYPES</button>
-            </th>
-            <th scope="col" style={{ width: '60px' }}>
-              <button type="button">INPUTS</button>
-            </th>
-            <th scope="col" style={{ width: '50px' }}>
-              <button type="button">VER</button>
-            </th>
-            <th scope="col" style={{ width: '90px' }}>
-              <button type="button">EDITED</button>
-            </th>
-            <th scope="col" style={{ width: '110px' }}>
-              <button type="button">SCHEDULE</button>
-            </th>
-            <th scope="col" style={{ width: '70px' }}>
-              <button type="button">VALID</button>
-            </th>
-            <th scope="col" style={{ width: '100px' }}>
-              <button type="button">LAST RUN</button>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {workflows.map((wf) => (
-            <tr
-              key={wf.id}
-              onClick={() => onSelect(wf.id)}
-              style={{ cursor: 'pointer' }}
-            >
-              <td>
-                <span className="nm">{wf.name}</span>
-                <span className="id" style={{ marginLeft: '6px' }}>
-                  {wf.id}
-                </span>
-              </td>
-              <td>{renderOriginChip(wf.source, wf.user_modified)}</td>
-              <td className="num">{wf.node_count}</td>
-              <td>
-                <NodeTypeBar workflow={wf} width="96px" />
-              </td>
-              <td className="num">
-                {wf.required_inputs.length + wf.optional_inputs.length}
-              </td>
-              <td>v{wf.version || '1'}</td>
-              <td>{formatEditedTime(wf)}</td>
-              <td>
-                <span className="na">—</span>
-              </td>
-              <td>
-                <span className="ok" style={{ border: 0 }}>
-                  ✓
-                </span>{' '}
-                valid
-              </td>
-              <td>
-                {wf.run_count > 0 ? (
-                  <span className="ok" style={{ border: 0 }}>
-                    ✓ ok
-                  </span>
-                ) : (
-                  <span className="na">never</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   )
 }
