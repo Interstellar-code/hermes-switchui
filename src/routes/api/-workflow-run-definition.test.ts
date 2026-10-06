@@ -13,7 +13,7 @@ vi.mock('../../server/gateway-capabilities', () => ({
   dashboardFetch: (...a: Array<unknown>) => mockDashboardFetch(...a),
 }))
 
-async function get() {
+async function get(runId = 'r1') {
   const mod = await import('./workflow-runs.$runId.definition')
   const GET = (
     mod as unknown as {
@@ -31,7 +31,7 @@ async function get() {
   ).Route.server.handlers.GET
   return GET({
     request: new Request('http://x/api/workflow-runs/r1/definition'),
-    params: { runId: 'r1' },
+    params: { runId },
   })
 }
 
@@ -93,5 +93,10 @@ describe('GET /api/workflow-runs/:runId/definition', () => {
   it('502 on plugin failure', async () => {
     mockDashboardFetch.mockRejectedValue(new Error('down'))
     expect((await get()).status).toBe(502)
+  })
+
+  it('400 on invalid run id', async () => {
+    expect((await get('a/b')).status).toBe(400)
+    expect(mockDashboardFetch).not.toHaveBeenCalled()
   })
 })

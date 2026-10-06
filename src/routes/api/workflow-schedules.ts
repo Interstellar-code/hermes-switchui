@@ -3,6 +3,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { WORKFLOW_ID_RE } from '../../server/workflow-id'
 import { dashboardFetch } from '../../server/gateway-capabilities'
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine'
@@ -15,6 +16,12 @@ export const Route = createFileRoute('/api/workflow-schedules')({
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
         }
         const wid = new URL(request.url).searchParams.get('workflow_id')
+        if (wid && !WORKFLOW_ID_RE.test(wid)) {
+          return Response.json(
+            { error: 'Invalid workflow_id' },
+            { status: 400 },
+          )
+        }
         const qs = wid ? `?workflow_id=${encodeURIComponent(wid)}` : ''
         try {
           const res = await dashboardFetch(`${PLUGIN_BASE}/schedules${qs}`, {

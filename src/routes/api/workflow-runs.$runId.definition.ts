@@ -10,6 +10,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { parse as parseYaml } from 'yaml'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { WORKFLOW_ID_RE } from '../../server/workflow-id'
 import { dashboardFetch } from '../../server/gateway-capabilities'
 import { projectWorkflow } from '../../server/workflow-parsed'
 import type { WorkflowDoc } from '../../server/workflow-parsed'
@@ -32,6 +33,9 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/definition')({
       GET: async ({ request, params }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        if (!WORKFLOW_ID_RE.test(params.runId)) {
+          return Response.json({ error: 'Invalid run id' }, { status: 400 })
         }
         try {
           const res = await dashboardFetch(

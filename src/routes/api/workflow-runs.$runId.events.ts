@@ -7,6 +7,7 @@
  */
 import { createFileRoute } from '@tanstack/react-router'
 import { isAuthenticated } from '../../server/auth-middleware'
+import { WORKFLOW_ID_RE } from '../../server/workflow-id'
 import { getEngine } from '../../server/workflow-engine/factory'
 
 const MAX_LIMIT = 1000
@@ -17,6 +18,9 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/events')({
       GET: async ({ request, params }) => {
         if (!isAuthenticated(request)) {
           return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        }
+        if (!WORKFLOW_ID_RE.test(params.runId)) {
+          return Response.json({ error: 'Invalid run id' }, { status: 400 })
         }
         const url = new URL(request.url)
         const rawLimit = Number(url.searchParams.get('limit'))

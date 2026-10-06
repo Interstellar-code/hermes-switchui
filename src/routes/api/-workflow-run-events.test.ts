@@ -15,7 +15,7 @@ vi.mock('../../server/workflow-engine/factory', () => ({
   }),
 }))
 
-async function get(qs = '') {
+async function get(qs = '', runId = 'r1') {
   const mod = await import('./workflow-runs.$runId.events')
   const GET = (
     mod as unknown as {
@@ -33,7 +33,7 @@ async function get(qs = '') {
   ).Route.server.handlers.GET
   return GET({
     request: new Request(`http://x/api/workflow-runs/r1/events${qs}`),
-    params: { runId: 'r1' },
+    params: { runId },
   })
 }
 
@@ -69,5 +69,10 @@ describe('GET /api/workflow-runs/:runId/events', () => {
   it('500 on other engine errors', async () => {
     mockListRunEvents.mockRejectedValue(new Error('boom'))
     expect((await get()).status).toBe(500)
+  })
+
+  it('400 on invalid run id', async () => {
+    expect((await get('', '..')).status).toBe(400)
+    expect(mockListRunEvents).not.toHaveBeenCalled()
   })
 })

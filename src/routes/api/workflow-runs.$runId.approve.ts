@@ -7,6 +7,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { isAuthenticated } from '../../server/auth-middleware';
 import { requireJsonContentType } from '../../server/rate-limit';
+import { WORKFLOW_ID_RE } from '../../server/workflow-id';
 import { getEngine } from '../../server/workflow-engine/factory';
 
 
@@ -21,6 +22,9 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
 
         const engine = getEngine();
         const runId = params.runId;
+        if (!WORKFLOW_ID_RE.test(runId)) {
+          return Response.json({ error: 'Invalid run id' }, { status: 400 });
+        }
 
         // 2. Parse + validate body.
         let body: unknown;
@@ -39,6 +43,9 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
         if (typeof node_run_id !== 'string' || !node_run_id) {
           return Response.json({ error: 'node_run_id is required' }, { status: 400 });
         }
+        if (!WORKFLOW_ID_RE.test(node_run_id)) {
+          return Response.json({ error: 'Invalid node_run_id' }, { status: 400 });
+        }
         if (decision !== 'approved' && decision !== 'rejected') {
           return Response.json({ error: "decision must be 'approved' or 'rejected'" }, { status: 400 });
         }
@@ -47,7 +54,15 @@ export const Route = createFileRoute('/api/workflow-runs/$runId/approve')({
         // Phase 2: always plugin path — plugin handles all approval logic server-side.
         const ifaceDecision = decision === 'approved' ? 'approve' : 'reject';
         // approved_by is server-set (self-reported, no per-user identity); any client value is ignored.
-        await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined, 'switchui');
+        try {
+          await engine.approve(runId, node_run_id, ifaceDecision, approvalResponse || undefined, 'switchui');
+        } catch (err) {
+          // PluginClient errors read "PluginClient POST <path>: <status> <body>"; never forward the body.
+          const status = Number(/: (\d{3})\b/.exec(err instanceof Error ? err.message : '')?.[1]);
+          if (status === 404) return Response.json({ error: 'Run not found' }, { status: 404 });
+          if (status === 400) return Response.json({ error: 'Invalid approval request' }, { status: 400 });
+          return Response.json({ error: 'Failed to approve' }, { status: 502 });
+        }
         return Response.json({ ok: true, decision, resumedRunId: runId });
       },
     },

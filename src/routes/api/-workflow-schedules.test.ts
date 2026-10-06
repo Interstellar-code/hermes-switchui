@@ -59,13 +59,23 @@ describe('workflow-schedules routes', () => {
     const res = await (
       await list()
     ).GET({
-      request: new Request('http://x/api/workflow-schedules?workflow_id=a b'),
+      request: new Request('http://x/api/workflow-schedules?workflow_id=a.b'),
     })
     expect(res.status).toBe(200)
     expect(await res.json()).toEqual({ schedules: [{ id: 's1' }] })
     expect(dashboardFetch.mock.calls[0][0]).toBe(
-      '/api/plugins/workflow-engine/schedules?workflow_id=a%20b',
+      '/api/plugins/workflow-engine/schedules?workflow_id=a.b',
     )
+  })
+
+  it('GET rejects an invalid workflow_id', async () => {
+    const res = await (
+      await list()
+    ).GET({
+      request: new Request('http://x/api/workflow-schedules?workflow_id=..'),
+    })
+    expect(res.status).toBe(400)
+    expect(dashboardFetch).not.toHaveBeenCalled()
   })
 
   it('GET maps upstream failure to a generic error', async () => {
