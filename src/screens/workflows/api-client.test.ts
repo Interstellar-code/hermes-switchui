@@ -4,9 +4,11 @@ import {
   WorkflowEngineUnavailableError,
   cancelWorkflowRun,
   chatWorkflowWizard,
+  getWorkflowDefinitionVersion,
   getWorkflowFeatures,
   listRunEvents,
   listRunEventsPaged,
+  listWorkflowDefinitionVersions,
   listWorkflowDefinitions,
   validateWorkflowDefinition,
 } from './api-client'
@@ -359,6 +361,103 @@ describe('validateWorkflowDefinition', () => {
 
     await expect(validateWorkflowDefinition('name: test')).rejects.toThrow(
       WorkflowEngineUnavailableError,
+    )
+  })
+})
+
+describe('listWorkflowDefinitionVersions / getWorkflowDefinitionVersion', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  const LIST = [
+    {
+      checksum: 'cc11ac2f5033',
+      version: null,
+      saved_at: 1791315040892,
+      source: 'save',
+      node_count: 2,
+      size_bytes: 117,
+      in_use_by_runs: 0,
+    },
+  ]
+
+  it('unwraps { versions } from the route', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ versions: LIST }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const versions = await listWorkflowDefinitionVersions('wf-1')
+    expect(versions).toEqual(LIST)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/workflow-definitions/wf-1/versions',
+      undefined,
+    )
+  })
+
+  it('throws WorkflowEngineUnavailableError when the engine is down', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              engine_ok: false,
+              error: 'Workflow engine unavailable',
+            }),
+            { status: 503, headers: { 'Content-Type': 'application/json' } },
+          ),
+        ),
+    )
+
+    await expect(listWorkflowDefinitionVersions('wf-1')).rejects.toThrow(
+      WorkflowEngineUnavailableError,
+    )
+  })
+
+  it('surfaces 404 with a status on the error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'not found' }), {
+          status: 404,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+
+    const err = await listWorkflowDefinitionVersions('ghost').catch(
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(Error)
+    expect((err as { status?: number }).status).toBe(404)
+  })
+
+  it('unwraps { version } for a single snapshot', async () => {
+    const detail = {
+      ...LIST[0],
+      yaml: 'name: demo\nnodes:\n  - id: a\n    prompt: hi\n',
+      parsed: { id: 'demo', nodes: [] },
+    }
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ version: detail }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const version = await getWorkflowDefinitionVersion('wf-1', 'cc11ac2f5033')
+    expect(version.yaml).toContain('name: demo')
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/workflow-definitions/wf-1/versions/cc11ac2f5033',
+      undefined,
     )
   })
 })

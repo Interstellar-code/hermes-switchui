@@ -843,8 +843,9 @@ export async function deleteWorkflowDefinition(id: string): Promise<void> {
 }
 
 export interface WorkflowValidationIssue {
-  line: number
-  col: number
+  /** 1-based; null when the engine cannot pin the issue to a line (cycles, schema-level errors). */
+  line: number | null
+  col: number | null
   code: string
   message: string
   node_id?: string
@@ -893,4 +894,78 @@ export async function validateWorkflowDefinition(
     id_available:
       typeof body.id_available === 'boolean' ? body.id_available : null,
   }
+}
+
+export type WorkflowVersionSource = 'save' | 'import' | 'reset' | 'seed' | 'run'
+
+export interface WorkflowDefinitionVersionSummary {
+  checksum: string
+  version: string | null
+  saved_at: number | null
+  source: WorkflowVersionSource
+  /** null when an old snapshot no longer parses. */
+  node_count: number | null
+  size_bytes: number
+  in_use_by_runs: number
+}
+
+export interface WorkflowDefinitionVersionDetail extends WorkflowDefinitionVersionSummary {
+  yaml: string
+  parsed: Record<string, unknown> | null
+}
+
+async function wfJsonError(
+  res: Response,
+  fallback: string,
+): Promise<{ status: number; message: string; engineDown: boolean }> {
+  const body = (await res.json().catch(() => null)) as {
+    error?: string
+    engine_ok?: boolean
+  } | null
+  return {
+    status: res.status,
+    message: body?.error || `${fallback} failed (${res.status})`,
+    engineDown: res.status === 503 || body?.engine_ok === false,
+  }
+}
+
+/** Snapshot history, newest first. Only call when the `definition_versions` feature is listed. */
+export async function listWorkflowDefinitionVersions(
+  id: string,
+): Promise<Array<WorkflowDefinitionVersionSummary>> {
+  const res = await wfFetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}/versions`,
+  )
+  if (!res.ok) {
+    const { status, message, engineDown } = await wfJsonError(
+      res,
+      'listWorkflowDefinitionVersions',
+    )
+    if (engineDown) throw new WorkflowEngineUnavailableError(message)
+    throw Object.assign(new Error(message), { status, serverError: message })
+  }
+  const body = (await res.json()) as { versions?: unknown }
+  return Array.isArray(body.versions)
+    ? (body.versions as Array<WorkflowDefinitionVersionSummary>)
+    : []
+}
+
+/** One snapshot with its yaml (VIEW in the VERSIONS tab). */
+export async function getWorkflowDefinitionVersion(
+  id: string,
+  checksum: string,
+): Promise<WorkflowDefinitionVersionDetail> {
+  const res = await wfFetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}/versions/${encodeURIComponent(checksum)}`,
+  )
+  if (!res.ok) {
+    const { status, message, engineDown } = await wfJsonError(
+      res,
+      'getWorkflowDefinitionVersion',
+    )
+    if (engineDown) throw new WorkflowEngineUnavailableError(message)
+    throw Object.assign(new Error(message), { status, serverError: message })
+  }
+  const body = (await res.json()) as { version?: unknown }
+  return body.version as WorkflowDefinitionVersionDetail
 }

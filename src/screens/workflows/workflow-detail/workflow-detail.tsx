@@ -4,6 +4,8 @@ import {
   useResetWorkflowDefinitionToFactory,
   useUpsertWorkflowDefinition,
   useValidateWorkflowDefinition,
+  useWorkflowDefinitionVersion,
+  useWorkflowDefinitionVersions,
   useWorkflowFeatures,
   useWorkflowParsed,
   useWorkflowRuns,
@@ -152,6 +154,21 @@ export function WorkflowDetail({
     useValidateWorkflowDefinition(def?.yaml, def?.id, {
       enabled: hasValidate && Boolean(def?.yaml),
     })
+
+  const [viewVersionChecksum, setViewVersionChecksum] = useState<string | null>(
+    null,
+  )
+  const {
+    data: versions,
+    isLoading: versionsLoading,
+    error: versionsError,
+  } = useWorkflowDefinitionVersions(workflowId, hasVersions)
+  const { data: versionDetail, isLoading: versionDetailLoading } =
+    useWorkflowDefinitionVersion(
+      workflowId,
+      viewVersionChecksum,
+      hasVersions && viewVersionChecksum != null,
+    )
 
   const dag: DagModel | null = useMemo(() => {
     if (!parsed) return null
@@ -574,7 +591,10 @@ export function WorkflowDetail({
             aria-selected={activeTab === 'VERSIONS'}
             onClick={() => setActiveTab('VERSIONS')}
           >
-            VERSIONS<span className="wfd-tab-c">2</span>
+            VERSIONS
+            {versions != null && (
+              <span className="wfd-tab-c">{versions.length}</span>
+            )}
           </button>
         )}
       </nav>
@@ -841,42 +861,61 @@ export function WorkflowDetail({
                       ALL →
                     </button>
                   </h2>
-                  <table className="wfd-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">VER</th>
-                        <th scope="col">CHECKSUM</th>
-                        <th scope="col">SAVED</th>
-                        <th scope="col">SOURCE</th>
-                        <th scope="col">
-                          <span className="wfd-sr">Actions</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="wfd-k">{versionStr}</td>
-                        <td>{shortChecksum}</td>
-                        <td>{editedStr}</td>
-                        <td>current</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="wfd-btn wfd-btn-sm wfd-btn-gh"
-                          >
-                            DIFF
-                          </button>
-                        </td>
-                      </tr>
-                      <tr>
-                        <td>v1</td>
-                        <td className="wfd-na">—</td>
-                        <td className="wfd-na">earlier</td>
-                        <td className="wfd-na">not stored</td>
-                        <td />
-                      </tr>
-                    </tbody>
-                  </table>
+                  {versionsLoading ? (
+                    <p className="wfd-txt">Loading versions…</p>
+                  ) : !versions || versions.length === 0 ? (
+                    <p className="wfd-txt">
+                      No stored versions yet. Every save, import or reset adds
+                      one.
+                    </p>
+                  ) : (
+                    <table className="wfd-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">VER</th>
+                          <th scope="col">CHECKSUM</th>
+                          <th scope="col">SAVED</th>
+                          <th scope="col">SOURCE</th>
+                          <th scope="col">
+                            <span className="wfd-sr">Actions</span>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {versions.slice(0, 3).map((v) => (
+                          <tr key={v.checksum}>
+                            <td className="wfd-k">
+                              {v.version ? `v${v.version}` : '—'}
+                              {v.checksum === def.checksum && (
+                                <span className="wfd-chip wfd-chip-mu">
+                                  CURRENT
+                                </span>
+                              )}
+                            </td>
+                            <td>{v.checksum.slice(0, 8)}</td>
+                            <td>{formatEditedTime(v.saved_at ?? undefined)}</td>
+                            <td>
+                              <span className="wfd-chip wfd-chip-mu">
+                                {v.source.toUpperCase()}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="wfd-btn wfd-btn-sm wfd-btn-gh"
+                                onClick={() => {
+                                  setViewVersionChecksum(v.checksum)
+                                  setActiveTab('VERSIONS')
+                                }}
+                              >
+                                VIEW
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                   <p
                     className="wfd-txt"
                     style={{
@@ -1075,34 +1114,130 @@ export function WorkflowDetail({
         {/* VERSIONS TAB */}
         {activeTab === 'VERSIONS' && hasVersions && (
           <div className="wfd-card" style={{ flexGrow: 1 }}>
-            <h2>VERSION HISTORY</h2>
-            <table className="wfd-table">
-              <thead>
-                <tr>
-                  <th scope="col">VERSION</th>
-                  <th scope="col">CHECKSUM</th>
-                  <th scope="col">SAVED AT</th>
-                  <th scope="col">SOURCE</th>
-                  <th scope="col">ACTIONS</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="wfd-k">{versionStr}</td>
-                  <td>{def.checksum}</td>
-                  <td>{editedStr}</td>
-                  <td>current</td>
-                  <td>
-                    <button
-                      type="button"
-                      className="wfd-btn wfd-btn-sm wfd-btn-gh"
-                    >
-                      DIFF CURRENT
-                    </button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            {viewVersionChecksum != null ? (
+              <>
+                <h2>
+                  VERSION{' '}
+                  {versionDetail
+                    ? versionDetail.checksum.slice(0, 8)
+                    : viewVersionChecksum.slice(0, 8)}
+                  <button
+                    type="button"
+                    className="wfd-card-link"
+                    onClick={() => setViewVersionChecksum(null)}
+                  >
+                    ← ALL VERSIONS
+                  </button>
+                </h2>
+                {versionDetailLoading || !versionDetail ? (
+                  <p className="wfd-txt">Loading snapshot…</p>
+                ) : (
+                  <>
+                    <p className="wfd-txt" style={{ fontSize: 11 }}>
+                      saved{' '}
+                      {formatEditedTime(versionDetail.saved_at ?? undefined)} ·
+                      source {versionDetail.source} ·{' '}
+                      {versionDetail.node_count ?? '?'} nodes · in use by{' '}
+                      {versionDetail.in_use_by_runs} run
+                      {versionDetail.in_use_by_runs === 1 ? '' : 's'}
+                      {versionDetail.checksum === def.checksum
+                        ? ' · CURRENT'
+                        : ''}
+                    </p>
+                    <div className="wfd-yaml-wrap">
+                      <div className="wfd-yaml-toolbar">
+                        <span className="wfd-meta">
+                          {def.id}.yaml ·{' '}
+                          {versionDetail.yaml.split('\n').length} lines ·
+                          read-only
+                        </span>
+                      </div>
+                      <div className="wfd-yaml-body">
+                        <div className="wfd-yaml-gutter">
+                          {versionDetail.yaml.split('\n').map((_, i) => (
+                            <div key={i}>{i + 1}</div>
+                          ))}
+                        </div>
+                        <pre className="wfd-yaml-code">
+                          {versionDetail.yaml
+                            .split('\n')
+                            .map((l, i) => yamlLine(l, i))}
+                        </pre>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <h2>VERSION HISTORY</h2>
+                {versionsLoading ? (
+                  <p className="wfd-txt">Loading versions…</p>
+                ) : versionsError ? (
+                  <p className="wfd-txt">
+                    Couldn’t load versions — the workflow engine reported an
+                    error.
+                  </p>
+                ) : !versions || versions.length === 0 ? (
+                  <p className="wfd-txt">
+                    No stored versions yet. Every save, import or reset adds
+                    one.
+                  </p>
+                ) : (
+                  <table className="wfd-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">VERSION</th>
+                        <th scope="col">CHECKSUM</th>
+                        <th scope="col">SAVED</th>
+                        <th scope="col">SOURCE</th>
+                        <th scope="col">NODES</th>
+                        <th scope="col">RUNS</th>
+                        <th scope="col">
+                          <span className="wfd-sr">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {versions.map((v) => (
+                        <tr key={v.checksum}>
+                          <td className="wfd-k">
+                            {v.version ? `v${v.version}` : '—'}
+                            {v.checksum === def.checksum && (
+                              <span className="wfd-chip wfd-chip-mu">
+                                CURRENT
+                              </span>
+                            )}
+                          </td>
+                          <td>{v.checksum.slice(0, 8)}</td>
+                          <td>{formatEditedTime(v.saved_at ?? undefined)}</td>
+                          <td>
+                            <span className="wfd-chip wfd-chip-mu">
+                              {v.source.toUpperCase()}
+                            </span>
+                          </td>
+                          <td>{v.node_count ?? '—'}</td>
+                          <td>
+                            {v.in_use_by_runs > 0
+                              ? `in use by ${v.in_use_by_runs}`
+                              : '—'}
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="wfd-btn wfd-btn-sm wfd-btn-gh"
+                              onClick={() => setViewVersionChecksum(v.checksum)}
+                            >
+                              VIEW
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>

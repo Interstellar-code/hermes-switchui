@@ -299,7 +299,8 @@ function CodeView({
 }) {
   const lines = text.split('\n')
   const bad = new Map<number, LintIssue>()
-  for (const i of issues) if (!bad.has(i.line)) bad.set(i.line, i)
+  for (const i of issues)
+    if (i.line != null && !bad.has(i.line)) bad.set(i.line, i)
   return (
     <div className="wz2-code" aria-label="YAML with error markers" role="list">
       {lines.map((l, i) => {
@@ -350,9 +351,9 @@ function ImportPane({
   const fileRef = useRef<HTMLInputElement>(null)
   const areaRef = useRef<HTMLTextAreaElement>(null)
 
-  function jump(line: number) {
+  function jump(line: number | null) {
     const el = areaRef.current
-    if (!el) return
+    if (!el || line == null) return
     const lines = el.value.split('\n')
     const start = lines.slice(0, line - 1).reduce((n, l) => n + l.length + 1, 0)
     el.focus()
@@ -412,13 +413,17 @@ function ImportPane({
             {issues.map((i, k) => (
               <li key={`${i.line}-${i.code}-${k}`}>
                 <span className="wz2-bad">✗</span>
-                <button
-                  type="button"
-                  className="wfl-link"
-                  onClick={() => jump(i.line)}
-                >
-                  Line {i.line}
-                </button>
+                {i.line != null ? (
+                  <button
+                    type="button"
+                    className="wfl-link"
+                    onClick={() => jump(i.line)}
+                  >
+                    Line {i.line}
+                  </button>
+                ) : (
+                  <span className="wfl-meta">{i.node_id ?? 'yaml'}</span>
+                )}
                 <span>{i.message}</span>
               </li>
             ))}

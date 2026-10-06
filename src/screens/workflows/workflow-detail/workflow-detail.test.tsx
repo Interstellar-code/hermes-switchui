@@ -56,6 +56,9 @@ let mockIsLoading = false
 let mockError: Error | null = null
 let mockFeatures: Array<string> = []
 let mockValidationResult: unknown = null
+let mockVersions: Array<unknown> | null = null
+let mockVersionsLoading = false
+let mockVersionDetail: unknown = null
 
 const deleteMutateMock = vi.fn()
 const resetMutateMock = vi.fn()
@@ -80,6 +83,15 @@ vi.mock('../use-workflows', () => ({
   }),
   useValidateWorkflowDefinition: () => ({
     data: mockValidationResult,
+    isLoading: false,
+  }),
+  useWorkflowDefinitionVersions: () => ({
+    data: mockVersions,
+    isLoading: mockVersionsLoading,
+    error: null,
+  }),
+  useWorkflowDefinitionVersion: () => ({
+    data: mockVersionDetail,
     isLoading: false,
   }),
   useDeleteWorkflowDefinition: () => ({
@@ -137,6 +149,9 @@ afterEach(() => {
   mockError = null
   mockFeatures = []
   mockValidationResult = null
+  mockVersions = null
+  mockVersionsLoading = false
+  mockVersionDetail = null
 })
 
 describe('WorkflowDetail', () => {
@@ -406,5 +421,123 @@ describe('WorkflowDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /RUN…/i }))
     expect(onOpenLaunchWizard).toHaveBeenCalledWith('youtube-catalog-intake')
+  })
+})
+
+describe('WorkflowDetail VERSIONS (definition_versions feature)', () => {
+  const VERSIONS = [
+    {
+      checksum: '271ad435c4b123456789',
+      version: null,
+      saved_at: 1700001000,
+      source: 'save',
+      node_count: 1,
+      size_bytes: 120,
+      in_use_by_runs: 2,
+    },
+    {
+      checksum: 'd0f8062d1a2b3c4d5e6f',
+      version: null,
+      saved_at: 1699999000,
+      source: 'import',
+      node_count: 1,
+      size_bytes: 90,
+      in_use_by_runs: 0,
+    },
+  ]
+
+  it('renders the real versions list with count, source chips and CURRENT marker', () => {
+    mockFeatures = ['definition_versions']
+    mockVersions = VERSIONS
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('2')).toBeTruthy()
+    fireEvent.click(screen.getByRole('tab', { name: /^VERSIONS/i }))
+
+    expect(screen.getByText('271ad435')).toBeTruthy()
+    expect(screen.getByText('d0f8062d')).toBeTruthy()
+    expect(screen.getByText('CURRENT')).toBeTruthy()
+    expect(screen.getByText('SAVE')).toBeTruthy()
+    expect(screen.getByText('IMPORT')).toBeTruthy()
+    expect(screen.getByText('in use by 2')).toBeTruthy()
+    expect(screen.queryByText('DIFF')).toBeNull()
+    expect(screen.queryByText('DIFF CURRENT')).toBeNull()
+  })
+
+  it('VIEW opens that version’s YAML read-only; BACK returns to the list', () => {
+    mockFeatures = ['definition_versions']
+    mockVersions = VERSIONS
+    mockVersionDetail = {
+      ...VERSIONS[0],
+      yaml: 'name: YouTube catalog intake\nnodes:\n  - id: resolve-input\n    bash: echo 1\n',
+      parsed: { id: 'youtube-catalog-intake', nodes: [] },
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: /^VERSIONS/i }))
+    const viewButtons = screen.getAllByRole('button', { name: 'VIEW' })
+    fireEvent.click(viewButtons[0])
+
+    expect(screen.getByText(/read-only/)).toBeTruthy()
+    expect(screen.getByText(/resolve-input/)).toBeTruthy()
+    expect(screen.getByText(/in use by 2 runs · CURRENT/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: /← ALL VERSIONS/i })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: /← ALL VERSIONS/i }))
+    expect(screen.getByText('271ad435')).toBeTruthy()
+  })
+
+  it('shows an empty-state message when there are no snapshots', () => {
+    mockFeatures = ['definition_versions']
+    mockVersions = []
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('tab', { name: /^VERSIONS/i }))
+    expect(screen.getByText(/No stored versions yet/i)).toBeTruthy()
+  })
+
+  it('renders validation issues with null line/col without a line marker', () => {
+    mockFeatures = ['validate']
+    mockValidationResult = {
+      ok: false,
+      errors: [
+        {
+          code: 'cycle',
+          line: null,
+          col: null,
+          message: 'cycle: a -> b -> a',
+        },
+      ],
+      warnings: [],
+      id_available: null,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('cycle: a -> b -> a')).toBeTruthy()
+    expect(screen.queryByText('(L')).toBeNull()
   })
 })

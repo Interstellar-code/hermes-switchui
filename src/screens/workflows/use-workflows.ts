@@ -12,11 +12,13 @@ import {
   cancelWorkflowRun,
   deleteWorkflowDefinition,
   getWorkflowDefinitionParsed,
+  getWorkflowDefinitionVersion,
   getWorkflowFeatures,
   getWorkflowRun,
   launchWorkflowRun,
   listRunEvents,
   listRunEventsPaged,
+  listWorkflowDefinitionVersions,
   listWorkflowDefinitions,
   listWorkflowRuns,
   resetWorkflowDefinitionToFactory,
@@ -96,6 +98,33 @@ export function useWorkflowParsed(id: string | null) {
     queryFn: () => getWorkflowDefinitionParsed(id!),
     enabled: !!id,
     staleTime: 30_000,
+  })
+}
+
+/** Snapshot history, newest first (feature `definition_versions`). */
+export function useWorkflowDefinitionVersions(
+  id: string | null,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['workflow-definitions', id, 'versions'],
+    queryFn: () => listWorkflowDefinitionVersions(id!),
+    enabled: !!id && enabled,
+    staleTime: 30_000,
+  })
+}
+
+/** One snapshot with its yaml — VIEW in the VERSIONS tab. */
+export function useWorkflowDefinitionVersion(
+  id: string | null,
+  checksum: string | null,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['workflow-definitions', id, 'versions', checksum],
+    queryFn: () => getWorkflowDefinitionVersion(id!, checksum!),
+    enabled: !!id && !!checksum && enabled,
+    staleTime: 60_000,
   })
 }
 

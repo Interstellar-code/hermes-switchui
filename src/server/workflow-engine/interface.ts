@@ -37,6 +37,41 @@ export const VALID_TRANSITIONS: Record<Phase, Array<Phase>> = {
   report: [],
 };
 
+export interface WorkflowValidationIssue {
+  /** 1-based YAML position; null when the engine cannot pin it (cycles, schema-level errors). */
+  line: number | null;
+  col: number | null;
+  code: string;
+  message: string;
+  node_id?: string;
+}
+
+export interface WorkflowValidationReport {
+  ok: boolean;
+  errors: Array<WorkflowValidationIssue>;
+  warnings: Array<WorkflowValidationIssue>;
+  /** null when no id was supplied (or a bad id made the check meaningless). */
+  id_available: boolean | null;
+}
+
+export type WorkflowVersionSource = 'save' | 'import' | 'reset' | 'seed' | 'run';
+
+export interface WorkflowDefinitionVersionSummary {
+  checksum: string;
+  version: string | null;
+  saved_at: number | null;
+  source: WorkflowVersionSource;
+  /** null when an old snapshot no longer parses. */
+  node_count: number | null;
+  size_bytes: number;
+  in_use_by_runs: number;
+}
+
+export interface WorkflowDefinitionVersionDetail extends WorkflowDefinitionVersionSummary {
+  yaml: string;
+  parsed: Record<string, unknown>;
+}
+
 export interface WorkflowDefinitionRow {
   id: string;
   name: string;
@@ -245,6 +280,12 @@ export interface WorkflowEngineInterface {
   ) => Promise<WorkflowDefinitionRow>;
   resetFactoryDefinition: (id: string) => Promise<WorkflowDefinitionRow>;
   parseDefinition: (id: string) => Promise<Record<string, unknown> | null>;
+  /** POST /definitions/validate — lint a draft without saving it (feature `validate`). Throws WorkflowPayloadTooLargeError on 413. */
+  validateDefinition: (yaml: string, id?: string) => Promise<WorkflowValidationReport>;
+  /** GET /definitions/{id}/versions — snapshot history, newest first (feature `definition_versions`). Throws WorkflowNotFoundError on unknown id. */
+  listDefinitionVersions: (id: string) => Promise<Array<WorkflowDefinitionVersionSummary>>;
+  /** GET /definitions/{id}/versions/{checksum} — one snapshot with its yaml (feature `definition_versions`). Throws WorkflowNotFoundError on unknown id/checksum. */
+  getDefinitionVersion: (id: string, checksum: string) => Promise<WorkflowDefinitionVersionDetail>;
   deleteWorkflowDefinition: (id: string) => Promise<number>;
 
   // ── Runs ───────────────────────────────────────────────────────────────
