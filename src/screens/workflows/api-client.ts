@@ -455,6 +455,8 @@ export interface UpsertWorkflowDefinitionInput {
   expected_checksum?: string
   /** Provenance for the engine: 'import' when the yaml came from the Import-YAML path. Omitted on normal saves. */
   save_source?: 'save' | 'import'
+  /** Create-only guard (feature `create_only`): the engine 409s with code 'id_taken' and writes nothing when the id exists. */
+  if_absent?: boolean
 }
 
 export interface WorkflowWizardChatHistoryMessage {

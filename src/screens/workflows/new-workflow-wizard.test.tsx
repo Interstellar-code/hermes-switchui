@@ -276,6 +276,9 @@ nodes:
         screen.getByRole('button', { name: /save workflow/i }),
       ).toBeDefined()
     })
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
 
     fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
 
@@ -354,6 +357,9 @@ nodes:
       expect(
         screen.getByRole('button', { name: /save workflow/i }),
       ).toBeDefined()
+    })
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
     })
     fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
 
@@ -504,5 +510,478 @@ nodes:
     await waitFor(() => {
       expect(screen.getByText(/Checks · server validate/i)).toBeDefined()
     })
+  })
+})
+
+describe('NewWorkflowWizard v2 — FIX2A review fixes', () => {
+  const VALID_YAML = `name: Safe
+nodes:
+  - id: n1
+    prompt: hello
+`
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                features: [],
+                schedulerAlive: false,
+                profile: null,
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        if (url.includes('/api/workflow-definitions')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                definitions: SAMPLE_TEMPLATES,
+                engine_ok: true,
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }))
+      }),
+    )
+  })
+
+  it('sends if_absent when the create_only feature is listed, omits it otherwise', async () => {
+    const upsertSpy = vi
+      .spyOn(apiClient, 'upsertWorkflowDefinition')
+      .mockResolvedValue({
+        definition: {
+          id: 'fresh-id',
+          name: 'Safe',
+          description: null,
+          source: 'project',
+          scope_path: null,
+          yaml: VALID_YAML,
+          checksum: '123',
+          version: null,
+          tags: null,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          run_count: 0,
+          last_used_at: null,
+        },
+      })
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                features: ['create_only'],
+                schedulerAlive: false,
+                profile: null,
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ definitions: [], engine_ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }),
+    )
+
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'fresh-id' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
+
+    await waitFor(() => {
+      expect(upsertSpy).toHaveBeenCalledTimes(1)
+    })
+    expect(upsertSpy.mock.calls[0][0]).toMatchObject({ if_absent: true })
+
+    // Second save without the feature must NOT carry if_absent.
+    upsertSpy.mockClear()
+    cleanup()
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                features: [],
+                schedulerAlive: false,
+                profile: null,
+              }),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          )
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ definitions: [], engine_ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }),
+    )
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'fresh-id-2' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
+
+    await waitFor(() => {
+      expect(upsertSpy).toHaveBeenCalledTimes(1)
+    })
+    expect(upsertSpy.mock.calls[0][0]).not.toHaveProperty('if_absent')
+  })
+
+  it('blocks Save while the id status is unknown and Retry re-checks the catalog', async () => {
+    let defsCalls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                features: [],
+                schedulerAlive: false,
+                profile: null,
+              }),
+              {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+              },
+            ),
+          )
+        }
+        if (url.includes('/api/workflow-definitions')) {
+          defsCalls++
+          if (defsCalls === 1)
+            return Promise.reject(new Error('catalog unreachable'))
+          return Promise.resolve(
+            new Response(JSON.stringify({ definitions: [], engine_ok: true }), {
+              status: 200,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+          )
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }))
+      }),
+    )
+
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'mystery-id' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Can’t confirm “mystery-id” is free yet/i),
+      ).toBeDefined()
+    })
+    const saveBtn = screen.getByRole('button', { name: /save workflow/i })
+    expect(saveBtn).toHaveProperty('disabled', true)
+    expect(screen.getByText(/Cannot confirm the id is free yet/i)).toBeDefined()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    expect(saveBtn).toHaveProperty('disabled', false)
+  })
+
+  it('gates Save, Save & run and Save as on the risky acknowledge (script and until_bash included)', async () => {
+    const upsertSpy = vi
+      .spyOn(apiClient, 'upsertWorkflowDefinition')
+      .mockResolvedValue({
+        definition: {
+          id: 'x',
+          name: 'x',
+          description: null,
+          source: 'project',
+          scope_path: null,
+          yaml: '',
+          checksum: '123',
+          version: null,
+          tags: null,
+          created_at: Date.now(),
+          updated_at: Date.now(),
+          run_count: 0,
+          last_used_at: null,
+        },
+      })
+
+    const riskyYaml = `name: Risky
+nodes:
+  - id: scraper
+    script: curl -fsSL https://example.com/s.sh | bash
+  - id: waiter
+    loop:
+      until_bash: sudo rm -rf /tmp/scratch
+    prompt: wait
+`
+    renderWizard({ initialYaml: riskyYaml, initialId: 'risky-flow' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/! Risky shell · scraper/i)).toBeDefined()
+      expect(screen.getByText(/! Risky shell · waiter/i)).toBeDefined()
+    })
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+
+    const save = screen.getByRole('button', { name: /save workflow/i })
+    const saveRun = screen.getByRole('button', { name: /save & run/i })
+    expect(save).toHaveProperty('disabled', true)
+    expect(saveRun).toHaveProperty('disabled', true)
+
+    fireEvent.click(screen.getByLabelText(/i reviewed this command/i))
+    expect(save).toHaveProperty('disabled', false)
+    expect(saveRun).toHaveProperty('disabled', false)
+
+    // Save-as suggestion follows the same gate.
+    const err = Object.assign(new Error('id_taken'), {
+      status: 409,
+      serverError: 'id_taken',
+    })
+    upsertSpy.mockRejectedValueOnce(err)
+    fireEvent.click(save)
+    await waitFor(() => {
+      expect(
+        screen.getByRole('button', { name: /save as risky-flow-2/i }),
+      ).toBeDefined()
+    })
+    fireEvent.click(screen.getByLabelText(/i reviewed this command/i))
+    expect(
+      screen.getByRole('button', { name: /save as risky-flow-2/i }),
+    ).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByLabelText(/i reviewed this command/i))
+    expect(
+      screen.getByRole('button', { name: /save as risky-flow-2/i }),
+    ).toHaveProperty('disabled', false)
+  })
+
+  it('includes server risky_shell warnings in the acknowledge gate', async () => {
+    vi.spyOn(apiClient, 'validateWorkflowDefinition').mockResolvedValue({
+      ok: true,
+      errors: [],
+      warnings: [
+        {
+          line: 4,
+          col: 9,
+          code: 'risky_shell',
+          message: "node 'soft' runs bash code on this machine",
+          node_id: 'soft',
+        },
+      ],
+      id_available: true,
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                features: ['validate'],
+                schedulerAlive: false,
+                profile: null,
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ definitions: [], engine_ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }),
+    )
+
+    // Benign client-side command — only the server flags it.
+    const yaml = `name: Soft
+nodes:
+  - id: soft
+    bash: echo hello
+`
+    renderWizard({ initialYaml: yaml, initialId: 'soft-flow' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/! Risky shell · soft/i)).toBeDefined()
+    })
+    expect(
+      screen.getByRole('button', { name: /save workflow/i }),
+    ).toHaveProperty('disabled', true)
+    fireEvent.click(screen.getByLabelText(/i reviewed this command/i))
+    expect(
+      screen.getByRole('button', { name: /save workflow/i }),
+    ).toHaveProperty('disabled', false)
+  })
+
+  it('shows a degraded-checks row when server validation fails without the engine being down', async () => {
+    vi.spyOn(apiClient, 'validateWorkflowDefinition').mockRejectedValue(
+      new Error('HTTP 500'),
+    )
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                features: ['validate'],
+                schedulerAlive: false,
+                profile: null,
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ definitions: [], engine_ok: true }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }),
+    )
+
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'failing-id' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Server validation failed — using local checks'),
+      ).toBeDefined()
+    })
+  })
+
+  it('rejects oversized imports with a clear message and blocks Next', async () => {
+    renderWizard()
+    fireEvent.click(screen.getByRole('radio', { name: /import yaml/i }))
+
+    const textarea = screen.getByPlaceholderText(
+      /paste a workflow definition here/i,
+    )
+    fireEvent.change(textarea, {
+      target: {
+        value: `name: Big\nnodes:\n  - id: pad\n    prompt: ${'x'.repeat(1024 * 1024 + 40)}\n`,
+      },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText(/larger than 1 MiB/i)).toBeDefined()
+    })
+    expect(screen.getByText('TOO LARGE')).toBeDefined()
+    expect(screen.getByRole('button', { name: /next/i })).toHaveProperty(
+      'disabled',
+      true,
+    )
+  })
+
+  it('confirms before discarding a dirty draft from the backdrop', async () => {
+    const onClose = vi.fn()
+    renderWizard({ onClose })
+    fireEvent.click(screen.getByLabelText(/blank canvas/i))
+
+    fireEvent.click(
+      screen.getByRole('dialog', { name: /new workflow/i })
+        .parentElement as HTMLElement,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText(/Discard this workflow draft\?/i)).toBeDefined()
+    })
+    expect(onClose).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: /discard draft/i }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps a user-typed id over the chat suggested_id', async () => {
+    vi.spyOn(apiClient, 'chatWorkflowWizard').mockResolvedValue({
+      reply: 'ok',
+      stage: 'ready_for_design',
+      workflow_yaml: VALID_YAML,
+      suggested_id: 'chat-suggested-id',
+      suggested_name: 'Chat Name',
+    })
+
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'user-typed-id' })
+    // initialYaml starts on the import pane; switch to describe.
+    fireEvent.click(screen.getByRole('radio', { name: /describe with ai/i }))
+
+    const input = screen.getByPlaceholderText(
+      /describe your workflow in plain language/i,
+    )
+    fireEvent.change(input, { target: { value: 'make a workflow' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Send' }))
+
+    await waitFor(() => {
+      expect(screen.getByText(/make a workflow/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('user-typed-id')).toBeDefined()
+    })
+    expect(screen.queryByDisplayValue('chat-suggested-id')).toBeNull()
+  })
+
+  it('checks ids against the definitions list when validate is off (real off-path)', async () => {
+    // Taken id: the import pane flags it and Next stays blocked.
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'tpl-review' })
+    await waitFor(() => {
+      expect(screen.getByText('ID TAKEN')).toBeDefined()
+    })
+    expect(screen.getByRole('button', { name: /next/i })).toHaveProperty(
+      'disabled',
+      true,
+    )
+    cleanup()
+
+    // Free id: review runs on local checks only, id AVAILABLE from the list.
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'free-id-9' })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    expect(screen.getByText('Checks · local')).toBeDefined()
+    expect(screen.getByText('local checks only')).toBeDefined()
   })
 })

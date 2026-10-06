@@ -86,6 +86,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           tags?: unknown
           expected_checksum?: unknown
           save_source?: unknown
+          if_absent?: unknown
         }
 
         // Codex Bundle 5 Q3 — Input validation.
@@ -190,6 +191,15 @@ export const Route = createFileRoute('/api/workflow-definitions')({
             { status: 400 },
           )
         }
+        if (
+          body.if_absent !== undefined &&
+          typeof body.if_absent !== 'boolean'
+        ) {
+          return Response.json(
+            { error: 'if_absent must be a boolean when provided' },
+            { status: 400 },
+          )
+        }
 
         // Plugin parses and validates YAML server-side; surfaces 409/422 errors.
         try {
@@ -205,6 +215,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
               ...(body.save_source === 'save' || body.save_source === 'import'
                 ? { save_source: body.save_source }
                 : {}),
+              ...(body.if_absent === true ? { if_absent: true } : {}),
             },
           )
           return Response.json({ definition: def })

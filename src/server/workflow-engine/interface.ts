@@ -276,7 +276,7 @@ export interface WorkflowEngineInterface {
   upsertDefinition: (
     yaml: string,
     sourcePath?: string,
-    opts?: { id?: string; name?: string; expected_checksum?: string; save_source?: 'save' | 'import' },
+    opts?: { id?: string; name?: string; expected_checksum?: string; save_source?: 'save' | 'import'; if_absent?: boolean },
   ) => Promise<WorkflowDefinitionRow>;
   resetFactoryDefinition: (id: string) => Promise<WorkflowDefinitionRow>;
   parseDefinition: (id: string) => Promise<Record<string, unknown> | null>;

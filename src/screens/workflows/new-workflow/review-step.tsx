@@ -31,6 +31,7 @@ interface ReviewStepProps {
   onOpenAfter: (v: boolean) => void
   onAck: (v: boolean) => void
   onYaml: (v: string) => void
+  onRetryIdCheck: () => void
 }
 
 const GLYPH = { pass: '✓', fail: '✗', warn: '!', pending: '…' } as const
@@ -127,11 +128,9 @@ export function ReviewStep(p: ReviewStepProps) {
       <aside className="wz2-rp" aria-label="Checks and save">
         {p.failure?.kind === 'conflict' && (
           <div className="wz2-ban er" role="alert">
-            <b>
-              {p.id} already exists in {p.source}.
-            </b>{' '}
-            Nothing was overwritten. Pick a new id, or save to the other scope.
-            Edits to an existing definition go through the Workflows editor.
+            <b>{p.id} already exists.</b> Nothing was overwritten. Workflow ids
+            are global — pick a free id below. Edits to an existing definition
+            go through the Workflows editor.
           </div>
         )}
         {p.failure?.kind === 'engine' && (
@@ -153,9 +152,25 @@ export function ReviewStep(p: ReviewStepProps) {
           status={p.idStatus}
           suggestions={suggestFreeIds(p.id, p.takenIds)}
         />
+        {p.idStatus === 'unknown' && p.id.trim() && (
+          <div className="wz2-ban wa" role="status">
+            <b>Can’t confirm “{p.id}” is free yet.</b> The workflow catalog is
+            loading or unreachable, so Save stays blocked.{' '}
+            <button
+              type="button"
+              className="wfl-link"
+              onClick={p.onRetryIdCheck}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         <span className="wfl-label">
           Checks · {p.validation.hasValidate ? 'server validate' : 'local'}
         </span>
+        {!p.validation.hasValidate && (
+          <span className="wfl-meta">local checks only</span>
+        )}
         {showSkeleton ? (
           <div className="wfl-skeletons" aria-label="Loading checks">
             <div className="wfl-skeleton" style={{ width: '80%' }} />
@@ -175,7 +190,7 @@ export function ReviewStep(p: ReviewStepProps) {
           </ul>
         )}
         {p.validation.risky.length > 0 && (
-          <div className="wz2-risk" role="alert">
+          <div className="wz2-risk" role="status">
             {p.validation.risky.map((r) => (
               <div key={`${r.node_id}-${r.line}`} className="wz2-risk-i">
                 <b>

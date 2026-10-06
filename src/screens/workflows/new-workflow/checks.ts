@@ -29,6 +29,11 @@ function first(issues: Array<LintIssue>, codes: ReadonlySet<string> | string) {
   return issues.find((i) => set.has(i.code))
 }
 
+/** "Line 5 · msg" or just "msg" when the engine could not pin a line. */
+function linePrefix(issue: LintIssue): string {
+  return issue.line != null ? `Line ${issue.line} · ` : ''
+}
+
 export function buildChecks(
   v: WizardValidation,
   id: string,
@@ -56,13 +61,19 @@ export function buildChecks(
     })
   else if (idStatus === 'checking')
     rows.push({ key: 'id', state: 'pending', text: 'Checking the id…' })
+  else
+    rows.push({
+      key: 'id',
+      state: 'fail',
+      text: 'Cannot confirm the id is free yet — the workflow catalog is loading or unreachable. Retry below.',
+    })
 
   const parseErr = first(errs, PARSE_CODES)
   rows.push({
     key: 'parse',
     state: parseErr ? 'fail' : 'pass',
     text: parseErr
-      ? `Line ${parseErr.line} · ${parseErr.message}`
+      ? `${linePrefix(parseErr)}${parseErr.message}`
       : v.hasValidate && v.server?.ok
         ? 'YAML parses · schema valid'
         : 'YAML parses',
@@ -73,7 +84,7 @@ export function buildChecks(
       key: 'ids',
       state: idErr ? 'fail' : 'pass',
       text: idErr
-        ? `Line ${idErr.line} · ${idErr.message}`
+        ? `${linePrefix(idErr)}${idErr.message}`
         : 'Every node has a unique id',
     })
     const depErr = first(errs, 'unknown_dependency')
@@ -81,7 +92,7 @@ export function buildChecks(
       key: 'deps',
       state: depErr ? 'fail' : 'pass',
       text: depErr
-        ? `Line ${depErr.line} · ${depErr.message}`
+        ? `${linePrefix(depErr)}${depErr.message}`
         : 'Every depends_on points to a real node',
     })
     const cycleErr = first(errs, 'cycle')
@@ -94,7 +105,13 @@ export function buildChecks(
 
   // Backend-only rows: absent without the `validate` feature.
   if (v.hasValidate) {
-    if (v.serverPending && !v.server)
+    if (v.serverFailed)
+      rows.push({
+        key: 'server-failed',
+        state: 'warn',
+        text: 'Server validation failed — using local checks',
+      })
+    else if (v.serverPending && !v.server)
       rows.push({
         key: 'server',
         state: 'pending',
@@ -107,15 +124,18 @@ export function buildChecks(
       rows.push({
         key: `se-${e.line}-${e.code}-${e.message}`,
         state: 'fail',
-        text: `Line ${e.line} · ${e.message}`,
+        text: `${linePrefix(e)}${e.message}`,
       })
     }
-    for (const w of v.server?.warnings ?? [])
+    // risky_shell warnings gate Save via the acknowledge checkbox instead.
+    for (const w of v.server?.warnings ?? []) {
+      if (w.code === 'risky_shell') continue
       rows.push({
         key: `sw-${w.line}-${w.code}-${w.message}`,
         state: 'warn',
-        text: `Line ${w.line} · ${w.message}`,
+        text: `${linePrefix(w)}${w.message}`,
       })
+    }
   }
 
   const scored = rows.filter((r) => r.state !== 'pending' && r.state !== 'warn')

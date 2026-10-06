@@ -206,6 +206,7 @@ export class PluginClient implements WorkflowEngineInterface {
       name?: string
       expected_checksum?: string
       save_source?: 'save' | 'import'
+      if_absent?: boolean
     },
   ): Promise<WorkflowDefinitionRow> {
     const res = await _proxyFetch(`${PLUGIN_BASE}/definitions`, {
@@ -220,6 +221,7 @@ export class PluginClient implements WorkflowEngineInterface {
           ? { expected_checksum: opts.expected_checksum }
           : {}),
         ...(opts?.save_source != null ? { save_source: opts.save_source } : {}),
+        ...(opts?.if_absent === true ? { if_absent: true } : {}),
       }),
     })
     if (!res.ok) {

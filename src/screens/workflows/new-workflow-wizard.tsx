@@ -34,6 +34,7 @@ import type { DagInfo } from './new-workflow/parse-dag'
 import type { SaveFailure } from './new-workflow/review-step'
 import type { SourceKind } from './new-workflow/source-step'
 import type { NodeType } from './types'
+import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
 /** Types shown in the wizard's DAG preview legend. */
 const WIZARD_LEGEND_TYPES = [
@@ -1319,6 +1320,8 @@ export interface NewWorkflowWizardProps {
 }
 
 const NO_IDS: ReadonlySet<string> = new Set()
+// Mirrors the server's 1 MiB yaml limit for the import path.
+const IMPORT_MAX_BYTES = 1024 * 1024
 
 const KIND_LABEL: Record<SourceKind, string> = {
   describe: 'describe with AI',
@@ -1386,6 +1389,8 @@ export function NewWorkflowWizard({
   const [failure, setFailure] = useState<SaveFailure | null>(null)
   const [conflicts, setConflicts] = useState<ReadonlySet<string>>(NO_IDS)
   const [runAfter, setRunAfter] = useState<string | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [importTooLarge, setImportTooLarge] = useState(false)
 
   const upsert = useUpsertWorkflowDefinition()
   const defs = useWorkflowDefinitions()
@@ -1400,8 +1405,11 @@ export function NewWorkflowWizard({
   )
   const validation = useWizardValidation({ yaml, id, existingIds: takenIds })
   const importIssues = useMemo(
-    () => (importText.trim() ? lintWorkflowYaml(importText).errors : []),
-    [importText],
+    () =>
+      !importTooLarge && importText.trim()
+        ? lintWorkflowYaml(importText).errors
+        : [],
+    [importText, importTooLarge],
   )
   const checks = useMemo(
     () => buildChecks(validation, id, validation.idStatus),
@@ -1412,6 +1420,11 @@ export function NewWorkflowWizard({
     validation.idStatus === 'empty' ||
     validation.idStatus === 'invalid' ||
     validation.idStatus === 'taken'
+  // The id check has not answered yet (catalog loading/unreachable, validate
+  // pending): every flavour of Save stays blocked, but stepping through the
+  // wizard remains possible.
+  const idSaveBlocked =
+    validation.idStatus === 'checking' || validation.idStatus === 'unknown'
   const sourceReady =
     kind === 'template' || kind === 'duplicate'
       ? Boolean(selectedWorkflowId) && !idBlocked
@@ -1429,6 +1442,35 @@ export function NewWorkflowWizard({
     setAck(false)
   }, [riskKey])
 
+  function retryIdCheck() {
+    if (validation.hasValidate) validation.refetchServer()
+    else void defs.refetch()
+  }
+
+  const [initialYamlSnapshot] = useState(
+    () =>
+      initialYaml ??
+      serializeWorkflowYaml({
+        ...initialDocument,
+        name: initialDocument.name || 'My Workflow',
+      }),
+  )
+  const dirty =
+    kind !== 'describe' ||
+    id.trim() !== '' ||
+    importText.trim() !== '' ||
+    selectedWorkflowId !== '' ||
+    chatHistory.length > NWZ_CHAT_INIT.length ||
+    yaml !== initialYamlSnapshot
+
+  function requestClose() {
+    if (dirty) {
+      setConfirmDiscard(true)
+      return
+    }
+    onClose()
+  }
+
   const serverBlocked =
     validation.hasValidate &&
     (validation.serverPending || (validation.server?.errors.length ?? 0) > 0)
@@ -1438,7 +1480,7 @@ export function NewWorkflowWizard({
     (validation.risky.length === 0 || ack) &&
     !serverBlocked &&
     !upsert.isPending
-  const canSave = baseOk && !idBlocked && validation.idStatus !== 'checking'
+  const canSave = baseOk && !idBlocked && !idSaveBlocked
 
   function buildDocument(
     next: {
@@ -1516,8 +1558,8 @@ export function NewWorkflowWizard({
       if (parsed) {
         applyParsedDocument(parsed, {
           wizardId:
-            result.suggested_id ||
             id ||
+            result.suggested_id ||
             slugify(result.suggested_name || name || 'workflow'),
           forceName: result.suggested_name || parsed.name || name || 'Workflow',
           forceDescription:
@@ -1576,9 +1618,11 @@ export function NewWorkflowWizard({
 
   function handleImportText(text: string, fileName?: string | null) {
     const nextFile = fileName === undefined ? importedFileName : fileName
+    const tooLarge = new TextEncoder().encode(text).length > IMPORT_MAX_BYTES
+    setImportTooLarge(tooLarge)
     setImportText(text)
     setImportedFileName(nextFile)
-    if (text.trim() && lintWorkflowYaml(text).errors.length === 0)
+    if (!tooLarge && text.trim() && lintWorkflowYaml(text).errors.length === 0)
       applyImport(text, nextFile)
   }
 
@@ -1689,6 +1733,7 @@ export function NewWorkflowWizard({
         source,
         yaml,
         ...(kind === 'import' ? { save_source: 'import' as const } : {}),
+        ...(validation.hasCreateOnly ? { if_absent: true } : {}),
       })
       if (over.run) {
         // Hand over to the Run-workflow dialog for the freshly saved definition.
@@ -1776,7 +1821,7 @@ export function NewWorkflowWizard({
         <button
           type="button"
           className="wfw-btn wfw-btn--primary"
-          disabled={!baseOk}
+          disabled={!baseOk || idSaveBlocked}
           onClick={() => {
             setId(suggestion)
             void handleSave({ id: suggestion })
@@ -1816,7 +1861,7 @@ export function NewWorkflowWizard({
         railRight={railRight}
         onBack={step > 0 ? () => setStep((s) => s - 1) : null}
         actions={actions}
-        onClose={onClose}
+        onClose={requestClose}
       >
         {step === 0 && (
           <SourceStep
@@ -1847,6 +1892,7 @@ export function NewWorkflowWizard({
             takenIds={takenIds ?? NO_IDS}
             importText={importText}
             importFileName={importedFileName}
+            importTooLarge={importTooLarge}
             onImportText={handleImportText}
             importIssues={importIssues}
           />
@@ -1896,8 +1942,23 @@ export function NewWorkflowWizard({
             onOpenAfter={setOpenAfter}
             onAck={setAck}
             onYaml={handleYamlChange}
+            onRetryIdCheck={retryIdCheck}
           />
         )}
+
+        <ConfirmDialog
+          open={confirmDiscard}
+          title="Discard this workflow draft?"
+          message="Your draft (source choice, yaml and id) has unsaved changes. Discarding cannot be undone."
+          confirmLabel="Discard draft"
+          cancelLabel="Keep editing"
+          destructive
+          onConfirm={() => {
+            setConfirmDiscard(false)
+            onClose()
+          }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
       </WizardShell>
 
       {/* ── Wizard-specific styles ── */}
