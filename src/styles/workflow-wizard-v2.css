@@ -1,0 +1,465 @@
+/* workflow-wizard-v2.css — create-workflow wizard (.wz2-*). Reuses the launch
+   dialog shell (.wfl-dlg / .wfw-footer in workflow-ui.css); only the step
+   content lives here. Theme variables only — no hard-coded palette. */
+
+[data-wf-ui] {
+  .wz2-dlg {
+    --wz2-ok: var(--m-success, var(--theme-success));
+    --wz2-er: var(--m-danger, var(--theme-danger));
+    --wz2-wa: var(--theme-warning);
+    --wz2-mu: var(--m-text-muted, var(--theme-muted));
+  }
+  .wz2-body {
+    gap: 0;
+  }
+  .wz2-h2 {
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .wz2-sm {
+    padding: 4px 10px;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+    text-transform: none;
+  }
+
+  /* chips */
+  .wz2-chip {
+    display: inline-block;
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    color: var(--wz2-mu);
+    white-space: nowrap;
+  }
+  .wz2-chip.ok {
+    color: var(--wz2-ok);
+  }
+  .wz2-chip.er {
+    color: var(--wz2-er);
+  }
+  .wz2-chip.wa {
+    color: var(--wz2-wa);
+  }
+
+  /* ── SOURCE ── */
+  .wz2-source {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    gap: 24px;
+  }
+  .wz2-opts {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .wz2-opts legend {
+    padding: 0;
+    margin-bottom: 8px;
+  }
+  .wz2-opt {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border: 1px solid var(--wfl-line);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .wz2-opt:hover,
+  .wz2-opt:focus-within {
+    border-color: var(--wfl-accent);
+  }
+  .wz2-opt.is-sel {
+    border-color: var(--wfl-accent);
+    background: color-mix(in srgb, var(--wfl-accent) 9%, transparent);
+  }
+  .wz2-opt input {
+    margin-top: 2px;
+    accent-color: var(--wfl-accent);
+  }
+  .wz2-opt-b {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+    min-width: 0;
+  }
+  .wz2-opt-t {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  .wz2-kb {
+    margin-left: auto;
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--wz2-mu);
+    border: 1px solid var(--wfl-line);
+    border-radius: 3px;
+    padding: 1px 5px;
+  }
+  .wz2-pane {
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+  }
+
+  /* picker (template / duplicate) */
+  .wz2-picker {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+    gap: 18px;
+  }
+  .wz2-list,
+  .wz2-det {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    min-height: 0;
+  }
+  .wz2-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow-y: auto;
+    min-height: 0;
+  }
+  .wz2-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 9px 11px;
+    border: 1px solid var(--wfl-line);
+    border-radius: 7px;
+    cursor: pointer;
+    position: relative;
+  }
+  .wz2-row input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .wz2-row:hover,
+  .wz2-row:focus-within {
+    border-color: var(--wfl-accent);
+  }
+  .wz2-row.is-sel {
+    border-color: var(--wfl-accent);
+    background: color-mix(in srgb, var(--wfl-accent) 9%, transparent);
+  }
+  .wz2-row-n {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .wz2-row-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .wz2-sk-row {
+    height: 44px;
+  }
+  .wz2-det-hd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .wz2-det-empty {
+    color: var(--wz2-mu);
+    font-size: 11px;
+    padding: 24px 0;
+  }
+  .wz2-boxes {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  /* graph preview */
+  .wz2-graph {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    height: 200px;
+    flex-shrink: 0;
+    border: 1px solid var(--wfl-line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--m-bg, var(--theme-bg));
+  }
+  .wz2-graph-empty {
+    margin: auto;
+    font-size: 11px;
+    color: var(--wz2-mu);
+  }
+
+  /* id field */
+  .wz2-idf {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .wz2-idf-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .wz2-idf-in {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 180px;
+  }
+  .wfl-input.is-bad {
+    border-color: var(--wz2-er);
+  }
+  .wz2-sug {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  /* import */
+  .wz2-import {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 0;
+  }
+  .wz2-imp-hd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .wz2-yaml {
+    min-height: 140px;
+    height: 160px;
+    resize: vertical;
+    line-height: 1.5;
+    white-space: pre;
+  }
+  .wz2-code {
+    border: 1px solid var(--wfl-line);
+    border-radius: 6px;
+    max-height: 150px;
+    overflow: auto;
+    font: 400 11px var(--m-font-mono, ui-monospace, monospace);
+  }
+  .wz2-yl {
+    display: flex;
+    gap: 10px;
+    padding: 1px 8px;
+  }
+  .wz2-yl.is-bad {
+    background: color-mix(in srgb, var(--wz2-er) 14%, transparent);
+  }
+  .wz2-yn {
+    width: 24px;
+    text-align: right;
+    color: var(--wz2-mu);
+    flex-shrink: 0;
+  }
+  .wz2-yt {
+    white-space: pre;
+  }
+  .wz2-ym {
+    color: var(--wz2-er);
+    white-space: nowrap;
+  }
+  .wz2-errs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 11px;
+  }
+  .wz2-errs li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+  }
+  .wz2-bad {
+    color: var(--wz2-er);
+  }
+  .wz2-blank {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .wz2-pre {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--wfl-line);
+    border-radius: 6px;
+    font: 400 11px var(--m-font-mono, ui-monospace, monospace);
+  }
+
+  /* ── REVIEW ── */
+  .wz2-review {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 24px;
+  }
+  .wz2-lp,
+  .wz2-rp {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .wz2-rp {
+    padding-left: 20px;
+    border-left: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+  }
+  .wz2-fields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .wz2-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .wz2-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .wz2-stt {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px;
+    border: 1px solid var(--wfl-line);
+    border-radius: 7px;
+  }
+  .wz2-stt b {
+    font-size: 18px;
+  }
+  .wz2-yaml-d summary {
+    cursor: pointer;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--wz2-mu);
+    margin-bottom: 8px;
+  }
+  .wz2-ck {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .wz2-ck li {
+    display: flex;
+    gap: 8px;
+  }
+  .wz2-ck .is-pass .wz2-g {
+    color: var(--wz2-ok);
+  }
+  .wz2-ck .is-fail .wz2-g {
+    color: var(--wz2-er);
+  }
+  .wz2-ck .is-warn .wz2-g {
+    color: var(--wz2-wa);
+  }
+  .wz2-risk {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid var(--wz2-wa);
+    border-radius: 7px;
+    font-size: 11px;
+  }
+  .wz2-risk-i {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .wz2-risk b {
+    color: var(--wz2-wa);
+  }
+  .wz2-cb {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .wz2-cb input,
+  .wz2-ro input {
+    accent-color: var(--wfl-accent);
+  }
+  .wz2-tg {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .wz2-ro {
+    display: flex;
+    gap: 8px;
+    padding: 8px 10px;
+    border: 1px solid var(--wfl-line);
+    border-radius: 7px;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .wz2-ro.is-sel {
+    border-color: var(--wfl-accent);
+    background: color-mix(in srgb, var(--wfl-accent) 9%, transparent);
+  }
+  .wz2-ban {
+    padding: 10px 12px;
+    border: 1px solid var(--wz2-er);
+    border-radius: 7px;
+    font-size: 11px;
+    line-height: 1.5;
+    background: color-mix(in srgb, var(--wz2-er) 10%, transparent);
+  }
+
+  @media (max-width: 900px) {
+    .wz2-source,
+    .wz2-picker,
+    .wz2-review {
+      grid-template-columns: 1fr;
+    }
+  }
+}

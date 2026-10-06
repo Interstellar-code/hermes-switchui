@@ -450,6 +450,8 @@ export interface UpsertWorkflowDefinitionInput {
   tags?: Array<string>
   /** sha256 of the yaml from the last GET — optimistic-concurrency precondition (ETag). Triggers 409 on mismatch. */
   expected_checksum?: string
+  /** Provenance for the engine: 'import' when the yaml came from the Import-YAML path. Omitted on normal saves. */
+  save_source?: 'save' | 'import'
 }
 
 export interface WorkflowWizardChatHistoryMessage {
@@ -834,5 +836,58 @@ export async function deleteWorkflowDefinition(id: string): Promise<void> {
         serverError: body.error,
       },
     )
+  }
+}
+
+export interface WorkflowValidationIssue {
+  line: number
+  col: number
+  code: string
+  message: string
+  node_id?: string
+}
+
+export interface WorkflowValidationResult {
+  ok: boolean
+  errors: Array<WorkflowValidationIssue>
+  warnings: Array<WorkflowValidationIssue>
+  /** null when the backend could not decide (no id supplied). */
+  id_available: boolean | null
+}
+
+/**
+ * POST /definitions/validate — server-side lint of a draft definition.
+ * Only call when `useWorkflowFeatures()` lists `validate`.
+ */
+export async function validateWorkflowDefinition(
+  yaml: string,
+  id?: string,
+): Promise<WorkflowValidationResult> {
+  const res = await wfFetch('/api/workflow-definitions/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(id ? { yaml, id } : { yaml }),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      error?: string
+      engine_ok?: boolean
+    } | null
+    if (res.status === 503 || body?.engine_ok === false) {
+      throw new WorkflowEngineUnavailableError(
+        body?.error || 'Workflow engine unavailable',
+      )
+    }
+    throw new Error(
+      body?.error || `validateWorkflowDefinition failed (${res.status})`,
+    )
+  }
+  const body = (await res.json()) as Partial<WorkflowValidationResult>
+  return {
+    ok: body.ok === true,
+    errors: Array.isArray(body.errors) ? body.errors : [],
+    warnings: Array.isArray(body.warnings) ? body.warnings : [],
+    id_available:
+      typeof body.id_available === 'boolean' ? body.id_available : null,
   }
 }

@@ -85,6 +85,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           version?: unknown
           tags?: unknown
           expected_checksum?: unknown
+          save_source?: unknown
         }
 
         // Codex Bundle 5 Q3 — Input validation.
@@ -179,6 +180,16 @@ export const Route = createFileRoute('/api/workflow-definitions')({
             { status: 400 },
           )
         }
+        if (
+          body.save_source !== undefined &&
+          body.save_source !== 'save' &&
+          body.save_source !== 'import'
+        ) {
+          return Response.json(
+            { error: "save_source must be 'save' | 'import' when provided" },
+            { status: 400 },
+          )
+        }
 
         // Plugin parses and validates YAML server-side; surfaces 409/422 errors.
         try {
@@ -190,6 +201,9 @@ export const Route = createFileRoute('/api/workflow-definitions')({
               name: body.name,
               ...(typeof body.expected_checksum === 'string'
                 ? { expected_checksum: body.expected_checksum }
+                : {}),
+              ...(body.save_source === 'save' || body.save_source === 'import'
+                ? { save_source: body.save_source }
                 : {}),
             },
           )

@@ -1,10 +1,13 @@
 /**
- * NewWorkflowWizard — 4-step wizard for creating a workflow definition.
+ * NewWorkflowWizard — 4-step wizard for creating a workflow definition,
+ * hosted on the same fixed-size shell as the Run-workflow dialog.
  *
- * Step 1 DESCRIBE  — fully wired: start-from picker, Hermes prompt panel, chat input
- * Step 2 DESIGN    — live DAG preview (DagSvg + parseDagFromYaml)
- * Step 3 CONFIGURE — node-level editing with YAML round-tripping
- * Step 4 SAVE      — real form: id, name, description, source, YAML → POST /api/workflow-definitions
+ * Step 1 SOURCE         — describe (chat) / template / duplicate / import YAML / blank
+ * Step 2 DESIGN         — live DAG preview (DagSvg + parseDagFromYaml)
+ * Step 3 CONFIGURE      — node-level editing with YAML round-tripping
+ * Step 4 REVIEW & SAVE  — graph, checks, save target → POST /api/workflow-definitions
+ *
+ * New step components live in ./new-workflow/.
  *
  * Design source: docs/Design Assets/Hermes-Switchui/workflows-app.jsx + Workflows.html
  */
@@ -14,9 +17,23 @@ import {
   useUpsertWorkflowDefinition,
   useWorkflowDefinitions,
 } from './use-workflows'
-import { chatWorkflowWizard } from './api-client'
+import { LaunchWizard } from './launch-wizard'
+import {
+  WorkflowEngineUnavailableError,
+  chatWorkflowWizard,
+} from './api-client'
+import { buildChecks } from './new-workflow/checks'
+import { ReviewStep } from './new-workflow/review-step'
+import { BLANK_YAML, SourceStep } from './new-workflow/source-step'
+import { useWizardValidation } from './new-workflow/use-wizard-validation'
+import { WizardShell } from './new-workflow/wizard-shell'
+import { lintWorkflowYaml, suggestFreeIds } from './new-workflow/yaml-lint'
+import { inferNodeType, parseDagFromYaml } from './new-workflow/parse-dag'
 import { nodeColor as colorFor } from './node-colors'
-import type { NodeType, WorkflowSummary } from './types'
+import type { DagInfo } from './new-workflow/parse-dag'
+import type { SaveFailure } from './new-workflow/review-step'
+import type { SourceKind } from './new-workflow/source-step'
+import type { NodeType } from './types'
 
 /** Types shown in the wizard's DAG preview legend. */
 const WIZARD_LEGEND_TYPES = [
@@ -33,11 +50,6 @@ let chatWarnFired = false
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
-const STEPS = ['DESCRIBE', 'DESIGN', 'CONFIGURE', 'SAVE'] as const
-type StepLabel = (typeof STEPS)[number]
-
-const ID_REGEX = /^[A-Za-z0-9_:.-]{1,128}$/
-
 const YAML_TEMPLATE = `name: My Workflow
 description: New workflow
 nodes:
@@ -52,18 +64,6 @@ function slugify(raw: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 128)
 }
-
-const START_OPTIONS = [
-  {
-    label: 'Scratch',
-    desc: 'Describe from scratch',
-    color: 'var(--m-green-500, #00ff41)',
-  },
-  { label: 'Duplicate', desc: 'Copy an existing workflow', color: '#5ad3ff' },
-  { label: 'Template', desc: 'Use a workflow pattern', color: '#b07cff' },
-  { label: 'Import YAML', desc: 'Upload a .yaml file', color: '#ffb454' },
-] as const
-type StartOption = (typeof START_OPTIONS)[number]['label']
 
 type ChatMessage = { role: 'assistant' | 'user'; msg: string }
 
@@ -146,17 +146,6 @@ function splitCsv(raw: string): Array<string> {
     .split(',')
     .map((part) => part.trim())
     .filter(Boolean)
-}
-
-function inferNodeType(raw: Record<string, unknown>): NodeType {
-  if (typeof raw['prompt'] === 'string') return 'prompt'
-  if (typeof raw['command'] === 'string') return 'command'
-  if (typeof raw['bash'] === 'string') return 'bash'
-  if (typeof raw['script'] === 'string') return 'script'
-  if (typeof raw['cancel'] === 'string') return 'cancel'
-  if (raw['approval'] && typeof raw['approval'] === 'object') return 'approval'
-  if (raw['loop'] && typeof raw['loop'] === 'object') return 'loop'
-  return 'prompt'
 }
 
 function createDefaultNodeDraft(
@@ -273,7 +262,12 @@ function toNodeDraft(
 }
 
 function toWorkflowDocumentDraft(yamlStr: string): WizardDocumentDraft | null {
-  const parsed = parseYaml(yamlStr)
+  let parsed: unknown
+  try {
+    parsed = parseYaml(yamlStr)
+  } catch {
+    return null
+  }
   if (!parsed || typeof parsed !== 'object') return null
   const raw = parsed as Record<string, unknown>
   const topLevel = Object.fromEntries(
@@ -462,441 +456,98 @@ function buildWorkflowFromPrompt(
 
 // ── Sub-components ──────────────────────────────────────────────────────────
 
-interface StepBarProps {
-  step: number
-}
-function StepBar({ step }: StepBarProps) {
-  return (
-    <div className="wz-steps">
-      <div className="wz-steps-line" />
-      {STEPS.map((label, i) => {
-        const n = i + 1
-        const cls = n < step ? 'done' : n === step ? 'cur' : ''
-        return (
-          <div key={n} className={`wz-step ${cls}`}>
-            <div className="wz-dot">{n < step ? '✓' : n}</div>
-            <div className="wz-lbl">{label}</div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+// ── Source step: describe (chat) pane ───────────────────────────────────────
+// Hosted by SourceStep behind "Describe with AI"; its redesign is F7.
 
-// ── Step 1: Describe ────────────────────────────────────────────────────────
-
-interface DescribeStepProps {
-  activeStart: StartOption
-  onSelectStart: (s: StartOption) => void
+interface DescribeChatPaneProps {
   chatHistory: Array<ChatMessage>
   chatInput: string
   chatPending: boolean
   onChatInput: (v: string) => void
   onSend: () => void
-  importRef: React.RefObject<HTMLInputElement | null>
-  onImportChange: (e: React.ChangeEvent<HTMLInputElement>) => void
-  importedFileName: string | null
-  yamlStatus: string
-  workflowOptions: Array<WorkflowSummary>
-  selectedWorkflowId: string
-  onSelectWorkflow: (workflowId: string) => void
 }
 
-function DescribeStep({
-  activeStart,
-  onSelectStart,
+function DescribeChatPane({
   chatHistory,
   chatInput,
   chatPending,
   onChatInput,
   onSend,
-  importRef,
-  onImportChange,
-  importedFileName,
-  yamlStatus,
-  workflowOptions,
-  selectedWorkflowId,
-  onSelectWorkflow,
-}: DescribeStepProps) {
+}: DescribeChatPaneProps) {
   const msgsEndRef = useRef<HTMLDivElement>(null)
-  const [pickerQuery, setPickerQuery] = useState('')
   useEffect(() => {
-    msgsEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (typeof msgsEndRef.current?.scrollIntoView === 'function') {
+      msgsEndRef.current.scrollIntoView({ behavior: 'smooth' })
+    }
   }, [chatHistory])
 
-  const filteredWorkflowOptions = useMemo(() => {
-    const normalized = pickerQuery.trim().toLowerCase()
-    const sourceOptions =
-      activeStart === 'Template'
-        ? workflowOptions.filter((workflow) => workflow.source === 'bundled')
-        : workflowOptions
-    if (!normalized) return sourceOptions
-    return sourceOptions.filter((workflow) => {
-      const haystack = [
-        workflow.name,
-        workflow.id,
-        workflow.description,
-        workflow.source,
-      ]
-        .join(' ')
-        .toLowerCase()
-      return haystack.includes(normalized)
-    })
-  }, [activeStart, pickerQuery, workflowOptions])
-
   return (
-    <div className="wz-plan">
-      {/* Left rail: start-from */}
-      <div className="plan-summary">
-        <div className="ps-title" style={{ marginBottom: 10 }}>
-          Start from…
-        </div>
-        <div style={{ display: 'grid', gap: 6 }}>
-          {START_OPTIONS.map(({ label, desc, color }) => (
-            <div
-              key={label}
-              role="button"
-              tabIndex={0}
-              onClick={() => {
-                onSelectStart(label)
-                if (label === 'Import YAML') importRef.current?.click()
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSelectStart(label)
-              }}
-              style={{
-                padding: '9px 11px',
-                border: `1px solid ${activeStart === label ? color : 'var(--m-border-subtle, #2a2a2a)'}`,
-                borderRadius: 5,
-                background:
-                  activeStart === label ? `${color}12` : 'var(--m-bg, #0d0d0d)',
-                cursor: 'pointer',
-                transition: 'border-color .15s',
-              }}
-            >
-              <div
-                style={{
-                  font: `600 11px var(--m-font-mono, monospace)`,
-                  color:
-                    activeStart === label ? color : 'var(--m-text, #e0e0e0)',
-                  marginBottom: 2,
-                }}
-              >
-                {label}
-              </div>
-              <div
-                style={{
-                  font: `400 10px var(--m-font-sans, sans-serif)`,
-                  color: 'var(--m-text-ghost, #555)',
-                }}
-              >
-                {desc}
-              </div>
+    <div className="plan-chat">
+      <div className="chat-msgs">
+        {chatHistory.map((m, i) => (
+          <div key={i} className={`chat-msg ${m.role}`}>
+            <span className="chat-who">
+              {m.role === 'assistant' ? 'Hermes' : 'You'}
+            </span>
+            <div className="chat-text">
+              {m.msg.split('\n').map((line, j) => (
+                <p key={j}>{line}</p>
+              ))}
             </div>
-          ))}
-        </div>
-
-        {/* Hidden file input for Import YAML */}
-        <input
-          ref={importRef}
-          type="file"
-          accept=".yml,.yaml,text/yaml"
-          style={{ display: 'none' }}
-          onChange={onImportChange}
-        />
+          </div>
+        ))}
+        <div ref={msgsEndRef} />
       </div>
-
-      {/* Right pane: mode-specific guidance */}
-      {activeStart === 'Scratch' ? (
-        <div className="plan-chat">
-          <div className="chat-msgs">
-            {chatHistory.map((m, i) => (
-              <div key={i} className={`chat-msg ${m.role}`}>
-                <span className="chat-who">
-                  {m.role === 'assistant' ? 'Hermes' : 'You'}
-                </span>
-                <div className="chat-text">
-                  {m.msg.split('\n').map((line, j) => (
-                    <p key={j}>{line}</p>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div ref={msgsEndRef} />
-          </div>
-          {chatPending && (
-            <p style={{ fontSize: 10, color: 'var(--m-green-500, #00ff41)', margin: '0 0 6px', padding: '0 2px', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) infinite' }} />
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) 0.2s infinite' }} />
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse" style={{ display: 'inline-block', width: 6, height: 6, borderRadius: '50%', background: 'currentColor', animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) 0.4s infinite' }} />
-              <span style={{ marginLeft: 4 }}>Hermes is thinking…</span>
-            </p>
-          )}
-          <div className="chat-input-row">
-            <input
-              className="chat-inp"
-              placeholder="Describe your workflow in plain language…"
-              value={chatInput}
-              disabled={chatPending}
-              onChange={(e) => onChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') onSend()
-              }}
-            />
-            <button
-              className="btn-mini prim"
-              onClick={onSend}
-              disabled={chatPending}
-            >
-              {chatPending ? 'Thinking…' : 'Send'}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="plan-sidecard">
-          <div className="plan-sidecard-head">
-            {activeStart === 'Duplicate'
-              ? 'Duplicate workflow'
-              : activeStart === 'Template'
-                ? 'Template workflow'
-                : 'Imported YAML'}
-          </div>
-          <div className="plan-sidecard-body">
-            {activeStart === 'Duplicate' && (
-              <>
-                <p>
-                  Search and select an existing workflow, then refine the copied
-                  structure in Steps 2–4.
-                </p>
-                <div className="wizard-combobox">
-                  <input
-                    className="chat-inp wizard-combobox-input"
-                    placeholder="Search workflows…"
-                    value={pickerQuery}
-                    onChange={(e) => setPickerQuery(e.target.value)}
-                  />
-                  <div
-                    className="wizard-combobox-list"
-                    role="listbox"
-                    aria-label="Duplicate workflow options"
-                  >
-                    {filteredWorkflowOptions.length > 0 ? (
-                      filteredWorkflowOptions.map((workflow) => (
-                        <button
-                          key={workflow.id}
-                          type="button"
-                          className={`wizard-combobox-item ${selectedWorkflowId === workflow.id ? 'sel' : ''}`}
-                          onClick={() => onSelectWorkflow(workflow.id)}
-                        >
-                          <span className="wizard-combobox-title">
-                            {workflow.name}
-                            {workflow.source === 'bundled' ? ' (built-in)' : ''}
-                          </span>
-                          <span className="wizard-combobox-meta">
-                            {workflow.id}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="wizard-combobox-empty">
-                        No workflows match your search.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-            {activeStart === 'Template' && (
-              <>
-                <p>
-                  Pick a bundled template, then customize phases, dependencies,
-                  and Hermes task hints.
-                </p>
-                <div className="wizard-combobox">
-                  <input
-                    className="chat-inp wizard-combobox-input"
-                    placeholder="Search templates…"
-                    value={pickerQuery}
-                    onChange={(e) => setPickerQuery(e.target.value)}
-                  />
-                  <div
-                    className="wizard-combobox-list"
-                    role="listbox"
-                    aria-label="Template workflow options"
-                  >
-                    {filteredWorkflowOptions.length > 0 ? (
-                      filteredWorkflowOptions.map((workflow) => (
-                        <button
-                          key={workflow.id}
-                          type="button"
-                          className={`wizard-combobox-item ${selectedWorkflowId === workflow.id ? 'sel' : ''}`}
-                          onClick={() => onSelectWorkflow(workflow.id)}
-                        >
-                          <span className="wizard-combobox-title">
-                            {workflow.name}
-                          </span>
-                          <span className="wizard-combobox-meta">
-                            {workflow.id}
-                          </span>
-                        </button>
-                      ))
-                    ) : (
-                      <div className="wizard-combobox-empty">
-                        No templates match your search.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
-            {activeStart === 'Import YAML' && (
-              <>
-                <p>
-                  Imported YAML skips the scratch chat and goes straight to
-                  review.
-                </p>
-                <ul>
-                  <li>Status: {yamlStatus}</li>
-                  <li>File: {importedFileName ?? 'Waiting for file import'}</li>
-                  <li>Fix any parse issues in Step 4 if needed</li>
-                </ul>
-              </>
-            )}
-          </div>
-        </div>
+      {chatPending && (
+        <p
+          style={{
+            fontSize: 10,
+            color: 'var(--m-green-500, #00ff41)',
+            margin: '0 0 6px',
+            padding: '0 2px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+          }}
+        >
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse"
+            style={{
+              display: 'inline-block',
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: 'currentColor',
+              animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) infinite',
+            }}
+          />
+          <span style={{ marginLeft: 4 }}>Hermes is thinking…</span>
+        </p>
       )}
+      <div className="chat-input-row">
+        <input
+          className="chat-inp"
+          placeholder="Describe your workflow in plain language…"
+          value={chatInput}
+          disabled={chatPending}
+          onChange={(e) => onChatInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onSend()
+          }}
+        />
+        <button
+          className="btn-mini prim"
+          onClick={onSend}
+          disabled={chatPending}
+        >
+          {chatPending ? 'Thinking…' : 'Send'}
+        </button>
+      </div>
     </div>
   )
 }
 
 // ── Step 2: Design — live DAG preview ───────────────────────────────────────
-
-interface RawNode {
-  id: string
-  type: NodeType
-  depends_on?: Array<string>
-}
-
-interface DagInfo {
-  nodes: Array<RawNode>
-  node_count: number
-  depth: number
-  parallelism: number
-  node_type_counts: Record<string, number>
-  /** Positioned nodes for SVG: cx/cy = center point */
-  positioned: Array<{
-    id: string
-    type: string
-    cx: number
-    cy: number
-    layer: number
-  }>
-  edges: Array<[string, string]>
-}
-
-interface DagError {
-  error: string
-}
-
-/** Parse YAML string → DAG metrics + layout. Exported for smoke testing. */
-export function parseDagFromYaml(yamlStr: string): DagInfo | DagError {
-  try {
-    const parsed = parseYaml(yamlStr) as Record<string, unknown>
-    const rawNodes: Array<RawNode> = Array.isArray(parsed['nodes'])
-      ? (parsed['nodes'] as Array<Record<string, unknown>>).map(
-          (node, index) => ({
-            id:
-              typeof node['id'] === 'string' ? node['id'] : `node-${index + 1}`,
-            type: inferNodeType(node),
-            depends_on: Array.isArray(node['depends_on'])
-              ? node['depends_on'].filter(
-                  (dep): dep is string => typeof dep === 'string',
-                )
-              : [],
-          }),
-        )
-      : []
-    const node_count = rawNodes.length
-
-    // Compute topo depth per node
-    const depthMap: Record<string, number> = {}
-    function nodeDepth(id: string, visited = new Set<string>()): number {
-      if (id in depthMap) return depthMap[id]
-      if (visited.has(id)) return 1 // cycle guard
-      visited.add(id)
-      const node = rawNodes.find((n) => n.id === id)
-      const deps = node?.depends_on ?? []
-      const d =
-        deps.length === 0
-          ? 1
-          : 1 + Math.max(...deps.map((dep) => nodeDepth(dep, new Set(visited))))
-      depthMap[id] = d
-      return d
-    }
-    rawNodes.forEach((n) => nodeDepth(n.id))
-
-    const depth =
-      rawNodes.length === 0 ? 0 : Math.max(...Object.values(depthMap))
-
-    // Group by layer for parallelism + layout
-    const layers: Record<number, Array<RawNode>> = {}
-    rawNodes.forEach((n) => {
-      const d = depthMap[n.id] ?? 1
-      ;(layers[d] ??= []).push(n)
-    })
-    const parallelism = Object.values(layers).reduce(
-      (m, l) => Math.max(m, l.length),
-      0,
-    )
-
-    const node_type_counts: Record<string, number> = {}
-    rawNodes.forEach((n) => {
-      node_type_counts[n.type] = (node_type_counts[n.type] ?? 0) + 1
-    })
-
-    // Layout: X by layer depth, Y by index within layer
-    const NODE_W = 110,
-      NODE_H = 34
-    const LAYER_GAP = 140,
-      ROW_GAP = 80,
-      X_OFFSET = 60,
-      Y_OFFSET = 50
-    const capped = rawNodes.slice(0, 30)
-    const positioned = capped.map((n) => {
-      const layer = depthMap[n.id] ?? 1
-      const layerNodes = layers[layer] ?? []
-      const idx = layerNodes.indexOf(n)
-      return {
-        id: n.id,
-        type: n.type,
-        cx: (layer - 1) * LAYER_GAP + X_OFFSET + NODE_W / 2,
-        cy: idx * ROW_GAP + Y_OFFSET,
-        layer,
-      }
-    })
-
-    // Edges from depends_on (capped set only)
-    const cappedIds = new Set(capped.map((n) => n.id))
-    const edges: Array<[string, string]> = []
-    capped.forEach((n) => {
-      ;(n.depends_on ?? []).forEach((dep) => {
-        if (cappedIds.has(dep)) edges.push([dep, n.id])
-      })
-    })
-
-    return {
-      nodes: rawNodes,
-      node_count,
-      depth,
-      parallelism,
-      node_type_counts,
-      positioned,
-      edges,
-    }
-  } catch (err) {
-    return { error: err instanceof Error ? err.message : String(err) }
-  }
-}
 
 // ── DagSvg ───────────────────────────────────────────────────────────────────
 
@@ -1079,30 +730,32 @@ function DagSvg({ dag, extraCount }: DagSvgProps) {
           borderTop: '1px solid var(--m-border-subtle)',
         }}
       >
-        {WIZARD_LEGEND_TYPES.map((t) => [t, colorFor(t)] as const).map(([t, c]) => (
-          <span
-            key={t}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              font: '400 10px var(--m-font-mono)',
-              color: 'var(--m-text-faint)',
-            }}
-          >
+        {WIZARD_LEGEND_TYPES.map((t) => [t, colorFor(t)] as const).map(
+          ([t, c]) => (
             <span
+              key={t}
               style={{
-                width: 8,
-                height: 8,
-                borderRadius: 2,
-                background: c,
-                boxShadow: `0 0 4px ${c}`,
-                display: 'inline-block',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                font: '400 10px var(--m-font-mono)',
+                color: 'var(--m-text-faint)',
               }}
-            />
-            {t}
-          </span>
-        ))}
+            >
+              <span
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 2,
+                  background: c,
+                  boxShadow: `0 0 4px ${c}`,
+                  display: 'inline-block',
+                }}
+              />
+              {t}
+            </span>
+          ),
+        )}
       </div>
     </div>
   )
@@ -1230,7 +883,6 @@ function DesignStep({ yaml }: DesignStepProps) {
           </div>
         </div>
       </div>
-
     </div>
   )
 }
@@ -1633,7 +1285,8 @@ function ConfigureStep({
                     <div className="wz-field wz-field-full">
                       <span>Legacy contract</span>
                       <div className="text-xs text-[var(--theme-muted)]">
-                        Deprecated YAML keys remain readable here but are no longer authored by SwitchUI.
+                        Deprecated YAML keys remain readable here but are no
+                        longer authored by SwitchUI.
                         {typeof selectedNode.raw['provider'] === 'string' &&
                           ` provider=${selectedNode.raw['provider']}`}
                         {typeof selectedNode.raw['model'] === 'string' &&
@@ -1653,199 +1306,33 @@ function ConfigureStep({
   )
 }
 
-// ── Step 4: Save ─────────────────────────────────────────────────────────────
-
-interface SaveStepProps {
-  id: string
-  name: string
-  description: string
-  source: 'user' | 'project'
-  yaml: string
-  yamlError: string | null
-  serverError: string | null
-  isPending: boolean
-  onIdChange: (v: string) => void
-  onNameChange: (v: string) => void
-  onDescriptionChange: (v: string) => void
-  onSourceChange: (v: 'user' | 'project') => void
-  onYamlChange: (v: string) => void
-  onSubmit: () => void
-}
-
-function SaveStep({
-  id,
-  name,
-  description,
-  source,
-  yaml,
-  yamlError,
-  serverError,
-  isPending,
-  onIdChange,
-  onNameChange,
-  onDescriptionChange,
-  onSourceChange,
-  onYamlChange,
-}: SaveStepProps) {
-  const idValid = ID_REGEX.test(id)
-  const fieldStyle: React.CSSProperties = {
-    width: '100%',
-    boxSizing: 'border-box',
-  }
-  const labelStyle: React.CSSProperties = {
-    display: 'block',
-    fontSize: 12,
-    marginBottom: 4,
-    color: 'var(--m-text-muted, var(--text-muted, #888))',
-  }
-
-  return (
-    <div className="wfw-save-pane">
-      {/* ID */}
-      <div style={{ marginBottom: 14 }}>
-        <label className="wfrd-label" style={labelStyle}>
-          ID <span style={{ color: 'var(--text-danger, #e55)' }}>*</span>
-        </label>
-        <input
-          className="wfrd-input"
-          type="text"
-          value={id}
-          onChange={(e) => onIdChange(e.target.value)}
-          placeholder="my-workflow"
-          style={fieldStyle}
-        />
-        {id.length > 0 && !idValid && (
-          <div
-            style={{
-              color: 'var(--text-danger, #e55)',
-              fontSize: 11,
-              marginTop: 3,
-            }}
-          >
-            id must be 1–128 chars of [A-Za-z0-9_:.-]
-          </div>
-        )}
-      </div>
-
-      {/* Name */}
-      <div style={{ marginBottom: 14 }}>
-        <label className="wfrd-label" style={labelStyle}>
-          Name <span style={{ color: 'var(--text-danger, #e55)' }}>*</span>
-        </label>
-        <input
-          className="wfrd-input"
-          type="text"
-          value={name}
-          onChange={(e) => onNameChange(e.target.value)}
-          placeholder="My Workflow"
-          style={fieldStyle}
-        />
-      </div>
-
-      {/* Description */}
-      <div style={{ marginBottom: 14 }}>
-        <label className="wfrd-label" style={labelStyle}>
-          Description
-        </label>
-        <input
-          className="wfrd-input"
-          type="text"
-          value={description}
-          onChange={(e) => onDescriptionChange(e.target.value)}
-          placeholder="Optional description"
-          style={fieldStyle}
-        />
-      </div>
-
-      {/* Source */}
-      <div style={{ marginBottom: 14 }}>
-        <label className="wfrd-label" style={labelStyle}>
-          Source
-        </label>
-        <select
-          className="wfrd-select"
-          value={source}
-          onChange={(e) => onSourceChange(e.target.value as 'user' | 'project')}
-          style={fieldStyle}
-        >
-          <option value="project">project</option>
-          <option value="user">user</option>
-        </select>
-      </div>
-
-      {/* YAML */}
-      <div style={{ marginBottom: 18 }}>
-        <label className="wfrd-label" style={labelStyle}>
-          YAML <span style={{ color: 'var(--text-danger, #e55)' }}>*</span>
-        </label>
-        <textarea
-          className="wfrd-yaml"
-          value={yaml}
-          onChange={(e) => onYamlChange(e.target.value)}
-          rows={14}
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            fontFamily: 'monospace',
-            fontSize: 12,
-            resize: 'vertical',
-          }}
-        />
-      </div>
-
-      {yamlError && (
-        <div
-          style={{
-            color: 'var(--text-danger, #e55)',
-            fontSize: 12,
-            marginBottom: 12,
-          }}
-        >
-          YAML parse error: {yamlError}
-        </div>
-      )}
-
-      {serverError && (
-        <div
-          style={{
-            color: 'var(--text-danger, #e55)',
-            fontSize: 12,
-            marginBottom: 12,
-          }}
-        >
-          {serverError}
-        </div>
-      )}
-
-      {isPending && (
-        <div
-          style={{
-            color: 'var(--m-text-muted, #888)',
-            fontSize: 12,
-            marginBottom: 8,
-          }}
-        >
-          Saving…
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ── Main wizard ──────────────────────────────────────────────────────────────
 
 export interface NewWorkflowWizardProps {
-  /** If provided, wizard opens with Import YAML pre-selected and this as the YAML content */
+  /** If provided, wizard opens on SOURCE → Import YAML with this as the YAML content */
   initialYaml?: string
-  /** If provided, pre-fills the ID field on Step 4 */
+  /** If provided, pre-fills the workflow id */
   initialId?: string
   onClose: () => void
+  /** Called with the saved id when "Open in Workflows after save" is checked. */
+  onOpenWorkflow?: (id: string) => void
+}
+
+const NO_IDS: ReadonlySet<string> = new Set()
+
+const KIND_LABEL: Record<SourceKind, string> = {
+  describe: 'describe with AI',
+  template: 'from a template',
+  duplicate: 'duplicate existing',
+  import: 'import YAML',
+  blank: 'blank canvas',
 }
 
 export function NewWorkflowWizard({
   initialYaml,
   initialId,
   onClose,
+  onOpenWorkflow,
 }: NewWorkflowWizardProps) {
   const initialDocument = toWorkflowDocumentDraft(
     initialYaml ?? YAML_TEMPLATE,
@@ -1856,18 +1343,18 @@ export function NewWorkflowWizard({
     topLevel: {},
     nodes: [toNodeDraft({ id: 'start', prompt: 'Hello' }, 0)],
   }
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0)
 
-  // Step 1 state
-  const [activeStart, setActiveStart] = useState<StartOption>(
-    initialYaml ? 'Import YAML' : 'Scratch',
+  // SOURCE state
+  const [kind, setKind] = useState<SourceKind>(
+    initialYaml ? 'import' : 'describe',
   )
   const [chatHistory, setChatHistory] =
     useState<Array<ChatMessage>>(NWZ_CHAT_INIT)
   const [chatInput, setChatInput] = useState('')
   const [chatPending, setChatPending] = useState(false)
   const [wizardSessionId, setWizardSessionId] = useState<string | null>(null)
-  const importRef = useRef<HTMLInputElement>(null)
+  const [importText, setImportText] = useState(initialYaml ?? '')
   const [importedFileName, setImportedFileName] = useState<string | null>(null)
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
 
@@ -1892,29 +1379,66 @@ export function NewWorkflowWizard({
         name: initialDocument.name || 'My Workflow',
       }),
   )
-  const [serverError, setServerError] = useState<string | null>(null)
+
+  // REVIEW state
+  const [openAfter, setOpenAfter] = useState(true)
+  const [ack, setAck] = useState(false)
+  const [failure, setFailure] = useState<SaveFailure | null>(null)
+  const [conflicts, setConflicts] = useState<ReadonlySet<string>>(NO_IDS)
+  const [runAfter, setRunAfter] = useState<string | null>(null)
 
   const upsert = useUpsertWorkflowDefinition()
-  // For Duplicate picker
-  const { data: existingWorkflows } = useWorkflowDefinitions()
+  const defs = useWorkflowDefinitions()
+  const existingWorkflows = defs.data
 
-  const yamlParse = useMemo(() => parseDagFromYaml(yaml), [yaml])
-  const idValid = ID_REGEX.test(id)
-  const canSave =
-    idValid &&
-    name.trim().length > 0 &&
-    yaml.trim().length > 0 &&
-    !('error' in yamlParse) &&
-    !upsert.isPending
+  const takenIds = useMemo<ReadonlySet<string> | null>(
+    () =>
+      defs.data || conflicts.size > 0
+        ? new Set([...(defs.data ?? []).map((w) => w.id), ...conflicts])
+        : null,
+    [defs.data, conflicts],
+  )
+  const validation = useWizardValidation({ yaml, id, existingIds: takenIds })
+  const importIssues = useMemo(
+    () => (importText.trim() ? lintWorkflowYaml(importText).errors : []),
+    [importText],
+  )
+  const checks = useMemo(
+    () => buildChecks(validation, id, validation.idStatus),
+    [validation, id],
+  )
 
-  // Close on Esc
+  const idBlocked =
+    validation.idStatus === 'empty' ||
+    validation.idStatus === 'invalid' ||
+    validation.idStatus === 'taken'
+  const sourceReady =
+    kind === 'template' || kind === 'duplicate'
+      ? Boolean(selectedWorkflowId) && !idBlocked
+      : kind === 'import'
+        ? importText.trim().length > 0 &&
+          importIssues.length === 0 &&
+          !idBlocked
+        : true
+
+  // A new set of risky commands needs a fresh acknowledgement.
+  const riskKey = validation.risky
+    .map((r) => `${r.node_id}:${r.line}:${r.snippet}`)
+    .join('|')
   useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+    setAck(false)
+  }, [riskKey])
+
+  const serverBlocked =
+    validation.hasValidate &&
+    (validation.serverPending || (validation.server?.errors.length ?? 0) > 0)
+  const baseOk =
+    validation.lint.errors.length === 0 &&
+    name.trim().length > 0 &&
+    (validation.risky.length === 0 || ack) &&
+    !serverBlocked &&
+    !upsert.isPending
+  const canSave = baseOk && !idBlocked && validation.idStatus !== 'checking'
 
   function buildDocument(
     next: {
@@ -2006,7 +1530,10 @@ export function NewWorkflowWizard({
       // Warn once per session so future debugging is easier; fallback builds a local draft.
       if (!chatWarnFired) {
         chatWarnFired = true
-        console.warn('[workflow-wizard] Hermes scratch chat failed — using local fallback', err)
+        console.warn(
+          '[workflow-wizard] Hermes scratch chat failed — using local fallback',
+          err,
+        )
       }
       const fallbackDoc = buildWorkflowFromPrompt(
         userMsg,
@@ -2029,50 +1556,69 @@ export function NewWorkflowWizard({
     }
   }
 
-  function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    void file.text().then((text) => {
-      const parsed = toWorkflowDocumentDraft(text)
-      if (parsed) {
-        applyParsedDocument(parsed, {
-          wizardId: id || slugify(file.name),
-          forceName: parsed.name || name || file.name.replace(/\.ya?ml$/i, ''),
-          forceDescription: parsed.description || description,
-        })
-      } else {
-        setYaml(text)
-      }
-      setImportedFileName(file.name)
-      if (!id) setId(slugify(file.name))
-      if (!name) setName(file.name.replace(/\.ya?ml$/i, ''))
+  /** Load a valid imported YAML into the draft (original text is kept). */
+  function applyImport(text: string, fileName: string | null) {
+    const parsed = toWorkflowDocumentDraft(text)
+    if (!parsed) {
+      setYaml(text)
+      return
+    }
+    applyParsedDocument(parsed, {
+      wizardId:
+        id ||
+        parsed.id ||
+        (fileName ? slugify(fileName) : slugify(parsed.name || '')),
+      forceName: parsed.name || name || fileName?.replace(/\.ya?ml$/i, ''),
+      forceDescription: parsed.description,
     })
-    e.target.value = ''
+    setYaml(text)
   }
 
-  const yamlStatus =
-    yaml.trim().length === 0
-      ? 'No YAML loaded yet'
-      : 'error' in yamlParse
-        ? `Parse error — ${yamlParse.error}`
-        : `Valid YAML — ${'node_count' in yamlParse ? yamlParse.node_count : 0} nodes detected`
+  function handleImportText(text: string, fileName?: string | null) {
+    const nextFile = fileName === undefined ? importedFileName : fileName
+    setImportText(text)
+    setImportedFileName(nextFile)
+    if (text.trim() && lintWorkflowYaml(text).errors.length === 0)
+      applyImport(text, nextFile)
+  }
 
-  function handleDuplicateSelect(wfId: string) {
+  function handleKind(next: SourceKind) {
+    setKind(next)
+    setSelectedWorkflowId('')
+    if (next === 'blank') {
+      const parsed = toWorkflowDocumentDraft(BLANK_YAML)
+      if (parsed)
+        applyParsedDocument(parsed, {
+          forceName: 'My Workflow',
+          forceDescription: 'New workflow',
+        })
+    } else if (
+      next === 'import' &&
+      importText.trim() &&
+      lintWorkflowYaml(importText).errors.length === 0
+    ) {
+      applyImport(importText, importedFileName)
+    }
+  }
+
+  function handlePickWorkflow(wfId: string) {
     const wf = existingWorkflows?.find((w) => w.id === wfId)
     if (!wf) return
     setSelectedWorkflowId(wfId)
+    const nextId = slugify(wf.id + '-copy')
+    const nextName = kind === 'duplicate' ? `${wf.name} (copy)` : wf.name
     const parsed = toWorkflowDocumentDraft(wf.yaml || YAML_TEMPLATE)
     if (parsed) {
       applyParsedDocument(parsed, {
-        wizardId: slugify(wf.id + '-copy'),
-        forceName: `${wf.name} (copy)`,
+        wizardId: nextId,
+        forceName: nextName,
         forceDescription: wf.description || parsed.description,
       })
     } else {
       setYaml(wf.yaml || YAML_TEMPLATE)
-      setName(wf.name + ' (copy)')
+      setName(nextName)
       setDescription(wf.description || '')
-      setId(slugify(wf.id + '-copy'))
+      setId(nextId)
     }
   }
 
@@ -2132,287 +1678,227 @@ export function NewWorkflowWizard({
     updateNodes(nextNodes)
   }
 
-  async function handleSave() {
-    setServerError(null)
+  async function handleSave(over: { run?: boolean; id?: string } = {}) {
+    const saveId = over.id ?? id
+    setFailure(null)
     try {
       await upsert.mutateAsync({
-        id,
+        id: saveId,
         name: name.trim(),
         description: description.trim() || undefined,
         source,
         yaml,
+        ...(kind === 'import' ? { save_source: 'import' as const } : {}),
       })
+      if (over.run) {
+        // Hand over to the Run-workflow dialog for the freshly saved definition.
+        setRunAfter(saveId)
+        return
+      }
+      if (openAfter) onOpenWorkflow?.(saveId)
       onClose()
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Unknown error')
+      const status = (err as { status?: number }).status
+      const message = err instanceof Error ? err.message : 'Unknown error'
+      if (status === 409) {
+        setConflicts((prev) => new Set(prev).add(saveId))
+        setFailure({ kind: 'conflict', message })
+      } else if (
+        err instanceof WorkflowEngineUnavailableError ||
+        status === 502 ||
+        status === 503
+      ) {
+        setFailure({ kind: 'engine', message })
+      } else {
+        setFailure({ kind: 'other', message })
+      }
     }
   }
 
-  const currentStepLabel = STEPS[step - 1] ?? 'DESCRIBE'
+  if (runAfter) {
+    return <LaunchWizard workflowId={runAfter} onClose={onClose} />
+  }
 
-  return (
-    <div
-      className="wizard-scrim"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 1000,
-        background: 'rgba(0,0,0,0.72)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose()
-      }}
-    >
-      <div
-        className="wizard-modal"
-        style={{
-          background: 'var(--m-bg-panel, var(--bg-2, #111))',
-          border: '1px solid var(--m-border, var(--border, #2a2a2a))',
-          borderRadius: 10,
-          width: 860,
-          maxWidth: '97vw',
-          maxHeight: '92vh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+  const isReview = step === 3
+  const suggestion = suggestFreeIds(id, takenIds ?? NO_IDS)[0]
+  const conflict = failure?.kind === 'conflict'
+
+  const railRight =
+    step === 3 ? (
+      <>
+        <span
+          className={`wz2-chip ${checks.pass === checks.total ? 'ok' : 'er'}`}
+        >
+          {checks.pass} OF {checks.total} CHECKS PASS
+        </span>
+        {validation.risky.length > 0 && !ack && (
+          <span className="wz2-chip wa">1 TO ACKNOWLEDGE</span>
+        )}
+      </>
+    ) : step === 0 ? (
+      defs.isError ? (
+        <span className="wz2-chip er">
+          {defs.error instanceof WorkflowEngineUnavailableError
+            ? 'ENGINE DOWN'
+            : 'CATALOG UNAVAILABLE'}
+        </span>
+      ) : defs.data ? (
+        <span className="wz2-chip ok">CATALOG LIVE · {defs.data.length}</span>
+      ) : null
+    ) : null
+
+  const actions = isReview ? (
+    <>
+      {conflict && onOpenWorkflow && (
+        <button
+          type="button"
+          className="wfw-btn wfw-btn--secondary"
+          onClick={() => {
+            onOpenWorkflow(id)
+            onClose()
+          }}
+        >
+          Open existing
+        </button>
+      )}
+      <button
+        type="button"
+        className="wfw-btn wfw-btn--secondary wz2-sm"
+        disabled={!canSave}
+        title="Saves, then opens the Run workflow dialog"
+        onClick={() => {
+          void handleSave({ run: true })
         }}
       >
-        {/* ── Header ── */}
-        <div
-          className="wz-head"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '16px 20px',
-            borderBottom: '1px solid var(--m-border, #2a2a2a)',
-            flexShrink: 0,
+        Save &amp; run
+      </button>
+      {conflict && suggestion && (
+        <button
+          type="button"
+          className="wfw-btn wfw-btn--primary"
+          disabled={!baseOk}
+          onClick={() => {
+            setId(suggestion)
+            void handleSave({ id: suggestion })
           }}
         >
-          <div
-            className="wz-icon"
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 7,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(0,255,65,.08)',
-              border: '1px solid var(--m-green-500, #00ff41)',
-              color: 'var(--m-green-500, #00ff41)',
-              boxShadow: '0 0 10px rgba(0,255,65,.3)',
-              flexShrink: 0,
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              width="16"
-              height="16"
-            >
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-          </div>
-          <div style={{ flex: 1 }}>
-            <h2
-              style={{
-                margin: 0,
-                fontSize: 14,
-                fontWeight: 700,
-                color: 'var(--m-text, #e0e0e0)',
-                letterSpacing: '.02em',
-              }}
-            >
-              New Workflow
-            </h2>
-            <div
-              className="wz-sub"
-              style={{
-                fontSize: 10,
-                color: 'var(--m-text-muted, #888)',
-                marginTop: 2,
-                fontFamily: 'var(--m-font-mono, monospace)',
-                textTransform: 'uppercase',
-                letterSpacing: '.1em',
-              }}
-            >
-              CREATE A WORKFLOW DEFINITION · STEP {step} OF 4 —{' '}
-              {currentStepLabel}
-            </div>
-          </div>
-          <button
-            className="wz-close"
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--m-text-muted, #888)',
-              padding: 4,
-              lineHeight: 1,
-            }}
-          >
-            <svg
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              width="16"
-              height="16"
-            >
-              <path d="M18 6L6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+          Save as {suggestion}
+        </button>
+      )}
+      <button
+        type="button"
+        className="wfw-btn wfw-btn--primary"
+        disabled={!canSave}
+        onClick={() => {
+          void handleSave()
+        }}
+      >
+        {upsert.isPending ? 'Saving…' : 'Save workflow'}
+      </button>
+    </>
+  ) : (
+    <button
+      type="button"
+      className="wfw-btn wfw-btn--primary"
+      disabled={step === 0 && !sourceReady}
+      onClick={() => setStep((s) => s + 1)}
+    >
+      Next ▶
+    </button>
+  )
 
-        {/* ── Step bar ── */}
-        <StepBar step={step} />
-
-        {/* ── Body ── */}
-        <div
-          className="wz-body"
-          style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}
-        >
-          {step === 1 && (
-            <DescribeStep
-              activeStart={activeStart}
-              onSelectStart={setActiveStart}
-              chatHistory={chatHistory}
-              chatInput={chatInput}
-              chatPending={chatPending}
-              onChatInput={setChatInput}
-              onSend={handleSend}
-              importRef={importRef}
-              onImportChange={handleImportChange}
-              importedFileName={importedFileName}
-              yamlStatus={yamlStatus}
-              workflowOptions={existingWorkflows ?? []}
-              selectedWorkflowId={selectedWorkflowId}
-              onSelectWorkflow={handleDuplicateSelect}
-            />
-          )}
-
-          {step === 2 && <DesignStep yaml={yaml} />}
-
-          {step === 3 && (
-            <ConfigureStep
-              nodes={nodeDrafts}
-              selectedNodeId={selectedNodeId}
-              onSelectNode={setSelectedNodeId}
-              onUpdateNode={handleUpdateNode}
-              onUpdateHermesTask={handleUpdateHermesTask}
-              onAddNode={handleAddNode}
-              onRemoveNode={handleRemoveNode}
-            />
-          )}
-
-          {step === 4 && (
-            <SaveStep
-              id={id}
-              name={name}
-              description={description}
-              source={source}
-              yaml={yaml}
-              yamlError={'error' in yamlParse ? yamlParse.error : null}
-              serverError={serverError}
-              isPending={upsert.isPending}
-              onIdChange={setId}
-              onNameChange={(nextName) => {
-                setName(nextName)
-                syncYamlFromDocument(buildDocument({ name: nextName }))
-              }}
-              onDescriptionChange={(nextDescription) => {
-                setDescription(nextDescription)
-                syncYamlFromDocument(
-                  buildDocument({ description: nextDescription }),
-                )
-              }}
-              onSourceChange={setSource}
-              onYamlChange={handleYamlChange}
-              onSubmit={() => {
-                void handleSave()
-              }}
-            />
-          )}
-        </div>
-
-        {/* ── Footer ── */}
-        <div
-          className="wz-foot"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 20px',
-            borderTop: '1px solid var(--m-border, #2a2a2a)',
-            flexShrink: 0,
-          }}
-        >
-          <span
-            className="wz-foot-step"
-            style={{
-              font: '500 10px var(--m-font-mono, monospace)',
-              color: 'var(--m-text-faint, #444)',
-              textTransform: 'uppercase',
-              letterSpacing: '.14em',
-            }}
-          >
-            Step {step} / 4
-          </span>
-          <div className="wz-nav" style={{ display: 'flex', gap: 8 }}>
-            {step > 1 && (
-              <button
-                className="btn-mini"
-                type="button"
-                onClick={() => setStep((s) => s - 1)}
-              >
-                ← Back
-              </button>
-            )}
-            {step < 4 && (
-              <button
-                className="btn-mini prim"
-                type="button"
-                onClick={() => setStep((s) => s + 1)}
-              >
-                Next →
-              </button>
-            )}
-            {step === 4 && (
-              <button
-                className="btn-mini prim"
-                type="button"
-                style={{ minWidth: 130 }}
-                disabled={!canSave}
-                onClick={() => {
-                  void handleSave()
+  return (
+    <>
+      <WizardShell
+        meta={step === 0 ? KIND_LABEL[kind] : id || name}
+        stepIndex={step}
+        onStepClick={setStep}
+        railRight={railRight}
+        onBack={step > 0 ? () => setStep((s) => s - 1) : null}
+        actions={actions}
+        onClose={onClose}
+      >
+        {step === 0 && (
+          <SourceStep
+            kind={kind}
+            onKind={handleKind}
+            describePane={
+              <DescribeChatPane
+                chatHistory={chatHistory}
+                chatInput={chatInput}
+                chatPending={chatPending}
+                onChatInput={setChatInput}
+                onSend={() => {
+                  void handleSend()
                 }}
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.2"
-                  width="11"
-                  height="11"
-                  style={{ marginRight: 5 }}
-                >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-                Save Workflow
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+              />
+            }
+            workflows={existingWorkflows}
+            workflowsLoading={defs.isLoading}
+            workflowsError={defs.error}
+            onRetryWorkflows={() => {
+              void defs.refetch()
+            }}
+            selectedWorkflowId={selectedWorkflowId}
+            onSelectWorkflow={handlePickWorkflow}
+            id={id}
+            onIdChange={setId}
+            idStatus={validation.idStatus}
+            takenIds={takenIds ?? NO_IDS}
+            importText={importText}
+            importFileName={importedFileName}
+            onImportText={handleImportText}
+            importIssues={importIssues}
+          />
+        )}
+
+        {step === 1 && <DesignStep yaml={yaml} />}
+
+        {step === 2 && (
+          <ConfigureStep
+            nodes={nodeDrafts}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+            onUpdateNode={handleUpdateNode}
+            onUpdateHermesTask={handleUpdateHermesTask}
+            onAddNode={handleAddNode}
+            onRemoveNode={handleRemoveNode}
+          />
+        )}
+
+        {step === 3 && (
+          <ReviewStep
+            yaml={yaml}
+            id={id}
+            name={name}
+            description={description}
+            source={source}
+            openAfter={openAfter}
+            validation={validation}
+            idStatus={validation.idStatus}
+            takenIds={takenIds ?? NO_IDS}
+            ack={ack}
+            failure={failure}
+            saving={upsert.isPending}
+            onId={(v) => {
+              setId(v)
+              if (failure?.kind === 'conflict') setFailure(null)
+            }}
+            onName={(v) => {
+              setName(v)
+              syncYamlFromDocument(buildDocument({ name: v }))
+            }}
+            onDescription={(v) => {
+              setDescription(v)
+              syncYamlFromDocument(buildDocument({ description: v }))
+            }}
+            onSource={setSource}
+            onOpenAfter={setOpenAfter}
+            onAck={setAck}
+            onYaml={handleYamlChange}
+          />
+        )}
+      </WizardShell>
 
       {/* ── Wizard-specific styles ── */}
       <style>{`
@@ -2773,6 +2259,8 @@ export function NewWorkflowWizard({
           color: var(--m-text-muted, #888);
         }
       `}</style>
-    </div>
+    </>
   )
 }
+
+export { parseDagFromYaml }

@@ -177,7 +177,12 @@ export class PluginClient implements WorkflowEngineInterface {
   async upsertDefinition(
     yaml: string,
     sourcePath?: string,
-    opts?: { id?: string; name?: string; expected_checksum?: string },
+    opts?: {
+      id?: string
+      name?: string
+      expected_checksum?: string
+      save_source?: 'save' | 'import'
+    },
   ): Promise<WorkflowDefinitionRow> {
     const res = await _proxyFetch(`${PLUGIN_BASE}/definitions`, {
       method: 'POST',
@@ -190,6 +195,7 @@ export class PluginClient implements WorkflowEngineInterface {
         ...(opts?.expected_checksum != null
           ? { expected_checksum: opts.expected_checksum }
           : {}),
+        ...(opts?.save_source != null ? { save_source: opts.save_source } : {}),
       }),
     })
     if (!res.ok) {

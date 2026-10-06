@@ -8,6 +8,7 @@ import {
   listRunEvents,
   listRunEventsPaged,
   listWorkflowDefinitions,
+  validateWorkflowDefinition,
 } from './api-client'
 
 function createEventStream(events: Array<string>): ReadableStream<Uint8Array> {
@@ -307,6 +308,57 @@ describe('listWorkflowDefinitions', () => {
 
     await expect(listWorkflowDefinitions()).rejects.toThrow(
       'listWorkflowDefinitions failed (500)',
+    )
+  })
+})
+
+describe('validateWorkflowDefinition', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('calls POST /api/workflow-definitions/validate with yaml and optional id', async () => {
+    const mockRes = {
+      ok: true,
+      errors: [],
+      warnings: [],
+      id_available: true,
+    }
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(mockRes), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const res = await validateWorkflowDefinition('name: test', 'my-id')
+    expect(res).toEqual(mockRes)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/workflow-definitions/validate',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ yaml: 'name: test', id: 'my-id' }),
+      },
+    )
+  })
+
+  it('throws WorkflowEngineUnavailableError on 503 or engine_ok: false', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          engine_ok: false,
+          error: 'Engine down',
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(validateWorkflowDefinition('name: test')).rejects.toThrow(
+      WorkflowEngineUnavailableError,
     )
   })
 })
