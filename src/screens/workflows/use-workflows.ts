@@ -22,6 +22,7 @@ import {
   resetWorkflowDefinitionToFactory,
   retryWorkflowRun,
   upsertWorkflowDefinition,
+  validateWorkflowDefinition,
 } from './api-client'
 import type {
   ApproveWorkflowInput,
@@ -259,5 +260,18 @@ export function useDeleteWorkflowDefinition() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
     },
+  })
+}
+
+export function useValidateWorkflowDefinition(
+  yaml: string | null | undefined,
+  id?: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['workflow-definition-validate', id ?? 'no-id', yaml],
+    queryFn: () => validateWorkflowDefinition(yaml!, id),
+    enabled: Boolean(yaml) && (options?.enabled ?? true),
+    staleTime: 60_000,
   })
 }

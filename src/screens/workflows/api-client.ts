@@ -87,7 +87,10 @@ export async function getWorkflowDefinitionParsed(
     `/api/workflow-definitions/${encodeURIComponent(id)}/parsed`,
   )
   if (!res.ok) {
-    throw new Error(`getWorkflowDefinitionParsed failed (${res.status})`)
+    throw Object.assign(
+      new Error(`getWorkflowDefinitionParsed failed (${res.status})`),
+      { status: res.status },
+    )
   }
   return (await res.json()) as WorkflowDefinitionParsedResponse
 }
@@ -835,4 +838,37 @@ export async function deleteWorkflowDefinition(id: string): Promise<void> {
       },
     )
   }
+}
+
+export interface ValidateWorkflowIssue {
+  line?: number
+  col?: number
+  code: string
+  message: string
+  node_id?: string
+}
+
+export interface ValidateWorkflowResult {
+  ok: boolean
+  errors: Array<ValidateWorkflowIssue>
+  warnings: Array<ValidateWorkflowIssue>
+  id_available?: boolean
+}
+
+export async function validateWorkflowDefinition(
+  yaml: string,
+  id?: string,
+): Promise<ValidateWorkflowResult> {
+  const res = await wfFetch('/api/workflow-definitions/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ yaml, ...(id ? { id } : {}) }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(
+      `validateWorkflowDefinition failed (${res.status}): ${text}`,
+    )
+  }
+  return (await res.json()) as ValidateWorkflowResult
 }

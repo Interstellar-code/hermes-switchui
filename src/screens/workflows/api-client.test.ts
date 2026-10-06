@@ -8,6 +8,7 @@ import {
   listRunEvents,
   listRunEventsPaged,
   listWorkflowDefinitions,
+  validateWorkflowDefinition,
 } from './api-client'
 
 function createEventStream(events: Array<string>): ReadableStream<Uint8Array> {
@@ -307,6 +308,59 @@ describe('listWorkflowDefinitions', () => {
 
     await expect(listWorkflowDefinitions()).rejects.toThrow(
       'listWorkflowDefinitions failed (500)',
+    )
+  })
+})
+
+describe('validateWorkflowDefinition', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('posts yaml and returns ok, errors, warnings, id_available', async () => {
+    const mockResult = {
+      ok: false,
+      errors: [
+        {
+          line: 4,
+          col: 2,
+          code: 'cycle',
+          message: 'Cycle detected: a -> b -> a',
+          node_id: 'a',
+        },
+      ],
+      warnings: [],
+      id_available: true,
+    }
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(mockResult), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const result = await validateWorkflowDefinition('nodes: []', 'test-id')
+    expect(result).toEqual(mockResult)
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/workflow-definitions/validate',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ yaml: 'nodes: []', id: 'test-id' }),
+      },
+    )
+  })
+
+  it('throws on non-200 HTTP response', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(new Response('Internal Server Error', { status: 500 }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(validateWorkflowDefinition('invalid yaml')).rejects.toThrow(
+      'validateWorkflowDefinition failed (500)',
     )
   })
 })
