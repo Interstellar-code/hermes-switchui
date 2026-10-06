@@ -16,8 +16,8 @@ import { useConductorUIStore } from '@/stores/conductor-ui-store'
 
 const PILL_CLASS: Record<StagePill['status'], string> = {
   done: 'done',
-  running: 'now',
-  waiting: 'now wait',
+  running: 'on',
+  waiting: 'on wait',
   failed: 'fail',
   pending: '',
 }
@@ -120,8 +120,11 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
       <div className="body">
         <div className="lbl">
           <span className="chip-status">{statusChip}</span>
-          run {runId.slice(0, 8)}
-          {retries > 0 && ` · retry #${retries}`}
+          <span className="chip-run">
+            run {runId.slice(0, 8)}
+            {retries > 0 && ` · retry #${retries}`}
+          </span>
+          {trigger && <span className="chip-trg">{trigger}</span>}
         </div>
         <div className="prompt">{title}</div>
         <div className="sub-line">
@@ -133,13 +136,9 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
               {progress.x} of {progress.y}
             </>
           )}
-        </div>
-        <div className="meta">
-          {trigger && <span className="chip-trg">{trigger}</span>}
           {run?.parent_run_id && (
             <>
-              {' '}
-              · re-run of{' '}
+              {' · re-run of '}
               <button
                 type="button"
                 className="now-link"
@@ -154,14 +153,13 @@ export function NowPlayingStrip({ runId }: { runId: string }) {
               className="now-warn"
               title={`Pinned ${pinned.checksum?.slice(0, 12)}, current ${pinned.current_checksum?.slice(0, 12)}`}
             >
-              {' '}
-              · definition changed since run
+              {' · definition changed since run'}
             </span>
           )}
-          {mission && (
+          {mission && mission.tokens !== '—' && (
             <>
-              {' '}
-              · used <b>{mission.tokens}</b>
+              {' · used '}
+              <b>{mission.tokens}</b>
             </>
           )}
         </div>

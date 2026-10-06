@@ -9,6 +9,7 @@ import {
   windowFor,
 } from './timeline-model'
 import type { TimelineScale } from './timeline-model'
+import { nodeColor } from '@/screens/workflows/node-colors'
 import { useWorkflowRun } from '@/screens/workflows/use-workflows'
 import '@/styles/matrix-conductor-timeline.css'
 
@@ -109,8 +110,10 @@ export function MissionTimeline({ runId }: { runId: string | null }) {
                         role="img"
                         data-status={r.status}
                         style={{
-                          left: `${left}%`,
+                          // An instant row at the window's end stays visible.
+                          left: `min(${left}%, 100% - 4px)`,
                           width: `max(${Math.max(right - left, 0)}%, 4px)`,
+                          ...(r.type && { '--node-c': nodeColor(r.type) }),
                         }}
                         title={`${label}: ${r.status}, ${durText}`}
                         aria-label={`${label}: ${r.status}, ${durText}`}
@@ -130,9 +133,7 @@ export function MissionTimeline({ runId }: { runId: string | null }) {
               left: `calc(var(--mtl-label-w) + (100% - var(--mtl-label-w) - var(--mtl-dur-w)) * ${nowPct / 100})`,
             }}
             aria-hidden="true"
-          >
-            <span>NOW</span>
-          </div>
+          ></div>
         )}
       </div>
     </section>

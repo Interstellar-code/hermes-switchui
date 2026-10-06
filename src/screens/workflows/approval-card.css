@@ -1,6 +1,7 @@
 .wfac {
   border: 1px solid var(--m-warning, var(--theme-warning));
-  border-radius: 4px;
+  border-radius: 6px;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
   padding: 12px;
   background: color-mix(
     in srgb,
@@ -13,13 +14,14 @@
 }
 .wfac-title {
   color: var(--m-warning, var(--theme-warning));
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  font-size: 9px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .wfac-msg {
-  font-size: 13px;
-  margin: 8px 0 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  margin: 6px 0 12px;
   white-space: pre-wrap;
   max-height: 240px;
   overflow-y: auto;
@@ -27,8 +29,10 @@
 }
 .wfac-label {
   display: block;
-  font-size: 12px;
-  margin-bottom: 4px;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
   color: var(--m-text-muted, var(--theme-muted));
 }
 .wfac-reply {
@@ -38,8 +42,8 @@
   background: transparent;
   color: inherit;
   border: 1px solid var(--m-border, var(--theme-border));
-  border-radius: 3px;
-  padding: 6px;
+  border-radius: 4px;
+  padding: 7px 9px;
   margin-bottom: 8px;
   resize: vertical;
 }
@@ -54,10 +58,11 @@
   align-items: center;
 }
 .wfac .wfac-btn {
-  padding: 4px 12px;
+  padding: 6px 12px;
   border-radius: 4px;
-  font: 600 11px var(--m-font-mono, ui-monospace, monospace);
-  letter-spacing: 0.06em;
+  font: 600 10px var(--m-font-mono, ui-monospace, monospace);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   cursor: pointer;
   border: 1px solid var(--m-border, var(--theme-border));
   background: transparent;
@@ -67,14 +72,17 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+/* Primary action is filled (boards: Approval / CondApproval). */
 .wfac .wfac-btn--approve {
-  border-color: var(--m-success, var(--theme-success));
-  color: var(--m-success, var(--theme-success));
-  background: color-mix(
-    in srgb,
-    var(--m-success, var(--theme-success)) 10%,
-    transparent
-  );
+  --wfac-go: var(--m-success, var(--theme-success));
+  border-color: var(--wfac-go);
+  color: var(--m-bg, var(--theme-bg));
+  background: var(--wfac-go);
+  font-weight: 800;
+}
+/* In the node panel the gate is the amber approval node's own action. */
+.cnp .wfac .wfac-btn--approve {
+  --wfac-go: var(--m-warning, var(--theme-warning));
 }
 .wfac .wfac-btn--reject {
   border-color: var(--m-danger, var(--theme-danger));
@@ -86,6 +94,8 @@
   );
 }
 .wfac-hint {
-  font-size: 11px;
+  margin-left: auto;
+  text-align: right;
+  font-size: 9px;
   color: var(--m-text-muted, var(--theme-muted));
 }

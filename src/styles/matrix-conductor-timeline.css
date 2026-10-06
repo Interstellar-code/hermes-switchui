@@ -15,6 +15,7 @@
   font-size: 11px;
   max-height: 240px;
   overflow: auto;
+  container-type: inline-size;
 }
 .mtl-empty {
   padding: 8px 12px;
@@ -66,6 +67,16 @@
 .mtl-tick:last-child {
   transform: translateX(-100%);
 }
+/* Docked node panel / narrow window: the quarter ticks would collide. */
+@container (max-width: 640px) {
+  .mtl-plot {
+    --mtl-label-w: 112px;
+    --mtl-dur-w: 56px;
+  }
+  .mtl-tick:nth-child(2n) {
+    display: none;
+  }
+}
 .mtl-rows {
   list-style: none;
   margin: 0;
@@ -96,13 +107,23 @@
   border-left: 1px solid var(--m-border-subtle, var(--theme-border));
   overflow: hidden;
 }
+/* Bars take the node-type colour (board: bash/script cyan, prompt green, approval amber). */
 .mtl-bar {
+  --bar-c: var(--node-c, var(--mtl-ok));
   position: absolute;
   top: 5px;
   height: 10px;
-  background: var(--mtl-ok);
-  border: 1px solid var(--mtl-ok);
+  background: var(--bar-c);
+  border: 1px solid var(--bar-c);
+  border-radius: 2px;
   box-sizing: border-box;
+}
+[data-theme$='-light'] .mtl-bar {
+  --bar-c: color-mix(
+    in oklab,
+    var(--node-c, var(--mtl-ok)) 70%,
+    var(--theme-text)
+  );
 }
 .mtl-bar[data-status='running'] {
   animation: mtl-pulse 1.4s ease-in-out infinite;
@@ -129,15 +150,8 @@
   top: 0;
   bottom: 0;
   width: 0;
-  border-left: 1px solid var(--mtl-bad);
+  border-left: 1px solid var(--m-green-500, var(--theme-accent));
   pointer-events: none;
-}
-.mtl-now span {
-  position: absolute;
-  top: -12px;
-  left: -12px;
-  font-size: 9px;
-  color: var(--mtl-bad);
 }
 @keyframes mtl-pulse {
   50% {

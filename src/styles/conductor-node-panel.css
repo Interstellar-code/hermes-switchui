@@ -56,13 +56,31 @@
   background: var(--m-sidebar, var(--theme-card));
   border-left: 1px solid
     color-mix(in srgb, var(--np-accent) 30%, var(--np-border));
-  font-family: var(--m-font-sans, system-ui);
+  /* Boards: the panel is monospace throughout. */
+  font-family: var(--np-mono);
   outline: none;
 }
 
 @media (max-width: 1280px) {
   .cnp {
     width: 340px;
+  }
+}
+
+/* 1024: docking would leave the canvas ~100px wide; overlay it instead. */
+@media (max-width: 1180px) {
+  .cnd-stage {
+    position: relative;
+  }
+
+  .cnp {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    box-shadow: -16px 0 32px
+      color-mix(in srgb, var(--m-bg, var(--theme-bg)) 60%, transparent);
   }
 }
 
@@ -425,10 +443,10 @@
 }
 
 [data-screen='conductor'] .cnd-stage--docked .dag-head {
-  flex-wrap: wrap;
   gap: 6px 12px;
 }
 
-[data-screen='conductor'] .cnd-stage--docked .flow-hint {
+[data-screen='conductor'] .cnd-stage--docked .flow-hint,
+[data-screen='conductor'] .cnd-stage--docked .flow-legend {
   display: none;
 }

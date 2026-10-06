@@ -17,11 +17,14 @@ export interface TimelineInputRun {
   started_at?: string | number | null
   completed_at?: string | number | null
   loop_iteration?: number | null
+  node_type?: string | null
 }
 
 export interface TimelineRow {
   id: string
   label: string
+  /** Node type (bar colour); null when the row does not say. */
+  type: string | null
   status: string
   startedAt: number | null
   completedAt: number | null
@@ -33,6 +36,7 @@ export function buildRows(runs: Array<TimelineInputRun>): Array<TimelineRow> {
   const rows = runs.map((r) => ({
     id: r.id,
     label: r.dag_node_id,
+    type: r.node_type ?? null,
     status: r.status,
     startedAt: toEpochMs(r.started_at),
     completedAt: toEpochMs(r.completed_at),

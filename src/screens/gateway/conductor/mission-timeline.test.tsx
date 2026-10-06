@@ -33,6 +33,22 @@ describe('MissionTimeline', () => {
     expect(formatDuration(NaN)).toBe('—')
   })
 
+  it('colours bars by node type', () => {
+    nodeRuns = [
+      {
+        id: 'a',
+        dag_node_id: 'plan',
+        node_type: 'approval',
+        status: 'completed',
+        started_at: iso(0),
+        completed_at: iso(10),
+      },
+    ]
+    render(<MissionTimeline runId="r" />)
+    const bar = screen.getByRole('img', { name: /plan/ })
+    expect(bar.style.getPropertyValue('--node-c')).toBe('#ffb454')
+  })
+
   it('shows empty state for null runId', () => {
     render(<MissionTimeline runId={null} />)
     expect(screen.getByText(/select a run/i)).toBeTruthy()

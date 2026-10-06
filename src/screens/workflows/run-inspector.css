@@ -43,7 +43,8 @@
   border-left: 1px solid var(--ri-border-strong);
   box-shadow: -24px 0 48px
     color-mix(in srgb, var(--m-bg, var(--theme-bg)) 70%, transparent);
-  font-family: var(--m-font-sans, system-ui);
+  /* Boards: the inspector is monospace throughout. */
+  font-family: var(--ri-mono);
   animation: wfri-slide-in 180ms ease-out;
 }
 
@@ -145,8 +146,8 @@
   flex-direction: column;
   flex: 1 1 auto;
   min-height: 0;
-  font-family: var(--m-font-sans, system-ui);
-  font-size: 12px;
+  font-family: var(--ri-mono);
+  font-size: 11px;
 }
 
 .wfri-state {
