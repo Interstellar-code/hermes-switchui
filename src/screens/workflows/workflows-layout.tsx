@@ -18,7 +18,11 @@ export function WorkflowsLayout() {
 
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
   // B.4 Path B: Editor + Launch Wizard now load via useWorkflowParsed (parsed endpoint).
-  const { data: liveWorkflows } = useWorkflowDefinitions()
+  const {
+    data: liveWorkflows,
+    error: workflowsError,
+    refetch: refetchWorkflows,
+  } = useWorkflowDefinitions()
   const workflows = useMemo<Array<WorkflowSummary>>(() => {
     return liveWorkflows ?? []
   }, [liveWorkflows])
@@ -78,7 +82,9 @@ export function WorkflowsLayout() {
             workflows={workflows}
           />
         </aside>
-        <main className={`wf-editor${activeRunId ? ' wf-editor--with-run' : ''}`}>
+        <main
+          className={`wf-editor${activeRunId ? ' wf-editor--with-run' : ''}`}
+        >
           <WorkflowsTopBar templateCount={workflows.length} />
           <div className="wf-editor-content">
             {selectedWorkflowId ? (
@@ -93,12 +99,17 @@ export function WorkflowsLayout() {
               <WorkflowGrid
                 workflows={filteredWorkflows}
                 onSelect={setSelectedWorkflowId}
+                loadError={workflowsError?.message ?? null}
+                onRetry={() => void refetchWorkflows()}
               />
             )}
           </div>
           {activeRunId && (
             <div className="wf-run-panel">
-              <RunDetailPanel runId={activeRunId} onClose={handleCloseRunPanel} />
+              <RunDetailPanel
+                runId={activeRunId}
+                onClose={handleCloseRunPanel}
+              />
             </div>
           )}
         </main>

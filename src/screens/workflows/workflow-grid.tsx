@@ -9,9 +9,16 @@ type ViewMode = 'grid' | 'table'
 interface WorkflowGridProps {
   workflows: Array<WorkflowSummary>
   onSelect: (id: string) => void
+  loadError?: string | null
+  onRetry?: () => void
 }
 
-export function WorkflowGrid({ workflows, onSelect }: WorkflowGridProps) {
+export function WorkflowGrid({
+  workflows,
+  onSelect,
+  loadError,
+  onRetry,
+}: WorkflowGridProps) {
   const [sort, setSort] = useState<SortKey>('alpha')
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
 
@@ -93,7 +100,22 @@ export function WorkflowGrid({ workflows, onSelect }: WorkflowGridProps) {
       </div>
 
       <div className="wfg-canvas">
-        {sorted.length === 0 ? (
+        {loadError ? (
+          <div className="wfg-empty" role="alert">
+            <div className="wfg-empty-glyph">⚠</div>
+            {loadError}
+            {onRetry && (
+              <button
+                type="button"
+                className="wfg-btn-mini"
+                style={{ marginTop: '12px' }}
+                onClick={onRetry}
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        ) : sorted.length === 0 ? (
           <div className="wfg-empty">
             <div className="wfg-empty-glyph">∅</div>
             no workflows match.
@@ -253,7 +275,9 @@ function WorkflowTable({
               {(() => {
                 const p = provenanceOf(wf.source, wf.user_modified)
                 return (
-                  <span className={`wfg-src-badge wfg-src-${p === 'modified-factory' ? 'modified' : wf.source}`}>
+                  <span
+                    className={`wfg-src-badge wfg-src-${p === 'modified-factory' ? 'modified' : wf.source}`}
+                  >
                     {PROVENANCE_LABEL[p]}
                   </span>
                 )
