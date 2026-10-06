@@ -106,6 +106,7 @@ import { Route as ApiHermesProjectsIndexRouteImport } from './routes/api/hermes-
 import { Route as ApiWorkspaceAgentsRouteImport } from './routes/api/workspace.agents'
 import { Route as ApiWorkflowSchedulesIdRouteImport } from './routes/api/workflow-schedules.$id'
 import { Route as ApiWorkflowRunsRunIdRouteImport } from './routes/api/workflow-runs.$runId'
+import { Route as ApiWorkflowDefinitionsValidateRouteImport } from './routes/api/workflow-definitions.validate'
 import { Route as ApiWorkflowDefinitionsIdRouteImport } from './routes/api/workflow-definitions.$id'
 import { Route as ApiUpdateWorkspaceRouteImport } from './routes/api/update/workspace'
 import { Route as ApiUpdateStatusRouteImport } from './routes/api/update/status'
@@ -213,6 +214,7 @@ import { Route as ApiWorkflowRunsRunIdRetryRouteImport } from './routes/api/work
 import { Route as ApiWorkflowRunsRunIdEventsRouteImport } from './routes/api/workflow-runs.$runId.events'
 import { Route as ApiWorkflowRunsRunIdDefinitionRouteImport } from './routes/api/workflow-runs.$runId.definition'
 import { Route as ApiWorkflowRunsRunIdApproveRouteImport } from './routes/api/workflow-runs.$runId.approve'
+import { Route as ApiWorkflowDefinitionsIdVersionsRouteImport } from './routes/api/workflow-definitions.$id.versions'
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyYoloRouteImport } from './routes/api/sessions/$sessionKey.yolo'
@@ -244,6 +246,7 @@ import { Route as ApiHermesKanbanTemplatesSlugRouteImport } from './routes/api/h
 import { Route as ApiHermesKanbanTasksTaskIdRouteImport } from './routes/api/hermes-kanban/tasks.$taskId'
 import { Route as ApiHermesKanbanBoardsSlugRouteImport } from './routes/api/hermes-kanban/boards.$slug'
 import { Route as ApiConductorMissionsIdRouteImport } from './routes/api/conductor/missions.$id'
+import { Route as ApiWorkflowDefinitionsIdVersionsChecksumRouteImport } from './routes/api/workflow-definitions.$id.versions.$checksum'
 import { Route as ApiSelfImproveProfilesProfileResumeRouteImport } from './routes/api/self-improve/profiles.$profile.resume'
 import { Route as ApiSelfImproveProfilesProfilePauseRouteImport } from './routes/api/self-improve/profiles.$profile.pause'
 import { Route as ApiSelfImproveExperimentsIdVerifyRouteImport } from './routes/api/self-improve/experiments.$id.verify'
@@ -750,6 +753,12 @@ const ApiWorkflowRunsRunIdRoute = ApiWorkflowRunsRunIdRouteImport.update({
   path: '/$runId',
   getParentRoute: () => ApiWorkflowRunsRoute,
 } as any)
+const ApiWorkflowDefinitionsValidateRoute =
+  ApiWorkflowDefinitionsValidateRouteImport.update({
+    id: '/validate',
+    path: '/validate',
+    getParentRoute: () => ApiWorkflowDefinitionsRoute,
+  } as any)
 const ApiWorkflowDefinitionsIdRoute =
   ApiWorkflowDefinitionsIdRouteImport.update({
     id: '/$id',
@@ -1299,6 +1308,12 @@ const ApiWorkflowRunsRunIdApproveRoute =
     path: '/approve',
     getParentRoute: () => ApiWorkflowRunsRunIdRoute,
   } as any)
+const ApiWorkflowDefinitionsIdVersionsRoute =
+  ApiWorkflowDefinitionsIdVersionsRouteImport.update({
+    id: '/versions',
+    path: '/versions',
+    getParentRoute: () => ApiWorkflowDefinitionsIdRoute,
+  } as any)
 const ApiWorkflowDefinitionsIdResetFactoryRoute =
   ApiWorkflowDefinitionsIdResetFactoryRouteImport.update({
     id: '/reset-factory',
@@ -1477,6 +1492,12 @@ const ApiConductorMissionsIdRoute = ApiConductorMissionsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => ApiConductorMissionsRoute,
 } as any)
+const ApiWorkflowDefinitionsIdVersionsChecksumRoute =
+  ApiWorkflowDefinitionsIdVersionsChecksumRouteImport.update({
+    id: '/$checksum',
+    path: '/$checksum',
+    getParentRoute: () => ApiWorkflowDefinitionsIdVersionsRoute,
+  } as any)
 const ApiSelfImproveProfilesProfileResumeRoute =
   ApiSelfImproveProfilesProfileResumeRouteImport.update({
     id: '/resume',
@@ -1795,6 +1816,7 @@ export interface FileRoutesByFullPath {
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
+  '/api/workflow-definitions/validate': typeof ApiWorkflowDefinitionsValidateRoute
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workflow-schedules/$id': typeof ApiWorkflowSchedulesIdRoute
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
@@ -1830,6 +1852,7 @@ export interface FileRoutesByFullPath {
   '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
+  '/api/workflow-definitions/$id/versions': typeof ApiWorkflowDefinitionsIdVersionsRouteWithChildren
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
@@ -1852,6 +1875,7 @@ export interface FileRoutesByFullPath {
   '/api/self-improve/experiments/$id/verify': typeof ApiSelfImproveExperimentsIdVerifyRoute
   '/api/self-improve/profiles/$profile/pause': typeof ApiSelfImproveProfilesProfilePauseRoute
   '/api/self-improve/profiles/$profile/resume': typeof ApiSelfImproveProfilesProfileResumeRoute
+  '/api/workflow-definitions/$id/versions/$checksum': typeof ApiWorkflowDefinitionsIdVersionsChecksumRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
   '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
@@ -2050,6 +2074,7 @@ export interface FileRoutesByTo {
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
+  '/api/workflow-definitions/validate': typeof ApiWorkflowDefinitionsValidateRoute
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workflow-schedules/$id': typeof ApiWorkflowSchedulesIdRoute
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
@@ -2085,6 +2110,7 @@ export interface FileRoutesByTo {
   '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
+  '/api/workflow-definitions/$id/versions': typeof ApiWorkflowDefinitionsIdVersionsRouteWithChildren
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
@@ -2107,6 +2133,7 @@ export interface FileRoutesByTo {
   '/api/self-improve/experiments/$id/verify': typeof ApiSelfImproveExperimentsIdVerifyRoute
   '/api/self-improve/profiles/$profile/pause': typeof ApiSelfImproveProfilesProfilePauseRoute
   '/api/self-improve/profiles/$profile/resume': typeof ApiSelfImproveProfilesProfileResumeRoute
+  '/api/workflow-definitions/$id/versions/$checksum': typeof ApiWorkflowDefinitionsIdVersionsChecksumRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
   '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
@@ -2308,6 +2335,7 @@ export interface FileRoutesById {
   '/api/update/status': typeof ApiUpdateStatusRoute
   '/api/update/workspace': typeof ApiUpdateWorkspaceRoute
   '/api/workflow-definitions/$id': typeof ApiWorkflowDefinitionsIdRouteWithChildren
+  '/api/workflow-definitions/validate': typeof ApiWorkflowDefinitionsValidateRoute
   '/api/workflow-runs/$runId': typeof ApiWorkflowRunsRunIdRouteWithChildren
   '/api/workflow-schedules/$id': typeof ApiWorkflowSchedulesIdRoute
   '/api/workspace/agents': typeof ApiWorkspaceAgentsRoute
@@ -2343,6 +2371,7 @@ export interface FileRoutesById {
   '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
+  '/api/workflow-definitions/$id/versions': typeof ApiWorkflowDefinitionsIdVersionsRouteWithChildren
   '/api/workflow-runs/$runId/approve': typeof ApiWorkflowRunsRunIdApproveRoute
   '/api/workflow-runs/$runId/definition': typeof ApiWorkflowRunsRunIdDefinitionRoute
   '/api/workflow-runs/$runId/events': typeof ApiWorkflowRunsRunIdEventsRoute
@@ -2365,6 +2394,7 @@ export interface FileRoutesById {
   '/api/self-improve/experiments/$id/verify': typeof ApiSelfImproveExperimentsIdVerifyRoute
   '/api/self-improve/profiles/$profile/pause': typeof ApiSelfImproveProfilesProfilePauseRoute
   '/api/self-improve/profiles/$profile/resume': typeof ApiSelfImproveProfilesProfileResumeRoute
+  '/api/workflow-definitions/$id/versions/$checksum': typeof ApiWorkflowDefinitionsIdVersionsChecksumRoute
   '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform': typeof ApiHermesKanbanTasksTaskIdHomeSubscribePlatformRoute
   '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond': typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
@@ -2567,6 +2597,7 @@ export interface FileRouteTypes {
     | '/api/update/status'
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
+    | '/api/workflow-definitions/validate'
     | '/api/workflow-runs/$runId'
     | '/api/workflow-schedules/$id'
     | '/api/workspace/agents'
@@ -2602,6 +2633,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
+    | '/api/workflow-definitions/$id/versions'
     | '/api/workflow-runs/$runId/approve'
     | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
@@ -2624,6 +2656,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/experiments/$id/verify'
     | '/api/self-improve/profiles/$profile/pause'
     | '/api/self-improve/profiles/$profile/resume'
+    | '/api/workflow-definitions/$id/versions/$checksum'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
     | '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
   fileRoutesByTo: FileRoutesByTo
@@ -2822,6 +2855,7 @@ export interface FileRouteTypes {
     | '/api/update/status'
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
+    | '/api/workflow-definitions/validate'
     | '/api/workflow-runs/$runId'
     | '/api/workflow-schedules/$id'
     | '/api/workspace/agents'
@@ -2857,6 +2891,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
+    | '/api/workflow-definitions/$id/versions'
     | '/api/workflow-runs/$runId/approve'
     | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
@@ -2879,6 +2914,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/experiments/$id/verify'
     | '/api/self-improve/profiles/$profile/pause'
     | '/api/self-improve/profiles/$profile/resume'
+    | '/api/workflow-definitions/$id/versions/$checksum'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
     | '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
   id:
@@ -3079,6 +3115,7 @@ export interface FileRouteTypes {
     | '/api/update/status'
     | '/api/update/workspace'
     | '/api/workflow-definitions/$id'
+    | '/api/workflow-definitions/validate'
     | '/api/workflow-runs/$runId'
     | '/api/workflow-schedules/$id'
     | '/api/workspace/agents'
@@ -3114,6 +3151,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
+    | '/api/workflow-definitions/$id/versions'
     | '/api/workflow-runs/$runId/approve'
     | '/api/workflow-runs/$runId/definition'
     | '/api/workflow-runs/$runId/events'
@@ -3136,6 +3174,7 @@ export interface FileRouteTypes {
     | '/api/self-improve/experiments/$id/verify'
     | '/api/self-improve/profiles/$profile/pause'
     | '/api/self-improve/profiles/$profile/resume'
+    | '/api/workflow-definitions/$id/versions/$checksum'
     | '/api/hermes-kanban/tasks/$taskId/home-subscribe/$platform'
     | '/api/sessions/$sessionKey/chat/interactions/$interactionId/respond'
   fileRoutesById: FileRoutesById
@@ -3987,6 +4026,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkflowRunsRunIdRouteImport
       parentRoute: typeof ApiWorkflowRunsRoute
     }
+    '/api/workflow-definitions/validate': {
+      id: '/api/workflow-definitions/validate'
+      path: '/validate'
+      fullPath: '/api/workflow-definitions/validate'
+      preLoaderRoute: typeof ApiWorkflowDefinitionsValidateRouteImport
+      parentRoute: typeof ApiWorkflowDefinitionsRoute
+    }
     '/api/workflow-definitions/$id': {
       id: '/api/workflow-definitions/$id'
       path: '/$id'
@@ -4736,6 +4782,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkflowRunsRunIdApproveRouteImport
       parentRoute: typeof ApiWorkflowRunsRunIdRoute
     }
+    '/api/workflow-definitions/$id/versions': {
+      id: '/api/workflow-definitions/$id/versions'
+      path: '/versions'
+      fullPath: '/api/workflow-definitions/$id/versions'
+      preLoaderRoute: typeof ApiWorkflowDefinitionsIdVersionsRouteImport
+      parentRoute: typeof ApiWorkflowDefinitionsIdRoute
+    }
     '/api/workflow-definitions/$id/reset-factory': {
       id: '/api/workflow-definitions/$id/reset-factory'
       path: '/reset-factory'
@@ -4952,6 +5005,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/conductor/missions/$id'
       preLoaderRoute: typeof ApiConductorMissionsIdRouteImport
       parentRoute: typeof ApiConductorMissionsRoute
+    }
+    '/api/workflow-definitions/$id/versions/$checksum': {
+      id: '/api/workflow-definitions/$id/versions/$checksum'
+      path: '/$checksum'
+      fullPath: '/api/workflow-definitions/$id/versions/$checksum'
+      preLoaderRoute: typeof ApiWorkflowDefinitionsIdVersionsChecksumRouteImport
+      parentRoute: typeof ApiWorkflowDefinitionsIdVersionsRoute
     }
     '/api/self-improve/profiles/$profile/resume': {
       id: '/api/self-improve/profiles/$profile/resume'
@@ -5344,9 +5404,25 @@ const ApiSkillsRouteWithChildren = ApiSkillsRoute._addFileChildren(
   ApiSkillsRouteChildren,
 )
 
+interface ApiWorkflowDefinitionsIdVersionsRouteChildren {
+  ApiWorkflowDefinitionsIdVersionsChecksumRoute: typeof ApiWorkflowDefinitionsIdVersionsChecksumRoute
+}
+
+const ApiWorkflowDefinitionsIdVersionsRouteChildren: ApiWorkflowDefinitionsIdVersionsRouteChildren =
+  {
+    ApiWorkflowDefinitionsIdVersionsChecksumRoute:
+      ApiWorkflowDefinitionsIdVersionsChecksumRoute,
+  }
+
+const ApiWorkflowDefinitionsIdVersionsRouteWithChildren =
+  ApiWorkflowDefinitionsIdVersionsRoute._addFileChildren(
+    ApiWorkflowDefinitionsIdVersionsRouteChildren,
+  )
+
 interface ApiWorkflowDefinitionsIdRouteChildren {
   ApiWorkflowDefinitionsIdParsedRoute: typeof ApiWorkflowDefinitionsIdParsedRoute
   ApiWorkflowDefinitionsIdResetFactoryRoute: typeof ApiWorkflowDefinitionsIdResetFactoryRoute
+  ApiWorkflowDefinitionsIdVersionsRoute: typeof ApiWorkflowDefinitionsIdVersionsRouteWithChildren
 }
 
 const ApiWorkflowDefinitionsIdRouteChildren: ApiWorkflowDefinitionsIdRouteChildren =
@@ -5354,6 +5430,8 @@ const ApiWorkflowDefinitionsIdRouteChildren: ApiWorkflowDefinitionsIdRouteChildr
     ApiWorkflowDefinitionsIdParsedRoute: ApiWorkflowDefinitionsIdParsedRoute,
     ApiWorkflowDefinitionsIdResetFactoryRoute:
       ApiWorkflowDefinitionsIdResetFactoryRoute,
+    ApiWorkflowDefinitionsIdVersionsRoute:
+      ApiWorkflowDefinitionsIdVersionsRouteWithChildren,
   }
 
 const ApiWorkflowDefinitionsIdRouteWithChildren =
@@ -5363,11 +5441,13 @@ const ApiWorkflowDefinitionsIdRouteWithChildren =
 
 interface ApiWorkflowDefinitionsRouteChildren {
   ApiWorkflowDefinitionsIdRoute: typeof ApiWorkflowDefinitionsIdRouteWithChildren
+  ApiWorkflowDefinitionsValidateRoute: typeof ApiWorkflowDefinitionsValidateRoute
 }
 
 const ApiWorkflowDefinitionsRouteChildren: ApiWorkflowDefinitionsRouteChildren =
   {
     ApiWorkflowDefinitionsIdRoute: ApiWorkflowDefinitionsIdRouteWithChildren,
+    ApiWorkflowDefinitionsValidateRoute: ApiWorkflowDefinitionsValidateRoute,
   }
 
 const ApiWorkflowDefinitionsRouteWithChildren =
