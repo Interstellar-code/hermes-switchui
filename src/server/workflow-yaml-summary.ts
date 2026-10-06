@@ -8,11 +8,41 @@ import { parse as parseYaml } from 'yaml'
 
 type RawNode = Record<string, unknown>
 
-interface WorkflowYamlSummary {
+export interface WorkflowYamlSummary {
   has_loop: boolean
   has_approval: boolean
   required_inputs: Array<string>
   optional_inputs: Array<string>
+  node_count: number
+  node_types: Array<string>
+}
+
+const CANDIDATE_NODE_KEYS = [
+  'approval',
+  'loop',
+  'cancel',
+  'script',
+  'command',
+  'prompt',
+  'bash',
+  'subgraph',
+  'router',
+] as const
+
+function resolveNodeType(node: RawNode): string {
+  if (
+    node['type'] !== undefined &&
+    node['type'] !== null &&
+    String(node['type']).trim() !== ''
+  ) {
+    return String(node['type']).trim()
+  }
+  for (const key of CANDIDATE_NODE_KEYS) {
+    if (key in node && node[key] !== undefined) {
+      return key
+    }
+  }
+  return 'prompt'
 }
 
 /**
@@ -27,12 +57,19 @@ function extractInputs(doc: Record<string, unknown>): {
   optional_inputs: Array<string>
 } {
   // Shape 1: top-level string arrays — union with nested inputs when present
-  if (Array.isArray(doc['required_inputs']) || Array.isArray(doc['optional_inputs'])) {
+  if (
+    Array.isArray(doc['required_inputs']) ||
+    Array.isArray(doc['optional_inputs'])
+  ) {
     const req = Array.isArray(doc['required_inputs'])
-      ? (doc['required_inputs'] as Array<unknown>).filter((s): s is string => typeof s === 'string')
+      ? (doc['required_inputs'] as Array<unknown>).filter(
+          (s): s is string => typeof s === 'string',
+        )
       : []
     const opt = Array.isArray(doc['optional_inputs'])
-      ? (doc['optional_inputs'] as Array<unknown>).filter((s): s is string => typeof s === 'string')
+      ? (doc['optional_inputs'] as Array<unknown>).filter(
+          (s): s is string => typeof s === 'string',
+        )
       : []
     // Also union nested inputs: array/object shape when present alongside top-level arrays.
     if (doc['inputs']) {
@@ -60,7 +97,11 @@ function extractInputs(doc: Record<string, unknown>): {
       if (!name) continue
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(name)
-      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
+      } else if (
+        entry['required'] === true ||
+        entry['required'] === 'true' ||
+        entry['required'] == null
+      ) {
         req.push(name)
       } else {
         // Unknown value — treat as optional to avoid blocking launches.
@@ -74,11 +115,18 @@ function extractInputs(doc: Record<string, unknown>): {
   if (inputs && typeof inputs === 'object' && !Array.isArray(inputs)) {
     const req: Array<string> = []
     const opt: Array<string> = []
-    for (const [key, val] of Object.entries(inputs as Record<string, unknown>)) {
-      const entry = val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
+    for (const [key, val] of Object.entries(
+      inputs as Record<string, unknown>,
+    )) {
+      const entry =
+        val && typeof val === 'object' ? (val as Record<string, unknown>) : {}
       if (entry['required'] === false || entry['required'] === 'false') {
         opt.push(key)
-      } else if (entry['required'] === true || entry['required'] === 'true' || entry['required'] == null) {
+      } else if (
+        entry['required'] === true ||
+        entry['required'] === 'true' ||
+        entry['required'] == null
+      ) {
         req.push(key)
       } else {
         // Unknown value — treat as optional to avoid blocking launches.
@@ -97,16 +145,40 @@ function extractInputs(doc: Record<string, unknown>): {
  */
 export function summariseWorkflowYaml(yaml: string): WorkflowYamlSummary {
   try {
-    const doc = (parseYaml(yaml) ?? {}) as Record<string, unknown>
-    const nodes: Array<RawNode> = Array.isArray(doc['nodes'])
-      ? (doc['nodes'] as Array<unknown>).filter((n): n is RawNode => !!n && typeof n === 'object')
-      : []
+    const parsed = parseYaml(yaml)
+    const doc = (parsed && typeof parsed === 'object' ? parsed : {}) as Record<
+      string,
+      unknown
+    >
+    const rawNodes = Array.isArray(doc['nodes']) ? doc['nodes'] : []
+    const nodes: Array<RawNode> = rawNodes.filter(
+      (n): n is RawNode => !!n && typeof n === 'object',
+    )
+    const node_count = rawNodes.length
+    const node_types = rawNodes.map((n) =>
+      n && typeof n === 'object' ? resolveNodeType(n as RawNode) : 'prompt',
+    )
     return {
       has_loop: nodes.some((n) => Boolean(n['loop'])),
-      has_approval: nodes.some((n) => Boolean(n['approval'])),
+      has_approval: nodes.some(
+        (n) =>
+          (typeof n['type'] === 'string' &&
+            n['type'].trim().toLowerCase() === 'approval') ||
+          Boolean(n['approval']) ||
+          ('approval' in n && n['approval'] !== false),
+      ),
+      node_count,
+      node_types,
       ...extractInputs(doc),
     }
   } catch {
-    return { has_loop: false, has_approval: false, required_inputs: [], optional_inputs: [] }
+    return {
+      has_loop: false,
+      has_approval: false,
+      required_inputs: [],
+      optional_inputs: [],
+      node_count: 0,
+      node_types: [],
+    }
   }
 }

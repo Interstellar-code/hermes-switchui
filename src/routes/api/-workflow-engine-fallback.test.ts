@@ -29,9 +29,11 @@ describe('/api/workflow-definitions graceful degradation', () => {
     mockIsAuthenticated.mockReturnValue(true)
   })
 
-  it('returns empty definitions when the plugin engine throws', async () => {
+  it('returns engine_ok: false and generic error when the plugin engine throws', async () => {
     mockGetEngine.mockReturnValue({
-      listDefinitions: vi.fn().mockRejectedValue(new Error('Dashboard unavailable')),
+      listDefinitions: vi
+        .fn()
+        .mockRejectedValue(new Error('Dashboard unavailable')),
     } as any)
 
     const get = await getHandler()
@@ -41,6 +43,36 @@ describe('/api/workflow-definitions graceful degradation', () => {
     expect(res.status).toBe(200)
     const json = await res.json()
     expect(json.definitions).toEqual([])
+    expect(json.engine_ok).toBe(false)
+    expect(json.error).toBe('Workflow engine unavailable')
+  })
+
+  it('returns engine_ok: true and enriched definitions on success', async () => {
+    mockGetEngine.mockReturnValue({
+      listDefinitions: vi.fn().mockResolvedValue([
+        {
+          id: 'test-wf',
+          name: 'Test Workflow',
+          yaml: 'name: Test\nnodes:\n  - id: n1\n    type: approval\n',
+        },
+      ]),
+    } as any)
+
+    const get = await getHandler()
+    const request = new Request('http://localhost/api/workflow-definitions')
+    const res = await get({ request })
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.engine_ok).toBe(true)
+    expect(json.definitions).toHaveLength(1)
+    expect(json.definitions[0]).toMatchObject({
+      id: 'test-wf',
+      name: 'Test Workflow',
+      has_approval: true,
+      node_count: 1,
+      node_types: ['approval'],
+    })
   })
 })
 

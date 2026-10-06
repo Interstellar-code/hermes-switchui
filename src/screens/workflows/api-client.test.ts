@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  WorkflowEngineUnavailableError,
   cancelWorkflowRun,
   chatWorkflowWizard,
   getWorkflowFeatures,
   listRunEvents,
   listRunEventsPaged,
+  listWorkflowDefinitions,
 } from './api-client'
 
 function createEventStream(events: Array<string>): ReadableStream<Uint8Array> {
@@ -211,5 +213,100 @@ describe('cancelWorkflowRun / listRunEvents / getWorkflowFeatures', () => {
   it('getWorkflowFeatures never throws', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('net')))
     expect((await getWorkflowFeatures()).features).toEqual([])
+  })
+})
+
+describe('listWorkflowDefinitions', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('throws WorkflowEngineUnavailableError when engine_ok is false', async () => {
+    const fetchSpy = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            definitions: [],
+            engine_ok: false,
+            error: 'Workflow engine unavailable',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(listWorkflowDefinitions()).rejects.toThrow(
+      WorkflowEngineUnavailableError,
+    )
+
+    try {
+      await listWorkflowDefinitions()
+    } catch (err: unknown) {
+      expect(err).toBeInstanceOf(WorkflowEngineUnavailableError)
+      expect((err as WorkflowEngineUnavailableError).name).toBe(
+        'WorkflowEngineUnavailableError',
+      )
+      expect((err as Error).message).toBe('Workflow engine unavailable')
+    }
+  })
+
+  it('returns definitions when engine_ok is true', async () => {
+    const mockDefs = [
+      {
+        id: 'wf-1',
+        name: 'Workflow 1',
+        source: 'project',
+        node_count: 3,
+      },
+    ]
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          definitions: mockDefs,
+          engine_ok: true,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const result = await listWorkflowDefinitions()
+    expect(result).toEqual(mockDefs)
+  })
+
+  it('treats missing engine_ok as ok (older server compatibility)', async () => {
+    const mockDefs = [
+      {
+        id: 'wf-legacy',
+        name: 'Legacy Server Workflow',
+        source: 'bundled',
+        node_count: 1,
+      },
+    ]
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          definitions: mockDefs,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const result = await listWorkflowDefinitions()
+    expect(result).toEqual(mockDefs)
+  })
+
+  it('throws on non-200 HTTP response', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValue(new Response('Internal Server Error', { status: 500 }))
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(listWorkflowDefinitions()).rejects.toThrow(
+      'listWorkflowDefinitions failed (500)',
+    )
   })
 })

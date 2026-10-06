@@ -16,6 +16,13 @@ function wfFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init)
 }
 
+export class WorkflowEngineUnavailableError extends Error {
+  constructor(message = 'Workflow engine unavailable') {
+    super(message)
+    this.name = 'WorkflowEngineUnavailableError'
+  }
+}
+
 export interface WorkflowDefinitionRow {
   id: string
   name: string
@@ -34,7 +41,7 @@ export interface WorkflowDefinitionRow {
   tags: string | null // JSON-encoded string[]
   created_at: number
   updated_at: number
-  node_count: number
+  node_count?: number
   run_count: number
   last_used_at: number | null
   // Enriched by summariseWorkflowYaml on the list route
@@ -42,6 +49,7 @@ export interface WorkflowDefinitionRow {
   has_approval?: boolean
   required_inputs?: Array<string>
   optional_inputs?: Array<string>
+  node_types?: Array<string>
 }
 
 export async function listWorkflowDefinitions(params?: {
@@ -56,6 +64,13 @@ export async function listWorkflowDefinitions(params?: {
   }
   const body = (await res.json()) as {
     definitions: Array<WorkflowDefinitionRow>
+    engine_ok?: boolean
+    error?: string
+  }
+  if (body.engine_ok === false) {
+    throw new WorkflowEngineUnavailableError(
+      body.error || 'Workflow engine unavailable',
+    )
   }
   return body.definitions
 }

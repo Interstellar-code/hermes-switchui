@@ -52,7 +52,7 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     description: row.description ?? '',
     source: row.source,
     tags: parseTags(row.tags),
-    node_count: row.node_count,
+    node_count: row.node_count ?? 0,
     last_used_at: row.last_used_at != null ? String(row.last_used_at) : null,
     version_tier: 'v1',
     // Pass through enrichment fields added by summariseWorkflowYaml on the list route.
@@ -61,6 +61,7 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     has_approval: row.has_approval ?? false,
     required_inputs: row.required_inputs ?? [],
     optional_inputs: row.optional_inputs ?? [],
+    node_types: row.node_types ?? [],
     when_to_use: '',
     dag_depth: 0,
     max_parallelism: 0,
