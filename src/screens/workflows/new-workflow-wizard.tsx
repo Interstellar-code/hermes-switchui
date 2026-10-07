@@ -7,1305 +7,50 @@
  * Step 3 CONFIGURE      — node-level editing with YAML round-tripping
  * Step 4 REVIEW & SAVE  — graph, checks, save target → POST /api/workflow-definitions
  *
- * New step components live in ./new-workflow/.
+ * Step components live in ./new-workflow/.
  *
  * Design source: docs/Design Assets/Hermes-Switchui/workflows-app.jsx + Workflows.html
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import { useEffect, useMemo, useState } from 'react'
 import {
   useUpsertWorkflowDefinition,
   useWorkflowDefinitions,
 } from './use-workflows'
 import { LaunchWizard } from './launch-wizard'
-import {
-  WorkflowEngineUnavailableError,
-  chatWorkflowWizard,
-} from './api-client'
+import { WorkflowEngineUnavailableError } from './api-client'
 import { buildChecks } from './new-workflow/checks'
 import { ReviewStep } from './new-workflow/review-step'
 import { BLANK_YAML, SourceStep } from './new-workflow/source-step'
 import { useWizardValidation } from './new-workflow/use-wizard-validation'
 import { WizardShell } from './new-workflow/wizard-shell'
 import { lintWorkflowYaml, suggestFreeIds } from './new-workflow/yaml-lint'
-import { inferNodeType, parseDagFromYaml } from './new-workflow/parse-dag'
-import { nodeColor as colorFor } from './node-colors'
-import type { DagInfo } from './new-workflow/parse-dag'
+import { parseDagFromYaml } from './new-workflow/parse-dag'
+import {
+  YAML_TEMPLATE,
+  createDefaultNodeDraft,
+  serializeWorkflowYaml,
+  slugify,
+  toNodeDraft,
+  toWorkflowDocumentDraft,
+} from './new-workflow/wizard-draft'
+import { DescribeChatPane } from './new-workflow/describe-chat'
+import {
+  NWZ_CHAT_INIT,
+  useDescribeChat,
+} from './new-workflow/use-describe-chat'
+import { DesignStep } from './new-workflow/design-step'
+import { ConfigureStep } from './new-workflow/configure-step'
+import type {
+  WizardDocumentDraft,
+  WizardHermesTaskDraft,
+  WizardNodeDraft,
+} from './new-workflow/wizard-draft'
 import type { SaveFailure } from './new-workflow/review-step'
 import type { SourceKind } from './new-workflow/source-step'
 import type { NodeType } from './types'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
-/** Types shown in the wizard's DAG preview legend. */
-const WIZARD_LEGEND_TYPES = [
-  'prompt',
-  'bash',
-  'command',
-  'approval',
-  'router',
-  'loop',
-]
-
-// ── Module-level flags ──────────────────────────────────────────────────────
-let chatWarnFired = false
-
-// ── Constants ───────────────────────────────────────────────────────────────
-
-const YAML_TEMPLATE = `name: My Workflow
-description: New workflow
-nodes:
-  - id: start
-    prompt: "Hello"
-`
-
-function slugify(raw: string): string {
-  return raw
-    .replace(/\.ya?ml$/i, '')
-    .replace(/[^A-Za-z0-9_:.-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 128)
-}
-
-type ChatMessage = { role: 'assistant' | 'user'; msg: string }
-
-interface WizardHermesTaskDraft {
-  skills: string
-  agent_hint: string
-  model_hint: string
-}
-
-interface WizardNodeDraft {
-  id: string
-  type: NodeType
-  phase: string
-  depends_on: Array<string>
-  skills: string
-  hermes_task_enabled: boolean
-  hermes_task: WizardHermesTaskDraft
-  prompt: string
-  command: string
-  bash: string
-  script: string
-  runtime: string
-  cancel: string
-  approval_message: string
-  approval_capture_response: boolean
-  loop_prompt: string
-  loop_until: string
-  loop_max_iterations: number
-  raw: Record<string, unknown>
-}
-
-interface WizardDocumentDraft {
-  id: string
-  name: string
-  description: string
-  topLevel: Record<string, unknown>
-  nodes: Array<WizardNodeDraft>
-}
-
-const NODE_TYPE_OPTIONS: Array<NodeType> = [
-  'prompt',
-  'command',
-  'bash',
-  'script',
-  'approval',
-  'loop',
-  'cancel',
-]
-
-const TOP_LEVEL_RESERVED_KEYS = new Set(['id', 'name', 'description', 'nodes'])
-const COMMON_NODE_KEYS = [
-  'id',
-  'phase',
-  'depends_on',
-  'model',
-  'provider',
-  'skills',
-  'hermes_task',
-]
-const VARIANT_NODE_KEYS = [
-  'prompt',
-  'command',
-  'bash',
-  'script',
-  'runtime',
-  'cancel',
-  'approval',
-  'loop',
-]
-
-const NWZ_CHAT_INIT: Array<ChatMessage> = [
-  {
-    role: 'assistant',
-    msg: "Let's build a new workflow. Describe what you want it to do — the steps it should take, what triggers it, and what the output should look like.",
-  },
-]
-
-function splitCsv(raw: string): Array<string> {
-  return raw
-    .split(',')
-    .map((part) => part.trim())
-    .filter(Boolean)
-}
-
-function createDefaultNodeDraft(
-  type: NodeType,
-  index: number,
-): WizardNodeDraft {
-  const idBase =
-    type === 'approval'
-      ? 'review'
-      : type === 'loop'
-        ? 'iterate'
-        : type === 'cancel'
-          ? 'stop'
-          : type
-  return {
-    id: `${idBase}-${index + 1}`,
-    type,
-    phase: '',
-    depends_on: [],
-    skills: '',
-    hermes_task_enabled: false,
-    hermes_task: { skills: '', agent_hint: '', model_hint: '' },
-    prompt:
-      type === 'prompt' ? 'Describe the work this node should perform.' : '',
-    command: type === 'command' ? 'replace-with-command' : '',
-    bash: type === 'bash' ? 'echo "todo"' : '',
-    script: type === 'script' ? 'console.log("todo")' : '',
-    runtime: type === 'script' ? 'bun' : '',
-    cancel: type === 'cancel' ? 'Cancelled by workflow' : '',
-    approval_message:
-      type === 'approval' ? 'Review the plan above. Approve to continue.' : '',
-    approval_capture_response: false,
-    loop_prompt: type === 'loop' ? 'Repeat until the task is complete.' : '',
-    loop_until: type === 'loop' ? 'DONE' : '',
-    loop_max_iterations: 3,
-    raw: {},
-  }
-}
-
-function toNodeDraft(
-  rawNode: Record<string, unknown>,
-  index: number,
-): WizardNodeDraft {
-  const type = inferNodeType(rawNode)
-  const hermesTaskRaw =
-    rawNode['hermes_task'] && typeof rawNode['hermes_task'] === 'object'
-      ? (rawNode['hermes_task'] as Record<string, unknown>)
-      : null
-  const approvalRaw =
-    rawNode['approval'] && typeof rawNode['approval'] === 'object'
-      ? (rawNode['approval'] as Record<string, unknown>)
-      : null
-  const loopRaw =
-    rawNode['loop'] && typeof rawNode['loop'] === 'object'
-      ? (rawNode['loop'] as Record<string, unknown>)
-      : null
-  const base = createDefaultNodeDraft(type, index)
-  return {
-    ...base,
-    id:
-      typeof rawNode['id'] === 'string' && rawNode['id'].trim().length > 0
-        ? rawNode['id']
-        : base.id,
-    phase: typeof rawNode['phase'] === 'string' ? rawNode['phase'] : '',
-    depends_on: Array.isArray(rawNode['depends_on'])
-      ? rawNode['depends_on'].filter(
-          (dep): dep is string => typeof dep === 'string',
-        )
-      : [],
-    skills: Array.isArray(rawNode['skills'])
-      ? rawNode['skills']
-          .filter((skill): skill is string => typeof skill === 'string')
-          .join(', ')
-      : '',
-    hermes_task_enabled: Boolean(hermesTaskRaw),
-    hermes_task: {
-      skills: Array.isArray(hermesTaskRaw?.['skills'])
-        ? hermesTaskRaw['skills']
-            .filter((skill): skill is string => typeof skill === 'string')
-            .join(', ')
-        : '',
-      agent_hint:
-        typeof hermesTaskRaw?.['agent_hint'] === 'string'
-          ? hermesTaskRaw['agent_hint']
-          : '',
-      model_hint:
-        typeof hermesTaskRaw?.['model_hint'] === 'string'
-          ? hermesTaskRaw['model_hint']
-          : '',
-    },
-    prompt: typeof rawNode['prompt'] === 'string' ? rawNode['prompt'] : '',
-    command: typeof rawNode['command'] === 'string' ? rawNode['command'] : '',
-    bash: typeof rawNode['bash'] === 'string' ? rawNode['bash'] : '',
-    script: typeof rawNode['script'] === 'string' ? rawNode['script'] : '',
-    runtime:
-      typeof rawNode['runtime'] === 'string'
-        ? rawNode['runtime']
-        : base.runtime,
-    cancel: typeof rawNode['cancel'] === 'string' ? rawNode['cancel'] : '',
-    approval_message:
-      typeof approvalRaw?.['message'] === 'string'
-        ? approvalRaw['message']
-        : '',
-    approval_capture_response: Boolean(approvalRaw?.['capture_response']),
-    loop_prompt:
-      typeof loopRaw?.['prompt'] === 'string' ? loopRaw['prompt'] : '',
-    loop_until: typeof loopRaw?.['until'] === 'string' ? loopRaw['until'] : '',
-    loop_max_iterations:
-      typeof loopRaw?.['max_iterations'] === 'number'
-        ? loopRaw['max_iterations']
-        : base.loop_max_iterations,
-    raw: rawNode,
-  }
-}
-
-function toWorkflowDocumentDraft(yamlStr: string): WizardDocumentDraft | null {
-  let parsed: unknown
-  try {
-    parsed = parseYaml(yamlStr)
-  } catch {
-    return null
-  }
-  if (!parsed || typeof parsed !== 'object') return null
-  const raw = parsed as Record<string, unknown>
-  const topLevel = Object.fromEntries(
-    Object.entries(raw).filter(([key]) => !TOP_LEVEL_RESERVED_KEYS.has(key)),
-  )
-  const nodesRaw = Array.isArray(raw['nodes'])
-    ? raw['nodes'].filter(
-        (node): node is Record<string, unknown> =>
-          Boolean(node) && typeof node === 'object' && !Array.isArray(node),
-      )
-    : []
-  return {
-    id: typeof raw['id'] === 'string' ? raw['id'] : '',
-    name: typeof raw['name'] === 'string' ? raw['name'] : '',
-    description:
-      typeof raw['description'] === 'string' ? raw['description'] : '',
-    topLevel,
-    nodes: nodesRaw.map((node, index) => toNodeDraft(node, index)),
-  }
-}
-
-function serializeNodeDraft(node: WizardNodeDraft): Record<string, unknown> {
-  const next: Record<string, unknown> = { ...node.raw }
-  for (const key of [...COMMON_NODE_KEYS, ...VARIANT_NODE_KEYS]) {
-    delete next[key]
-  }
-
-  next.id = node.id.trim()
-  if (node.phase.trim()) next.phase = node.phase.trim()
-  if (node.depends_on.length > 0) next.depends_on = node.depends_on
-
-  const skills = splitCsv(node.skills)
-  if (skills.length > 0) next.skills = skills
-
-  if (node.hermes_task_enabled) {
-    const hermesTask: Record<string, unknown> = {}
-    const hermesSkills = splitCsv(node.hermes_task.skills)
-    if (hermesSkills.length > 0) hermesTask.skills = hermesSkills
-    if (node.hermes_task.agent_hint.trim()) {
-      hermesTask.agent_hint = node.hermes_task.agent_hint.trim()
-    }
-    if (node.hermes_task.model_hint.trim()) {
-      hermesTask.model_hint = node.hermes_task.model_hint.trim()
-    }
-    next.hermes_task = hermesTask
-  }
-
-  switch (node.type) {
-    case 'prompt':
-      next.prompt =
-        node.prompt.trim() || 'Describe the work this node should perform.'
-      break
-    case 'command':
-      next.command = node.command.trim() || 'replace-with-command'
-      break
-    case 'bash':
-      next.bash = node.bash || 'echo "todo"'
-      break
-    case 'script':
-      next.script = node.script || 'console.log("todo")'
-      next.runtime = node.runtime.trim() || 'bun'
-      break
-    case 'approval':
-      next.approval = {
-        message:
-          node.approval_message.trim() ||
-          'Review the plan above. Approve to continue.',
-        ...(node.approval_capture_response ? { capture_response: true } : {}),
-      }
-      break
-    case 'loop':
-      next.loop = {
-        prompt: node.loop_prompt.trim() || 'Repeat until the task is complete.',
-        until: node.loop_until.trim() || 'DONE',
-        max_iterations: Math.max(1, Math.trunc(node.loop_max_iterations || 1)),
-      }
-      break
-    case 'cancel':
-      next.cancel = node.cancel.trim() || 'Cancelled by workflow'
-      break
-  }
-
-  return next
-}
-
-function serializeWorkflowYaml(doc: WizardDocumentDraft): string {
-  const root: Record<string, unknown> = { ...doc.topLevel }
-  root.name = doc.name.trim() || 'Workflow'
-  root.description = doc.description.trim() || 'New workflow'
-  root.nodes = doc.nodes.map((node) => serializeNodeDraft(node))
-  return stringifyYaml(root, { lineWidth: 0 })
-}
-
-function buildWorkflowFromPrompt(
-  userMsg: string,
-  currentName: string,
-): WizardDocumentDraft {
-  const tokens = userMsg
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]+/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-  const wantsApproval = tokens.some((token) =>
-    ['approve', 'approval', 'review', 'human', 'checkpoint'].includes(token),
-  )
-  const wantsLoop = tokens.some((token) =>
-    ['iterate', 'loop', 'repeat', 'retry'].includes(token),
-  )
-  const wantsCommand = tokens.some((token) =>
-    ['command', 'cli'].includes(token),
-  )
-  const wantsScript = tokens.some((token) =>
-    ['script', 'transform', 'parse'].includes(token),
-  )
-
-  const drafts: Array<WizardNodeDraft> = [
-    {
-      ...createDefaultNodeDraft('prompt', 0),
-      id: 'analyze',
-      phase: 'Plan',
-      prompt: `Analyze this workflow request and extract the needed context, constraints, and success criteria.\n\nUser request:\n${userMsg}`,
-    },
-    {
-      ...createDefaultNodeDraft('prompt', 1),
-      id: 'plan',
-      phase: 'Plan',
-      depends_on: ['analyze'],
-      prompt: `Create the execution plan for this workflow based on the analyzed request.\n\nOriginal request:\n${userMsg}`,
-    },
-  ]
-
-  if (wantsApproval) {
-    drafts.push({
-      ...createDefaultNodeDraft('approval', drafts.length),
-      id: 'review',
-      phase: 'Review',
-      depends_on: ['plan'],
-      approval_message:
-        'Review the generated plan and approve before execution continues.',
-      approval_capture_response: true,
-    })
-  }
-
-  drafts.push({
-    ...createDefaultNodeDraft(
-      wantsCommand ? 'command' : wantsScript ? 'script' : 'prompt',
-      drafts.length,
-    ),
-    id: 'execute',
-    phase: 'Execute',
-    depends_on: [wantsApproval ? 'review' : 'plan'],
-    command: wantsCommand ? 'replace-with-command' : '',
-    script: wantsScript ? 'console.log("implement task transform here")' : '',
-    runtime: wantsScript ? 'bun' : '',
-    prompt: `Execute the planned work for this request.\n\nOriginal request:\n${userMsg}`,
-  })
-
-  if (wantsLoop) {
-    drafts.push({
-      ...createDefaultNodeDraft('loop', drafts.length),
-      id: 'iterate',
-      phase: 'Execute',
-      depends_on: ['execute'],
-      loop_prompt: `Repeat the execution/refinement cycle until the workflow goal is complete.\n\nOriginal request:\n${userMsg}`,
-      loop_until: 'DONE',
-      loop_max_iterations: 3,
-    })
-  }
-
-  drafts.push({
-    ...createDefaultNodeDraft('prompt', drafts.length),
-    id: 'summarize',
-    phase: 'Verify',
-    depends_on: [wantsLoop ? 'iterate' : 'execute'],
-    prompt: `Summarize results, validation status, and final output for this workflow.\n\nOriginal request:\n${userMsg}`,
-  })
-
-  return {
-    id: '',
-    name: currentName,
-    description: userMsg.slice(0, 160),
-    topLevel: {},
-    nodes: drafts,
-  }
-}
-
-// ── Sub-components ──────────────────────────────────────────────────────────
-
-// ── Source step: describe (chat) pane ───────────────────────────────────────
-// Hosted by SourceStep behind "Describe with AI"; its redesign is F7.
-
-interface DescribeChatPaneProps {
-  chatHistory: Array<ChatMessage>
-  chatInput: string
-  chatPending: boolean
-  onChatInput: (v: string) => void
-  onSend: () => void
-}
-
-function DescribeChatPane({
-  chatHistory,
-  chatInput,
-  chatPending,
-  onChatInput,
-  onSend,
-}: DescribeChatPaneProps) {
-  const msgsEndRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (typeof msgsEndRef.current?.scrollIntoView === 'function') {
-      msgsEndRef.current.scrollIntoView({ behavior: 'smooth' })
-    }
-  }, [chatHistory])
-
-  return (
-    <div className="plan-chat">
-      <div className="chat-msgs">
-        {chatHistory.map((m, i) => (
-          <div key={i} className={`chat-msg ${m.role}`}>
-            <span className="chat-who">
-              {m.role === 'assistant' ? 'Hermes' : 'You'}
-            </span>
-            <div className="chat-text">
-              {m.msg.split('\n').map((line, j) => (
-                <p key={j}>{line}</p>
-              ))}
-            </div>
-          </div>
-        ))}
-        <div ref={msgsEndRef} />
-      </div>
-      {chatPending && (
-        <p
-          style={{
-            fontSize: 10,
-            color: 'var(--m-green-500, #00ff41)',
-            margin: '0 0 6px',
-            padding: '0 2px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4,
-          }}
-        >
-          <span
-            className="inline-block h-1.5 w-1.5 rounded-full bg-current animate-pulse"
-            style={{
-              display: 'inline-block',
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'currentColor',
-              animation: 'pulse 1.2s cubic-bezier(0.4,0,0.6,1) infinite',
-            }}
-          />
-          <span style={{ marginLeft: 4 }}>Hermes is thinking…</span>
-        </p>
-      )}
-      <div className="chat-input-row">
-        <input
-          className="chat-inp"
-          placeholder="Describe your workflow in plain language…"
-          value={chatInput}
-          disabled={chatPending}
-          onChange={(e) => onChatInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onSend()
-          }}
-        />
-        <button
-          className="btn-mini prim"
-          onClick={onSend}
-          disabled={chatPending}
-        >
-          {chatPending ? 'Thinking…' : 'Send'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ── Step 2: Design — live DAG preview ───────────────────────────────────────
-
-// ── DagSvg ───────────────────────────────────────────────────────────────────
-
-interface DagSvgProps {
-  dag: DagInfo
-  extraCount: number
-}
-
-function DagSvg({ dag, extraCount }: DagSvgProps) {
-  const { positioned, edges } = dag
-  if (positioned.length === 0) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: '32px 0',
-          opacity: 0.5,
-        }}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.2"
-          width="36"
-          height="36"
-        >
-          <rect x="3" y="8" width="6" height="8" rx="1" />
-          <rect x="9" y="5" width="6" height="5" rx="1" />
-          <rect x="9" y="14" width="6" height="5" rx="1" />
-          <rect x="15" y="8" width="6" height="8" rx="1" />
-        </svg>
-        <div
-          style={{
-            font: '500 11px var(--m-font-mono)',
-            color: 'var(--m-text-faint)',
-            textTransform: 'uppercase',
-            letterSpacing: '.15em',
-            marginTop: 10,
-          }}
-        >
-          Visual DAG — view only
-        </div>
-        <div
-          style={{
-            font: '400 12px var(--m-font-sans)',
-            color: 'var(--m-text-ghost)',
-            marginTop: 4,
-          }}
-        >
-          No nodes defined
-        </div>
-      </div>
-    )
-  }
-
-  const W = 110,
-    H = 34,
-    R = 5
-  const posMap: Map<string, { cx: number; cy: number }> = new Map()
-  positioned.forEach((n) => {
-    posMap.set(n.id, { cx: n.cx, cy: n.cy })
-  })
-
-  const svgW = Math.max(...positioned.map((n) => n.cx + W / 2)) + 24
-  const svgH = Math.max(...positioned.map((n) => n.cy + H / 2)) + 24
-
-  return (
-    <div style={{ overflowX: 'auto', overflowY: 'hidden', width: '100%' }}>
-      <svg
-        viewBox={`0 0 ${svgW} ${svgH}`}
-        style={{ width: '100%', maxWidth: svgW, display: 'block' }}
-      >
-        <defs>
-          <marker
-            id="wz-arrow"
-            viewBox="0 0 10 10"
-            refX="8"
-            refY="5"
-            markerWidth="6"
-            markerHeight="6"
-            orient="auto"
-          >
-            <path d="M 0 2 L 8 5 L 0 8 z" fill="rgba(0,255,65,.35)" />
-          </marker>
-        </defs>
-
-        {/* edges */}
-        {edges.map(([a, b], i) => {
-          const s = posMap.get(a)
-          const t = posMap.get(b)
-          if (!s || !t) return null
-          const sx = s.cx + W / 2,
-            sy = s.cy
-          const tx = t.cx - W / 2,
-            ty = t.cy
-          const mx = (sx + tx) / 2
-          return (
-            <path
-              key={i}
-              d={`M${sx},${sy} C${mx},${sy} ${mx},${ty} ${tx},${ty}`}
-              fill="none"
-              stroke="rgba(0,255,65,.25)"
-              strokeWidth="1.5"
-              markerEnd="url(#wz-arrow)"
-            />
-          )
-        })}
-
-        {/* nodes */}
-        {positioned.map((n) => {
-          const c = colorFor(n.type)
-          return (
-            <g key={n.id} style={{ cursor: 'default' }}>
-              <rect
-                x={n.cx - W / 2}
-                y={n.cy - H / 2}
-                width={W}
-                height={H}
-                rx={R}
-                fill="rgba(4,16,8,.9)"
-                stroke={c}
-                strokeWidth="1"
-              />
-              <text
-                x={n.cx}
-                y={n.cy - 4}
-                textAnchor="middle"
-                style={{
-                  font: '600 10px var(--m-font-mono)',
-                  fill: c,
-                  letterSpacing: '.08em',
-                }}
-              >
-                {n.id.length > 14 ? n.id.slice(0, 13) + '…' : n.id}
-              </text>
-              <text
-                x={n.cx}
-                y={n.cy + 9}
-                textAnchor="middle"
-                style={{
-                  font: '500 9px var(--m-font-mono)',
-                  fill: c,
-                  letterSpacing: '.12em',
-                  textTransform: 'uppercase',
-                  opacity: 0.7,
-                }}
-              >
-                {n.type}
-              </text>
-            </g>
-          )
-        })}
-      </svg>
-
-      {/* +N more badge */}
-      {extraCount > 0 && (
-        <div
-          style={{
-            font: '500 10px var(--m-font-mono)',
-            color: 'var(--m-text-faint)',
-            textAlign: 'center',
-            marginTop: 4,
-          }}
-        >
-          +{extraCount} more nodes
-        </div>
-      )}
-
-      {/* Legend */}
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: '8px 14px',
-          marginTop: 8,
-          paddingTop: 6,
-          borderTop: '1px solid var(--m-border-subtle)',
-        }}
-      >
-        {WIZARD_LEGEND_TYPES.map((t) => [t, colorFor(t)] as const).map(
-          ([t, c]) => (
-            <span
-              key={t}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 4,
-                font: '400 10px var(--m-font-mono)',
-                color: 'var(--m-text-faint)',
-              }}
-            >
-              <span
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: 2,
-                  background: c,
-                  boxShadow: `0 0 4px ${c}`,
-                  display: 'inline-block',
-                }}
-              />
-              {t}
-            </span>
-          ),
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── DesignStep ────────────────────────────────────────────────────────────────
-
-interface DesignStepProps {
-  yaml: string
-}
-
-function DesignStep({ yaml }: DesignStepProps) {
-  const dag = useMemo(() => parseDagFromYaml(yaml), [yaml])
-
-  if ('error' in dag) {
-    return (
-      <div className="wz-route">
-        <div
-          style={{
-            padding: '10px 14px',
-            background: 'rgba(255,90,90,.07)',
-            border: '1px solid rgba(255,90,90,.25)',
-            borderRadius: 6,
-            font: '400 12px var(--m-font-mono)',
-            color: '#ff5fa2',
-          }}
-        >
-          Could not parse YAML — fix it on Step 4 and come back.
-          <span
-            style={{
-              color: 'var(--m-text-ghost)',
-              display: 'block',
-              marginTop: 4,
-              fontSize: 11,
-            }}
-          >
-            {dag.error}
-          </span>
-        </div>
-      </div>
-    )
-  }
-
-  const extraCount = dag.node_count - dag.positioned.length
-  const typeCounts = Object.entries(dag.node_type_counts)
-  // Heuristic: ~1 min per node (rough estimate)
-  const estMin = dag.node_count
-
-  return (
-    <div className="wz-route">
-      <div className="route-note">
-        Proposed DAG structure based on your YAML definition. Node types and
-        layout are auto-computed.
-      </div>
-
-      {/* SVG DAG canvas */}
-      <div
-        style={{
-          marginTop: 8,
-          padding: '14px 12px',
-          background: 'var(--m-bg-deep)',
-          border: '1px solid var(--m-border-subtle)',
-          borderRadius: 6,
-        }}
-      >
-        <DagSvg dag={dag} extraCount={extraCount} />
-      </div>
-
-      {/* Breakdown + Estimates */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 10,
-          marginTop: 6,
-        }}
-      >
-        <div className="panel-card">
-          <div className="pc-head">Node Breakdown</div>
-          <div className="pc-body node-breakdown">
-            {typeCounts.length === 0 ? (
-              <div className="nb-row">
-                <span
-                  className="nb-type"
-                  style={{ color: 'var(--m-text-ghost)' }}
-                >
-                  —
-                </span>
-              </div>
-            ) : (
-              typeCounts.map(([t, n]) => {
-                const c = colorFor(t)
-                return (
-                  <div key={t} className="nb-row">
-                    <span
-                      className="nb-dot"
-                      style={{ background: c, boxShadow: `0 0 5px ${c}` }}
-                    />
-                    <span className="nb-type">{t}</span>
-                    <span className="nb-n">{n}</span>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </div>
-        <div className="panel-card">
-          <div className="pc-head">Estimates</div>
-          <div className="pc-body node-breakdown">
-            {(
-              [
-                ['Nodes', String(dag.node_count)],
-                ['DAG Depth', String(dag.depth)],
-                ['Parallelism', String(dag.parallelism)],
-                ['Est. time', `~${estMin} min`],
-              ] as Array<[string, string]>
-            ).map(([k, v]) => (
-              <div key={k} className="nb-row">
-                <span className="nb-type" style={{ flex: 1 }}>
-                  {k}
-                </span>
-                <span className="nb-n">{v}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Step 3: Configure ────────────────────────────────────────────────────────
-
-interface ConfigureStepProps {
-  nodes: Array<WizardNodeDraft>
-  selectedNodeId: string | null
-  onSelectNode: (nodeId: string) => void
-  onUpdateNode: (nodeId: string, patch: Partial<WizardNodeDraft>) => void
-  onUpdateHermesTask: (
-    nodeId: string,
-    patch: Partial<WizardHermesTaskDraft>,
-  ) => void
-  onAddNode: (type: NodeType) => void
-  onRemoveNode: (nodeId: string) => void
-}
-
-function ConfigureStep({
-  nodes,
-  selectedNodeId,
-  onSelectNode,
-  onUpdateNode,
-  onUpdateHermesTask,
-  onAddNode,
-  onRemoveNode,
-}: ConfigureStepProps) {
-  const selectedNode =
-    nodes.find((node) => node.id === selectedNodeId) ??
-    (nodes.length > 0 ? nodes[0] : null)
-
-  return (
-    <div className="wz-config">
-      <div className="wz-config-list">
-        <div className="wz-config-toolbar">
-          <div>
-            <div className="pc-head">Nodes</div>
-            <div className="route-note">
-              Edit node type, order dependencies, phase, and Hermes task hints.
-            </div>
-          </div>
-          <div className="wz-config-add">
-            {NODE_TYPE_OPTIONS.map((type) => (
-              <button
-                key={type}
-                className="btn-mini"
-                type="button"
-                onClick={() => onAddNode(type)}
-              >
-                + {type}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="wz-config-cards">
-          {nodes.map((node) => {
-            const selected = selectedNode?.id === node.id
-            const nodeColor = colorFor(node.type)
-            return (
-              <button
-                key={node.id}
-                type="button"
-                className={`wz-node-card ${selected ? 'sel' : ''}`}
-                onClick={() => onSelectNode(node.id)}
-              >
-                <div className="wz-node-card-row">
-                  <span className="wz-node-card-id">{node.id}</span>
-                  <span
-                    className="wz-node-card-type"
-                    style={{ color: nodeColor, borderColor: `${nodeColor}55` }}
-                  >
-                    {node.type}
-                  </span>
-                </div>
-                <div className="wz-node-card-meta">
-                  <span>{node.phase.trim() || 'No phase'}</span>
-                  <span>{node.depends_on.length} deps</span>
-                  <span>
-                    {node.hermes_task_enabled ? 'Hermes task' : 'Local node'}
-                  </span>
-                </div>
-              </button>
-            )
-          })}
-          {nodes.length === 0 && (
-            <div className="wz-empty-config">
-              No nodes yet. Add one from the toolbar or go back to Describe to
-              scaffold a flow.
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="wz-config-editor">
-        {selectedNode ? (
-          <>
-            <div className="wz-config-editor-head">
-              <div>
-                <div className="pc-head">Configure node</div>
-                <div className="route-note">
-                  Changes here regenerate the workflow YAML immediately.
-                </div>
-              </div>
-              <button
-                className="btn-mini"
-                type="button"
-                onClick={() => onRemoveNode(selectedNode.id)}
-              >
-                Remove node
-              </button>
-            </div>
-
-            <div className="wz-config-grid">
-              <label className="wz-field">
-                <span>ID</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.id}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, {
-                      id: slugify(e.target.value) || selectedNode.id,
-                    })
-                  }
-                />
-              </label>
-              <label className="wz-field">
-                <span>Type</span>
-                <select
-                  className="wfrd-select"
-                  value={selectedNode.type}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, {
-                      type: e.target.value as NodeType,
-                    })
-                  }
-                >
-                  {NODE_TYPE_OPTIONS.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="wz-field">
-                <span>Phase</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.phase}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { phase: e.target.value })
-                  }
-                  placeholder="Plan / Execute / Verify"
-                />
-              </label>
-              <label className="wz-field">
-                <span>Depends on</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.depends_on.join(', ')}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, {
-                      depends_on: splitCsv(e.target.value),
-                    })
-                  }
-                  placeholder="analyze, plan"
-                />
-              </label>
-              <label className="wz-field wz-field-full">
-                <span>Node skills</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.skills}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { skills: e.target.value })
-                  }
-                  placeholder="planning, testing"
-                />
-              </label>
-            </div>
-
-            {selectedNode.type === 'prompt' && (
-              <label className="wz-field wz-field-full">
-                <span>Prompt</span>
-                <textarea
-                  className="wfrd-yaml"
-                  rows={8}
-                  value={selectedNode.prompt}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { prompt: e.target.value })
-                  }
-                />
-              </label>
-            )}
-
-            {selectedNode.type === 'command' && (
-              <label className="wz-field wz-field-full">
-                <span>Command</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.command}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { command: e.target.value })
-                  }
-                  placeholder="archon-smart-pr-review"
-                />
-              </label>
-            )}
-
-            {selectedNode.type === 'bash' && (
-              <label className="wz-field wz-field-full">
-                <span>Bash</span>
-                <textarea
-                  className="wfrd-yaml"
-                  rows={8}
-                  value={selectedNode.bash}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { bash: e.target.value })
-                  }
-                />
-              </label>
-            )}
-
-            {selectedNode.type === 'script' && (
-              <>
-                <label className="wz-field">
-                  <span>Runtime</span>
-                  <select
-                    className="wfrd-select"
-                    value={selectedNode.runtime}
-                    onChange={(e) =>
-                      onUpdateNode(selectedNode.id, { runtime: e.target.value })
-                    }
-                  >
-                    <option value="bun">bun</option>
-                    <option value="uv">uv</option>
-                  </select>
-                </label>
-                <label className="wz-field wz-field-full">
-                  <span>Script</span>
-                  <textarea
-                    className="wfrd-yaml"
-                    rows={8}
-                    value={selectedNode.script}
-                    onChange={(e) =>
-                      onUpdateNode(selectedNode.id, { script: e.target.value })
-                    }
-                  />
-                </label>
-              </>
-            )}
-
-            {selectedNode.type === 'approval' && (
-              <>
-                <label className="wz-field wz-field-full">
-                  <span>Approval message</span>
-                  <textarea
-                    className="wfrd-yaml"
-                    rows={5}
-                    value={selectedNode.approval_message}
-                    onChange={(e) =>
-                      onUpdateNode(selectedNode.id, {
-                        approval_message: e.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <label className="wz-check">
-                  <input
-                    type="checkbox"
-                    checked={selectedNode.approval_capture_response}
-                    onChange={(e) =>
-                      onUpdateNode(selectedNode.id, {
-                        approval_capture_response: e.target.checked,
-                      })
-                    }
-                  />
-                  Capture reviewer response
-                </label>
-              </>
-            )}
-
-            {selectedNode.type === 'loop' && (
-              <>
-                <label className="wz-field wz-field-full">
-                  <span>Loop prompt</span>
-                  <textarea
-                    className="wfrd-yaml"
-                    rows={6}
-                    value={selectedNode.loop_prompt}
-                    onChange={(e) =>
-                      onUpdateNode(selectedNode.id, {
-                        loop_prompt: e.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <div className="wz-config-grid">
-                  <label className="wz-field">
-                    <span>Until signal</span>
-                    <input
-                      className="wfrd-input"
-                      value={selectedNode.loop_until}
-                      onChange={(e) =>
-                        onUpdateNode(selectedNode.id, {
-                          loop_until: e.target.value,
-                        })
-                      }
-                    />
-                  </label>
-                  <label className="wz-field">
-                    <span>Max iterations</span>
-                    <input
-                      className="wfrd-input"
-                      type="number"
-                      min={1}
-                      value={selectedNode.loop_max_iterations}
-                      onChange={(e) =>
-                        onUpdateNode(selectedNode.id, {
-                          loop_max_iterations: Number(e.target.value) || 1,
-                        })
-                      }
-                    />
-                  </label>
-                </div>
-              </>
-            )}
-
-            {selectedNode.type === 'cancel' && (
-              <label className="wz-field wz-field-full">
-                <span>Cancel reason</span>
-                <input
-                  className="wfrd-input"
-                  value={selectedNode.cancel}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, { cancel: e.target.value })
-                  }
-                />
-              </label>
-            )}
-
-            <div className="wz-hermes-box">
-              <label className="wz-check">
-                <input
-                  type="checkbox"
-                  checked={selectedNode.hermes_task_enabled}
-                  onChange={(e) =>
-                    onUpdateNode(selectedNode.id, {
-                      hermes_task_enabled: e.target.checked,
-                    })
-                  }
-                />
-                Hermes task-backed node
-              </label>
-
-              {selectedNode.hermes_task_enabled && (
-                <div className="wz-config-grid">
-                  <label className="wz-field wz-field-full">
-                    <span>Hermes task skills</span>
-                    <input
-                      className="wfrd-input"
-                      value={selectedNode.hermes_task.skills}
-                      onChange={(e) =>
-                        onUpdateHermesTask(selectedNode.id, {
-                          skills: e.target.value,
-                        })
-                      }
-                      placeholder="testing, planning"
-                    />
-                  </label>
-                  <label className="wz-field">
-                    <span>Agent hint</span>
-                    <input
-                      className="wfrd-input"
-                      value={selectedNode.hermes_task.agent_hint}
-                      onChange={(e) =>
-                        onUpdateHermesTask(selectedNode.id, {
-                          agent_hint: e.target.value,
-                        })
-                      }
-                      placeholder="trinity"
-                    />
-                  </label>
-                  <label className="wz-field">
-                    <span>Model hint</span>
-                    <input
-                      className="wfrd-input"
-                      value={selectedNode.hermes_task.model_hint}
-                      onChange={(e) =>
-                        onUpdateHermesTask(selectedNode.id, {
-                          model_hint: e.target.value,
-                        })
-                      }
-                      placeholder="claude-sonnet-4"
-                    />
-                  </label>
-                  {(typeof selectedNode.raw['provider'] === 'string' ||
-                    typeof selectedNode.raw['model'] === 'string') && (
-                    <div className="wz-field wz-field-full">
-                      <span>Legacy contract</span>
-                      <div className="text-xs text-[var(--theme-muted)]">
-                        Deprecated YAML keys remain readable here but are no
-                        longer authored by SwitchUI.
-                        {typeof selectedNode.raw['provider'] === 'string' &&
-                          ` provider=${selectedNode.raw['provider']}`}
-                        {typeof selectedNode.raw['model'] === 'string' &&
-                          ` model=${selectedNode.raw['model']}`}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </>
-        ) : (
-          <div className="wz-empty-config">No configurable node selected.</div>
-        )}
-      </div>
-    </div>
-  )
-}
+// Legacy contract: provider/model authoring deprecated; handled in ./new-workflow/configure-step.tsx
 
 // ── Main wizard ──────────────────────────────────────────────────────────────
 
@@ -1352,11 +97,6 @@ export function NewWorkflowWizard({
   const [kind, setKind] = useState<SourceKind>(
     initialYaml ? 'import' : 'describe',
   )
-  const [chatHistory, setChatHistory] =
-    useState<Array<ChatMessage>>(NWZ_CHAT_INIT)
-  const [chatInput, setChatInput] = useState('')
-  const [chatPending, setChatPending] = useState(false)
-  const [wizardSessionId, setWizardSessionId] = useState<string | null>(null)
   const [importText, setImportText] = useState(initialYaml ?? '')
   const [importedFileName, setImportedFileName] = useState<string | null>(null)
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
@@ -1461,32 +201,6 @@ export function NewWorkflowWizard({
         name: initialDocument.name || 'My Workflow',
       }),
   )
-  const dirty =
-    kind !== 'describe' ||
-    id.trim() !== '' ||
-    importText.trim() !== '' ||
-    selectedWorkflowId !== '' ||
-    chatHistory.length > NWZ_CHAT_INIT.length ||
-    yaml !== initialYamlSnapshot
-
-  function requestClose() {
-    if (dirty) {
-      setConfirmDiscard(true)
-      return
-    }
-    onClose()
-  }
-
-  const serverBlocked =
-    validation.hasValidate &&
-    (validation.serverPending || (validation.server?.errors.length ?? 0) > 0)
-  const baseOk =
-    validation.lint.errors.length === 0 &&
-    name.trim().length > 0 &&
-    (validation.risky.length === 0 || ack) &&
-    !serverBlocked &&
-    !upsert.isPending
-  const canSave = baseOk && !idBlocked && !idSaveBlocked
 
   function buildDocument(
     next: {
@@ -1542,67 +256,41 @@ export function NewWorkflowWizard({
     syncYamlFromDocument(buildDocument({ nodes: nextNodes }))
   }
 
-  async function handleSend() {
-    const userMsg = chatInput.trim()
-    if (!userMsg || chatPending) return
-    setChatHistory((h) => [...h, { role: 'user', msg: userMsg }])
-    setChatInput('')
-    setChatPending(true)
-    try {
-      const result = await chatWorkflowWizard({
-        sessionId: wizardSessionId ?? undefined,
-        message: userMsg,
-        currentYaml: yaml,
-        currentName: name,
-        currentDescription: description,
-        history: [...chatHistory, { role: 'user', msg: userMsg }],
-      })
-      setWizardSessionId(result.sessionId ?? null)
-      setChatHistory((h) => [...h, { role: 'assistant', msg: result.reply }])
+  const describeChat = useDescribeChat({
+    yaml,
+    name,
+    description,
+    id,
+    applyParsedDocument,
+    setYaml,
+  })
 
-      const parsed = toWorkflowDocumentDraft(result.workflow_yaml)
-      if (parsed) {
-        applyParsedDocument(parsed, {
-          wizardId:
-            id ||
-            result.suggested_id ||
-            slugify(result.suggested_name || name || 'workflow'),
-          forceName: result.suggested_name || parsed.name || name || 'Workflow',
-          forceDescription:
-            result.suggested_description || parsed.description || description,
-        })
-      } else {
-        setYaml(result.workflow_yaml)
-      }
-    } catch (err) {
-      // Warn once per session so future debugging is easier; fallback builds a local draft.
-      if (!chatWarnFired) {
-        chatWarnFired = true
-        console.warn(
-          '[workflow-wizard] Hermes scratch chat failed — using local fallback',
-          err,
-        )
-      }
-      const fallbackDoc = buildWorkflowFromPrompt(
-        userMsg,
-        name || 'My Workflow',
-      )
-      applyParsedDocument(fallbackDoc, {
-        wizardId: id || slugify(fallbackDoc.name || userMsg || 'workflow'),
-        forceName: fallbackDoc.name || name || 'Workflow',
-        forceDescription: fallbackDoc.description || description,
-      })
-      setChatHistory((h) => [
-        ...h,
-        {
-          role: 'assistant',
-          msg: 'I could not reach the live Hermes chat service for this turn, so I created a local workflow draft from your message. Review the DAG in Step 2, refine nodes in Step 3, or tell me more about the trigger, steps, and expected output.',
-        },
-      ])
-    } finally {
-      setChatPending(false)
+  const dirty =
+    kind !== 'describe' ||
+    id.trim() !== '' ||
+    importText.trim() !== '' ||
+    selectedWorkflowId !== '' ||
+    describeChat.chatHistory.length > NWZ_CHAT_INIT.length ||
+    yaml !== initialYamlSnapshot
+
+  function requestClose() {
+    if (dirty) {
+      setConfirmDiscard(true)
+      return
     }
+    onClose()
   }
+
+  const serverBlocked =
+    validation.hasValidate &&
+    (validation.serverPending || (validation.server?.errors.length ?? 0) > 0)
+  const baseOk =
+    validation.lint.errors.length === 0 &&
+    name.trim().length > 0 &&
+    (validation.risky.length === 0 || ack) &&
+    !serverBlocked &&
+    !upsert.isPending
+  const canSave = baseOk && !idBlocked && !idSaveBlocked
 
   /** Load a valid imported YAML into the draft (original text is kept). */
   function applyImport(text: string, fileName: string | null) {
@@ -1880,17 +568,7 @@ export function NewWorkflowWizard({
           <SourceStep
             kind={kind}
             onKind={handleKind}
-            describePane={
-              <DescribeChatPane
-                chatHistory={chatHistory}
-                chatInput={chatInput}
-                chatPending={chatPending}
-                onChatInput={setChatInput}
-                onSend={() => {
-                  void handleSend()
-                }}
-              />
-            }
+            describePane={<DescribeChatPane {...describeChat} />}
             workflows={existingWorkflows}
             workflowsLoading={defs.isLoading}
             workflowsError={defs.error}
@@ -1999,223 +677,101 @@ export function NewWorkflowWizard({
           display: flex;
           flex-direction: column;
           align-items: center;
-          gap: 5px;
+          gap: 6px;
           position: relative;
           z-index: 1;
+          cursor: pointer;
+          background: transparent;
+          border: none;
+          padding: 0;
         }
-        .wz-dot {
-          width: 26px;
-          height: 26px;
+        .wz-step-num {
+          width: 28px;
+          height: 28px;
           border-radius: 50%;
-          border: 1px solid var(--m-border, #2a2a2a);
+          border: 1px solid var(--m-border, #444);
+          background: var(--m-bg, #0d0d0d);
+          font: 600 11px var(--m-font-mono, monospace);
+          color: var(--m-text-muted, #888);
           display: flex;
           align-items: center;
           justify-content: center;
-          font: 600 11px var(--m-font-mono, monospace);
-          color: var(--m-text-muted, #888);
-          background: var(--m-bg-panel, #111);
+          transition: all .15s;
         }
-        .wz-step.done .wz-dot {
-          background: rgba(0,255,65,.08);
+        .wz-step.active .wz-step-num {
           border-color: var(--m-green-500, #00ff41);
           color: var(--m-green-500, #00ff41);
+          background: rgba(0,255,65,.1);
+          box-shadow: 0 0 10px rgba(0,255,65,.3);
         }
-        .wz-step.cur .wz-dot {
-          background: var(--m-green-500, #00ff41);
-          border-color: var(--m-green-500, #00ff41);
-          color: #021204;
-          font-weight: 700;
-          box-shadow: 0 0 14px rgba(0,255,65,.5);
+        .wz-step.done .wz-step-num {
+          border-color: var(--m-green-700, #009926);
+          color: var(--m-green-500, #00ff41);
         }
-        .wz-lbl {
-          font: 500 9px var(--m-font-mono, monospace);
-          color: var(--m-text-ghost, #555);
-          text-transform: uppercase;
-          letter-spacing: .1em;
-        }
-        .wz-step.cur .wz-lbl { color: var(--m-green-500, #00ff41); }
-        .wz-step.done .wz-lbl { color: var(--m-text-muted, #888); }
-
-        /* Describe step layout */
-        .wz-plan {
-          display: grid;
-          grid-template-columns: 200px 1fr;
-          gap: 16px;
-          height: 380px;
-        }
-        .plan-summary {
-          overflow-y: auto;
-          padding-right: 4px;
-        }
-        .ps-title {
-          font: 600 11px var(--m-font-mono, monospace);
-          color: var(--m-text, #e0e0e0);
-          text-transform: uppercase;
+        .wz-step-lbl {
+          font: 500 10px var(--m-font-mono, monospace);
           letter-spacing: .08em;
-        }
-        .plan-chat {
-          display: flex;
-          flex-direction: column;
-          border: 1px solid var(--m-border-subtle, #222);
-          border-radius: 6px;
-          overflow: hidden;
-          background: var(--m-bg-deep, #0a0a0a);
-        }
-        .chat-msgs {
-          flex: 1;
-          overflow-y: auto;
-          padding: 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 10px;
-        }
-        .chat-msg { display: flex; flex-direction: column; gap: 3px; }
-        .chat-who {
-          font: 600 9px var(--m-font-mono, monospace);
           text-transform: uppercase;
-          letter-spacing: .1em;
           color: var(--m-text-muted, #888);
         }
-        .chat-msg.assistant .chat-who { color: var(--m-green-500, #00ff41); }
-        .chat-text { font: 400 12px var(--m-font-sans, sans-serif); color: var(--m-text, #e0e0e0); line-height: 1.5; }
-        .chat-text p { margin: 0 0 2px; }
-        .chat-input-row {
-          display: flex;
-          gap: 8px;
-          padding: 10px;
-          border-top: 1px solid var(--m-border-subtle, #222);
-        }
-        .chat-inp {
-          flex: 1;
-          background: var(--m-bg, #0d0d0d);
-          border: 1px solid var(--m-border-subtle, #222);
-          border-radius: 4px;
-          padding: 6px 10px;
-          font: 400 12px var(--m-font-sans, sans-serif);
-          color: var(--m-text, #e0e0e0);
-          outline: none;
-        }
-        .chat-inp:focus { border-color: var(--m-green-500, #00ff41); }
-        .plan-sidecard {
-          border: 1px solid var(--m-border-subtle, #222);
-          border-radius: 6px;
-          background: var(--m-bg-deep, #0a0a0a);
-          overflow: hidden;
-        }
-        .plan-sidecard-head {
-          padding: 12px 14px;
-          border-bottom: 1px solid var(--m-border-subtle, #222);
-          font: 600 11px var(--m-font-mono, monospace);
+        .wz-step.active .wz-step-lbl {
           color: var(--m-green-500, #00ff41);
-          text-transform: uppercase;
-          letter-spacing: .1em;
         }
-        .plan-sidecard-body {
-          padding: 14px;
-          font: 400 12px var(--m-font-sans, sans-serif);
-          color: var(--m-text, #e0e0e0);
-          line-height: 1.6;
-        }
-        .plan-sidecard-body p {
-          margin: 0 0 10px;
-        }
-        .plan-sidecard-body ul {
-          margin: 0;
-          padding-left: 18px;
-          color: var(--m-text-muted, #888);
-        }
-        .plan-sidecard-body li + li {
-          margin-top: 6px;
-        }
-        .wizard-combobox {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .wizard-combobox-input {
-          width: 100%;
-          box-sizing: border-box;
-        }
-        .wizard-combobox-list {
-          max-height: 220px;
-          overflow-y: auto;
-          border: 1px solid var(--m-border-subtle, #222);
-          border-radius: 6px;
-          background: var(--m-bg, #0d0d0d);
-          padding: 6px;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .wizard-combobox-item {
-          display: flex;
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 3px;
-          width: 100%;
-          padding: 8px 10px;
-          border-radius: 5px;
-          border: 1px solid transparent;
-          background: transparent;
-          color: var(--m-text, #e0e0e0);
-          text-align: left;
-          cursor: pointer;
-        }
-        .wizard-combobox-item:hover,
-        .wizard-combobox-item.sel {
-          border-color: rgba(0,255,65,.3);
-          background: rgba(0,255,65,.08);
-        }
-        .wizard-combobox-title {
-          font: 600 11px var(--m-font-mono, monospace);
-          color: var(--m-text, #e0e0e0);
-        }
-        .wizard-combobox-meta {
-          font: 400 10px var(--m-font-sans, sans-serif);
-          color: var(--m-text-muted, #888);
-        }
-        .wizard-combobox-empty {
-          padding: 10px;
-          color: var(--m-text-muted, #888);
-          font: 400 11px var(--m-font-sans, sans-serif);
+        .wz-step.done .wz-step-lbl {
+          color: var(--m-text, #ccc);
         }
 
-        /* Configure step */
+        /* Route / DAG step */
+        .wz-route { padding: 4px 0; }
+        .route-note {
+          font: 400 11px var(--m-font-mono, monospace);
+          color: var(--m-text-muted, #888);
+          margin-bottom: 12px;
+        }
+        .node-breakdown {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+        .nb-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font: 400 11px var(--m-font-mono, monospace);
+          padding: 2px 0;
+        }
+        .nb-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          display: inline-block;
+          flex-shrink: 0;
+        }
+        .nb-type { flex: 1; color: var(--m-text, #e0e0e0); }
+        .nb-n { color: var(--m-text-muted, #888); }
+
+        /* Step 3: Configure nodes */
         .wz-config {
           display: grid;
-          grid-template-columns: 260px 1fr;
-          gap: 14px;
+          grid-template-columns: 280px 1fr;
+          gap: 16px;
           min-height: 420px;
         }
-        .wz-config-list,
-        .wz-config-editor {
-          border: 1px solid var(--m-border-subtle, #222);
-          border-radius: 8px;
-          background: var(--m-bg-deep, #0a0a0a);
-        }
         .wz-config-list {
-          padding: 12px;
+          border-right: 1px solid var(--m-border, #2a2a2a);
+          padding-right: 16px;
           display: flex;
           flex-direction: column;
           gap: 12px;
         }
-        .wz-config-editor {
-          padding: 14px;
+        .wz-config-toolbar {
           display: flex;
           flex-direction: column;
-          gap: 12px;
-        }
-        .wz-config-toolbar,
-        .wz-config-editor-head {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 10px;
+          gap: 8px;
         }
         .wz-config-add {
           display: flex;
           flex-wrap: wrap;
-          justify-content: flex-end;
           gap: 6px;
         }
         .wz-config-cards {
@@ -2223,80 +779,201 @@ export function NewWorkflowWizard({
           flex-direction: column;
           gap: 8px;
           overflow-y: auto;
+          max-height: 440px;
         }
         .wz-node-card {
           width: 100%;
-          padding: 10px;
-          border-radius: 6px;
-          border: 1px solid var(--m-border-subtle, #222);
-          background: var(--m-bg, #0d0d0d);
-          color: var(--m-text, #e0e0e0);
-          cursor: pointer;
           text-align: left;
+          background: rgba(255,255,255,.02);
+          border: 1px solid var(--m-border, #2a2a2a);
+          border-radius: 6px;
+          padding: 10px 12px;
+          color: inherit;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .wz-node-card:hover {
+          border-color: var(--m-border-strong, #3a3a3a);
+          background: rgba(255,255,255,.04);
         }
         .wz-node-card.sel {
           border-color: var(--m-green-500, #00ff41);
-          box-shadow: 0 0 0 1px rgba(0,255,65,.15);
+          background: rgba(0,255,65,.06);
+          box-shadow: 0 0 10px rgba(0,255,65,.12);
         }
-        .wz-node-card-row,
-        .wz-node-card-meta {
+        .wz-node-card-row {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 8px;
         }
         .wz-node-card-id {
-          font: 600 10px var(--m-font-mono, monospace);
-          letter-spacing: .08em;
-          text-transform: uppercase;
+          font: 600 12px var(--m-font-mono, monospace);
+          color: var(--m-text, #f0f0f0);
         }
         .wz-node-card-type {
-          border: 1px solid currentColor;
-          border-radius: 999px;
-          padding: 2px 8px;
-          font: 600 9px var(--m-font-mono, monospace);
+          font: 500 10px var(--m-font-mono, monospace);
           text-transform: uppercase;
           letter-spacing: .08em;
+          border: 1px solid currentColor;
+          border-radius: 3px;
+          padding: 1px 5px;
         }
         .wz-node-card-meta {
-          margin-top: 8px;
-          font: 400 10px var(--m-font-sans, sans-serif);
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          font: 400 10px var(--m-font-mono, monospace);
           color: var(--m-text-muted, #888);
+        }
+        .wz-config-editor {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .wz-config-editor-head {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px;
         }
         .wz-config-grid {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
         }
         .wz-field {
           display: flex;
           flex-direction: column;
-          gap: 5px;
+          gap: 6px;
           font: 500 11px var(--m-font-mono, monospace);
           color: var(--m-text-muted, #888);
+          text-transform: uppercase;
+          letter-spacing: .08em;
         }
         .wz-field-full {
           grid-column: 1 / -1;
         }
         .wz-check {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font: 400 12px var(--m-font-sans, sans-serif);
+          color: var(--m-text, #f0f0f0);
+          cursor: pointer;
+        }
+        .wz-hermes-box {
+          border: 1px solid var(--m-border, #2a2a2a);
+          background: rgba(0,255,65,.03);
+          border-radius: 6px;
+          padding: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .wz-empty-config {
+          font: 400 12px var(--m-font-sans, sans-serif);
+          color: var(--m-text-muted, #888);
+          padding: 24px;
+          text-align: center;
+        }
+
+        /* Review step */
+        .wz-review {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+        .wz-checks {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .wz-check-row {
           display: flex;
           align-items: center;
           gap: 8px;
-          font: 500 11px var(--m-font-sans, sans-serif);
-          color: var(--m-text, #e0e0e0);
+          font: 400 11px var(--m-font-mono, monospace);
+          padding: 4px 8px;
+          border-radius: 4px;
+          background: rgba(255,255,255,.02);
         }
-        .wz-hermes-box {
-          border-top: 1px solid var(--m-border-subtle, #222);
-          padding-top: 12px;
+        .wz-check-icon { font-weight: 700; width: 14px; text-align: center; }
+        .wz-check-icon.ok { color: var(--m-green-500, #00ff41); }
+        .wz-check-icon.er { color: #ff5fa2; }
+        .wz-check-name { color: var(--m-text, #e0e0e0); flex: 1; }
+        .wz-check-detail { color: var(--m-text-muted, #888); }
+
+        /* Describe chat */
+        .plan-chat {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          min-height: 280px;
+        }
+        .chat-msgs {
+          flex: 1;
+          overflow-y: auto;
           display: flex;
           flex-direction: column;
           gap: 10px;
+          padding: 4px 0 12px;
+          max-height: 280px;
         }
-        .wz-empty-config {
-          border: 1px dashed var(--m-border-subtle, #222);
-          border-radius: 8px;
-          padding: 18px;
-          color: var(--m-text-ghost, #555);
+        .chat-msg {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .chat-who {
+          font: 600 10px var(--m-font-mono, monospace);
+          letter-spacing: .1em;
+          text-transform: uppercase;
+        }
+        .chat-msg.assistant .chat-who { color: var(--m-green-500, #00ff41); }
+        .chat-msg.user .chat-who { color: var(--m-text-muted, #888); }
+        .chat-text {
+          font: 400 12px var(--m-font-sans, sans-serif);
+          color: var(--m-text, #e0e0e0);
+          line-height: 1.5;
+        }
+        .chat-text p { margin: 0 0 4px; }
+        .chat-text p:last-child { margin-bottom: 0; }
+        .chat-input-row {
+          display: flex;
+          gap: 8px;
+          padding-top: 8px;
+          border-top: 1px solid var(--m-border, #2a2a2a);
+        }
+        .chat-inp {
+          flex: 1;
+          background: rgba(0,0,0,.4);
+          border: 1px solid var(--m-border, #333);
+          border-radius: 4px;
+          padding: 6px 10px;
+          font: 400 12px var(--m-font-sans, sans-serif);
+          color: var(--m-text, #f0f0f0);
+          outline: none;
+        }
+        .chat-inp:focus { border-color: var(--m-green-500, #00ff41); }
+
+        /* Shared mini panels */
+        .panel-card {
+          background: rgba(255,255,255,.02);
+          border: 1px solid var(--m-border, #2a2a2a);
+          border-radius: 6px;
+          padding: 10px 14px;
+        }
+        .pc-head {
+          font: 600 10px var(--m-font-mono, monospace);
+          letter-spacing: .12em;
+          text-transform: uppercase;
+          color: var(--m-text-muted, #888);
+          margin-bottom: 8px;
+        }
+        .pc-body {
           font: 400 12px var(--m-font-sans, sans-serif);
           line-height: 1.6;
         }
