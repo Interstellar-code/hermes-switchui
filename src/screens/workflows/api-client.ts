@@ -867,7 +867,13 @@ export async function resetWorkflowDefinitionToFactory(
 ): Promise<{ definition: WorkflowDefinitionRow }> {
   const res = await wfFetch(
     `/api/workflow-definitions/${encodeURIComponent(id)}/reset-factory`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      // The route's requireJsonContentType guard 415s any POST without a
+      // JSON Content-Type (F8 review HIGH) — same shape as the delete client.
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
   )
   if (!res.ok) {
     const body = (await res.json().catch(() => ({

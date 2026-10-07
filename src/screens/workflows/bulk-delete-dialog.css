@@ -1,0 +1,120 @@
+/* bulk-delete-dialog.css — F8 bulk delete confirmation dialog.
+   Portaled to document.body like confirm-dialog.css, so it styles itself
+   instead of relying on the [data-screen] scoping of matrix-workflows.css. */
+
+.wbd-dialog {
+  width: 460px;
+  max-width: calc(100vw - 40px);
+  max-height: 80vh;
+  overflow: auto;
+  text-align: left;
+}
+
+.wbd-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 4px;
+}
+
+.wbd-group {
+  border: 1px solid var(--m-border-faint, var(--theme-border-subtle));
+  border-radius: 5px;
+  padding: 7px 9px;
+}
+
+.wbd-group h4 {
+  margin: 0 0 5px;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--m-text-muted, var(--theme-muted));
+}
+
+.wbd-count {
+  color: var(--m-danger, var(--theme-danger));
+}
+
+.wbd-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wbd-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10.5px;
+}
+
+.wbd-name {
+  color: var(--m-text, var(--theme-text));
+}
+
+.wbd-id {
+  color: var(--m-text-faint, var(--theme-muted));
+  font-size: 9px;
+}
+
+.wbd-msg {
+  flex: 1 1 auto;
+  color: var(--m-danger, var(--theme-danger));
+  font-size: 9.5px;
+  text-align: right;
+}
+
+.wbd-failed .wbd-msg {
+  text-align: left;
+}
+
+.wbd-none {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--m-text-muted, var(--theme-muted));
+}
+
+.wbd-opt {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 9.5px;
+  color: var(--m-text, var(--theme-text));
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+
+.wbd-opt input {
+  accent-color: var(--m-green-500, var(--theme-success));
+  margin: 0;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.wbd-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--m-text, var(--theme-text));
+}
+
+.wbd-type input {
+  width: 70px;
+  padding: 4px 7px;
+  font-size: 11px;
+  background: var(--m-bg, var(--theme-bg));
+  color: var(--m-text, var(--theme-text));
+  border: 1px solid var(--m-border-strong, var(--theme-border));
+  border-radius: 4px;
+}
+
+.wbd-summary {
+  margin: 0;
+  font-size: 11px;
+  color: var(--m-text, var(--theme-text));
+}

@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WorkflowTable } from './workflow-table'
 import type { ReactNode } from 'react'
@@ -16,6 +22,7 @@ vi.mock('@tanstack/react-router', async () => {
 
 afterEach(() => {
   cleanup()
+  vi.unstubAllGlobals()
 })
 
 function renderWithClient(ui: React.ReactElement) {
@@ -219,7 +226,7 @@ describe('WorkflowTable (F2)', () => {
     expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
-  it('does NOT contain any delete actions anywhere (deferred to F8)', () => {
+  it('has no per-row delete action; bulk DELETE… only (F8 bulk, no row deletes)', () => {
     const workflows: Array<WorkflowSummary> = [
       makeWf({ id: 'w1', name: 'WF 1', source: 'user' }),
       makeWf({ id: 'w2', name: 'WF 2', source: 'bundled' }),
@@ -231,9 +238,19 @@ describe('WorkflowTable (F2)', () => {
     const rowCheckboxes = screen.getAllByRole('checkbox')
     fireEvent.click(rowCheckboxes[1]) // First row checkbox
 
-    // Verify no delete button exists
-    expect(screen.queryByText(/delete/i)).toBeNull()
-    expect(screen.queryByRole('button', { name: /delete/i })).toBeNull()
+    // Row cells never offer delete; the bulk bar owns the destructive action.
+    const rows = screen.getAllByRole('row')
+    expect(
+      rows.every(
+        (r) =>
+          !Array.from(r.querySelectorAll('button')).some((b) =>
+            /delete/i.test(b.getAttribute('aria-label') ?? b.textContent),
+          ),
+      ),
+    ).toBe(true)
+    expect(
+      screen.getByRole('button', { name: /delete selected workflows \(1\)/i }),
+    ).toBeTruthy()
   })
 
   // QA1 F1-2/F2-1: LAST RUN is "—" when the API ships no run data —
@@ -273,5 +290,92 @@ describe('WorkflowTable (F2)', () => {
     expect(rows[1].textContent).not.toContain('v1')
     expect(rows[1].textContent).toContain('—')
     expect(rows[2].textContent).toContain('v4')
+  })
+
+  // F8: the bulk bar gains DELETE… which opens the confirmation dialog.
+  it('DELETE… in the bulk bar opens the bulk delete dialog (F8)', () => {
+    const workflows = [
+      makeWf({ id: 'u1', name: 'User WF', source: 'user' }),
+      makeWf({ id: 'f1', name: 'Factory WF', source: 'bundled' }),
+    ]
+    renderWithClient(<WorkflowTable workflows={workflows} onSelect={vi.fn()} />)
+
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[1]) // first row (u1)
+    fireEvent.click(checkboxes[2]) // second row (f1)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Delete selected workflows \(2\)/i }),
+    )
+    expect(screen.getByText('Delete workflows?')).toBeTruthy()
+    expect(screen.getAllByText('User WF').length).toBeGreaterThan(1)
+    expect(screen.getAllByText('Factory WF').length).toBeGreaterThan(1)
+  })
+
+  it('after a partial-failure run only the succeeded rows leave the selection (F8)', async () => {
+    // Route-like (F8 review MED): no JSON Content-Type → the same 415 the
+    // route guard returns; the real run-history 409 body on /u2.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        const method = (init?.method ?? 'GET').toUpperCase()
+        const contentType =
+          new Headers(init?.headers).get('content-type') ?? null
+        if (method !== 'GET' && contentType !== 'application/json') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                error: 'Content-Type must be application/json',
+              }),
+              { status: 415, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        if (method === 'DELETE' && url.includes('/u2')) {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                error:
+                  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250).",
+              }),
+              { status: 409, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ definition: { id: 'x' } }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }),
+    )
+
+    const workflows = [
+      makeWf({ id: 'u1', name: 'Kept Selected', source: 'user' }),
+      makeWf({ id: 'u2', name: 'Run History', source: 'user' }),
+    ]
+    renderWithClient(<WorkflowTable workflows={workflows} onSelect={vi.fn()} />)
+
+    const checkboxes = screen.getAllByRole('checkbox')
+    fireEvent.click(checkboxes[1])
+    fireEvent.click(checkboxes[2])
+    const bulkBar = () => screen.getByRole('region', { name: /bulk actions/i })
+    expect(bulkBar().textContent).toMatch(/2 selected/)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Delete selected workflows \(2\)/i }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: /Delete 2 workflows/i }))
+
+    expect(await screen.findByText('Bulk delete results')).toBeTruthy()
+    // u1 succeeded → dropped; u2 failed → still selected ("1 selected").
+    await waitFor(() => expect(bulkBar().textContent).toMatch(/1 selected/))
+    expect(
+      screen.getByText(
+        "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250).",
+      ),
+    ).toBeTruthy()
   })
 })

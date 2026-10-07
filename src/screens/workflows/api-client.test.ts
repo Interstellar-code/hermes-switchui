@@ -11,6 +11,7 @@ import {
   listRunEventsPaged,
   listWorkflowDefinitionVersions,
   listWorkflowDefinitions,
+  resetWorkflowDefinitionToFactory,
   validateWorkflowDefinition,
 } from './api-client'
 
@@ -565,5 +566,37 @@ describe('listWorkflowDefinitionVersions / getWorkflowDefinitionVersion', () => 
       '/api/workflow-definitions/wf-1/versions/cc11ac2f5033',
       undefined,
     )
+  })
+})
+
+describe('resetWorkflowDefinitionToFactory (F8 review HIGH)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+  })
+
+  it('POSTs JSON with a Content-Type the route guard accepts', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ definition: { id: 'wf-1' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await resetWorkflowDefinitionToFactory('wf-1')
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    const [url, init] = fetchSpy.mock.calls[0] as [
+      RequestInfo | URL,
+      RequestInit | undefined,
+    ]
+    expect(String(url)).toBe('/api/workflow-definitions/wf-1/reset-factory')
+    expect(init?.method).toBe('POST')
+    // The route's requireJsonContentType returns 415 without this header.
+    expect(new Headers(init?.headers).get('content-type')).toBe(
+      'application/json',
+    )
+    expect(init?.body).toBe('{}')
   })
 })
