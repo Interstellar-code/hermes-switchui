@@ -81,7 +81,7 @@ async function renderDesign(
       <Host />
     </QueryClientProvider>,
   )
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 25; i++) {
     await tick()
     if (utils.container.querySelector('.react-flow__node')) break
   }
@@ -199,5 +199,22 @@ describe('wizard DESIGN step (embedded graph editor)', () => {
     await tick()
     expect(last(changes)).toContain('inputs:\n  - name: chat_id')
     expect(readGraph(last(changes))!.nodes).toHaveLength(2)
+  })
+
+  it('renders node and edge counts and validation issue count in the DESIGN header', async () => {
+    await renderDesign(YAML, {
+      kind: 'ready',
+      errors: [
+        {
+          line: 2,
+          col: null,
+          code: 'bad_syntax',
+          message: 'Error message',
+        },
+      ],
+      warnings: [],
+    })
+    expect(screen.getByText('2 nodes · 1 edge')).toBeTruthy()
+    expect(screen.getByText('1 ISSUE')).toBeTruthy()
   })
 })

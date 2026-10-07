@@ -406,4 +406,31 @@ describe('WorkflowTable (F2)', () => {
       ),
     ).toBeTruthy()
   })
+
+  it('renders tightened column widths, col-types class, and title tooltips on name and id', () => {
+    const wf = makeWf({
+      id: 'long-workflow-id-123456',
+      name: 'Very Long Workflow Name Here',
+    })
+    const { container } = renderWithClient(
+      <WorkflowTable workflows={[wf]} onSelect={vi.fn()} />,
+    )
+
+    const nameTh = screen.getByRole('button', { name: /^NAME/i }).closest('th')
+    expect(nameTh?.style.width).toBe('200px')
+
+    const typesTh = screen
+      .getByRole('button', { name: /^TYPES$/i })
+      .closest('th')
+    expect(typesTh?.classList.contains('col-types')).toBe(true)
+
+    const typesTd = container.querySelector('td.col-types')
+    expect(typesTd).toBeTruthy()
+
+    const nameSpan = container.querySelector('.nm')
+    expect(nameSpan?.getAttribute('title')).toBe('Very Long Workflow Name Here')
+
+    const idSpan = container.querySelector('.id')
+    expect(idSpan?.getAttribute('title')).toBe('long-workflow-id-123456')
+  })
 })

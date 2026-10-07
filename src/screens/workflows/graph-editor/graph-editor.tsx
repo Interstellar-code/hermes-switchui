@@ -56,6 +56,7 @@ import type { RefObject } from 'react'
 import type { EditorIssue, ValidationState } from './validation-panel'
 import type { Point } from '@/screens/gateway/conductor/dag-layout'
 import type { NodeType } from '../types'
+import type { WizardIssueState } from '../new-workflow/use-wizard-validation'
 import {
   FlowCanvas,
   graphLoading,
@@ -104,6 +105,7 @@ const HISTORY_INDEX = '__TSR_index'
 export interface EmbeddedGraphEditor {
   yaml: string
   onChange: (yaml: string) => void
+  issues?: WizardIssueState
 }
 
 export interface WorkflowGraphEditorProps {
@@ -594,66 +596,67 @@ export function WorkflowGraphEditor({
 
         <div className="wge-center">
           <div className="wge-etb">
-            <button
-              type="button"
-              className="wge-ib"
-              aria-label="Undo"
-              title="Undo (Cmd/Ctrl+Z)"
-              disabled={history.past.length === 0}
-              onClick={() => dispatch({ type: 'undo' })}
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                aria-hidden="true"
+            <div className="wge-etb-left">
+              <button
+                type="button"
+                className="wge-ib"
+                aria-label="Undo"
+                title="Undo (Cmd/Ctrl+Z)"
+                disabled={history.past.length === 0}
+                onClick={() => dispatch({ type: 'undo' })}
               >
-                <path d="M3 8a5 5 0 1 0 1.5-3.5" />
-                <path d="M3 2v3h3" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="wge-ib flip"
-              aria-label="Redo"
-              title="Redo (Shift+Cmd/Ctrl+Z)"
-              disabled={history.future.length === 0}
-              onClick={() => dispatch({ type: 'redo' })}
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                aria-hidden="true"
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8a5 5 0 1 0 1.5-3.5" />
+                  <path d="M3 2v3h3" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="wge-ib flip"
+                aria-label="Redo"
+                title="Redo (Shift+Cmd/Ctrl+Z)"
+                disabled={history.future.length === 0}
+                onClick={() => dispatch({ type: 'redo' })}
               >
-                <path d="M3 8a5 5 0 1 0 1.5-3.5" />
-                <path d="M3 2v3h3" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              className="wge-btn wge-btn-gh"
-              onClick={handleAutoLayout}
-            >
-              AUTO-LAYOUT
-            </button>
-            <button
-              type="button"
-              className="wge-btn wge-btn-gh"
-              aria-pressed={mirrorOpen}
-              onClick={() => setMirrorOpen((m) => !m)}
-            >
-              YAML MIRROR
-            </button>
-            <span className="wge-grow" />
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  aria-hidden="true"
+                >
+                  <path d="M3 8a5 5 0 1 0 1.5-3.5" />
+                  <path d="M3 2v3h3" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                className="wge-btn wge-btn-gh"
+                onClick={handleAutoLayout}
+              >
+                AUTO-LAYOUT
+              </button>
+              <button
+                type="button"
+                className="wge-btn wge-btn-gh"
+                aria-pressed={mirrorOpen}
+                onClick={() => setMirrorOpen((m) => !m)}
+              >
+                YAML MIRROR
+              </button>
+            </div>
             {!isEmbedded && (
-              <>
+              <div className="wge-etb-right">
                 {dirty && (
                   <span className="wge-dirty" role="status">
                     {changes} UNSAVED {changes === 1 ? 'CHANGE' : 'CHANGES'}
@@ -678,7 +681,7 @@ export function WorkflowGraphEditor({
                     ? 'SAVING…'
                     : `SAVE AS v${currentVersion + 1}`}
                 </button>
-              </>
+              </div>
             )}
           </div>
 
@@ -690,7 +693,39 @@ export function WorkflowGraphEditor({
               aria-label="Workflow graph editor canvas"
             >
               <div className="wge-chd">
-                <h2 className="wge-ttl">GRAPH · EDITING</h2>
+                <h2 className="wge-ttl">
+                  {isEmbedded ? 'GRAPH' : 'GRAPH · EDITING'}
+                </h2>
+                {isEmbedded && editorDag && (
+                  <span className="wge-meta">
+                    {editorDag.dag.nodes.length}{' '}
+                    {editorDag.dag.nodes.length === 1 ? 'node' : 'nodes'} ·{' '}
+                    {editorDag.dag.edges.length}{' '}
+                    {editorDag.dag.edges.length === 1 ? 'edge' : 'edges'}
+                  </span>
+                )}
+                {isEmbedded &&
+                  embedded.issues &&
+                  (embedded.issues.kind === 'ready' ? (
+                    (() => {
+                      const count =
+                        embedded.issues.errors.length +
+                        embedded.issues.warnings.length
+                      return count > 0 ? (
+                        <span className="chip wa wz2-chip wa">
+                          {count} {count === 1 ? 'ISSUE' : 'ISSUES'}
+                        </span>
+                      ) : (
+                        <span className="chip ok wz2-chip ok">VALID</span>
+                      )
+                    })()
+                  ) : embedded.issues.kind === 'pending' ? (
+                    <span className="chip wz2-chip">VALIDATING…</span>
+                  ) : (
+                    <span className="chip wz2-chip">
+                      VALIDATION UNAVAILABLE
+                    </span>
+                  ))}
                 <span className="wge-grow" />
                 <span className="wge-meta">
                   drag from palette · connect by dragging a handle · Del removes

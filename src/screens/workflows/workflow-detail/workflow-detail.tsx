@@ -752,8 +752,16 @@ export function WorkflowDetail({
                       )}
                     </dd>
                     <dt>scope</dt>
-                    <dd title={def.scope_path ?? 'default'}>
-                      {def.scope_path ?? 'default'}
+                    <dd
+                      title={
+                        def.scope_path
+                          ? `${def.source} · ${def.scope_path}`
+                          : def.source
+                      }
+                    >
+                      {def.scope_path
+                        ? `${def.source} · ${def.scope_path}`
+                        : def.source}
                     </dd>
                   </dl>
                 </div>

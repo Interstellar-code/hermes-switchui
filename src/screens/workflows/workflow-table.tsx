@@ -296,7 +296,7 @@ export function WorkflowTable({
           </caption>
           <thead>
             <tr>
-              <th scope="col" className="c">
+              <th scope="col" className="c" style={{ width: '30px' }}>
                 <input
                   ref={selectAllRef}
                   type="checkbox"
@@ -307,7 +307,7 @@ export function WorkflowTable({
               </th>
               <th
                 scope="col"
-                style={{ width: '330px' }}
+                style={{ width: '200px' }}
                 aria-sort={
                   sortCol === 'name'
                     ? sortDir === 'asc'
@@ -323,7 +323,7 @@ export function WorkflowTable({
               </th>
               <th
                 scope="col"
-                style={{ width: '84px' }}
+                style={{ width: '72px' }}
                 aria-sort={
                   sortCol === 'origin'
                     ? sortDir === 'asc'
@@ -342,7 +342,7 @@ export function WorkflowTable({
               </th>
               <th
                 scope="col"
-                style={{ width: '58px' }}
+                style={{ width: '44px' }}
                 aria-sort={
                   sortCol === 'nodes'
                     ? sortDir === 'asc'
@@ -360,12 +360,12 @@ export function WorkflowTable({
                   {sortCol === 'nodes' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th scope="col" style={{ width: '112px' }}>
+              <th scope="col" className="col-types" style={{ width: '90px' }}>
                 <button type="button">TYPES</button>
               </th>
               <th
                 scope="col"
-                style={{ width: '58px' }}
+                style={{ width: '44px' }}
                 aria-sort={
                   sortCol === 'inputs'
                     ? sortDir === 'asc'
@@ -385,7 +385,7 @@ export function WorkflowTable({
               </th>
               <th
                 scope="col"
-                style={{ width: '44px' }}
+                style={{ width: '38px' }}
                 aria-sort={
                   sortCol === 'version'
                     ? sortDir === 'asc'
@@ -404,7 +404,7 @@ export function WorkflowTable({
               </th>
               <th
                 scope="col"
-                style={{ width: '84px' }}
+                style={{ width: '70px' }}
                 aria-sort={
                   sortCol === 'edited'
                     ? sortDir === 'asc'
@@ -421,16 +421,16 @@ export function WorkflowTable({
                   {sortCol === 'edited' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </button>
               </th>
-              <th scope="col" style={{ width: '110px' }}>
+              <th scope="col" style={{ width: '84px' }}>
                 <button type="button">SCHEDULE</button>
               </th>
-              <th scope="col" style={{ width: '64px' }}>
+              <th scope="col" style={{ width: '54px' }}>
                 VALID
               </th>
-              <th scope="col" style={{ width: '96px' }}>
+              <th scope="col" style={{ width: '74px' }}>
                 LAST RUN
               </th>
-              <th scope="col" style={{ width: '122px' }}>
+              <th scope="col" style={{ width: '96px' }}>
                 <span className="sr">Actions</span>
               </th>
             </tr>
@@ -457,9 +457,10 @@ export function WorkflowTable({
                     />
                   </td>
                   <td>
-                    <span className="nm">
+                    <span className="nm" title={wf.name}>
                       <a
                         href={`#${wf.id}`}
+                        title={wf.name}
                         onClick={(e) => {
                           e.preventDefault()
                           onSelect(wf.id)
@@ -468,12 +469,14 @@ export function WorkflowTable({
                         {wf.name}
                       </a>
                     </span>
-                    <span className="id">{wf.id}</span>
+                    <span className="id" title={wf.id}>
+                      {wf.id}
+                    </span>
                   </td>
                   <td>{renderOriginChip(wf.source, wf.user_modified)}</td>
                   <td className="num">{wf.node_count}</td>
-                  <td>
-                    <NodeTypeBar workflow={wf} width="96px" />
+                  <td className="col-types">
+                    <NodeTypeBar workflow={wf} width="74px" />
                   </td>
                   <td className="num">
                     {totalInputs > 0 ? (

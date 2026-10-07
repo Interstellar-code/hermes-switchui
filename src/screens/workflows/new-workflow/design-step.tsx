@@ -25,7 +25,7 @@ export function DesignStep({ yaml, onChange, issues }: DesignStepProps) {
       : []
   return (
     <div className="wz2-design">
-      <WorkflowGraphEditor embedded={{ yaml, onChange }} />
+      <WorkflowGraphEditor embedded={{ yaml, onChange, issues }} />
       {fixes.length > 0 && (
         <div className="wz2-design-fixes" role="group" aria-label="Fixes">
           {fixes.map(({ issue, fix }, i) => (

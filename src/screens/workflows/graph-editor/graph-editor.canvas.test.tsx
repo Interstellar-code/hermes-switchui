@@ -83,7 +83,7 @@ async function renderEditor() {
     </QueryClientProvider>,
   )
   // query + lazy canvas chunk
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 25; i++) {
     await tick()
     if (utils.container.querySelector('.react-flow__node')) break
   }

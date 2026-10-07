@@ -3,7 +3,8 @@ import { Link } from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { nodeColor } from './node-colors'
 import { isWithin7Days } from './workflows-top-bar'
-import { useWorkflowParsed } from './use-workflows'
+import { useWorkflowFeatures, useWorkflowParsed } from './use-workflows'
+import { slugify } from './new-workflow/wizard-draft'
 import { formatVersion, relativeTime } from './types'
 import { WorkflowTable } from './workflow-table'
 import type { WorkflowSource, WorkflowSummary } from './types'
@@ -251,6 +252,24 @@ export function WorkflowGrid({
   const [duplicateYaml, setDuplicateYaml] = useState<string | undefined>()
   const [duplicateId, setDuplicateId] = useState<string | undefined>()
 
+  const { data: featuresData } = useWorkflowFeatures()
+  const profile = featuresData?.profile
+
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  function handleImport() {
+    fileInputRef.current?.click()
+  }
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const text = await file.text()
+    setDuplicateYaml(text)
+    setDuplicateId(slugify(file.name))
+    setDuplicateModalOpen(true)
+  }
+
   // Recently edited top 4
   const recentlyEdited = useMemo(() => {
     return [...workflows]
@@ -351,6 +370,34 @@ export function WorkflowGrid({
       return (
         <div className="wfg-root" style={{ padding: '32px' }}>
           <div className="qb ctr" style={{ textAlign: 'center' }}>
+            <div className="ghost" aria-hidden="true">
+              <span
+                style={
+                  {
+                    left: 0,
+                    '--c': 'var(--wf-c-cyan, var(--theme-active, #5ad3ff))',
+                  } as React.CSSProperties
+                }
+              />
+              <i style={{ left: 62, width: 32 }} />
+              <span
+                style={
+                  {
+                    left: 94,
+                    '--c': 'var(--wf-c-amber, var(--theme-warning, #ffb454))',
+                  } as React.CSSProperties
+                }
+              />
+              <i style={{ left: 156, width: 32 }} />
+              <span
+                style={
+                  {
+                    left: 188,
+                    '--c': 'var(--m-green-400, var(--theme-accent, #00ff41))',
+                  } as React.CSSProperties
+                }
+              />
+            </div>
             <h2 className="big" style={{ fontSize: '16px', fontWeight: 800 }}>
               No workflows yet
             </h2>
@@ -388,11 +435,36 @@ export function WorkflowGrid({
                 </svg>
                 NEW WORKFLOW
               </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".yaml,.yml"
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+              <button
+                type="button"
+                className="btn gh sm"
+                onClick={handleImport}
+                title="Import workflow from YAML file"
+              >
+                IMPORT YAML
+              </button>
             </div>
             <p className="meta" style={{ marginTop: 14 }}>
-              Factory templates are seeded by the workflow-engine plugin.
+              Factory templates are seeded by the workflow-engine plugin.{' '}
+              {profile
+                ? `No workflows found for profile ${profile}.`
+                : 'No workflows found.'}
             </p>
           </div>
+          {duplicateModalOpen && (
+            <NewWorkflowWizard
+              initialYaml={duplicateYaml}
+              initialId={duplicateId}
+              onClose={() => setDuplicateModalOpen(false)}
+            />
+          )}
         </div>
       )
     }

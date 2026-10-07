@@ -43,6 +43,7 @@ export function WorkflowsLayout() {
   }
   const isEditingGraph = editingId !== null && editingId === selectedWorkflowId
   const [railCollapsed, setRailCollapsed] = useState(false)
+  const effectiveRailCollapsed = isEditingGraph || railCollapsed
 
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
   // B.4 Path B: Editor + Launch Wizard now load via useWorkflowParsed (parsed endpoint).
@@ -70,14 +71,16 @@ export function WorkflowsLayout() {
   return (
     <>
       <div
-        className={`wf-body${selectedWorkflowId ? '' : ' wf-body--browse'}${railCollapsed ? ' wf-body--rail-collapsed' : ''}`}
+        className={`wf-body${selectedWorkflowId ? '' : ' wf-body--browse'}${effectiveRailCollapsed ? ' wf-body--rail-collapsed' : ''}`}
       >
-        <aside className={`wf-library${railCollapsed ? ' is-collapsed' : ''}`}>
+        <aside
+          className={`wf-library${effectiveRailCollapsed ? ' is-collapsed' : ''}`}
+        >
           <WorkflowLibrary
             selectedId={selectedWorkflowId}
             onSelectWorkflow={(id) => setSearch({ wf: id })}
             onClearSelection={() => setSearch({ wf: undefined })}
-            collapsed={railCollapsed}
+            collapsed={effectiveRailCollapsed}
             onToggleCollapse={() => setRailCollapsed((c) => !c)}
             onFilteredChange={handleFilteredChange}
             workflows={workflows}

@@ -752,4 +752,28 @@ describe('WorkflowDetail VERSIONS (definition_versions feature)', () => {
     )
     expect(screen.getAllByText(/^v3$/).length).toBeGreaterThan(0)
   })
+
+  it('renders structured tags and scope in the About card and omits trigger phrases', () => {
+    mockWorkflowData = {
+      definition: {
+        ...mockDefinition,
+        source: 'user',
+        scope_path: '~/.hermes/profiles/hermes-switch',
+        tags: JSON.stringify(['catalog', 'youtube']),
+      },
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('catalog, youtube')).toBeTruthy()
+    expect(
+      screen.getByText('user · ~/.hermes/profiles/hermes-switch'),
+    ).toBeTruthy()
+    expect(screen.queryByText(/trigger phrases/i)).toBeNull()
+  })
 })

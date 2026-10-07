@@ -2102,6 +2102,42 @@
     overflow: hidden;
   }
 
+  /* Empty state dashed node illustration (WfV2Empty) */
+  .ghost {
+    position: relative;
+    width: 250px;
+    height: 70px;
+    margin: 0 auto 12px;
+  }
+  .ghost span {
+    position: absolute;
+    top: 14px;
+    width: 62px;
+    height: 40px;
+    border: 1px dashed
+      var(--m-border, var(--theme-border, rgba(216, 255, 227, 0.35)));
+    border-radius: 6px;
+    background: var(--m-card, var(--theme-card, rgba(7, 19, 10, 0.6)));
+  }
+  .ghost span::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    right: -1px;
+    top: -1px;
+    height: 3px;
+    border-radius: 6px 6px 0 0;
+    background: var(--c, var(--theme-accent));
+    opacity: 0.7;
+  }
+  .ghost i {
+    position: absolute;
+    top: 34px;
+    height: 1px;
+    border-top: 1px dashed
+      var(--m-border, var(--theme-border, rgba(216, 255, 227, 0.35)));
+  }
+
   .wfg-toolbar {
     display: flex;
     align-items: center;
@@ -2920,6 +2956,15 @@
     border-color: color-mix(in srgb, var(--wf-c-amber) 60%, transparent);
   }
 
+  .chip.wa {
+    color: var(--m-amber-400, var(--theme-warning, #ffb454));
+    border-color: color-mix(
+      in srgb,
+      var(--m-amber-400, var(--theme-warning, #ffb454)) 60%,
+      transparent
+    );
+  }
+
   .chip.yl {
     color: var(--wf-c-loop);
     border-color: rgba(255, 215, 0, 0.55);
@@ -3718,12 +3763,27 @@
   .tw .nm {
     font-weight: 700;
     color: var(--m-text, var(--theme-text));
+    max-width: 125px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: bottom;
+  }
+
+  .tw .nm a {
+    color: inherit;
+    text-decoration: none;
   }
 
   .tw .id {
     color: var(--m-text-faint, var(--theme-muted));
     font-size: 9.5px;
     margin-left: 6px;
+    max-width: 55px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: inline-block;
+    vertical-align: bottom;
   }
 
   /* QA1 F1-5: small mono meta text + screen-reader-only helper. */
@@ -3768,6 +3828,12 @@
   .tw tr:focus-within .acts {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  @media (max-width: 1280px) {
+    .tw .col-types {
+      display: none;
+    }
   }
 }
 

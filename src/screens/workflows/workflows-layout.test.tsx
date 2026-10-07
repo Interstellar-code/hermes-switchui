@@ -316,4 +316,22 @@ describe('WorkflowsLayout URL ⇄ view (real router)', () => {
     await waitFor(() => expect(wf()).toBeNull())
     expect(confirmSpy).toHaveBeenCalledTimes(2)
   })
+
+  it('collapses the library rail while editing the graph and restores on exit', async () => {
+    renderApp('/workflows?wf=wf-a')
+    await screen.findByTestId('detail-wf-a')
+    const libraryAside = document.querySelector('aside.wf-library')
+    const wfBody = document.querySelector('.wf-body')
+    expect(libraryAside?.classList.contains('is-collapsed')).toBe(false)
+    expect(wfBody?.classList.contains('wf-body--rail-collapsed')).toBe(false)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'EDIT GRAPH' }))
+    expect(libraryAside?.classList.contains('is-collapsed')).toBe(true)
+    expect(wfBody?.classList.contains('wf-body--rail-collapsed')).toBe(true)
+
+    // Exiting graph restores rail state
+    fireEvent.click(await screen.findByRole('button', { name: '← WORKFLOW' }))
+    expect(libraryAside?.classList.contains('is-collapsed')).toBe(false)
+    expect(wfBody?.classList.contains('wf-body--rail-collapsed')).toBe(false)
+  })
 })

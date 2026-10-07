@@ -282,8 +282,35 @@
 .wge-etb {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   flex-shrink: 0;
+  min-width: 0;
+}
+
+.wge-etb-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.wge-etb-left button {
+  flex-shrink: 0;
+}
+.wge-etb-left::-webkit-scrollbar {
+  display: none;
+}
+
+.wge-etb-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 .wge-dirty {
@@ -754,11 +781,17 @@
 
 /* ── layout (QA1 F4-2 / QA2 NEW-3) ── */
 
-/* The toolbar wraps instead of overflowing, and stays above every panel. */
+/* The toolbar is single-row; left group scrolls if constrained, right group never wraps */
 .wge-etb {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   position: relative;
   z-index: 8;
+}
+
+@media (max-width: 600px) {
+  .wge-etb {
+    flex-wrap: wrap;
+  }
 }
 
 .wge-canvas-row {
@@ -805,7 +838,8 @@
   }
 
   .wge-canvas-wrap {
-    min-width: 0;
+    min-width: 480px;
+    min-height: 360px;
   }
 
   .wge-mirror {

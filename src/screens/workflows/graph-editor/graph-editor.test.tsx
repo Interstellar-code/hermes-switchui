@@ -684,6 +684,64 @@ describe('WorkflowGraphEditor', () => {
     expect(mirrorYaml(container)).not.toContain('id: bash-node')
     expect(screen.queryByText(/UNSAVED/)).toBeNull()
   })
+
+  it('groups toolbar actions into left and right containers', async () => {
+    const { container } = await renderReady()
+    const leftGroup = container.querySelector('.wge-etb-left')
+    const rightGroup = container.querySelector('.wge-etb-right')
+    expect(leftGroup).toBeTruthy()
+    expect(rightGroup).toBeTruthy()
+
+    expect(leftGroup?.querySelector('button[aria-label="Undo"]')).toBeTruthy()
+    expect(leftGroup?.querySelector('button[aria-label="Redo"]')).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: 'AUTO-LAYOUT' })
+        .closest('.wge-etb-left'),
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: 'YAML MIRROR' })
+        .closest('.wge-etb-left'),
+    ).toBeTruthy()
+
+    expect(
+      screen.getByRole('button', { name: 'DISCARD' }).closest('.wge-etb-right'),
+    ).toBeTruthy()
+    expect(
+      screen
+        .getByRole('button', { name: /SAVE AS/i })
+        .closest('.wge-etb-right'),
+    ).toBeTruthy()
+  })
+
+  it('renders node and edge count and validation chip in embedded canvas header', () => {
+    const yaml = `name: Test\nnodes:\n  - id: n1\n    bash: echo 1\n  - id: n2\n    bash: echo 2\n    depends_on: [n1]\n`
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <WorkflowGraphEditor
+          embedded={{
+            yaml,
+            onChange: vi.fn(),
+            issues: {
+              kind: 'ready',
+              errors: [
+                {
+                  message: 'Bad node',
+                  line: 1,
+                  col: null,
+                  code: 'bad_node',
+                },
+              ],
+              warnings: [],
+            },
+          }}
+        />
+      </QueryClientProvider>,
+    )
+    expect(screen.getByText('2 nodes · 1 edge')).toBeTruthy()
+    expect(screen.getByText('1 ISSUE')).toBeTruthy()
+  })
 })
 
 function confirmDiscardFlow() {

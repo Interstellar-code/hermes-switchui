@@ -117,6 +117,34 @@ describe('WorkflowGrid', () => {
     expect(screen.getByRole('button', { name: /new workflow/i })).toBeTruthy()
   })
 
+  it('renders dashed node illustration, profile copy, and IMPORT YAML action on empty state', () => {
+    const { container } = renderWithClient(
+      <WorkflowGrid
+        workflows={[]}
+        onSelect={vi.fn()}
+        hasAnyWorkflows={false}
+      />,
+    )
+    const ghost = container.querySelector('.ghost')
+    expect(ghost).toBeTruthy()
+    expect(ghost?.querySelectorAll('span').length).toBe(3)
+
+    expect(
+      screen.getByText(
+        /Factory templates are seeded by the workflow-engine plugin/,
+      ),
+    ).toBeTruthy()
+
+    const importBtn = screen.getByRole('button', { name: /IMPORT YAML/i })
+    expect(importBtn).toBeTruthy()
+    const fileInput =
+      container.querySelector<HTMLInputElement>('input[type="file"]')
+    expect(fileInput).toBeTruthy()
+    const clickSpy = vi.spyOn(fileInput!, 'click')
+    fireEvent.click(importBtn)
+    expect(clickSpy).toHaveBeenCalledTimes(1)
+  })
+
   it('counts hidden subgraphs from the unfiltered list, not the filtered one', () => {
     const w = makeWf({ id: 'w1', name: 'Only One' })
     renderWithClient(
