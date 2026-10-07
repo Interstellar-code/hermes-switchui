@@ -854,3 +854,55 @@
     max-height: 42%;
   }
 }
+
+/* At ≤1024 (FIX8b): the palette, toolbar, canvas, validation strip and
+   selected node panel stack vertically. At 1024×900, ensure the canvas retains
+   ≥360px height by keeping the canvas row and wrap from shrinking, allow the
+   editor page to scroll vertically, and limit the validation strip and node
+   config panel to at most 180px with internal scroll so they do not squeeze
+   the canvas. */
+@media (max-width: 1024px) {
+  .wge-root {
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .wge-main {
+    flex: 1 0 auto;
+    min-height: min-content;
+  }
+
+  .wge-center {
+    flex: 1 0 100%;
+    min-height: min-content;
+  }
+
+  .wge-canvas-row {
+    flex: 0 0 auto;
+    min-height: 360px;
+    height: auto;
+  }
+
+  .wge-canvas-wrap {
+    min-height: 360px;
+    height: 360px;
+    flex: 1 0 360px;
+  }
+
+  .wge-val {
+    max-height: 180px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .wge-cfg {
+    max-height: 180px;
+    overflow-y: auto;
+    flex: 0 0 auto;
+  }
+
+  .wge-mirror {
+    max-height: 240px;
+    flex: 0 0 auto;
+  }
+}

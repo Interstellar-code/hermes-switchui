@@ -2,6 +2,8 @@
 // graph-editor.test.tsx — F4 component tests. Only the network layer
 // (api-client functions) and the React Flow canvas shell are mocked; the
 // yaml-model, history reducer, panels and editor logic are the real code.
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -741,6 +743,23 @@ describe('WorkflowGraphEditor', () => {
     )
     expect(screen.getByText('2 nodes · 1 edge')).toBeTruthy()
     expect(screen.getByText('1 ISSUE')).toBeTruthy()
+  })
+
+  it('enforces editor layout contract at ≤1024 with canvas ≥360px and bounded panels (FIX8b)', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/styles/graph-editor.css'),
+      'utf8',
+    )
+    const media1024 = css.match(
+      /@media\s*\(max-width:\s*1024px\)\s*\{[\s\S]*?\n\}/,
+    )
+    expect(media1024?.[0]).toBeTruthy()
+    expect(media1024?.[0]).toMatch(/\.wge-root\s*\{[^}]*overflow-y:\s*auto/s)
+    expect(media1024?.[0]).toMatch(
+      /\.wge-canvas-wrap\s*\{[^}]*min-height:\s*360px/s,
+    )
+    expect(media1024?.[0]).toMatch(/\.wge-val\s*\{[^}]*max-height:\s*180px/s)
+    expect(media1024?.[0]).toMatch(/\.wge-cfg\s*\{[^}]*max-height:\s*180px/s)
   })
 })
 
