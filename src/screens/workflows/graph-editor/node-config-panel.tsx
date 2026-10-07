@@ -129,7 +129,9 @@ export function NodeConfigPanel({
             value={node.phase ?? ''}
             placeholder="auto"
             spellCheck={false}
-            onChange={(e) => onPhaseChange(e.target.value || null)}
+            onChange={(e) =>
+              onPhaseChange(e.target.value === '' ? null : e.target.value)
+            }
           />
           <datalist id="wge-phases">
             {phaseOptions.map((p) => (
@@ -137,21 +139,23 @@ export function NodeConfigPanel({
             ))}
           </datalist>
         </div>
-        <div className="wge-f">
-          <label htmlFor="wge-nto">TIMEOUT</label>
-          <input
-            id="wge-nto"
-            type="number"
-            min={1}
-            value={node.timeout ?? ''}
-            placeholder="none"
-            onChange={(e) =>
-              onTimeoutChange(
-                e.target.value === '' ? null : Number(e.target.value),
-              )
-            }
-          />
-        </div>
+        {(node.type === 'bash' || node.type === 'script') && (
+          <div className="wge-f">
+            <label htmlFor="wge-nto">TIMEOUT</label>
+            <input
+              id="wge-nto"
+              type="number"
+              min={1}
+              value={node.timeout ?? ''}
+              placeholder="none"
+              onChange={(e) =>
+                onTimeoutChange(
+                  e.target.value === '' ? null : Number(e.target.value),
+                )
+              }
+            />
+          </div>
+        )}
       </div>
       <div className="wge-f">
         <label>RUNS AFTER</label>

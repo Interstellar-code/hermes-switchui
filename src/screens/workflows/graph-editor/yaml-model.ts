@@ -130,6 +130,9 @@ export function nodeBodyText(raw: YAMLMap, type: NodeType): string {
 
 function depsOf(raw: YAMLMap): Array<string> {
   const dep = raw.get('depends_on', true)
+  if (isScalar(dep) && typeof dep.value === 'string' && dep.value.trim()) {
+    return [dep.value.trim()]
+  }
   if (!isSeq(dep)) return []
   return dep.items
     .map((d) => (isScalar(d) && typeof d.value === 'string' ? d.value : null))
@@ -139,6 +142,19 @@ function depsOf(raw: YAMLMap): Array<string> {
 function summarise(body: string): string {
   const first = body.split('\n')[0] ?? ''
   return first.length > 64 ? `${first.slice(0, 61)}…` : first
+}
+
+/** Return parse error string if the text is invalid YAML, or null if valid. */
+export function getYamlParseError(text: string): string | null {
+  try {
+    const doc = parseDocument(text)
+    if (doc.errors.length > 0) {
+      return doc.errors[0]?.message ?? 'Invalid YAML'
+    }
+    return null
+  } catch (e) {
+    return e instanceof Error ? e.message : 'Invalid YAML'
+  }
 }
 
 /** Parse the draft into the editor graph view. Null when YAML/nodes are unreadable. */
@@ -220,7 +236,7 @@ function edit(
     }
   }
   mutate(doc, nodes)
-  return doc.toString()
+  return doc.toString({ lineWidth: 0 })
 }
 
 function findNode(nodes: YAMLSeq<YAMLMap>, id: string): YAMLMap {
@@ -314,6 +330,51 @@ function findNodeOrNull(nodes: YAMLSeq<YAMLMap>, id: string): YAMLMap | null {
   return null
 }
 
+/** Regular expression for $node.output(.attr)? references. */
+export const NODE_OUTPUT_REF_RE =
+  /\$([a-zA-Z_][a-zA-Z0-9_-]*)\.output(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?/g
+
+/** Also matches ${node.output(.attr)?} references. */
+const NODE_OUTPUT_BRACE_REF_RE =
+  /\$\{([a-zA-Z_][a-zA-Z0-9_-]*)\.output(?:\.([a-zA-Z_][a-zA-Z0-9_]*))?\}/g
+
+function rewriteOutputRefsInText(
+  text: string,
+  oldId: string,
+  newId: string,
+): string {
+  let res = text.replace(NODE_OUTPUT_BRACE_REF_RE, (match, prefix, suffix) => {
+    if (prefix === oldId) {
+      return `\${${newId}.output${suffix ? `.${suffix}` : ''}}`
+    }
+    return match
+  })
+  res = res.replace(NODE_OUTPUT_REF_RE, (match, prefix, suffix) => {
+    if (prefix === oldId) {
+      return `$${newId}.output${suffix ? `.${suffix}` : ''}`
+    }
+    return match
+  })
+  return res
+}
+
+function rewriteOutputRefsInNode(
+  raw: YAMLMap,
+  oldId: string,
+  newId: string,
+): void {
+  const textKeys = ['prompt', 'bash', 'script', 'command', 'when']
+  for (const key of textKeys) {
+    const val = raw.get(key, true)
+    if (isScalar(val) && typeof val.value === 'string') {
+      const next = rewriteOutputRefsInText(val.value, oldId, newId)
+      if (next !== val.value) {
+        val.value = next
+      }
+    }
+  }
+}
+
 /** Remove nodes and scrub dangling depends_on references to them. */
 export function removeNodes(text: string, ids: Array<string>): string {
   return edit(text, (_doc, nodes) => {
@@ -326,18 +387,25 @@ export function removeNodes(text: string, ids: Array<string>): string {
       const raw = nodeMap(item)
       if (!raw) continue
       const dep = raw.get('depends_on', true)
-      if (!isSeq(dep)) continue
-      const kept = dep.items.filter(
-        (d) =>
-          !(isScalar(d) && typeof d.value === 'string' && gone.has(d.value)),
-      )
-      if (kept.length === 0) raw.delete('depends_on')
-      else dep.items = kept
+      if (
+        isScalar(dep) &&
+        typeof dep.value === 'string' &&
+        gone.has(dep.value)
+      ) {
+        raw.delete('depends_on')
+      } else if (isSeq(dep)) {
+        const kept = dep.items.filter(
+          (d) =>
+            !(isScalar(d) && typeof d.value === 'string' && gone.has(d.value)),
+        )
+        if (kept.length === 0) raw.delete('depends_on')
+        else dep.items = kept
+      }
     }
   })
 }
 
-/** Rename a node, rewriting every depends_on reference to it. */
+/** Rename a node, rewriting every depends_on reference and $old.output reference to it. */
 export function renameNode(text: string, id: string, nextId: string): string {
   const trimmed = nextId.trim()
   if (!NODE_ID_RE.test(trimmed)) {
@@ -353,10 +421,14 @@ export function renameNode(text: string, id: string, nextId: string): string {
       const other = nodeMap(item)
       if (!other) continue
       const dep = other.get('depends_on', true)
-      if (!isSeq(dep)) continue
-      for (const d of dep.items) {
-        if (isScalar(d) && d.value === id) d.value = trimmed
+      if (isScalar(dep) && dep.value === id) {
+        dep.value = trimmed
+      } else if (isSeq(dep)) {
+        for (const d of dep.items) {
+          if (isScalar(d) && d.value === id) d.value = trimmed
+        }
       }
+      rewriteOutputRefsInNode(other, id, trimmed)
     }
   })
 }

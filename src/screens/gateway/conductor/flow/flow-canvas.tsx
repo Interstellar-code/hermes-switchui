@@ -12,6 +12,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  applyEdgeChanges,
   getViewportForBounds,
   useNodesInitialized,
   useNodesState,
@@ -22,6 +23,7 @@ import { FlowControls } from './flow-controls'
 import { FlowNodeComponent } from './flow-node'
 import { mergePositions, toFlow } from './flow-model'
 import { StageLanes } from './stage-lanes'
+import type { Edge, EdgeChange } from '@xyflow/react'
 import type { FlowNode, FlowNodeMeta } from './flow-model'
 import type { DagModel } from '../dag-model'
 import { useConductorLayoutStore } from '@/stores/conductor-layout-store'
@@ -141,10 +143,40 @@ function FlowCanvasInner({
       ).nodes,
   )
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const edges = useMemo(
+  const initialEdges = useMemo(
     () => toFlow(dag, {}, preview, editable).edges,
     [dag, preview, editable],
   )
+  const [edges, setEdges] = useState<Array<Edge>>(initialEdges)
+
+  useEffect(() => {
+    setEdges((prev) => {
+      const selectedIds = new Set(
+        prev.filter((e) => e.selected).map((e) => e.id),
+      )
+      return toFlow(dag, {}, preview, editable).edges.map((e) => {
+        if (selectedIds.has(e.id)) return { ...e, selected: true }
+        return e
+      })
+    })
+  }, [dag, preview, editable])
+
+  const onEdgesChange = (changes: Array<EdgeChange>) => {
+    setEdges((eds) => applyEdgeChanges(changes, eds))
+    if (!editable || !onEdgesDelete) return
+    const removed = changes.filter(
+      (c): c is { type: 'remove'; id: string } => c.type === 'remove',
+    )
+    if (removed.length === 0) return
+    onEdgesDelete(
+      removed
+        .map((c) => {
+          const found = edges.find((x) => x.id === c.id)
+          return found ? { source: found.source, target: found.target } : null
+        })
+        .filter((p): p is { source: string; target: string } => p != null),
+    )
+  }
 
   // Status polls rebuild node data; on-canvas positions (and measurements) stay.
   useEffect(() => {
@@ -368,29 +400,7 @@ function FlowCanvasInner({
                 )
             : undefined
         }
-        onEdgesChange={
-          editable && onEdgesDelete
-            ? (changes) => {
-                const removed = changes.filter(
-                  (c): c is { type: 'remove'; id: string } =>
-                    c.type === 'remove',
-                )
-                if (removed.length === 0) return
-                onEdgesDelete(
-                  removed
-                    .map((c) => {
-                      const found = edges.find((x) => x.id === c.id)
-                      return found
-                        ? { source: found.source, target: found.target }
-                        : null
-                    })
-                    .filter(
-                      (p): p is { source: string; target: string } => p != null,
-                    ),
-                )
-              }
-            : undefined
-        }
+        onEdgesChange={editable ? onEdgesChange : undefined}
         onSelectionChange={
           editable && onSelectionChange
             ? ({ nodes: selected }) =>

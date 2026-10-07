@@ -74,7 +74,6 @@ export const PALETTE_TYPES: Array<{ type: NodeType; label: string }> = [
   { type: 'command', label: 'Command' },
   { type: 'approval', label: 'Approval' },
   { type: 'loop', label: 'Loop' },
-  { type: 'router', label: 'Router' },
   { type: 'cancel', label: 'Cancel' },
   { type: 'subgraph', label: 'Subgraph' },
 ]

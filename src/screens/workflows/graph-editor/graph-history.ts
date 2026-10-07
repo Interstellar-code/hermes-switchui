@@ -16,7 +16,7 @@ export interface GraphHistoryState {
 }
 
 export type GraphHistoryAction =
-  | { type: 'edit'; yaml: string }
+  | { type: 'edit'; yaml: string; coalesce?: boolean }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'markSaved' }
@@ -40,9 +40,17 @@ export function graphReducer(
   switch (action.type) {
     case 'edit': {
       if (action.yaml === state.present) return state
+      // Coalescing edit (e.g. consecutive keystrokes in textarea): replace present without pushing new past entry
+      if (action.coalesce && state.past.length > 0) {
+        return { ...state, present: action.yaml, future: [] }
+      }
       const past = [...state.past, state.present]
-      if (past.length > HISTORY_CAP) past.shift()
-      return { ...state, past, present: action.yaml, future: [] }
+      let savedDepth = state.savedDepth
+      if (past.length > HISTORY_CAP) {
+        past.shift()
+        savedDepth = Math.max(0, savedDepth - 1)
+      }
+      return { ...state, past, present: action.yaml, future: [], savedDepth }
     }
     case 'undo': {
       if (state.past.length === 0) return state

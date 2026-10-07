@@ -40,6 +40,15 @@ export function WorkflowsLayout() {
   // and again on popstate so the browser Back button restores the view.
   useEffect(() => {
     function readUrlParams() {
+      const guard = graphLeaveGuardRef.current
+      if (guard && !guard()) {
+        // User cancelled discarding changes: push current URL back so Back button does not navigate
+        const currentUrl = new URL(window.location.href)
+        if (selectedWorkflowId)
+          currentUrl.searchParams.set('wf', selectedWorkflowId)
+        window.history.pushState(null, '', currentUrl.toString())
+        return
+      }
       const params = new URLSearchParams(window.location.search)
       setSelectedWorkflowId(params.get('wf'))
       setWizardOpenForId(params.get('wizard'))
@@ -49,7 +58,7 @@ export function WorkflowsLayout() {
     readUrlParams()
     window.addEventListener('popstate', readUrlParams)
     return () => window.removeEventListener('popstate', readUrlParams)
-  }, [])
+  }, [selectedWorkflowId])
 
   function handleOpenLaunchWizard(workflowId: string) {
     setWizardOpenForId(workflowId)

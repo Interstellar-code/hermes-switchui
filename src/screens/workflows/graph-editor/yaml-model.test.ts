@@ -157,6 +157,46 @@ describe('yaml-model lossless round-trip', () => {
     expect(text).not.toContain('resolve-input')
   })
 
+  it('renameNode rewrites $nodeId.output references across prompt, bash, script, and when', () => {
+    const yamlWithRefs = `nodes:
+  - id: step_one
+    bash: echo "hello"
+  - id: step_two
+    prompt: Summarize $step_one.output and \${step_one.output}
+    when: "$step_one.output != ''"
+    depends_on: step_one
+`
+    const updated = renameNode(yamlWithRefs, 'step_one', 'step_first')
+    const obj = asObj(updated)
+    const nodes = obj['nodes'] as Array<Record<string, unknown>>
+    expect(nodes[0]['id']).toBe('step_first')
+    expect(nodes[1]['prompt']).toBe(
+      'Summarize $step_first.output and ${step_first.output}',
+    )
+    expect(nodes[1]['when']).toBe("$step_first.output != ''")
+    expect(nodes[1]['depends_on']).toBe('step_first')
+    expect(updated).not.toContain('step_one')
+  })
+
+  it('readGraph and removeNodes handle string scalar depends_on', () => {
+    const yamlScalar = `nodes:
+  - id: a
+    prompt: Hello
+  - id: b
+    prompt: World
+    depends_on: a
+`
+    const g = readGraph(yamlScalar)!
+    expect(g.nodes[1].dependsOn).toEqual(['a'])
+
+    const pruned = removeNodes(yamlScalar, ['a'])
+    const obj = asObj(pruned)
+    const nodes = obj['nodes'] as Array<Record<string, unknown>>
+    expect(nodes).toHaveLength(1)
+    expect(nodes[0]['id']).toBe('b')
+    expect(nodes[0]['depends_on']).toBeUndefined()
+  })
+
   it('renameNode rejects taken ids and invalid characters', () => {
     expect(() => renameNode(BASE, 'extract', 'apply')).toThrow(/taken/i)
     expect(() => renameNode(BASE, 'extract', 'bad id!')).toThrow(/letters/)

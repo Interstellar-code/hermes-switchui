@@ -9,12 +9,15 @@
  */
 import {
   Suspense,
+  useCallback,
+  useContext,
   useEffect,
   useMemo,
   useReducer,
   useRef,
   useState,
 } from 'react'
+import { useBlocker, useRouter } from '@tanstack/react-router'
 import {
   useUpsertWorkflowDefinition,
   useWorkflowFeatures,
@@ -30,6 +33,7 @@ import {
   addDependency,
   addNode,
   duplicateNode,
+  getYamlParseError,
   removeDependency,
   removeNodes,
   renameNode,
@@ -40,6 +44,7 @@ import {
   setNodeTrigger,
   setNodeType,
   suggestNodeId,
+  wouldCreateCycle,
 } from './yaml-model'
 import { buildEditorDag } from './editor-graph'
 import { graphReducer, initHistory, unsavedCount } from './graph-history'
@@ -117,9 +122,12 @@ export function WorkflowGraphEditor({
   const [history, dispatch] = useReducer(graphReducer, undefined, () =>
     initHistory(''),
   )
-  const [baseline, setBaseline] = useState<{ id: string } | null>(null)
+  const [baseline, setBaseline] = useState<{
+    id: string
+    checksum?: string
+  } | null>(null)
   if (def && baseline?.id !== def.id) {
-    setBaseline({ id: def.id })
+    setBaseline({ id: def.id, checksum: def.checksum })
     dispatch({ type: 'reset', yaml: def.yaml })
   }
 
@@ -136,11 +144,13 @@ export function WorkflowGraphEditor({
   const [validation, setValidation] = useState<ValidationState>({
     phase: 'idle',
   })
+  const [validatedDraft, setValidatedDraft] = useState<string | null>(null)
   const [save, setSave] = useState<SavePhase>({ kind: 'idle' })
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const [renameError, setRenameError] = useState<string | null>(null)
 
   const editorDag = useMemo(() => buildEditorDag(draft), [draft])
+  const parseError = useMemo(() => getYamlParseError(draft), [draft])
   const errorByNode = useMemo(() => {
     const map = new Map<string, string>()
     if (validation.phase === 'done') {
@@ -166,12 +176,15 @@ export function WorkflowGraphEditor({
     [editorDag, selectedNodeId],
   )
 
+  const isDraftValidated = validatedDraft === draft
   const blockingErrors =
-    validation.phase === 'done' ? validation.errors.length : 0
+    !isDraftValidated || validation.phase !== 'done'
+      ? 1
+      : validation.errors.length
 
-  function applyEdit(nextYaml: string | null | undefined) {
+  function applyEdit(nextYaml: string | null | undefined, coalesce = false) {
     if (typeof nextYaml !== 'string') return
-    dispatch({ type: 'edit', yaml: nextYaml })
+    dispatch({ type: 'edit', yaml: nextYaml, coalesce })
   }
 
   function handleAddNode(type: NodeType, position?: Point, afterId?: string) {
@@ -192,6 +205,9 @@ export function WorkflowGraphEditor({
   }
 
   function handleConnect(connection: { source: string; target: string }) {
+    if (wouldCreateCycle(draft, connection.source, connection.target)) {
+      return
+    }
     try {
       applyEdit(addDependency(draft, connection.target, connection.source))
     } catch {
@@ -209,8 +225,18 @@ export function WorkflowGraphEditor({
   }
 
   function handleEdgesDelete(edges: Array<{ source: string; target: string }>) {
+    // If the node at either end was just deleted, removeNodes already stripped dependencies
+    // in the same user action. Ignore dangling edges to avoid double undo steps.
+    const activeNodeIds = new Set(
+      (editorDag?.graph.nodes ?? []).map((n) => n.id),
+    )
+    const validEdges = edges.filter(
+      (e) => activeNodeIds.has(e.source) && activeNodeIds.has(e.target),
+    )
+    if (validEdges.length === 0) return
+
     let yaml = draft
-    for (const { source, target } of edges) {
+    for (const { source, target } of validEdges) {
       try {
         yaml = removeDependency(yaml, target, source)
       } catch {
@@ -257,7 +283,8 @@ export function WorkflowGraphEditor({
       void (async () => {
         if (hasValidate) {
           try {
-            const result = await validateWorkflowDefinition(draft, workflowId)
+            // HIGH 2: validate with id = undefined to avoid self id_taken collision
+            const result = await validateWorkflowDefinition(draft, undefined)
             if (cancelled) return
             setValidation({
               phase: 'done',
@@ -265,6 +292,7 @@ export function WorkflowGraphEditor({
               errors: result.errors.map(normaliseIssue),
               warnings: result.warnings.map(normaliseIssue),
             })
+            setValidatedDraft(draft)
             return
           } catch (e) {
             if (!(e instanceof WorkflowEngineUnavailableError)) {
@@ -273,6 +301,7 @@ export function WorkflowGraphEditor({
                 phase: 'error',
                 message: e instanceof Error ? e.message : String(e),
               })
+              setValidatedDraft(draft)
               return
             }
             // engine down → client lint below
@@ -298,28 +327,49 @@ export function WorkflowGraphEditor({
             ),
           ],
         })
+        setValidatedDraft(draft)
       })()
     }, VALIDATE_DEBOUNCE_MS)
     return () => {
       cancelled = true
       clearTimeout(timer)
     }
-  }, [draft, hasValidate, workflowId, baseline])
+  }, [draft, hasValidate, baseline])
 
-  // Undo / redo + A-to-add keyboard shortcuts (never while typing in a field).
+  // Leave-page guard: beforeunload + host-screen guard callback.
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  const changesRef = useRef(changes)
+  changesRef.current = changes
+
+  // TanStack Router blocker: guards sidebar / app route changes when dirty.
+  const router = useRouter({ warn: false })
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  const blockGuard = router ? (
+    <RouterBlockGuard onConfirmLeave={confirmLeave} dirtyRef={dirtyRef} />
+  ) : null
+
+  // Undo / redo + A-to-add keyboard shortcuts (never while typing in a field or with modifiers/dialogs).
   const addAfterSelectedRef = useRef(() => {})
   addAfterSelectedRef.current = () =>
     handleAddNode(lastPaletteType, undefined, selectedNodeId ?? undefined)
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isTypingTarget(event.target)) return
+      if (
+        document.querySelector(
+          'dialog[open], [role="dialog"], [role="alertdialog"]',
+        )
+      ) {
+        return
+      }
       const meta = event.metaKey || event.ctrlKey
       if (meta && event.key.toLowerCase() === 'z') {
         event.preventDefault()
         dispatch({ type: event.shiftKey ? 'redo' : 'undo' })
         return
       }
-      if (event.key === 'a' || event.key === 'A') {
+      if (!meta && !event.altKey && (event.key === 'a' || event.key === 'A')) {
         event.preventDefault()
         addAfterSelectedRef.current()
       }
@@ -328,11 +378,6 @@ export function WorkflowGraphEditor({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
-  // Leave-page guard: beforeunload + host-screen guard callback.
-  const dirtyRef = useRef(dirty)
-  dirtyRef.current = dirty
-  const changesRef = useRef(changes)
-  changesRef.current = changes
   function confirmLeave(): boolean {
     if (!dirtyRef.current) return true
     const ok = window.confirm(
@@ -398,7 +443,8 @@ export function WorkflowGraphEditor({
 
   function handleSave() {
     if (blockingErrors > 0 || !dirty || !def) return
-    void persist(def.checksum)
+    // HIGH 1: send baseline.checksum so concurrent refetches don't silently overwrite
+    void persist(baseline?.checksum)
   }
 
   async function handleConflictReload() {
@@ -407,7 +453,7 @@ export function WorkflowGraphEditor({
     const nextDef = result.data?.definition
     if (nextDef) {
       dispatch({ type: 'reset', yaml: nextDef.yaml })
-      setBaseline({ id: nextDef.id })
+      setBaseline({ id: nextDef.id, checksum: nextDef.checksum })
       setSelectedNodeId(null)
       setPositions({})
     }
@@ -575,9 +621,7 @@ export function WorkflowGraphEditor({
               title={saveTitle}
               onClick={handleSave}
             >
-              {save.kind === 'saving'
-                ? 'SAVING…'
-                : `SAVE AS v${currentVersion + 1}`}
+              {save.kind === 'saving' ? 'SAVING…' : 'SAVE'}
             </button>
           </div>
 
@@ -624,7 +668,9 @@ export function WorkflowGraphEditor({
                 </Suspense>
               ) : (
                 <div className="wge-canvas-empty" role="status">
-                  No nodes in the draft — add one from the palette, or undo.
+                  {parseError
+                    ? `YAML parse error: ${parseError}`
+                    : 'No nodes in the draft — add one from the palette, or undo.'}
                 </div>
               )}
             </div>
@@ -670,7 +716,7 @@ export function WorkflowGraphEditor({
               applyEdit(setNodePhase(draft, selectedNode.id, phase))
             }
             onBodyChange={(body) =>
-              applyEdit(setNodeBody(draft, selectedNode.id, body))
+              applyEdit(setNodeBody(draft, selectedNode.id, body), true)
             }
             onAddDependency={(depId) => {
               try {
@@ -693,9 +739,13 @@ export function WorkflowGraphEditor({
             }
             onDelete={() => handleNodesDelete([selectedNode.id])}
             onDuplicate={() => {
-              const result = duplicateNode(draft, selectedNode.id)
-              applyEdit(result.yaml)
-              setSelectedNodeId(result.newId)
+              try {
+                const result = duplicateNode(draft, selectedNode.id)
+                applyEdit(result.yaml)
+                setSelectedNodeId(result.newId)
+              } catch {
+                // duplicate error ignored
+              }
             }}
           />
         ) : (
@@ -739,7 +789,7 @@ export function WorkflowGraphEditor({
             <p id="wge-conflict-msg">
               This workflow was saved by someone else while you were editing.
               Reload the newer definition (your draft is discarded) or overwrite
-              it with your draft?
+              it with your draft (the other change will be lost)?
             </p>
             <div className="wge-dialog-actions">
               <button
@@ -767,6 +817,24 @@ export function WorkflowGraphEditor({
           </div>
         </div>
       )}
+      {blockGuard}
     </div>
   )
+}
+
+function RouterBlockGuard({
+  onConfirmLeave,
+  dirtyRef,
+}: {
+  onConfirmLeave: () => boolean
+  dirtyRef: React.RefObject<boolean>
+}) {
+  useBlocker({
+    shouldBlockFn: () => {
+      if (!dirtyRef.current) return false
+      return !onConfirmLeave()
+    },
+    enableBeforeUnload: false,
+  })
+  return null
 }

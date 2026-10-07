@@ -217,12 +217,18 @@ describe('WorkflowGraphEditor', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers()
     cleanup()
     vi.clearAllMocks()
     mockValidate.mockReset()
     mockUpsert.mockReset()
+    const { getWorkflowFeatures } = await import('../api-client')
+    ;(getWorkflowFeatures as ReturnType<typeof vi.fn>).mockResolvedValue({
+      features: [] as Array<string>,
+      schedulerAlive: true,
+      profile: 'hermes-switch',
+    })
   })
 
   it('renders the palette, toolbar and canvas once the definition loads', async () => {
@@ -231,7 +237,7 @@ describe('WorkflowGraphEditor', () => {
     expect(
       screen.getByRole('button', { name: /Add approval node/i }),
     ).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^SAVE AS v3$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^SAVE$/i })).toBeTruthy()
     expect(container.querySelector('[data-editable="yes"]')).toBeTruthy()
     // client lint of the pristine definition: valid
     await act(async () => {
@@ -307,7 +313,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     // client lint: no_nodes is an error → save blocked
-    const save = screen.getByRole('button', { name: /^SAVE AS v3$/i })
+    const save = screen.getByRole('button', { name: /^SAVE$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
 
     // palette still works on the empty draft (nodes list recreated)
@@ -346,7 +352,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     expect(screen.getByText(/1 ERROR/i)).toBeTruthy()
-    const save = screen.getByRole('button', { name: /^SAVE AS v3$/i })
+    const save = screen.getByRole('button', { name: /^SAVE$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
     expect(save.getAttribute('title')).toContain('Fix 1 error')
   })
@@ -385,13 +391,10 @@ describe('WorkflowGraphEditor', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(450)
     })
-    expect(mockValidate).toHaveBeenCalledWith(
-      DEF_YAML,
-      'youtube-catalog-intake',
-    )
+    expect(mockValidate).toHaveBeenCalledWith(DEF_YAML, undefined)
     expect(screen.getByText(/1 ERROR · 1 WARNING/i)).toBeTruthy()
     expect(screen.getByText(/Cycle in depends_on/i)).toBeTruthy()
-    const save = screen.getByRole('button', { name: /^SAVE AS v3$/i })
+    const save = screen.getByRole('button', { name: /^SAVE$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
     // clicking the node ref in the panel focuses the node
     fireEvent.click(screen.getByRole('button', { name: 'extract' }))
@@ -405,7 +408,7 @@ describe('WorkflowGraphEditor', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
 
-    const save = screen.getByRole('button', { name: /^SAVE AS v3$/i })
+    const save = screen.getByRole('button', { name: /^SAVE$/i })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(450)
     })
@@ -449,7 +452,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^SAVE AS v3$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^SAVE$/i }))
       await vi.advanceTimersByTimeAsync(20)
     })
 
@@ -462,6 +465,46 @@ describe('WorkflowGraphEditor', () => {
     })
     expect(onExit).toHaveBeenCalledTimes(1)
     expect(mockUpsert).toHaveBeenCalledTimes(2)
+  })
+
+  it('refetch with a new checksum while dirty does not move baseline: save still sends original checksum and hits 409 path', async () => {
+    await renderReady()
+    // Make draft dirty
+    fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
+
+    // Simulate background refetch returning an updated checksum on the server
+    const { getWorkflowDefinitionParsed } = await import('../api-client')
+    ;(
+      getWorkflowDefinitionParsed as ReturnType<typeof vi.fn>
+    ).mockResolvedValue({
+      definition: { ...mockDefinition, checksum: 'cksum-2' },
+      parsed: mockParsed,
+    })
+
+    mockUpsert.mockImplementation((input: { expected_checksum?: string }) => {
+      // Must have sent original cksum-1, NOT the refetched cksum-2
+      expect(input.expected_checksum).toBe('cksum-1')
+      return Promise.reject(
+        Object.assign(new Error('checksum mismatch'), {
+          status: 409,
+          code: 'conflict',
+          serverError: 'Definition changed elsewhere',
+        }),
+      )
+    })
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(450)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: /^SAVE$/i }))
+      await vi.advanceTimersByTimeAsync(20)
+    })
+
+    expect(
+      screen.getByRole('alertdialog', { name: /CHANGED ELSEWHERE/i }),
+    ).toBeTruthy()
+    expect(screen.getByText(/the other change will be lost/i)).toBeTruthy()
   })
 
   it('leave guard blocks exit while dirty and proceeds after confirm', async () => {
