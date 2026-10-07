@@ -614,12 +614,16 @@ export function WorkflowTable({
         />
       )}
 
-      <BulkDeleteDialog
-        open={bulkDeleteOpen}
-        selected={selectedWorkflows}
-        onClose={() => setBulkDeleteOpen(false)}
-        onCleared={handleBulkCleared}
-      />
+      {/* Mounted only while open: fresh dialog state per run (F8 review LOW
+          on stale result state grabbing focus after a reopen). */}
+      {bulkDeleteOpen && (
+        <BulkDeleteDialog
+          open
+          selected={selectedWorkflows}
+          onClose={() => setBulkDeleteOpen(false)}
+          onCleared={handleBulkCleared}
+        />
+      )}
     </>
   )
 }

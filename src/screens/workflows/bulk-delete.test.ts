@@ -45,14 +45,33 @@ function makeWf(
   }
 }
 
+/** The route's real 409 body (F8 review LOW: tests used a made-up string). */
 const RUN_HISTORY_ERROR =
-  "cannot delete 'u2': workflow has run history — delete its runs first"
+  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250)."
 
-function routeFetch(calls: Array<{ method: string; url: string }>) {
+interface RecordedCall {
+  method: string
+  url: string
+  contentType: string | null
+}
+
+/**
+ * Route-like fetch mock (F8 review MED): every mutating call must carry
+ * `Content-Type: application/json` or it gets the same 415 the route's
+ * requireJsonContentType guard returns — a client regression cannot pass
+ * these tests again.
+ */
+function routeFetch(calls: Array<RecordedCall>) {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
-    calls.push({ method, url })
+    const contentType = new Headers(init?.headers).get('content-type') ?? null
+    calls.push({ method, url, contentType })
+    if (method !== 'GET' && contentType !== 'application/json') {
+      return Promise.resolve(
+        jsonResponse({ error: 'Content-Type must be application/json' }, 415),
+      )
+    }
     if (method === 'DELETE') {
       if (url.includes('/u2'))
         return Promise.resolve(jsonResponse({ error: RUN_HISTORY_ERROR }, 409))
@@ -93,7 +112,7 @@ describe('planBulkDelete', () => {
 
 describe('executeBulkDelete', () => {
   it('mixed selection: sequential DELETE then reset, verbatim failure, factory never DELETEd', async () => {
-    const calls: Array<{ method: string; url: string }> = []
+    const calls: Array<RecordedCall> = []
     vi.stubGlobal('fetch', routeFetch(calls))
 
     const plan = planBulkDelete(
@@ -109,12 +128,25 @@ describe('executeBulkDelete', () => {
 
     // Exactly four network calls, deletes first then the reset POST.
     expect(calls).toEqual([
-      { method: 'DELETE', url: '/api/workflow-definitions/u1' },
-      { method: 'DELETE', url: '/api/workflow-definitions/u2' },
-      { method: 'DELETE', url: '/api/workflow-definitions/p1' },
+      {
+        method: 'DELETE',
+        url: '/api/workflow-definitions/u1',
+        contentType: 'application/json',
+      },
+      {
+        method: 'DELETE',
+        url: '/api/workflow-definitions/u2',
+        contentType: 'application/json',
+      },
+      {
+        method: 'DELETE',
+        url: '/api/workflow-definitions/p1',
+        contentType: 'application/json',
+      },
       {
         method: 'POST',
         url: '/api/workflow-definitions/f1/reset-factory',
+        contentType: 'application/json',
       },
     ])
     expect(
@@ -135,7 +167,7 @@ describe('executeBulkDelete', () => {
   })
 
   it('a failed row does not stop the run and is never retried', async () => {
-    const calls: Array<{ method: string; url: string }> = []
+    const calls: Array<RecordedCall> = []
     vi.stubGlobal('fetch', routeFetch(calls))
 
     const plan = planBulkDelete(
@@ -145,15 +177,23 @@ describe('executeBulkDelete', () => {
     const summary = await executeBulkDelete(plan)
 
     expect(calls).toEqual([
-      { method: 'DELETE', url: '/api/workflow-definitions/u2' },
-      { method: 'DELETE', url: '/api/workflow-definitions/u1' },
+      {
+        method: 'DELETE',
+        url: '/api/workflow-definitions/u2',
+        contentType: 'application/json',
+      },
+      {
+        method: 'DELETE',
+        url: '/api/workflow-definitions/u1',
+        contentType: 'application/json',
+      },
     ])
     expect(summary.deleted).toBe(1)
     expect(summary.failed).toBe(1)
   })
 
   it('reset not opted in: factory row untouched (no call at all)', async () => {
-    const calls: Array<{ method: string; url: string }> = []
+    const calls: Array<RecordedCall> = []
     vi.stubGlobal('fetch', routeFetch(calls))
 
     const plan = planBulkDelete(
@@ -163,10 +203,70 @@ describe('executeBulkDelete', () => {
     const summary = await executeBulkDelete(plan)
 
     expect(calls).toEqual([
-      { method: 'DELETE', url: '/api/workflow-definitions/u1' },
+      {
+        method: 'DELETE',
+        url: '/api/workflow-definitions/u1',
+        contentType: 'application/json',
+      },
     ])
     expect(summary.results.map((r) => r.id)).toEqual(['u1'])
     expect(summary.deleted).toBe(1)
     expect(summary.reset).toBe(0)
+  })
+})
+
+describe('executeBulkDelete — guards (F8 review LOWs)', () => {
+  it('never deletes an unknown source: anything but user/project/bundled is skipped', () => {
+    const odd = { ...makeWf('odd', 'user'), source: 'mystery' as never }
+    const plan = planBulkDelete([makeWf('u1', 'user'), odd], false)
+    expect(plan.toDelete.map((w) => w.id)).toEqual(['u1'])
+    expect(plan.skipped.map((w) => w.id)).toEqual(['odd'])
+  })
+
+  it('stops before the next row once aborted; results so far are kept', async () => {
+    const calls: Array<RecordedCall> = []
+    const inner = routeFetch(calls)
+    let aborted = false
+    let callCount = 0
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      callCount++
+      if (callCount >= 1) aborted = true // flip while u1 is in flight
+      return inner(input, init)
+    })
+    const plan = planBulkDelete(
+      [makeWf('u1', 'user'), makeWf('u2', 'user'), makeWf('u3', 'user')],
+      false,
+    )
+    const summary = await executeBulkDelete(plan, {
+      isAborted: () => aborted,
+    })
+
+    // u1 completed; u2 and u3 are dropped by the abort check.
+    expect(calls.map((c) => c.url)).toEqual(['/api/workflow-definitions/u1'])
+    expect(summary.results.map((r) => [r.id, r.outcome])).toEqual([
+      ['u1', 'deleted'],
+    ])
+  })
+
+  it('aborts between the delete and reset passes too', async () => {
+    const calls: Array<RecordedCall> = []
+    const inner = routeFetch(calls)
+    let aborted = false
+    let callCount = 0
+    vi.stubGlobal('fetch', (input: RequestInfo | URL, init?: RequestInit) => {
+      callCount++
+      if (callCount >= 1) aborted = true
+      return inner(input, init)
+    })
+    const plan = planBulkDelete(
+      [makeWf('u1', 'user'), makeWf('f1', 'bundled')],
+      true,
+    )
+    const summary = await executeBulkDelete(plan, {
+      isAborted: () => aborted,
+    })
+
+    expect(calls).toHaveLength(1) // the DELETE ran; the reset pass was aborted
+    expect(summary.results.map((r) => r.id)).toEqual(['u1'])
   })
 })

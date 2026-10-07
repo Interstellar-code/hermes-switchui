@@ -58,14 +58,28 @@ function renderDialog(
   )
 }
 
+/** The route's real 409 body (F8 review LOW: tests used a made-up string). */
 const RUN_HISTORY_ERROR =
-  "cannot delete 'u2': workflow has run history — delete its runs first"
+  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250)."
 
-/** fetch mock: DELETE /u2 fails with the run-history 409, everything else 200. */
+/**
+ * Route-like fetch mock (F8 review MED): mutating calls without a JSON
+ * Content-Type get the same 415 the route's guard returns. DELETE /u2
+ * fails with the real run-history 409; everything else 200.
+ */
 function failingFetch() {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     const method = (init?.method ?? 'GET').toUpperCase()
+    const contentType = new Headers(init?.headers).get('content-type') ?? null
+    if (method !== 'GET' && contentType !== 'application/json') {
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ error: 'Content-Type must be application/json' }),
+          { status: 415, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+    }
     if (method === 'DELETE' && url.includes('/u2')) {
       return Promise.resolve(
         new Response(JSON.stringify({ error: RUN_HISTORY_ERROR }), {
@@ -172,6 +186,90 @@ describe('BulkDeleteDialog — run + result view', () => {
     expect(await screen.findByText('Bulk delete results')).toBeTruthy()
     expect(screen.getByText(/Deleted 1 · Reset 0 · Failed 0/)).toBeTruthy()
     expect(screen.getByText(/Every selected row succeeded/i)).toBeTruthy()
+    expect(onCleared).toHaveBeenCalledWith(['u1'])
+  })
+})
+
+describe('BulkDeleteDialog — run guards (F8 review LOWs)', () => {
+  it('a double click in one batch starts exactly one run', async () => {
+    const fetchMock = failingFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    renderDialog([makeWf('u1', 'user'), makeWf('u3', 'user')])
+
+    const confirm = screen.getByRole('button', { name: /Delete 2 workflows/i })
+    // One React batch: the disabled re-render cannot land between the clicks.
+    fireEvent(confirm, new MouseEvent('click', { bubbles: true }))
+    fireEvent(confirm, new MouseEvent('click', { bubbles: true }))
+
+    expect(await screen.findByText('Bulk delete results')).toBeTruthy()
+    expect(fetchMock).toHaveBeenCalledTimes(2) // one per row, not two runs
+  })
+
+  it('unmounting mid-run stops the remaining rows', async () => {
+    const calls: Array<string> = []
+    let releaseFirst!: (r: Response) => void
+    const first = new Promise<Response>((res) => {
+      releaseFirst = res
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input)
+        calls.push(url)
+        if (url.includes('/u1')) return first
+        return Promise.resolve(
+          new Response(JSON.stringify({ definition: { id: 'x' } }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        )
+      }),
+    )
+    const { unmount } = renderDialog([
+      makeWf('u1', 'user'),
+      makeWf('u3', 'user'),
+    ])
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete 2 workflows/i }))
+    unmount()
+    releaseFirst(
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    await Promise.resolve()
+    await Promise.resolve()
+
+    // u1 was already in flight; u3 is never requested after the unmount.
+    expect(calls).toEqual(['/api/workflow-definitions/u1'])
+  })
+
+  it('clears succeeded rows before the query invalidation resolves', async () => {
+    const fetchMock = failingFetch()
+    vi.stubGlobal('fetch', fetchMock)
+    const onCleared = vi.fn()
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    // Invalidate never resolves — onCleared must not wait for it.
+    vi.spyOn(client, 'invalidateQueries').mockImplementation(
+      () => new Promise(() => {}),
+    )
+    render(
+      <QueryClientProvider client={client}>
+        <BulkDeleteDialog
+          open
+          selected={[makeWf('u1', 'user')]}
+          onClose={vi.fn()}
+          onCleared={onCleared}
+        />
+      </QueryClientProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete 1 workflow/i }))
+    expect(await screen.findByText('Bulk delete results')).toBeTruthy()
     expect(onCleared).toHaveBeenCalledWith(['u1'])
   })
 })

@@ -18,8 +18,7 @@
 }
 
 .wbd-group {
-  border: 1px solid
-    var(--m-border-faint, var(--theme-border-subtle, rgba(0, 0, 0, 0.2)));
+  border: 1px solid var(--m-border-faint, var(--theme-border-subtle));
   border-radius: 5px;
   padding: 7px 9px;
 }

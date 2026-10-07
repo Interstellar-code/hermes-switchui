@@ -59,6 +59,11 @@ export function BulkDeleteDialog({
   const [resetOptIn, setResetOptIn] = useState(false)
   const [typed, setTyped] = useState('')
   const [summary, setSummary] = useState<BulkSummary | null>(null)
+  // Synchronous guards: a double-submit inside one React batch cannot rely
+  // on the disabled re-render (F8 review LOW), and an unmount mid-run must
+  // stop the remaining rows (F8 review LOW).
+  const runningRef = useRef(false)
+  const abortedRef = useRef(false)
 
   // Fresh confirm view every time the dialog opens.
   useEffect(() => {
@@ -67,8 +72,13 @@ export function BulkDeleteDialog({
       setResetOptIn(false)
       setTyped('')
       setSummary(null)
+      runningRef.current = false
+      abortedRef.current = false
     }
   }, [open])
+
+  // Unmount (route change, parent close): the run stops before the next row.
+  useEffect(() => () => void (abortedRef.current = true), [])
 
   useFocusTrap(open, dialogRef, () => {
     if (phase !== 'running') onClose()
@@ -87,19 +97,24 @@ export function BulkDeleteDialog({
   if (!open) return null
 
   async function handleConfirm() {
-    if (confirmDisabled) return
+    if (runningRef.current || confirmDisabled) return
+    runningRef.current = true
     setPhase('running')
-    const result = await executeBulkDelete(plan)
+    const result = await executeBulkDelete(plan, {
+      isAborted: () => abortedRef.current,
+    })
+    runningRef.current = false
     setSummary(result)
     setPhase('result')
-    // Definitions list refreshed exactly once per run; the parent's
-    // selection only loses rows the server actually acted on.
-    await queryClient.invalidateQueries({
-      queryKey: ['workflow-definitions'],
-    })
+    // Succeeded rows leave the selection before the refetch resolves — a
+    // slow invalidate must not let a second run re-delete them (F8 LOW).
     onCleared(
       result.results.filter((r) => r.outcome !== 'failed').map((r) => r.id),
     )
+    // Definitions list refreshed exactly once per run.
+    await queryClient.invalidateQueries({
+      queryKey: ['workflow-definitions'],
+    })
   }
 
   const failedRows = summary?.results.filter((r) => r.outcome === 'failed')
@@ -146,6 +161,7 @@ export function BulkDeleteDialog({
                     <input
                       type="checkbox"
                       checked={resetOptIn}
+                      disabled={phase === 'running'}
                       onChange={(e) => setResetOptIn(e.target.checked)}
                     />
                     Reset factory workflows to their defaults (skipped unless
@@ -174,6 +190,7 @@ export function BulkDeleteDialog({
                   <input
                     id="wbd-type-input"
                     value={typed}
+                    disabled={phase === 'running'}
                     onChange={(e) => setTyped(e.target.value)}
                     autoComplete="off"
                     inputMode="numeric"

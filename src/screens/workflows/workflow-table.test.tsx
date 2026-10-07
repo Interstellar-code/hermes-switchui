@@ -313,16 +313,31 @@ describe('WorkflowTable (F2)', () => {
   })
 
   it('after a partial-failure run only the succeeded rows leave the selection (F8)', async () => {
+    // Route-like (F8 review MED): no JSON Content-Type → the same 415 the
+    // route guard returns; the real run-history 409 body on /u2.
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input)
         const method = (init?.method ?? 'GET').toUpperCase()
+        const contentType =
+          new Headers(init?.headers).get('content-type') ?? null
+        if (method !== 'GET' && contentType !== 'application/json') {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                error: 'Content-Type must be application/json',
+              }),
+              { status: 415, headers: { 'Content-Type': 'application/json' } },
+            ),
+          )
+        }
         if (method === 'DELETE' && url.includes('/u2')) {
           return Promise.resolve(
             new Response(
               JSON.stringify({
-                error: "cannot delete 'u2': workflow has run history",
+                error:
+                  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250).",
               }),
               { status: 409, headers: { 'Content-Type': 'application/json' } },
             ),
@@ -358,7 +373,9 @@ describe('WorkflowTable (F2)', () => {
     // u1 succeeded → dropped; u2 failed → still selected ("1 selected").
     await waitFor(() => expect(bulkBar().textContent).toMatch(/1 selected/))
     expect(
-      screen.getByText("cannot delete 'u2': workflow has run history"),
+      screen.getByText(
+        "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250).",
+      ),
     ).toBeTruthy()
   })
 })

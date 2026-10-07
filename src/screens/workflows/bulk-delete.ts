@@ -46,10 +46,15 @@ export function planBulkDelete(
   const toReset: Array<WorkflowSummary> = []
   const skipped: Array<WorkflowSummary> = []
   for (const wf of selected) {
-    if (wf.source === 'bundled') {
+    // Widened to string: the type union is closed today, but the runtime
+    // guard must still hold if a new source ever appears (F8 review LOW).
+    const source: string = wf.source
+    if (source === 'user' || source === 'project') {
+      toDelete.push(wf)
+    } else if (source === 'bundled') {
       ;(resetFactory ? toReset : skipped).push(wf)
     } else {
-      toDelete.push(wf)
+      skipped.push(wf)
     }
   }
   return { toDelete, toReset, skipped }
@@ -59,43 +64,53 @@ export function planBulkDelete(
  * Run the plan: deletes first, then resets, one row at a time. The route's
  * run-history 409, 403 on bundled and 404 all land as `failed` with the
  * server's message verbatim. A failed row never stops the run and is never
- * retried.
+ * retried. `isAborted` is checked before each row (the dialog unmounted
+ * mid-run): remaining rows are dropped and the results so far are returned.
  */
-export async function executeBulkDelete(plan: BulkPlan): Promise<BulkSummary> {
+export async function executeBulkDelete(
+  plan: BulkPlan,
+  opts: { isAborted?: () => boolean } = {},
+): Promise<BulkSummary> {
   const results: Array<BulkRowResult> = []
 
   for (const wf of plan.toDelete) {
+    if (opts.isAborted?.()) return summarise(results)
     try {
       await deleteWorkflowDefinition(wf.id)
       results.push({ id: wf.id, name: wf.name, outcome: 'deleted' })
     } catch (err) {
-      const serverError = (err as { serverError?: string }).serverError
-      results.push({
-        id: wf.id,
-        name: wf.name,
-        outcome: 'failed',
-        message:
-          serverError ?? (err instanceof Error ? err.message : 'Delete failed'),
-      })
+      results.push(failedResult(wf, err, 'Delete failed'))
     }
   }
 
   for (const wf of plan.toReset) {
+    if (opts.isAborted?.()) return summarise(results)
     try {
       await resetWorkflowDefinitionToFactory(wf.id)
       results.push({ id: wf.id, name: wf.name, outcome: 'reset' })
     } catch (err) {
-      const serverError = (err as { serverError?: string }).serverError
-      results.push({
-        id: wf.id,
-        name: wf.name,
-        outcome: 'failed',
-        message:
-          serverError ?? (err instanceof Error ? err.message : 'Reset failed'),
-      })
+      results.push(failedResult(wf, err, 'Reset failed'))
     }
   }
 
+  return summarise(results)
+}
+
+function failedResult(
+  wf: WorkflowSummary,
+  err: unknown,
+  fallback: string,
+): BulkRowResult {
+  const serverError = (err as { serverError?: string }).serverError
+  return {
+    id: wf.id,
+    name: wf.name,
+    outcome: 'failed',
+    message: serverError ?? (err instanceof Error ? err.message : fallback),
+  }
+}
+
+function summarise(results: Array<BulkRowResult>): BulkSummary {
   return {
     deleted: results.filter((r) => r.outcome === 'deleted').length,
     reset: results.filter((r) => r.outcome === 'reset').length,
