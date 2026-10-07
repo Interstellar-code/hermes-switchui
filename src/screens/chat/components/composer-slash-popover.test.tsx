@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import {
   ComposerSlashPopover,
   filterSlashCommands,
@@ -57,7 +57,9 @@ describe('ComposerSlashPopover', () => {
     )
 
     expect(screen.getByRole('listbox')).toBeDefined()
-    expect(screen.getByText('↑↓ navigate · Tab select · Esc close')).toBeDefined()
+    expect(
+      screen.getByText('↑↓ navigate · Tab select · Esc close'),
+    ).toBeDefined()
 
     const item0 = screen.getByTestId('slash-command-item-0')
     expect(item0.getAttribute('aria-selected')).toBe('true')

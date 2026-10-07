@@ -51,10 +51,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { formatOutgoingMessage } from '../quote-markers'
 import { ContextBar } from './context-bar'
 import { ComposerAttachmentTray } from './composer-attachment-tray'
-import {
-  ComposerMobileActionsMenu,
-  type ComposerMobileActionItem,
-} from './composer-mobile-actions'
+import { ComposerMobileActionsMenu } from './composer-mobile-actions'
 import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENT_FILE_SIZE,
@@ -63,6 +60,7 @@ import {
   isCanvasSupported,
   isTextLikeFile,
 } from './chat-composer-attachments'
+import type { ComposerMobileActionItem } from './composer-mobile-actions'
 import type {
   ChatComposerAttachment,
   ChatComposerHandle,

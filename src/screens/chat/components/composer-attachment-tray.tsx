@@ -1,7 +1,7 @@
 import { memo, useEffect, useState } from 'react'
-import { X, FileText } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { FileText, X } from 'lucide-react'
 import type { ChatComposerAttachment } from './chat-composer-types'
+import { cn } from '@/lib/utils'
 
 export function formatFileSize(size: number): string {
   if (!Number.isFinite(size) || size <= 0) return ''
@@ -81,7 +81,7 @@ export const ComposerAttachmentChip = memo(function ComposerAttachmentChip({
 }: ComposerAttachmentChipProps) {
   const isImage =
     attachment.kind === 'image' ||
-    attachment.contentType?.startsWith('image/') ||
+    attachment.contentType.startsWith('image/') ||
     /\.(png|jpe?g|gif|webp|svg|avif)$/i.test(attachment.name)
 
   const imageSrc = attachment.previewUrl || attachment.dataUrl
@@ -158,7 +158,7 @@ export const ComposerAttachmentTray = memo(function ComposerAttachmentTray({
   onRemove,
   className,
 }: ComposerAttachmentTrayProps) {
-  if (!attachments || attachments.length === 0) return null
+  if (attachments.length === 0) return null
 
   return (
     <div

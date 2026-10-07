@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { render, fireEvent } from '@testing-library/react'
-import { Markdown, MARKDOWN_REMARK_PLUGINS } from './markdown'
+import { fireEvent, render } from '@testing-library/react'
+import { MARKDOWN_REMARK_PLUGINS, Markdown } from './markdown'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 
 describe('Markdown plugin pipeline', () => {
@@ -38,7 +38,9 @@ describe('GFM Alert Callouts', () => {
     expect(callout).not.toBeNull()
     expect(callout?.textContent).toContain('WARNING')
     expect(callout?.textContent).toContain('High voltage area.')
-    expect(callout?.className).toContain('border-[var(--theme-warning,#d97706)]')
+    expect(callout?.className).toContain(
+      'border-[var(--theme-warning,#d97706)]',
+    )
   })
 
   it('renders [!DECISION] callout with accent styling and badge', () => {
@@ -56,7 +58,9 @@ describe('GFM Alert Callouts', () => {
     const md = `> [!RECOMMENDATION]\n> Use pnpm over npm.`
     const { container } = render(<Markdown>{md}</Markdown>)
 
-    const callout = container.querySelector('[data-callout-type="RECOMMENDATION"]')
+    const callout = container.querySelector(
+      '[data-callout-type="RECOMMENDATION"]',
+    )
     expect(callout).not.toBeNull()
     expect(callout?.textContent).toContain('RECOMMENDATION')
     expect(callout?.textContent).toContain('Use pnpm over npm.')
@@ -91,7 +95,9 @@ describe('GFM Alert Callouts', () => {
     expect(container.querySelector('[data-callout-type]')).toBeNull()
     const blockquote = container.querySelector('blockquote')
     expect(blockquote).not.toBeNull()
-    expect(blockquote?.textContent).toContain('This is a traditional quotation.')
+    expect(blockquote?.textContent).toContain(
+      'This is a traditional quotation.',
+    )
   })
 })
 
@@ -102,8 +108,12 @@ describe('Clickable File Chips', () => {
 
     const chip = container.querySelector('[data-testid="file-chip"]')
     expect(chip).not.toBeNull()
-    expect(chip?.getAttribute('data-path')).toBe('src/components/prompt-kit/markdown.tsx')
-    expect(chip?.getAttribute('href')).toBe('/files?path=src%2Fcomponents%2Fprompt-kit%2Fmarkdown.tsx')
+    expect(chip?.getAttribute('data-path')).toBe(
+      'src/components/prompt-kit/markdown.tsx',
+    )
+    expect(chip?.getAttribute('href')).toBe(
+      '/files?path=src%2Fcomponents%2Fprompt-kit%2Fmarkdown.tsx',
+    )
     expect(chip?.querySelector('svg')).not.toBeNull()
   })
 
@@ -137,8 +147,14 @@ describe('Clickable File Chips', () => {
   })
 
   it('dispatches hermes:open-file and switches sidebar to files on chip click', () => {
-    const setCollapsedSpy = vi.spyOn(useSessionsFilterStore.getState(), 'setCollapsed')
-    const setLeftPanelSpy = vi.spyOn(useSessionsFilterStore.getState(), 'setLeftPanel')
+    const setCollapsedSpy = vi.spyOn(
+      useSessionsFilterStore.getState(),
+      'setCollapsed',
+    )
+    const setLeftPanelSpy = vi.spyOn(
+      useSessionsFilterStore.getState(),
+      'setLeftPanel',
+    )
     const eventHandler = vi.fn()
     window.addEventListener('hermes:open-file', eventHandler)
 
@@ -152,7 +168,9 @@ describe('Clickable File Chips', () => {
     expect(setCollapsedSpy).toHaveBeenCalledWith(false)
     expect(setLeftPanelSpy).toHaveBeenCalledWith('files')
     expect(eventHandler).toHaveBeenCalled()
-    expect(eventHandler.mock.calls[0][0].detail).toEqual({ path: 'src/index.ts' })
+    expect(eventHandler.mock.calls[0][0].detail).toEqual({
+      path: 'src/index.ts',
+    })
 
     window.removeEventListener('hermes:open-file', eventHandler)
   })
@@ -183,8 +201,8 @@ describe('Zebra Comparison Tables', () => {
     expect(trs[0].className).toContain('even:bg-[var(--theme-card2)]')
 
     // Numeric alignment on 12ms, 120ms, 45ms
-    const numericCells = Array.from(container.querySelectorAll('td')).filter((td) =>
-      /^\d+ms$/.test(td.textContent?.trim() || ''),
+    const numericCells = Array.from(container.querySelectorAll('td')).filter(
+      (td) => /^\d+ms$/.test(td.textContent.trim()),
     )
     expect(numericCells.length).toBe(3)
     numericCells.forEach((td) => {
@@ -200,10 +218,14 @@ describe('Zebra Comparison Tables', () => {
 
     const noBadge = container.querySelector('[data-verdict="NO"]')
     expect(noBadge).not.toBeNull()
-    expect(noBadge?.className).toContain('border-[color-mix(in_srgb,var(--theme-danger,#ef4444)')
+    expect(noBadge?.className).toContain(
+      'border-[color-mix(in_srgb,var(--theme-danger,#ef4444)',
+    )
 
     const yesBadge = container.querySelector('[data-verdict="YES"]')
     expect(yesBadge).not.toBeNull()
-    expect(yesBadge?.className).toContain('border-[color-mix(in_srgb,var(--theme-success,#22c55e)')
+    expect(yesBadge?.className).toContain(
+      'border-[color-mix(in_srgb,var(--theme-success,#22c55e)',
+    )
   })
 })

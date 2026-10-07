@@ -130,10 +130,14 @@ const USER_REPLY_MARKDOWN_COMPONENTS = {
     return <pre className="overflow-x-auto my-1.5">{children}</pre>
   },
   ul: function UserReplyUnorderedList({ children }) {
-    return <ul className="ml-4 list-disc text-current space-y-0.5">{children}</ul>
+    return (
+      <ul className="ml-4 list-disc text-current space-y-0.5">{children}</ul>
+    )
   },
   ol: function UserReplyOrderedList({ children }) {
-    return <ol className="ml-4 list-decimal text-current space-y-0.5">{children}</ol>
+    return (
+      <ol className="ml-4 list-decimal text-current space-y-0.5">{children}</ol>
+    )
   },
   li: function UserReplyListItem({ children }) {
     return <li className="leading-relaxed text-current">{children}</li>
@@ -161,14 +165,20 @@ const USER_MARKDOWN_COMPONENTS = {
     )
   },
   thead: function UserThead({ children }) {
-    return <thead className="border-b border-current/20 font-mono text-xs">{children}</thead>
+    return (
+      <thead className="border-b border-current/20 font-mono text-xs">
+        {children}
+      </thead>
+    )
   },
   tbody: function UserTbody({ children }) {
     return <tbody>{children}</tbody>
   },
   tr: function UserTr({ children }) {
     return (
-      <tr className="border-b border-current/10 last:border-0 odd:bg-current/[0.03]">{children}</tr>
+      <tr className="border-b border-current/10 last:border-0 odd:bg-current/[0.03]">
+        {children}
+      </tr>
     )
   },
   th: function UserTh({ children }) {
@@ -405,7 +415,9 @@ export type MarkdownHeading = {
   sectionNumber?: string
 }
 
-export function extractMarkdownHeadings(markdown: string): Array<MarkdownHeading> {
+export function extractMarkdownHeadings(
+  markdown: string,
+): Array<MarkdownHeading> {
   if (!markdown) return []
   // Strip code blocks so comments or samples aren't recognized as headings
   const textWithoutCode = markdown.replace(/```[\s\S]*?```/g, '')
@@ -417,7 +429,10 @@ export function extractMarkdownHeadings(markdown: string): Array<MarkdownHeading
 
   while ((match = headingRegex.exec(textWithoutCode)) !== null) {
     const level = match[1].length as 2 | 3
-    const title = match[2].trim().replace(/[#*`_~]/g, '').trim()
+    const title = match[2]
+      .trim()
+      .replace(/[#*`_~]/g, '')
+      .trim()
     const id = title
       .toLowerCase()
       .replace(/[^\w\s-]/g, '')
@@ -426,7 +441,7 @@ export function extractMarkdownHeadings(markdown: string): Array<MarkdownHeading
     if (level === 2) {
       h2Count += 1
       h3Count = 0
-    } else if (level === 3) {
+    } else {
       h3Count += 1
     }
 
@@ -2459,10 +2474,13 @@ function MessageItemComponent({
   }, [isUser, displayText])
 
   // Track A: Past long message collapse fold (~550-600px cap or >3 sections)
-  const isPastAssistantMessage = !isUser && !isLastAssistant && !effectiveIsStreaming
+  const isPastAssistantMessage =
+    !isUser && !isLastAssistant && !effectiveIsStreaming
   const estimatedSectionCount = Math.max(1, messageHeadings.length)
   const totalWordCount = useMemo(() => countWords(displayText), [displayText])
-  const isLongMessage = isPastAssistantMessage && (totalWordCount > 250 || estimatedSectionCount >= 3)
+  const isLongMessage =
+    isPastAssistantMessage &&
+    (totalWordCount > 250 || estimatedSectionCount >= 3)
   const [isExpanded, setIsExpanded] = useState(false)
 
   // Get tool calls from this message (for assistant messages)
@@ -2978,7 +2996,10 @@ function MessageItemComponent({
                       const el = document.getElementById(heading.id)
                       if (el) {
                         e.preventDefault()
-                        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        el.scrollIntoView({
+                          behavior: 'smooth',
+                          block: 'start',
+                        })
                       }
                     }}
                     className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] bg-[color-mix(in_srgb,var(--theme-card2)_80%,transparent)] text-[var(--theme-text)] border border-[color-mix(in_srgb,var(--theme-border)_70%,transparent)] hover:border-[var(--theme-accent)] hover:text-[var(--theme-accent)] transition-colors no-underline"
@@ -3100,7 +3121,9 @@ function MessageItemComponent({
                   <div
                     className={cn(
                       'transition-all',
-                      isLongMessage && !isExpanded && 'max-h-[550px] overflow-hidden',
+                      isLongMessage &&
+                        !isExpanded &&
+                        'max-h-[550px] overflow-hidden',
                     )}
                   >
                     {assistantCorruptionWarning ? (
@@ -3121,7 +3144,9 @@ function MessageItemComponent({
                       </div>
                     ) : null}
                     {standaloneMarkdownDocument ? (
-                      <MarkdownMessageCard content={standaloneMarkdownDocument} />
+                      <MarkdownMessageCard
+                        content={standaloneMarkdownDocument}
+                      />
                     ) : (
                       <div className="flex flex-col gap-3">
                         {parsedInlineArtifacts.cleanedText ? (
@@ -3158,7 +3183,8 @@ function MessageItemComponent({
                       >
                         <span>Show full reply</span>
                         <span className="opacity-60 text-[10px]">
-                          ({estimatedSectionCount} sections · ~{totalWordCount} words)
+                          ({estimatedSectionCount} sections · ~{totalWordCount}{' '}
+                          words)
                         </span>
                         <span aria-hidden="true">▾</span>
                       </button>
