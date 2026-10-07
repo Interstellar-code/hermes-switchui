@@ -1,4 +1,9 @@
-import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
+import {
+  isMap,
+  parseDocument,
+  parse as parseYaml,
+  stringify as stringifyYaml,
+} from 'yaml'
 import { inferNodeType } from './parse-dag'
 import type { NodeType } from '../types'
 
@@ -311,6 +316,23 @@ export function serializeWorkflowYaml(doc: WizardDocumentDraft): string {
   root.description = doc.description.trim() || 'New workflow'
   root.nodes = doc.nodes.map((node) => serializeNodeDraft(node))
   return stringifyYaml(root, { lineWidth: 0 })
+}
+
+/**
+ * Set top-level `name:` / `description:` in place (comments, key order and
+ * unknown keys survive). Blank values get the same defaults as
+ * serializeWorkflowYaml. Unparseable yaml is returned unchanged.
+ */
+export function setWorkflowField(
+  yaml: string,
+  key: 'name' | 'description',
+  value: string,
+): string {
+  const doc = parseDocument(yaml)
+  if (doc.errors.length > 0 || !isMap(doc.contents)) return yaml
+  const fallback = key === 'name' ? 'Workflow' : 'New workflow'
+  doc.set(key, value.trim() || fallback)
+  return doc.toString({ lineWidth: 0, flowCollectionPadding: false })
 }
 
 export function buildWorkflowFromPrompt(

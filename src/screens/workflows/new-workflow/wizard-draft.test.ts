@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   serializeWorkflowYaml,
+  setWorkflowField,
   slugify,
   toWorkflowDocumentDraft,
 } from './wizard-draft'
@@ -129,6 +130,19 @@ nodes:
           expect(rtNode.loop_max_iterations).toBe(origNode.loop_max_iterations)
         }
       }
+    })
+  })
+
+  describe('setWorkflowField', () => {
+    it('edits name/description in place and keeps comments and unknown keys', () => {
+      const yaml =
+        'name: A # keep\nx-top: 1\nnodes:\n  - id: a\n    prompt: hi\n    x-node: 2\n'
+      const next = setWorkflowField(yaml, 'description', 'Does things')
+      // a new key is appended; everything else stays byte-for-byte
+      expect(next).toBe(`${yaml}description: Does things\n`)
+      expect(setWorkflowField(next, 'name', 'B')).toContain('name: B # keep')
+      expect(setWorkflowField(next, 'name', '  ')).toContain('name: Workflow')
+      expect(setWorkflowField('nodes: [', 'name', 'B')).toBe('nodes: [')
     })
   })
 })
