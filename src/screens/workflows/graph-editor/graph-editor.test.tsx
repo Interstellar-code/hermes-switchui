@@ -5,6 +5,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  RouterContextProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from '@tanstack/react-router'
 import { WorkflowGraphEditor } from './graph-editor'
 import { readGraph } from './yaml-model'
 import type { WorkflowDefinitionRow } from '../api-client'
@@ -175,16 +181,23 @@ function renderEditor(
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
+  // The editor's useBlocker needs a router in context.
+  const router = createRouter({
+    routeTree: createRootRoute({}),
+    history: createMemoryHistory({ initialEntries: ['/workflows'] }),
+  })
   const utils = render(
     <QueryClientProvider client={client}>
-      <WorkflowGraphEditor
-        workflowId="youtube-catalog-intake"
-        onExit={onExit}
-        {...props}
-      />
+      <RouterContextProvider router={router}>
+        <WorkflowGraphEditor
+          workflowId="youtube-catalog-intake"
+          onExit={onExit}
+          {...props}
+        />
+      </RouterContextProvider>
     </QueryClientProvider>,
   )
-  return { ...utils, onExit }
+  return { ...utils, onExit, client }
 }
 
 function mirrorYaml(container: HTMLElement): string {
@@ -468,30 +481,37 @@ describe('WorkflowGraphEditor', () => {
   })
 
   it('refetch with a new checksum while dirty does not move baseline: save still sends original checksum and hits 409 path', async () => {
-    await renderReady()
+    const { client, onExit } = await renderReady()
     // Make draft dirty
     fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
 
-    // Simulate background refetch returning an updated checksum on the server
+    // Someone else saves: the server now holds cksum-2. A real background
+    // refetch brings that checksum into the query cache while we are dirty.
     const { getWorkflowDefinitionParsed } = await import('../api-client')
-    ;(
-      getWorkflowDefinitionParsed as ReturnType<typeof vi.fn>
-    ).mockResolvedValue({
+    const fetchDef = getWorkflowDefinitionParsed as ReturnType<typeof vi.fn>
+    fetchDef.mockResolvedValue({
       definition: { ...mockDefinition, checksum: 'cksum-2' },
       parsed: mockParsed,
     })
-
-    mockUpsert.mockImplementation((input: { expected_checksum?: string }) => {
-      // Must have sent original cksum-1, NOT the refetched cksum-2
-      expect(input.expected_checksum).toBe('cksum-1')
-      return Promise.reject(
-        Object.assign(new Error('checksum mismatch'), {
-          status: 409,
-          code: 'conflict',
-          serverError: 'Definition changed elsewhere',
-        }),
-      )
+    const callsBefore = fetchDef.mock.calls.length
+    await act(async () => {
+      await client.invalidateQueries()
+      await vi.advanceTimersByTimeAsync(20)
     })
+    expect(fetchDef.mock.calls.length).toBeGreaterThan(callsBefore)
+
+    // Server: compare-and-swap on the checksum it currently holds.
+    mockUpsert.mockImplementation((input: { expected_checksum?: string }) =>
+      input.expected_checksum === 'cksum-2'
+        ? Promise.resolve({ definition: { ...mockDefinition, version: '3' } })
+        : Promise.reject(
+            Object.assign(new Error('checksum mismatch'), {
+              status: 409,
+              code: 'conflict',
+              serverError: 'Definition changed elsewhere',
+            }),
+          ),
+    )
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(450)
@@ -501,10 +521,94 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(20)
     })
 
+    // The draft was based on cksum-1: the save must hit the conflict path,
+    // not silently overwrite with the refetched checksum.
+    expect(mockUpsert.mock.calls[0][0]).toMatchObject({
+      expected_checksum: 'cksum-1',
+    })
+    expect(onExit).not.toHaveBeenCalled()
     expect(
       screen.getByRole('alertdialog', { name: /CHANGED ELSEWHERE/i }),
     ).toBeTruthy()
     expect(screen.getByText(/the other change will be lost/i)).toBeTruthy()
+  })
+
+  it('blocks save with a reason when the definition has no checksum', async () => {
+    const { getWorkflowDefinitionParsed } = await import('../api-client')
+    ;(
+      getWorkflowDefinitionParsed as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce({
+      definition: { ...mockDefinition, checksum: undefined },
+      parsed: mockParsed,
+    })
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(450)
+    })
+    const save = screen.getByRole('button', { name: /^SAVE$/i })
+    expect(save.hasAttribute('disabled')).toBe(true)
+    expect(save.getAttribute('title')).toMatch(/no checksum/i)
+    expect(screen.getByText(/SAVE BLOCKED/)).toBeTruthy()
+  })
+
+  it('typing after a structural edit is its own undo step', async () => {
+    const { container } = await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
+    const body = container.querySelector(
+      '.wge-cfg textarea',
+    ) as HTMLTextAreaElement
+    fireEvent.change(body, { target: { value: 'echo one' } })
+    fireEvent.change(body, { target: { value: 'echo one two' } })
+    openMirror()
+    expect(mirrorYaml(container)).toContain('bash: echo one two')
+
+    // undo 1: the whole typing run, the added node stays
+    fireEvent.click(screen.getByRole('button', { name: /Undo/i }))
+    expect(mirrorYaml(container)).toContain('id: bash-node')
+    expect(mirrorYaml(container)).not.toContain('echo one')
+    // undo 2: the add itself
+    fireEvent.click(screen.getByRole('button', { name: /Undo/i }))
+    expect(mirrorYaml(container)).not.toContain('id: bash-node')
+  })
+
+  it('deleting a node with its edges is one undo step', async () => {
+    const { container } = await renderReady()
+    // canvas batch: the node plus the edge touching it (FlowCanvas drops the
+    // edge; the editor gets a single removeNodes edit)
+    fireEvent.click(screen.getByTestId('stub-delete-node'))
+    openMirror()
+    expect(mirrorGraph(container).nodes.map((n) => n.id)).toEqual([
+      'resolve-input',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: /Undo/i }))
+    expect(mirrorYaml(container)).toBe(DEF_YAML)
+    expect(screen.queryByText(/UNSAVED/)).toBeNull()
+  })
+
+  it('warns about $id.output references left dangling by a delete', async () => {
+    const { getWorkflowDefinitionParsed } = await import('../api-client')
+    ;(
+      getWorkflowDefinitionParsed as ReturnType<typeof vi.fn>
+    ).mockResolvedValueOnce({
+      definition: {
+        ...mockDefinition,
+        yaml: DEF_YAML.replace(
+          'Extract the metadata',
+          'Extract $resolve-input.output',
+        ),
+      },
+      parsed: mockParsed,
+    })
+    await renderReady()
+    expect(screen.queryByText(/DANGLING OUTPUT/)).toBeNull()
+    fireEvent.click(
+      screen.getByRole('button', { name: 'canvas select resolve-input' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: /DELETE NODE/i }))
+    expect(
+      screen.getByText(/extract uses \$resolve-input\.output/),
+    ).toBeTruthy()
   })
 
   it('leave guard blocks exit while dirty and proceeds after confirm', async () => {

@@ -13,10 +13,13 @@ export interface GraphHistoryState {
   saved: string
   /** past.length captured when the baseline last moved. */
   savedDepth: number
+  /** Coalesce key (node id + field) of the entry `present` came from. */
+  lastKey: string | null
 }
 
 export type GraphHistoryAction =
-  | { type: 'edit'; yaml: string; coalesce?: boolean }
+  /** Consecutive edits with the same coalesceKey (e.g. typing) fold into one entry. */
+  | { type: 'edit'; yaml: string; coalesceKey?: string }
   | { type: 'undo' }
   | { type: 'redo' }
   | { type: 'markSaved' }
@@ -30,6 +33,7 @@ export function initHistory(yaml: string): GraphHistoryState {
     future: [],
     saved: yaml,
     savedDepth: 0,
+    lastKey: null,
   }
 }
 
@@ -40,8 +44,8 @@ export function graphReducer(
   switch (action.type) {
     case 'edit': {
       if (action.yaml === state.present) return state
-      // Coalescing edit (e.g. consecutive keystrokes in textarea): replace present without pushing new past entry
-      if (action.coalesce && state.past.length > 0) {
+      const lastKey = action.coalesceKey ?? null
+      if (lastKey !== null && lastKey === state.lastKey) {
         return { ...state, present: action.yaml, future: [] }
       }
       const past = [...state.past, state.present]
@@ -50,7 +54,14 @@ export function graphReducer(
         past.shift()
         savedDepth = Math.max(0, savedDepth - 1)
       }
-      return { ...state, past, present: action.yaml, future: [], savedDepth }
+      return {
+        ...state,
+        past,
+        present: action.yaml,
+        future: [],
+        savedDepth,
+        lastKey,
+      }
     }
     case 'undo': {
       if (state.past.length === 0) return state
@@ -60,6 +71,7 @@ export function graphReducer(
         past: state.past.slice(0, -1),
         present: prev,
         future: [state.present, ...state.future],
+        lastKey: null,
       }
     }
     case 'redo': {
@@ -70,10 +82,16 @@ export function graphReducer(
         past: [...state.past, state.present],
         present: next,
         future: rest,
+        lastKey: null,
       }
     }
     case 'markSaved':
-      return { ...state, saved: state.present, savedDepth: state.past.length }
+      return {
+        ...state,
+        saved: state.present,
+        savedDepth: state.past.length,
+        lastKey: null,
+      }
     case 'reset':
       return initHistory(action.yaml)
   }

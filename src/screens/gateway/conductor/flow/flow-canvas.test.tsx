@@ -1,18 +1,16 @@
 // @vitest-environment jsdom
-import { render } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+// Real React Flow (no canvas mock), with jsdom layout shims so nodes measure
+// and edges render.
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { buildDag } from '../dag-model'
 import FlowCanvas from './flow-canvas'
-
 import type { ParsedWorkflow } from '@/screens/workflows/types'
-import type { DagModel } from '../dag-model'
+import { installReactFlowShims } from '@/screens/workflows/graph-editor/react-flow-test-shims'
 
-// Mock ResizeObserver for JSDOM
-global.ResizeObserver = class {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
-}
+beforeAll(installReactFlowShims)
+
+afterEach(cleanup)
 
 const parsed: ParsedWorkflow = {
   name: 'Test',
@@ -22,36 +20,134 @@ const parsed: ParsedWorkflow = {
   edges: [],
   required_inputs: [],
   optional_inputs: [],
-  node_count: 2,
+  node_count: 3,
   nodes: [
     { id: 'a', label: 'a', type: 'prompt', depends_on: [] },
     { id: 'b', label: 'b', type: 'bash', depends_on: ['a'] },
+    { id: 'c', label: 'c', type: 'bash', depends_on: [] },
   ],
 }
 
-const mockDag = buildDag(parsed)
-
-describe('FlowCanvas editable mode', () => {
-  it('renders canvas in editable mode with nodes and edges without throwing', () => {
-    const onConnect = vi.fn()
-    const onNodesDelete = vi.fn()
-    const onEdgesDelete = vi.fn()
-    const onDropNode = vi.fn()
-    const onSelectionChange = vi.fn()
-
-    const { container } = render(
+async function renderCanvas(props: Partial<Parameters<typeof FlowCanvas>[0]>) {
+  const handlers = {
+    onConnect: vi.fn(),
+    onNodesDelete: vi.fn(),
+    onEdgesDelete: vi.fn(),
+    onSelectionChange: vi.fn(),
+  }
+  const utils = render(
+    <div style={{ width: '800px', height: '600px' }}>
       <FlowCanvas
-        dag={mockDag}
+        dag={buildDag(parsed)}
         workflowId="test-wf"
         editable
-        onConnect={onConnect}
-        onNodesDelete={onNodesDelete}
-        onEdgesDelete={onEdgesDelete}
-        onDropNode={onDropNode}
-        onSelectionChange={onSelectionChange}
-      />,
-    )
+        {...handlers}
+        {...props}
+      />
+    </div>,
+  )
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 20))
+  })
+  return { ...utils, ...handlers }
+}
 
-    expect(container.querySelector('.flow-host')).toBeTruthy()
+function nodeEl(container: HTMLElement, id: string): HTMLElement {
+  return container.querySelector(`.react-flow__node[data-id="${id}"]`)!
+}
+
+async function pressDelete() {
+  // keydown and keyup in separate acts: React Flow deletes from an effect
+  // on the pressed state, which a same-batch keyup would cancel.
+  await act(async () => {
+    fireEvent.keyDown(document, { key: 'Delete', code: 'Delete' })
+    await new Promise((r) => setTimeout(r, 0))
+  })
+  await act(async () => {
+    fireEvent.keyUp(document, { key: 'Delete', code: 'Delete' })
+    await new Promise((r) => setTimeout(r, 0))
+  })
+}
+
+describe('FlowCanvas editable mode (real React Flow)', () => {
+  it('renders nodes and edges', async () => {
+    const { container } = await renderCanvas({})
+    expect(container.querySelectorAll('.react-flow__node')).toHaveLength(3)
+    expect(container.querySelectorAll('.react-flow__edge')).toHaveLength(1)
+  })
+
+  it('Del on a selected node calls onNodesDelete once, without its edge, and keeps it until the dag changes', async () => {
+    const { container, onNodesDelete, onEdgesDelete } = await renderCanvas({})
+    fireEvent.click(nodeEl(container, 'b'))
+    await pressDelete()
+    expect(onNodesDelete).toHaveBeenCalledTimes(1)
+    expect(onNodesDelete).toHaveBeenCalledWith(['b'])
+    // a>b touches the deleted node: removeNodes scrubs it, no second edit
+    expect(onEdgesDelete).not.toHaveBeenCalled()
+    // not removed locally — the parent's YAML change rebuilds the canvas
+    expect(nodeEl(container, 'b')).toBeTruthy()
+  })
+
+  it('select + Del on an edge calls onEdgesDelete exactly once', async () => {
+    const { container, onEdgesDelete, onNodesDelete } = await renderCanvas({})
+    const edge = container.querySelector('.react-flow__edge')!
+    fireEvent.click(edge)
+    expect(edge.classList.contains('selected')).toBe(true)
+    await pressDelete()
+    expect(onEdgesDelete).toHaveBeenCalledTimes(1)
+    expect(onEdgesDelete).toHaveBeenCalledWith([{ source: 'a', target: 'b' }])
+    expect(onNodesDelete).not.toHaveBeenCalled()
+    // still drawn until the dag (YAML) drops it
+    expect(container.querySelectorAll('.react-flow__edge')).toHaveLength(1)
+  })
+
+  it('connect (click source handle, then target handle) calls onConnect', async () => {
+    const { container, onConnect } = await renderCanvas({})
+    const source = nodeEl(container, 'c').querySelector(
+      '.react-flow__handle.source',
+    )!
+    const target = nodeEl(container, 'a').querySelector(
+      '.react-flow__handle.target',
+    )!
+    const prev = document.elementFromPoint
+    document.elementFromPoint = () => target
+    try {
+      fireEvent.click(source)
+      fireEvent.click(target)
+    } finally {
+      document.elementFromPoint = prev
+    }
+    expect(onConnect).toHaveBeenCalledTimes(1)
+    expect(onConnect).toHaveBeenCalledWith({ source: 'c', target: 'a' })
+  })
+
+  it('palette drop calls onDropNode with the type and a flow position', async () => {
+    const onDropNode = vi.fn()
+    const { container } = await renderCanvas({ onDropNode })
+    const host = container.querySelector('.flow-host')!
+    fireEvent.drop(host, {
+      clientX: 100,
+      clientY: 80,
+      dataTransfer: {
+        getData: (k: string) =>
+          k === 'application/x-switchui-wf-node' ? 'approval' : '',
+      },
+    })
+    expect(onDropNode).toHaveBeenCalledTimes(1)
+    expect(onDropNode.mock.calls[0][0]).toBe('approval')
+    expect(onDropNode.mock.calls[0][1]).toEqual({
+      x: expect.any(Number),
+      y: expect.any(Number),
+    })
+  })
+
+  it('Conductor (non-editable) mode ignores Delete', async () => {
+    const { container, onNodesDelete } = await renderCanvas({
+      editable: false,
+    })
+    fireEvent.click(nodeEl(container, 'b'))
+    await pressDelete()
+    expect(onNodesDelete).not.toHaveBeenCalled()
+    expect(container.querySelectorAll('.react-flow__node')).toHaveLength(3)
   })
 })

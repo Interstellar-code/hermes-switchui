@@ -18,10 +18,19 @@ vi.mock('./workflows-top-bar', () => ({
   WorkflowsTopBar: () => <div data-testid="top-bar" />,
 }))
 vi.mock('./workflow-grid', () => ({
-  WorkflowGrid: ({ onSelect }: { onSelect: (id: string) => void }) => (
+  WorkflowGrid: ({
+    onSelect,
+    onEdit,
+  }: {
+    onSelect: (id: string) => void
+    onEdit: (id: string) => void
+  }) => (
     <div>
       <button type="button" onClick={() => onSelect('wf-a')}>
         OPEN WF-A
+      </button>
+      <button type="button" onClick={() => onEdit('wf-a')}>
+        EDIT WF-A
       </button>
     </div>
   ),
@@ -31,9 +40,23 @@ vi.mock('./workflow-detail', () => ({
     <div data-testid={`detail-${workflowId}`} />
   ),
 }))
-vi.mock('./graph-editor/graph-editor', () => ({
-  WorkflowGraphEditor: () => <div data-testid="graph-editor" />,
-}))
+// Stub editor: always dirty, its leave guard asks window.confirm.
+vi.mock('./graph-editor/graph-editor', async () => {
+  const React = await import('react')
+  return {
+    WorkflowGraphEditor: ({
+      onRegisterGuard,
+    }: {
+      onRegisterGuard?: (g: (() => boolean) | null) => void
+    }) => {
+      React.useEffect(() => {
+        onRegisterGuard?.(() => window.confirm('Discard?'))
+        return () => onRegisterGuard?.(null)
+      }, [onRegisterGuard])
+      return <div data-testid="graph-editor" />
+    },
+  }
+})
 vi.mock('./launch-wizard', () => ({
   LaunchWizard: () => null,
 }))
@@ -70,6 +93,30 @@ describe('WorkflowsLayout URL ⇄ view', () => {
       expect(new URLSearchParams(window.location.search).get('wf')).toBeNull(),
     )
     expect(screen.queryByTestId('detail-wf-a')).toBeNull()
+  })
+
+  it('Back with a dirty editor confirms once; cancel keeps the editor and URL', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    window.history.replaceState(null, '', '/workflows?run=r1')
+    render(<WorkflowsLayout />)
+    fireEvent.click(screen.getByRole('button', { name: 'EDIT WF-A' }))
+    expect(screen.getByTestId('graph-editor')).toBeTruthy()
+    expect(window.location.search).toBe('?run=r1&wf=wf-a')
+
+    window.history.back()
+    // the guard cancels → history.go(1) restores the exact URL
+    await waitFor(() => expect(window.location.search).toBe('?run=r1&wf=wf-a'))
+    await new Promise((r) => setTimeout(r, 30))
+    expect(confirmSpy).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('graph-editor')).toBeTruthy()
+
+    // confirm → Back proceeds
+    confirmSpy.mockReturnValue(true)
+    window.history.back()
+    await waitFor(() => expect(screen.queryByTestId('graph-editor')).toBeNull())
+    expect(confirmSpy).toHaveBeenCalledTimes(2)
+    expect(window.location.search).toBe('?run=r1')
+    confirmSpy.mockRestore()
   })
 
   it('reads ?wf= on initial mount', () => {

@@ -9,15 +9,13 @@
  */
 import {
   Suspense,
-  useCallback,
-  useContext,
   useEffect,
   useMemo,
   useReducer,
   useRef,
   useState,
 } from 'react'
-import { useBlocker, useRouter } from '@tanstack/react-router'
+import { useBlocker } from '@tanstack/react-router'
 import {
   useUpsertWorkflowDefinition,
   useWorkflowFeatures,
@@ -33,6 +31,7 @@ import {
   addDependency,
   addNode,
   duplicateNode,
+  findDanglingOutputRefs,
   getYamlParseError,
   removeDependency,
   removeNodes,
@@ -151,6 +150,8 @@ export function WorkflowGraphEditor({
 
   const editorDag = useMemo(() => buildEditorDag(draft), [draft])
   const parseError = useMemo(() => getYamlParseError(draft), [draft])
+  // e.g. a deleted node's `$id.output` still used elsewhere.
+  const danglingRefs = useMemo(() => findDanglingOutputRefs(draft), [draft])
   const errorByNode = useMemo(() => {
     const map = new Map<string, string>()
     if (validation.phase === 'done') {
@@ -182,9 +183,18 @@ export function WorkflowGraphEditor({
       ? 1
       : validation.errors.length
 
-  function applyEdit(nextYaml: string | null | undefined, coalesce = false) {
+  // Latest draft, also within one event: the canvas can fire node + edge
+  // deletes back to back before React re-renders.
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+
+  function applyEdit(
+    nextYaml: string | null | undefined,
+    coalesceKey?: string,
+  ) {
     if (typeof nextYaml !== 'string') return
-    dispatch({ type: 'edit', yaml: nextYaml, coalesce })
+    draftRef.current = nextYaml
+    dispatch({ type: 'edit', yaml: nextYaml, coalesceKey })
   }
 
   function handleAddNode(type: NodeType, position?: Point, afterId?: string) {
@@ -217,7 +227,7 @@ export function WorkflowGraphEditor({
 
   function handleNodesDelete(nodeIds: Array<string>) {
     if (nodeIds.length === 0) return
-    applyEdit(removeNodes(draft, nodeIds))
+    applyEdit(removeNodes(draftRef.current, nodeIds))
     if (selectedNodeId && nodeIds.includes(selectedNodeId)) {
       setSelectedNodeId(null)
     }
@@ -225,18 +235,9 @@ export function WorkflowGraphEditor({
   }
 
   function handleEdgesDelete(edges: Array<{ source: string; target: string }>) {
-    // If the node at either end was just deleted, removeNodes already stripped dependencies
-    // in the same user action. Ignore dangling edges to avoid double undo steps.
-    const activeNodeIds = new Set(
-      (editorDag?.graph.nodes ?? []).map((n) => n.id),
-    )
-    const validEdges = edges.filter(
-      (e) => activeNodeIds.has(e.source) && activeNodeIds.has(e.target),
-    )
-    if (validEdges.length === 0) return
-
-    let yaml = draft
-    for (const { source, target } of validEdges) {
+    // FlowCanvas already drops edges of nodes deleted in the same batch.
+    let yaml = draftRef.current
+    for (const { source, target } of edges) {
       try {
         yaml = removeDependency(yaml, target, source)
       } catch {
@@ -342,13 +343,6 @@ export function WorkflowGraphEditor({
   const changesRef = useRef(changes)
   changesRef.current = changes
 
-  // TanStack Router blocker: guards sidebar / app route changes when dirty.
-  const router = useRouter({ warn: false })
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  const blockGuard = router ? (
-    <RouterBlockGuard onConfirmLeave={confirmLeave} dirtyRef={dirtyRef} />
-  ) : null
-
   // Undo / redo + A-to-add keyboard shortcuts (never while typing in a field or with modifiers/dialogs).
   const addAfterSelectedRef = useRef(() => {})
   addAfterSelectedRef.current = () =>
@@ -388,6 +382,17 @@ export function WorkflowGraphEditor({
   }
   const confirmLeaveRef = useRef(confirmLeave)
   confirmLeaveRef.current = confirmLeave
+  // App route changes (sidebar etc.). Browser Back/Forward are popstate and
+  // guarded once by the workflows layout — skipping them here avoids a
+  // second confirm for the same Back press.
+  useBlocker({
+    shouldBlockFn: ({ action }) =>
+      action !== 'BACK' &&
+      action !== 'FORWARD' &&
+      action !== 'GO' &&
+      !confirmLeaveRef.current(),
+    enableBeforeUnload: false,
+  })
   useEffect(() => {
     onRegisterGuard?.(() => confirmLeaveRef.current())
     return () => onRegisterGuard?.(null)
@@ -442,9 +447,9 @@ export function WorkflowGraphEditor({
   }
 
   function handleSave() {
-    if (blockingErrors > 0 || !dirty || !def) return
+    if (blockingErrors > 0 || !dirty || !def || !baseline?.checksum) return
     // HIGH 1: send baseline.checksum so concurrent refetches don't silently overwrite
-    void persist(baseline?.checksum)
+    void persist(baseline.checksum)
   }
 
   async function handleConflictReload() {
@@ -502,13 +507,17 @@ export function WorkflowGraphEditor({
 
   const prov = provenanceOf(def.source, def.user_modified)
   const currentVersion = Math.max(1, parseInt(def.version ?? '1', 10) || 1)
-  const saveDisabled = blockingErrors > 0 || !dirty || save.kind === 'saving'
+  const noChecksum = !baseline?.checksum
+  const saveDisabled =
+    blockingErrors > 0 || !dirty || noChecksum || save.kind === 'saving'
   const saveTitle =
     blockingErrors > 0
       ? `Fix ${blockingErrors} error${blockingErrors === 1 ? '' : 's'} to save`
       : !dirty
         ? 'No unsaved changes'
-        : 'Save as a new version'
+        : noChecksum
+          ? 'Save blocked: definition has no checksum (no conflict check)'
+          : 'Save as a new version'
 
   return (
     <div className="wge-root">
@@ -695,6 +704,20 @@ export function WorkflowGraphEditor({
 
           <ValidationPanel state={validation} onFocusNode={handleFocusNode} />
 
+          {danglingRefs.length > 0 && (
+            <div className="wge-save-error" role="status">
+              DANGLING OUTPUT REFERENCES —{' '}
+              {danglingRefs
+                .map((r) => `${r.nodeId} uses $${r.refId}.output`)
+                .join('; ')}
+            </div>
+          )}
+          {noChecksum && (
+            <div className="wge-save-error" role="status">
+              SAVE BLOCKED — this definition has no checksum, so a save could
+              silently overwrite a newer version. Reload the workflow.
+            </div>
+          )}
           {save.kind === 'error' && (
             <div className="wge-save-error" role="alert">
               SAVE FAILED — {save.message}
@@ -716,7 +739,10 @@ export function WorkflowGraphEditor({
               applyEdit(setNodePhase(draft, selectedNode.id, phase))
             }
             onBodyChange={(body) =>
-              applyEdit(setNodeBody(draft, selectedNode.id, body), true)
+              applyEdit(
+                setNodeBody(draft, selectedNode.id, body),
+                `${selectedNode.id}:body`,
+              )
             }
             onAddDependency={(depId) => {
               try {
@@ -768,7 +794,7 @@ export function WorkflowGraphEditor({
         onConfirm={() => {
           setConfirmDiscard(false)
           dispatch({ type: 'reset', yaml: def.yaml })
-          setBaseline({ id: def.id })
+          setBaseline({ id: def.id, checksum: def.checksum })
           setSelectedNodeId(null)
           setPositions({})
           setFocusNodeId(null)
@@ -817,24 +843,6 @@ export function WorkflowGraphEditor({
           </div>
         </div>
       )}
-      {blockGuard}
     </div>
   )
-}
-
-function RouterBlockGuard({
-  onConfirmLeave,
-  dirtyRef,
-}: {
-  onConfirmLeave: () => boolean
-  dirtyRef: React.RefObject<boolean>
-}) {
-  useBlocker({
-    shouldBlockFn: () => {
-      if (!dirtyRef.current) return false
-      return !onConfirmLeave()
-    },
-    enableBeforeUnload: false,
-  })
-  return null
 }

@@ -161,21 +161,31 @@ function FlowCanvasInner({
     })
   }, [dag, preview, editable])
 
+  // Editor: removals are never applied locally — the parent edits the YAML
+  // and the rebuilt dag redraws the canvas, so canvas and YAML cannot diverge.
   const onEdgesChange = (changes: Array<EdgeChange>) => {
-    setEdges((eds) => applyEdgeChanges(changes, eds))
-    if (!editable || !onEdgesDelete) return
-    const removed = changes.filter(
-      (c): c is { type: 'remove'; id: string } => c.type === 'remove',
-    )
-    if (removed.length === 0) return
-    onEdgesDelete(
-      removed
-        .map((c) => {
-          const found = edges.find((x) => x.id === c.id)
-          return found ? { source: found.source, target: found.target } : null
-        })
-        .filter((p): p is { source: string; target: string } => p != null),
-    )
+    const local = changes.filter((c) => c.type !== 'remove')
+    if (local.length) setEdges((eds) => applyEdgeChanges(local, eds))
+  }
+  const onEditableNodesChange: typeof onNodesChange = (changes) => {
+    const local = changes.filter((c) => c.type !== 'remove')
+    if (local.length) onNodesChange(local)
+  }
+  // Single delete path: one callback per Delete keypress. Edges touching a
+  // deleted node are dropped (removeNodes scrubs them) → one undo step.
+  const onDelete = ({
+    nodes: deletedNodes,
+    edges: deletedEdges,
+  }: {
+    nodes: Array<FlowNode>
+    edges: Array<Edge>
+  }) => {
+    const gone = new Set(deletedNodes.map((n) => n.id))
+    if (gone.size) onNodesDelete?.([...gone])
+    const kept = deletedEdges
+      .filter((e) => !gone.has(e.source) && !gone.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target }))
+    if (kept.length) onEdgesDelete?.(kept)
   }
 
   // Status polls rebuild node data; on-canvas positions (and measurements) stay.
@@ -337,7 +347,7 @@ function FlowCanvasInner({
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
+        onNodesChange={editable ? onEditableNodesChange : onNodesChange}
         deleteKeyCode={editable ? ['Delete', 'Backspace'] : null}
         nodesConnectable={editable}
         nodesDraggable={!locked && !preview}
@@ -378,28 +388,7 @@ function FlowCanvasInner({
               }
             : undefined
         }
-        onNodesDelete={
-          editable && onNodesDelete
-            ? (deleted) => onNodesDelete(deleted.map((n) => n.id))
-            : undefined
-        }
-        onEdgesDelete={
-          editable && onEdgesDelete
-            ? (deleted) =>
-                onEdgesDelete(
-                  deleted
-                    .map((e) => {
-                      const found = edges.find((x) => x.id === e.id)
-                      return found
-                        ? { source: found.source, target: found.target }
-                        : null
-                    })
-                    .filter(
-                      (p): p is { source: string; target: string } => p != null,
-                    ),
-                )
-            : undefined
-        }
+        onDelete={editable ? onDelete : undefined}
         onEdgesChange={editable ? onEdgesChange : undefined}
         onSelectionChange={
           editable && onSelectionChange

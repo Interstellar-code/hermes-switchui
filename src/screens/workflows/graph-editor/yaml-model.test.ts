@@ -6,6 +6,7 @@ import {
   addDependency,
   addNode,
   duplicateNode,
+  findDanglingOutputRefs,
   readGraph,
   removeDependency,
   removeNodes,
@@ -176,6 +177,40 @@ describe('yaml-model lossless round-trip', () => {
     expect(nodes[1]['when']).toBe("$step_first.output != ''")
     expect(nodes[1]['depends_on']).toBe('step_first')
     expect(updated).not.toContain('step_one')
+  })
+
+  it('renameNode rewrites nested refs (loop / with / env)', () => {
+    const text = `nodes:
+  - id: a
+    bash: echo hi
+  - id: b
+    loop:
+      prompt: Iterate over $a.output
+    with:
+      input: \${a.output.items}
+    env:
+      SRC: $a.output
+`
+    const updated = renameNode(text, 'a', 'src')
+    expect(updated).toContain('prompt: Iterate over $src.output')
+    expect(updated).toContain('input: ${src.output.items}')
+    expect(updated).toContain('SRC: $src.output')
+    expect(updated).not.toMatch(/\$\{?a\.output/)
+  })
+
+  it('findDanglingOutputRefs reports refs left behind by removeNodes', () => {
+    const text = `nodes:
+  - id: a
+    bash: echo hi
+  - id: b
+    prompt: Use $a.output
+    env:
+      X: \${a.output}
+`
+    expect(findDanglingOutputRefs(text)).toEqual([])
+    expect(findDanglingOutputRefs(removeNodes(text, ['a']))).toEqual([
+      { nodeId: 'b', refId: 'a' },
+    ])
   })
 
   it('readGraph and removeNodes handle string scalar depends_on', () => {

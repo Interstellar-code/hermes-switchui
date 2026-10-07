@@ -426,10 +426,10 @@ export function WorkflowTable({
                 <button type="button">SCHEDULE</button>
               </th>
               <th scope="col" style={{ width: '64px' }}>
-                <button type="button">VALID</button>
+                VALID
               </th>
               <th scope="col" style={{ width: '96px' }}>
-                <button type="button">LAST RUN</button>
+                LAST RUN
               </th>
               <th scope="col" style={{ width: '122px' }}>
                 <span className="sr">Actions</span>
@@ -502,34 +502,17 @@ export function WorkflowTable({
                     </span>
                   </td>
                   <td>
-                    {lastUsed ? (
-                      <Link
-                        to="/conductor"
-                        className="na"
-                        style={{ textDecoration: 'none' }}
-                        title="Open runs in Conductor"
-                      >
-                        {lastUsed}
-                      </Link>
-                    ) : wf.run_count > 0 ? (
-                      <Link
-                        to="/conductor"
-                        className="na"
-                        style={{ textDecoration: 'none' }}
-                        title="Open runs in Conductor"
-                      >
-                        {wf.run_count} {wf.run_count === 1 ? 'run' : 'runs'}
-                      </Link>
-                    ) : (
-                      <Link
-                        to="/conductor"
-                        className="na"
-                        style={{ textDecoration: 'none' }}
-                        title="Open runs in Conductor"
-                      >
-                        never
-                      </Link>
-                    )}
+                    <Link
+                      to="/conductor"
+                      className="na"
+                      style={{ textDecoration: 'none' }}
+                      title="Open runs in Conductor"
+                    >
+                      {lastUsed ||
+                        (wf.run_count > 0
+                          ? `${wf.run_count} ${wf.run_count === 1 ? 'run' : 'runs'}`
+                          : 'never')}
+                    </Link>
                   </td>
                   <td>
                     <div className="acts">

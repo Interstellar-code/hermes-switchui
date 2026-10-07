@@ -38,27 +38,36 @@ export function WorkflowsLayout() {
 
   // Read ?wf=<id> (OPEN IN EDITOR), ?wizard=<id> and ?run=<id> on mount —
   // and again on popstate so the browser Back button restores the view.
+  // Registered once: selection changes never re-read the URL. This is the
+  // only Back/Forward guard for a dirty graph editor (its router blocker
+  // skips popstate), so a Back press confirms exactly once.
   useEffect(() => {
+    let undoingPop = false
     function readUrlParams() {
-      const guard = graphLeaveGuardRef.current
-      if (guard && !guard()) {
-        // User cancelled discarding changes: push current URL back so Back button does not navigate
-        const currentUrl = new URL(window.location.href)
-        if (selectedWorkflowId)
-          currentUrl.searchParams.set('wf', selectedWorkflowId)
-        window.history.pushState(null, '', currentUrl.toString())
-        return
-      }
       const params = new URLSearchParams(window.location.search)
       setSelectedWorkflowId(params.get('wf'))
       setWizardOpenForId(params.get('wizard'))
       setActiveRunId(params.get('run'))
       if (!params.get('wf')) setIsEditingGraph(false)
     }
+    function onPopState() {
+      if (undoingPop) {
+        undoingPop = false
+        return
+      }
+      const guard = graphLeaveGuardRef.current
+      if (guard && !guard()) {
+        // Cancelled: step forward again — the exact URL (wf/wizard/run) returns.
+        undoingPop = true
+        window.history.go(1)
+        return
+      }
+      readUrlParams()
+    }
     readUrlParams()
-    window.addEventListener('popstate', readUrlParams)
-    return () => window.removeEventListener('popstate', readUrlParams)
-  }, [selectedWorkflowId])
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
 
   function handleOpenLaunchWizard(workflowId: string) {
     setWizardOpenForId(workflowId)

@@ -15,8 +15,8 @@
  *                           loop | cancel | subgraph  (+ UI-side `router`
  *                           placeholder, see F4 report).
  */
-import { YAMLMap, isMap, isScalar, isSeq, parseDocument } from 'yaml'
-import type { Document, YAMLSeq } from 'yaml'
+import { YAMLMap, isMap, isScalar, isSeq, parseDocument, visit } from 'yaml'
+import type { Document, Scalar, YAMLSeq } from 'yaml'
 import type { NodeType } from '../types'
 
 /** Mode keys the editor knows; any other key on a node map is preserved but never touched. */
@@ -358,21 +358,58 @@ function rewriteOutputRefsInText(
   return res
 }
 
+/** Every string value scalar in the node, nested ones included (loop/with/env/…). */
+function forEachTextScalar(raw: YAMLMap, fn: (s: Scalar<string>) => void) {
+  visit(raw, {
+    Scalar(key, node) {
+      if (key !== 'key' && typeof node.value === 'string') {
+        fn(node as Scalar<string>)
+      }
+    },
+  })
+}
+
 function rewriteOutputRefsInNode(
   raw: YAMLMap,
   oldId: string,
   newId: string,
 ): void {
-  const textKeys = ['prompt', 'bash', 'script', 'command', 'when']
-  for (const key of textKeys) {
-    const val = raw.get(key, true)
-    if (isScalar(val) && typeof val.value === 'string') {
-      const next = rewriteOutputRefsInText(val.value, oldId, newId)
-      if (next !== val.value) {
-        val.value = next
-      }
-    }
+  forEachTextScalar(raw, (s) => {
+    const next = rewriteOutputRefsInText(s.value, oldId, newId)
+    if (next !== s.value) s.value = next
+  })
+}
+
+/** `$id.output` / `${id.output}` references to node ids that do not exist. */
+export function findDanglingOutputRefs(
+  text: string,
+): Array<{ nodeId: string; refId: string }> {
+  let doc: Document
+  try {
+    doc = parseDocument(text)
+  } catch {
+    return []
   }
+  const seq = doc.errors.length ? null : nodesSeq(doc)
+  if (!seq) return []
+  const maps = seq.items.map(nodeMap).filter((m): m is YAMLMap => m != null)
+  const ids = new Set(maps.map((m) => scalarText(m.get('id', true))))
+  const out: Array<{ nodeId: string; refId: string }> = []
+  for (const raw of maps) {
+    const nodeId = scalarText(raw.get('id', true))
+    const seen = new Set<string>()
+    forEachTextScalar(raw, (s) => {
+      for (const re of [NODE_OUTPUT_BRACE_REF_RE, NODE_OUTPUT_REF_RE]) {
+        for (const m of s.value.matchAll(re)) {
+          if (!ids.has(m[1]) && !seen.has(m[1])) {
+            seen.add(m[1])
+            out.push({ nodeId, refId: m[1] })
+          }
+        }
+      }
+    })
+  }
+  return out
 }
 
 /** Remove nodes and scrub dangling depends_on references to them. */

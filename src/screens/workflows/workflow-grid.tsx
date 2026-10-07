@@ -581,7 +581,7 @@ export function WorkflowGrid({
                   const tagPrompt =
                     wf.tags.length > 0 ? (
                       <>
-                        say <q>{wf.tags[0]}</q>
+                        tags: {wf.tags[0]}
                         {wf.tags.length > 1 && ` +${wf.tags.length - 1} more`}
                       </>
                     ) : (
