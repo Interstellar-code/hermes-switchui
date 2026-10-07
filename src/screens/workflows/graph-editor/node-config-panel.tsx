@@ -141,7 +141,7 @@ export function NodeConfigPanel({
         </div>
         {(node.type === 'bash' || node.type === 'script') && (
           <div className="wge-f">
-            <label htmlFor="wge-nto">TIMEOUT</label>
+            <label htmlFor="wge-nto">TIMEOUT (MS)</label>
             <input
               id="wge-nto"
               type="number"

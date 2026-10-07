@@ -204,6 +204,7 @@ export class PluginClient implements WorkflowEngineInterface {
     opts?: {
       id?: string
       name?: string
+      source?: 'user' | 'project' | 'bundled'
       expected_checksum?: string
       save_source?: 'save' | 'import'
       if_absent?: boolean
@@ -217,6 +218,7 @@ export class PluginClient implements WorkflowEngineInterface {
         source_path: sourcePath,
         ...(opts?.id != null ? { id: opts.id } : {}),
         ...(opts?.name != null ? { name: opts.name } : {}),
+        ...(opts?.source != null ? { source: opts.source } : {}),
         ...(opts?.expected_checksum != null
           ? { expected_checksum: opts.expected_checksum }
           : {}),

@@ -529,6 +529,13 @@ export function WorkflowGraphEditor({
   }
 
   const prov = def ? provenanceOf(def.source, def.user_modified) : null
+  // Real origin on the header chip: project rows showed "USER" before (F3-5).
+  const originLabel =
+    def && prov
+      ? def.source === 'bundled'
+        ? PROVENANCE_LABEL[prov]
+        : def.source
+      : ''
   const currentVersion = Math.max(1, parseInt(def?.version ?? '1', 10) || 1)
   const noChecksum = !baseline?.checksum
   const saveDisabled =
@@ -557,9 +564,7 @@ export function WorkflowGraphEditor({
             <h1 className="wge-dt" title={def.name}>
               {def.name}
             </h1>
-            <span className="wge-chip">
-              {PROVENANCE_LABEL[prov].toUpperCase()}
-            </span>
+            <span className="wge-chip">{originLabel.toUpperCase()}</span>
             <span className="wge-chip wge-chip-mu">
               {dirty
                 ? `v${currentVersion} → v${currentVersion + 1} draft`

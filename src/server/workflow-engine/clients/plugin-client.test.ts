@@ -128,6 +128,29 @@ describe('PluginClient.upsertDefinition — if_absent', () => {
     expect('if_absent' in body).toBe(false)
   })
 
+  it('puts source in the POST body when asked (QA1 F5-2)', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ definition: { id: 'wf' } }))
+    await client.upsertDefinition('name: x', undefined, {
+      id: 'wf',
+      source: 'user',
+    })
+    const body = JSON.parse(lastInit()?.body as string) as Record<
+      string,
+      unknown
+    >
+    expect(body.source).toBe('user')
+  })
+
+  it('omits source when not set', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ definition: { id: 'wf' } }))
+    await client.upsertDefinition('name: x', undefined, { id: 'wf' })
+    const body = JSON.parse(lastInit()?.body as string) as Record<
+      string,
+      unknown
+    >
+    expect('source' in body).toBe(false)
+  })
+
   it('throws a 409 carrying the engine body on id_taken', async () => {
     const engineBody = {
       error: "definition 'wf' already exists",

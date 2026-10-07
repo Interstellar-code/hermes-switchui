@@ -155,6 +155,67 @@ describe('WorkflowGrid', () => {
     expect(screen.getByText(/3 runs · Conductor →/i)).toBeTruthy()
   })
 
+  // QA1 F1-2: the list API ships no run data — the card must show "—",
+  // never an invented "never run" (or "0 runs").
+  it('shows an em dash for run data when the API omits run_count (QA1 F1-2)', () => {
+    const w = makeWf({ id: 'w1', name: 'Unknown Runs' })
+    delete (w as Partial<WorkflowSummary>).run_count
+    renderWithClient(<WorkflowGrid workflows={[w]} onSelect={vi.fn()} />)
+    expect(screen.queryByText(/never run/i)).toBeNull()
+    expect(screen.queryByText(/0 runs/i)).toBeNull()
+    expect(screen.getAllByText(/^—$/).length).toBeGreaterThan(0)
+  })
+
+  it('shows "never run" only when the API explicitly says 0 runs (QA1 F1-2)', () => {
+    const w = makeWf({ id: 'w1', name: 'Zero Runs', run_count: 0 })
+    renderWithClient(<WorkflowGrid workflows={[w]} onSelect={vi.fn()} />)
+    expect(screen.getByText(/never run/i)).toBeTruthy()
+  })
+
+  // QA1 F1-3: a null version is unknown, not v1.
+  it('shows an em dash version for null and the real version otherwise (QA1 F1-3)', () => {
+    renderWithClient(
+      <WorkflowGrid
+        workflows={[
+          makeWf({ id: 'w1', name: 'No Version' }),
+          makeWf({ id: 'w2', name: 'Versioned', version: '2' }),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getByText(/— · edited /i)).toBeTruthy()
+    expect(screen.queryByText(/v1 · edited /i)).toBeNull()
+    expect(screen.getByText(/v2 · edited /i)).toBeTruthy()
+  })
+
+  // QA1 F1-6: user_modified must not relabel a user-source row as MODIFIED.
+  it('labels the real origin: USER wins over user_modified (QA1 F1-6)', () => {
+    renderWithClient(
+      <WorkflowGrid
+        workflows={[
+          makeWf({
+            id: 'w1',
+            name: 'User Modified',
+            source: 'user',
+            user_modified: 1,
+          }),
+          makeWf({ id: 'w2', name: 'Project One', source: 'project' }),
+          makeWf({
+            id: 'w3',
+            name: 'Tweaked Factory',
+            source: 'bundled',
+            user_modified: 1,
+          }),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByText('USER').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('PROJECT').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('MODIFIED').length).toBeGreaterThan(0)
+    expect(screen.queryAllByText('FACTORY')).toHaveLength(0)
+  })
+
   it('sorts by recently edited by default and renders stripped descriptions', () => {
     const now = Date.now()
     const w1 = makeWf({

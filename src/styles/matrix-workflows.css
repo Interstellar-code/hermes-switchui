@@ -3180,6 +3180,9 @@
     margin-top: auto;
     padding: 12px 14px;
     display: flex;
+    /* QA1 F1-8: wrapping keeps the footer buttons inside the 248px rail
+       instead of clipping ("NEW WORKFLOV") and shifting it sideways. */
+    flex-wrap: wrap;
     gap: 6px;
     border-top: 1px solid
       var(
@@ -3720,6 +3723,26 @@
   .tw .id {
     color: var(--m-text-faint, var(--theme-muted));
     font-size: 9.5px;
+    margin-left: 6px;
+  }
+
+  /* QA1 F1-5: small mono meta text + screen-reader-only helper. */
+  .meta {
+    font-size: 10px;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
   }
 
   .tw .num {

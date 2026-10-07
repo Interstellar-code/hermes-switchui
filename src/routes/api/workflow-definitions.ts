@@ -209,6 +209,10 @@ export const Route = createFileRoute('/api/workflow-definitions')({
             {
               id: body.id,
               name: body.name,
+              // QA1 F5-2: forward the chosen scope — dropping it here silently
+              // stored every "User · only you" save as project. Omitted when
+              // the body sent none, so the engine default is untouched.
+              ...(body.source !== undefined ? { source } : {}),
               ...(typeof body.expected_checksum === 'string'
                 ? { expected_checksum: body.expected_checksum }
                 : {}),

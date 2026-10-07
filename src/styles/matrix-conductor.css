@@ -359,123 +359,10 @@
     flex-wrap: wrap;
   }
 
-  .dn {
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 2px;
-    padding: 6px 10px;
-    text-align: left;
-    font-family: var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-text, var(--theme-text));
-    background: var(--m-card, var(--theme-card));
-    border: 1px solid var(--m-border, var(--theme-border));
-    border-radius: 6px;
-    transition:
-      border-color var(--m-dur-fast, 120ms),
-      box-shadow var(--m-dur-fast, 120ms);
-  }
-
-  button.dn {
-    cursor: pointer;
-  }
-
-  button.dn:hover {
-    border-color: var(--m-green-500, var(--theme-accent));
-  }
-
-  button.dn:focus-visible {
-    outline: 2px solid var(--m-green-400, var(--theme-accent));
-    outline-offset: 2px;
-  }
-
-  .dn .k {
-    font-size: 8.5px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--m-text-faint, var(--theme-muted));
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .dn .k .loop {
-    color: var(--m-warning, var(--theme-accent));
-  }
-
-  .dn .nm {
-    font-size: 12px;
-    font-weight: 700;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .dn .s {
-    font-size: 9.5px;
-    color: var(--m-text-muted, var(--theme-muted));
-  }
-
-  .dn.done {
-    border-color: var(--m-green-700, var(--theme-accent));
-  }
-
-  .dn.done .s {
-    color: var(--m-green-500, var(--theme-accent));
-  }
-
-  .dn.run {
-    border-color: var(--m-green-500, var(--theme-accent));
-    box-shadow: var(--m-glow-sm, 0 0 12px rgba(0, 255, 65, 0.3));
-    animation: cnd-node-pulse 1.8s ease-in-out infinite;
-  }
-
-  .dn.run .s {
-    color: var(--m-green-500, var(--theme-accent));
-  }
-
-  @keyframes cnd-node-pulse {
-    0%,
-    100% {
-      box-shadow: 0 0 4px var(--m-green-700, var(--theme-accent));
-    }
-    50% {
-      box-shadow: 0 0 14px var(--m-green-500, var(--theme-accent));
-    }
-  }
-
-  .dn.fail {
-    border-color: var(--m-danger, var(--theme-danger));
-  }
-
-  .dn.fail .s {
-    color: var(--m-danger, var(--theme-danger));
-  }
-
-  .dn.wait,
-  .dn.hold {
-    border-style: dashed;
-  }
-
-  .dn.wait {
-    opacity: 0.55;
-  }
-
-  .dn.hold {
-    border-color: var(--m-warning, var(--theme-accent));
-  }
-
-  .dn.hold .s {
-    color: var(--m-warning, var(--theme-accent));
-  }
-
-  .dn.skip {
-    opacity: 0.4;
-  }
+  /* Node card base (.dn) lives in conductor-flow.css scoped to .flow-host,
+     so cards style wherever the FlowCanvas renders (QA1 F1-4/F3-2/F4-4). */
 
   @media (prefers-reduced-motion: reduce) {
-    .dn.run,
     .now .lbl::before {
       animation: none;
     }
@@ -943,14 +830,6 @@
   .h-foot button:hover {
     background: var(--m-green-400, var(--theme-accent-secondary));
     border-color: var(--m-green-400, var(--theme-accent-secondary));
-  }
-
-  .dn .agents-chip {
-    position: absolute;
-    right: 8px;
-    bottom: 5px;
-    font-size: 8.5px;
-    color: var(--m-green-500, var(--theme-accent));
   }
 
   /* ── Agents panel (drawer) ── */

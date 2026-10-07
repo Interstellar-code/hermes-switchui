@@ -202,4 +202,76 @@ describe('WorkflowLibrary filter rail', () => {
     )
     expect(onFilteredChange).toHaveBeenLastCalledWith(workflows)
   })
+
+  // QA1 F3-1: on first render the definitions list is empty while loading —
+  // clearing then dropped the ?wf= deep link back to the library.
+  it('does not clear a selected id while the definitions list is still loading (QA1 F3-1)', () => {
+    const onClearSelection = vi.fn()
+
+    const { rerender } = renderWithClient(
+      <WorkflowLibrary
+        selectedId="deep-linked-wf"
+        onSelectWorkflow={vi.fn()}
+        onClearSelection={onClearSelection}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        workflows={[]}
+      />,
+    )
+    expect(onClearSelection).not.toHaveBeenCalled()
+
+    // List loads and the id is genuinely absent → clear.
+    rerender(
+      <WorkflowLibrary
+        selectedId="deep-linked-wf"
+        onSelectWorkflow={vi.fn()}
+        onClearSelection={onClearSelection}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        workflows={[makeWf({ id: 'other-wf' })]}
+      />,
+    )
+    expect(onClearSelection).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the selection when the loaded list contains the id', () => {
+    const onClearSelection = vi.fn()
+
+    renderWithClient(
+      <WorkflowLibrary
+        selectedId="w1"
+        onSelectWorkflow={vi.fn()}
+        onClearSelection={onClearSelection}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        workflows={[makeWf({ id: 'w1' })]}
+      />,
+    )
+    expect(onClearSelection).not.toHaveBeenCalled()
+  })
+
+  // QA1 F1-7: hidden subgraphs must not inflate the SHAPE chip counts.
+  it('counts hidden subgraphs in shape chips only once "Show subgraphs" is on (QA1 F1-7)', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'sub', kind: 'subgraph', required_inputs: ['x'] }),
+      makeWf({ id: 'normal', required_inputs: ['y'] }),
+    ]
+
+    renderWithClient(
+      <WorkflowLibrary
+        selectedId={null}
+        onSelectWorkflow={vi.fn()}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        workflows={workflows}
+      />,
+    )
+
+    const chipText = () =>
+      screen.getByText(/takes inputs/i).closest('label')?.textContent ?? ''
+    expect(chipText()).toMatch(/takes inputs\s*1$/i)
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /show subgraphs/i }))
+    expect(chipText()).toMatch(/takes inputs\s*2$/i)
+  })
 })

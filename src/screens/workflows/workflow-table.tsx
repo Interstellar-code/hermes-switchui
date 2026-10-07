@@ -3,7 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { NodeTypeBar } from './workflow-grid'
 import { getScheduleLabel } from './schedule'
-import { relativeTime } from './types'
+import { formatVersion, relativeTime } from './types'
 import type { WorkflowSource, WorkflowSummary } from './types'
 
 export type TableSortCol =
@@ -483,7 +483,7 @@ export function WorkflowTable({
                       <span className="na">0</span>
                     )}
                   </td>
-                  <td>v{wf.version || '1'}</td>
+                  <td>{formatVersion(wf.version)}</td>
                   <td>
                     <span>{formatEditedTime(wf)}</span>
                   </td>
@@ -509,9 +509,11 @@ export function WorkflowTable({
                       title="Open runs in Conductor"
                     >
                       {lastUsed ||
-                        (wf.run_count > 0
-                          ? `${wf.run_count} ${wf.run_count === 1 ? 'run' : 'runs'}`
-                          : 'never')}
+                        (typeof wf.run_count !== 'number'
+                          ? '—'
+                          : wf.run_count > 0
+                            ? `${wf.run_count} ${wf.run_count === 1 ? 'run' : 'runs'}`
+                            : 'never')}
                     </Link>
                   </td>
                   <td>

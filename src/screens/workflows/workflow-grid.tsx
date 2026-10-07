@@ -4,7 +4,7 @@ import { NewWorkflowWizard } from './new-workflow-wizard'
 import { nodeColor } from './node-colors'
 import { isWithin7Days } from './workflows-top-bar'
 import { useWorkflowParsed } from './use-workflows'
-import { relativeTime } from './types'
+import { formatVersion, relativeTime } from './types'
 import { WorkflowTable } from './workflow-table'
 import type { WorkflowSource, WorkflowSummary } from './types'
 import { buildDag } from '@/screens/gateway/conductor/dag-model'
@@ -170,13 +170,6 @@ function CardGraphPreview({ workflow }: { workflow: WorkflowSummary }) {
 }
 
 function renderOriginChip(source: WorkflowSource, userModified?: 0 | 1) {
-  if (userModified === 1) {
-    return (
-      <span className="chip cy" style={{ flexShrink: 0 }}>
-        MODIFIED
-      </span>
-    )
-  }
   if (source === 'user') {
     return (
       <span className="chip cy" style={{ flexShrink: 0 }}>
@@ -188,6 +181,13 @@ function renderOriginChip(source: WorkflowSource, userModified?: 0 | 1) {
     return (
       <span className="chip pu" style={{ flexShrink: 0 }}>
         PROJECT
+      </span>
+    )
+  }
+  if (userModified === 1) {
+    return (
+      <span className="chip cy" style={{ flexShrink: 0 }}>
+        MODIFIED
       </span>
     )
   }
@@ -516,7 +516,7 @@ export function WorkflowGrid({
                         {renderOriginChip(wf.source, wf.user_modified)}
                         <span className="grow" />
                         <span className="meta">
-                          v{wf.version || '1'} · {formatEditedTime(wf)}
+                          {formatVersion(wf.version)} · {formatEditedTime(wf)}
                         </span>
                       </div>
                       <h3 className="t" title={wf.name}>
@@ -636,7 +636,8 @@ export function WorkflowGrid({
                         </div>
                         <div className="cm">
                           <span>
-                            v{wf.version || '1'} · edited {formatEditedTime(wf)}
+                            {formatVersion(wf.version)} · edited{' '}
+                            {formatEditedTime(wf)}
                           </span>
                           <span className="grow" />
                           {wf.last_used_at ? (
@@ -648,6 +649,8 @@ export function WorkflowGrid({
                               last used {relativeTime(wf.last_used_at)} ·
                               Conductor →
                             </Link>
+                          ) : typeof wf.run_count !== 'number' ? (
+                            <span className="meta">—</span>
                           ) : wf.run_count > 0 ? (
                             <Link
                               to="/conductor"

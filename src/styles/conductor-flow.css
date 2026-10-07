@@ -1,21 +1,26 @@
-/* conductor-flow.css — React Flow mission canvas (flow/*), scoped to [data-screen="conductor"].
-   Legacy .dag-* / absolute .dn rules in matrix-conductor.css are overridden here; F8 deletes them. */
+/* conductor-flow.css — React Flow canvas styles, scoped to the canvas root
+   (.flow-host) so they apply wherever FlowCanvas renders — /conductor, the
+   workflow detail graph, the library card previews and the graph editor.
+   flow-canvas.tsx imports this file, so the styles load with the canvas.
+   The node-card base (.dn) lives here too (moved from matrix-conductor.css);
+   only the header extras (.flow-legend/.flow-hint/.flow-reset) stay scoped to
+   [data-screen="conductor"] because they render outside the canvas. */
 
-[data-screen='conductor'] {
-  .flow-host {
-    position: relative;
-    flex: 1 1 0;
-    min-height: 0;
-    border: 1px solid var(--m-border-faint, var(--theme-border));
-    border-radius: var(--m-radius-lg, 8px);
-    overflow: hidden;
-  }
+.flow-host {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  border: 1px solid var(--m-border-faint, var(--theme-border));
+  border-radius: var(--m-radius-lg, 8px);
+  overflow: hidden;
+}
 
-  .idle-prev .flow-host {
-    border: none;
-    border-radius: 0;
-  }
+.idle-prev .flow-host {
+  border: none;
+  border-radius: 0;
+}
 
+.flow-host {
   .react-flow {
     --xy-background-color: var(--m-bg, var(--theme-bg));
     --xy-background-pattern-color: var(--m-border-faint, var(--theme-border));
@@ -35,7 +40,7 @@
     font-family: var(--m-font-mono, ui-monospace, monospace);
   }
 
-  .flow-host.preview .react-flow__renderer {
+  &.preview .react-flow__renderer {
     opacity: 0.75;
   }
 
@@ -72,58 +77,128 @@
     color: var(--m-text-faint, var(--theme-muted));
   }
 
-  /* ── header extras (legend, hint, reset) ── */
-  .flow-legend {
+  /* ── node card base (moved from matrix-conductor.css so cards style
+     wherever the canvas renders; conductor cascade is unchanged) ── */
+  .dn {
+    box-sizing: border-box;
     display: flex;
-    flex-wrap: wrap;
-    gap: 9px;
-    font: 500 8.5px var(--m-font-mono, ui-monospace, monospace);
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: var(--m-text-faint, var(--theme-muted));
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 10px;
+    text-align: left;
+    font-family: var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text, var(--theme-text));
+    background: var(--m-card, var(--theme-card));
+    border: 1px solid var(--m-border, var(--theme-border));
+    border-radius: 6px;
+    transition:
+      border-color var(--m-dur-fast, 120ms),
+      box-shadow var(--m-dur-fast, 120ms);
   }
 
-  .flow-legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .flow-legend i {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--node-ink, var(--node-c));
-  }
-
-  .flow-hint {
-    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
-    color: var(--m-text-faint, var(--theme-muted));
-    white-space: nowrap;
-  }
-
-  .flow-reset {
-    white-space: nowrap;
-    padding: 4px 9px;
-    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
-    letter-spacing: 0.12em;
-    color: var(--m-green-500, var(--theme-accent));
-    background: none;
-    border: 1px solid var(--m-green-700, var(--theme-accent-border));
-    border-radius: 5px;
+  button.dn {
     cursor: pointer;
   }
 
-  .flow-reset:hover {
+  button.dn:hover {
     border-color: var(--m-green-500, var(--theme-accent));
   }
 
-  .flow-reset:focus-visible {
-    outline: 2px solid var(--m-green-400, var(--theme-focus));
+  button.dn:focus-visible {
+    outline: 2px solid var(--m-green-400, var(--theme-accent));
     outline-offset: 2px;
   }
 
-  /* ── node card (overrides the legacy absolute .dn) ── */
+  .dn .k {
+    font-size: 8.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--m-text-faint, var(--theme-muted));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dn .k .loop {
+    color: var(--m-warning, var(--theme-accent));
+  }
+
+  .dn .nm {
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .dn .s {
+    font-size: 9.5px;
+    color: var(--m-text-muted, var(--theme-muted));
+  }
+
+  .dn.done {
+    border-color: var(--m-green-700, var(--theme-accent));
+  }
+
+  .dn.done .s {
+    color: var(--m-green-500, var(--theme-accent));
+  }
+
+  .dn.run {
+    border-color: var(--m-green-500, var(--theme-accent));
+    box-shadow: var(--m-glow-sm, 0 0 12px rgba(0, 255, 65, 0.3));
+    animation: cnd-node-pulse 1.8s ease-in-out infinite;
+  }
+
+  .dn.run .s {
+    color: var(--m-green-500, var(--theme-accent));
+  }
+
+  .dn.fail {
+    border-color: var(--m-danger, var(--theme-danger));
+  }
+
+  .dn.fail .s {
+    color: var(--m-danger, var(--theme-danger));
+  }
+
+  .dn.wait,
+  .dn.hold {
+    border-style: dashed;
+  }
+
+  .dn.wait {
+    opacity: 0.55;
+  }
+
+  .dn.hold {
+    border-color: var(--m-warning, var(--theme-accent));
+  }
+
+  .dn.hold .s {
+    color: var(--m-warning, var(--theme-accent));
+  }
+
+  .dn.skip {
+    opacity: 0.4;
+  }
+
+  .dn .agents-chip {
+    position: absolute;
+    right: 8px;
+    bottom: 5px;
+    font-size: 8.5px;
+    color: var(--m-green-500, var(--theme-accent));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .dn.run {
+      animation: none;
+    }
+  }
+
+  /* ── node card overrides (over the base above) ── */
   .react-flow__node-dag {
     border-radius: var(--xy-node-border-radius);
   }
@@ -269,7 +344,10 @@
     bottom: 6px;
   }
 
-  /* Handles: decorative dots, never connectable. */
+  /* Handles: decorative dots by default; connectable only on the editable
+     canvas (F4-1). Base .react-flow__handle.connectionindicator from
+     @xyflow/react sets pointer-events:all, but the decorative rule below
+     loads later at equal specificity — the .editable override must win. */
   .react-flow__handle {
     width: 6px;
     height: 6px;
@@ -281,7 +359,11 @@
     pointer-events: none;
   }
 
-  .flow-host.preview .react-flow__handle {
+  &.editable .react-flow__handle {
+    pointer-events: all;
+  }
+
+  &.preview .react-flow__handle {
     opacity: 0; /* not display:none — edges anchor on handle bounds */
   }
 
@@ -385,7 +467,7 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .react-flow__node .dn.run,
+    .dn.run,
     .react-flow__node .dn.run::after,
     .react-flow__node .dn.hold::after,
     .react-flow__edge.live .react-flow__edge-path,
@@ -395,12 +477,78 @@
   }
 }
 
+@keyframes cnd-node-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px var(--m-green-700, var(--theme-accent));
+  }
+  50% {
+    box-shadow: 0 0 14px var(--m-green-500, var(--theme-accent));
+  }
+}
+
+/* ── header extras — conductor-only, they render outside the canvas ── */
+[data-screen='conductor'] {
+  .flow-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 9px;
+    font: 500 8.5px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--m-text-faint, var(--theme-muted));
+  }
+
+  .flow-legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .flow-legend i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--node-ink, var(--node-c));
+  }
+
+  .flow-hint {
+    font: 500 9px var(--m-font-mono, ui-monospace, monospace);
+    color: var(--m-text-faint, var(--theme-muted));
+    white-space: nowrap;
+  }
+
+  .flow-reset {
+    white-space: nowrap;
+    padding: 4px 9px;
+    font: 600 9px var(--m-font-mono, ui-monospace, monospace);
+    letter-spacing: 0.12em;
+    color: var(--m-green-500, var(--theme-accent));
+    background: none;
+    border: 1px solid var(--m-green-700, var(--theme-accent-border));
+    border-radius: 5px;
+    cursor: pointer;
+  }
+
+  .flow-reset:hover {
+    border-color: var(--m-green-500, var(--theme-accent));
+  }
+
+  .flow-reset:focus-visible {
+    outline: 2px solid var(--m-green-400, var(--theme-focus));
+    outline-offset: 2px;
+  }
+}
+
 /* Light themes: neon NODE_COLOR hexes are unreadable on pale cards; pull them toward the text colour. */
-[data-theme$='-light'] [data-screen='conductor'] {
+[data-theme$='-light'] .flow-host {
   --mm-mix: 55%;
 
-  .react-flow__node .dn,
-  .flow-legend span {
+  .react-flow__node .dn {
     --node-ink: color-mix(in oklab, var(--node-c) 55%, var(--theme-text));
   }
+}
+
+[data-theme$='-light'] [data-screen='conductor'] .flow-legend span {
+  --node-ink: color-mix(in oklab, var(--node-c) 55%, var(--theme-text));
 }

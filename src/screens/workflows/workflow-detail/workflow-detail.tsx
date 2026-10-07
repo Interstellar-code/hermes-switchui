@@ -13,11 +13,12 @@ import {
 } from '../use-workflows'
 import { nodeColor } from '../node-colors'
 import { PROVENANCE_LABEL, provenanceOf } from '../provenance'
+import { formatVersion } from '../types'
 import { WorkflowEngineUnavailableError } from '../api-client'
+import type { ParsedWorkflow, WorkflowInputDetail } from '../types'
 import type React from 'react'
 import type { CSSProperties } from 'react'
 import type { WorkflowDefinitionRow } from '../api-client'
-import type { ParsedWorkflow, WorkflowInputDetail } from '../types'
 import type { DagModel } from '@/screens/gateway/conductor/dag-model'
 import { useConductorScheduled } from '@/screens/gateway/conductor/use-conductor-queries'
 import {
@@ -127,6 +128,11 @@ function duplicateWorkflowId(id: string): string {
   return `${id}-copy-${Date.now().toString(36)}`
 }
 
+function runsLabel(runCount: number | null): string {
+  if (runCount === null) return '— runs'
+  return `${runCount} ${runCount === 1 ? 'run' : 'runs'}`
+}
+
 export function WorkflowDetail({
   workflowId,
   onBack,
@@ -159,11 +165,13 @@ export function WorkflowDetail({
   const parsed = data?.parsed
   const def = data?.definition
 
+  // Validate WITHOUT this definition's own id — passing it collides the
+  // definition with itself and every saved workflow reports id_taken (F3-3).
   const {
     data: validationResult,
     isLoading: validationLoading,
     error: validationError,
-  } = useValidateWorkflowDefinition(def?.yaml, def?.id, {
+  } = useValidateWorkflowDefinition(def?.yaml, undefined, {
     enabled: hasValidate && Boolean(def?.yaml),
   })
 
@@ -195,9 +203,10 @@ export function WorkflowDetail({
 
   const inputs = useMemo(() => inputFields(parsed), [parsed])
 
-  // Run count from the definition row — the bounded column, not an
-  // unbounded run-list query.
-  const runCount = def?.run_count ?? 0
+  // Run count from the definition row — null when the API ships no run data,
+  // rendered as "—" instead of an invented 0 (QA1 F3-4).
+  const runCount: number | null =
+    typeof def?.run_count === 'number' ? def.run_count : null
 
   if (isLoading) {
     return (
@@ -299,8 +308,10 @@ export function WorkflowDetail({
   const isModifiedFactory = prov === 'modified-factory'
 
   const shortChecksum = def.checksum ? def.checksum.slice(0, 8) : '—'
-  const versionStr = def.version ? `v${def.version}` : 'v1'
+  const versionStr = formatVersion(def.version)
   const editedStr = formatEditedTime(def.updated_at)
+  // Real origin on the header chip: project rows showed "USER" before (F3-5).
+  const originLabel = isFactory ? PROVENANCE_LABEL[prov] : def.source
 
   const distinctTypes = dag ? [...new Set(dag.nodes.map((n) => n.type))] : []
   const phasesCount = dag ? new Set(dag.nodes.map((n) => n.stage)).size : 0
@@ -400,10 +411,12 @@ export function WorkflowDetail({
           </h1>
           <span
             className={`wfd-chip ${
-              prov === 'user' ? 'wfd-chip-cy' : 'wfd-chip-ok'
+              def.source === 'user' || isModifiedFactory
+                ? 'wfd-chip-cy'
+                : 'wfd-chip-ok'
             }`}
           >
-            {PROVENANCE_LABEL[prov].toUpperCase()}
+            {originLabel.toUpperCase()}
           </span>
           <span className="wfd-chip wfd-chip-mu">{versionStr}</span>
           <span className="wfd-chip wfd-chip-mu">
@@ -561,7 +574,7 @@ export function WorkflowDetail({
             </span>
           )}
           <Link className="wfd-conductor-link" to="/conductor">
-            {runCount} {runCount === 1 ? 'run' : 'runs'} in Conductor →
+            {runsLabel(runCount)} in Conductor →
           </Link>
         </div>
       </div>
@@ -974,7 +987,9 @@ export function WorkflowDetail({
                         textDecoration: 'none',
                       }}
                     >
-                      {runCount} runs live in Conductor →
+                      {runCount === null
+                        ? '— runs live in Conductor →'
+                        : `${runCount} run${runCount === 1 ? '' : 's'} live in Conductor →`}
                     </Link>
                   </p>
                 </section>
@@ -993,8 +1008,7 @@ export function WorkflowDetail({
                       }}
                       to="/conductor"
                     >
-                      {runCount} {runCount === 1 ? 'run' : 'runs'} in Conductor
-                      →
+                      {runsLabel(runCount)} in Conductor →
                     </Link>
                   </p>
                 </section>

@@ -153,20 +153,24 @@ export function WorkflowLibrary({
     return counts
   }, [workflows])
 
-  // Shape counts
+  // Shape counts (QA1 F1-7): hidden subgraphs must not inflate the counts —
+  // they only count when "Show subgraphs" reveals them.
   const shapeCounts = useMemo(() => {
     let approval = 0
     let cron = 0
     let inputs = 0
     let subgraphs = 0
     for (const w of workflows) {
+      if (w.kind === 'subgraph') {
+        subgraphs++
+        if (!showSubgraphs) continue
+      }
       if (w.has_approval) approval++
       if (isScheduled(w)) cron++
       if (hasInputs(w)) inputs++
-      if (w.kind === 'subgraph') subgraphs++
     }
     return { approval, cron, inputs, subgraphs }
-  }, [workflows])
+  }, [workflows, showSubgraphs])
 
   // State counts (validity needs a per-definition validate call — no batch
   // API — so the Valid / YAML-error segments are not offered).
@@ -247,13 +251,18 @@ export function WorkflowLibrary({
     onFilteredChange?.(filtered)
   }, [filtered, onFilteredChange])
 
+  // While the definitions list is still empty (initial load) we cannot know
+  // whether the URL-selected id exists — clearing then drops a deep link
+  // (?wf=…) back to the library (QA1 F3-1). Only clear once the list has
+  // loaded and the id is truly absent.
   useEffect(() => {
     if (!selectedId) return
+    if (workflows.length === 0) return
     const selectedStillVisible = filtered.some((w) => w.id === selectedId)
     if (!selectedStillVisible) {
       onClearSelection?.()
     }
-  }, [filtered, onClearSelection, selectedId])
+  }, [filtered, onClearSelection, selectedId, workflows.length])
 
   function handleClearAll() {
     setSearch('')
