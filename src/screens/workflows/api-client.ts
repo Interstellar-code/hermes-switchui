@@ -479,6 +479,7 @@ export interface WorkflowWizardChatResponse {
   reply: string
   stage: 'clarify' | 'drafting_nodes' | 'refine_structure' | 'ready_for_design'
   workflow_yaml: string
+  structured?: boolean
   suggested_id?: string
   suggested_name?: string
   suggested_description?: string
@@ -527,6 +528,7 @@ function normalizeWizardAssistantResponse(
         'I could not structure a workflow update from that turn. Please clarify the first node or trigger.',
       stage: 'clarify',
       workflow_yaml: fallbackYaml,
+      structured: false,
       notes: [
         'Assistant response was not valid structured JSON; kept previous workflow YAML.',
       ],
@@ -534,6 +536,7 @@ function normalizeWizardAssistantResponse(
   }
 
   const stage = readString(parsed.stage)
+  const parsedYaml = readString(parsed.workflow_yaml)
   return {
     reply:
       readString(parsed.reply) ||
@@ -544,7 +547,8 @@ function normalizeWizardAssistantResponse(
       stage === 'ready_for_design'
         ? stage
         : 'clarify',
-    workflow_yaml: readString(parsed.workflow_yaml) || fallbackYaml,
+    workflow_yaml: parsedYaml || fallbackYaml,
+    structured: Boolean(parsedYaml),
     suggested_id: readString(parsed.suggested_id) || undefined,
     suggested_name: readString(parsed.suggested_name) || undefined,
     suggested_description:
@@ -659,6 +663,13 @@ function readPersistedSessionModel(sessionId: string): string | undefined {
   return undefined
 }
 
+export const WORKFLOW_DRAFT_REJECTED_SESSION_IDS = new Set(['main', 'new'])
+
+function isInvalidWorkflowDraftSessionId(id: string | undefined): boolean {
+  const trimmed = id?.trim()
+  return !trimmed || WORKFLOW_DRAFT_REJECTED_SESSION_IDS.has(trimmed)
+}
+
 export interface CreateWorkflowDraftSessionResponse {
   sessionId: string
   sessionKey: string
@@ -694,12 +705,17 @@ export async function createWorkflowDraftSession(
     throw new Error(body || `createWorkflowDraftSession failed (${res.status})`)
   }
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
-  const sessionId =
+  const rawId =
     readString(data['sessionKey']) ||
     readString(data['friendlyId']) ||
     readString(data['sessionId']) ||
-    readString(data['id']) ||
-    crypto.randomUUID()
+    readString(data['id'])
+  if (isInvalidWorkflowDraftSessionId(rawId)) {
+    throw new Error(
+      `createWorkflowDraftSession failed: invalid or missing session id returned (${rawId || 'empty'})`,
+    )
+  }
+  const sessionId = rawId.trim()
   return {
     sessionId,
     sessionKey: sessionId,
@@ -712,8 +728,10 @@ export async function chatWorkflowWizard(
   input: WorkflowWizardChatInput,
 ): Promise<WorkflowWizardChatResponse> {
   const sessionKey = input.sessionId?.trim()
-  if (!sessionKey) {
-    throw new Error('chatWorkflowWizard requires a sessionId')
+  if (!sessionKey || WORKFLOW_DRAFT_REJECTED_SESSION_IDS.has(sessionKey)) {
+    throw new Error(
+      `chatWorkflowWizard requires a valid, non-bootstrap sessionId (got "${sessionKey || ''}")`,
+    )
   }
   const model = await resolveWorkflowWizardModel(input.model, sessionKey)
   const res = await fetch('/api/send-stream', {

@@ -139,7 +139,46 @@ describe('createWorkflowDraftSession & chatWorkflowWizard', () => {
     )
   })
 
-  it('chatWorkflowWizard throws when sessionId is omitted or empty', async () => {
+  it('createWorkflowDraftSession throws when create response has no session id', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(createWorkflowDraftSession('No Id')).rejects.toThrow(
+      /invalid or missing session id/,
+    )
+  })
+
+  it('createWorkflowDraftSession throws when create response returns bootstrap id "main" or "new"', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, sessionKey: 'main' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true, id: 'new' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    await expect(createWorkflowDraftSession('Main Check')).rejects.toThrow(
+      /invalid or missing session id/,
+    )
+    await expect(createWorkflowDraftSession('New Check')).rejects.toThrow(
+      /invalid or missing session id/,
+    )
+  })
+
+  it('chatWorkflowWizard throws when sessionId is omitted, empty, or a bootstrap id ("main" / "new")', async () => {
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
 
@@ -157,6 +196,22 @@ describe('createWorkflowDraftSession & chatWorkflowWizard', () => {
         currentYaml: 'name: Current\nnodes: []\n',
       }),
     ).rejects.toThrow(/sessionId/)
+
+    await expect(
+      chatWorkflowWizard({
+        sessionId: 'main',
+        message: 'hello',
+        currentYaml: 'name: Current\nnodes: []\n',
+      }),
+    ).rejects.toThrow(/non-bootstrap/)
+
+    await expect(
+      chatWorkflowWizard({
+        sessionId: 'new',
+        message: 'hello',
+        currentYaml: 'name: Current\nnodes: []\n',
+      }),
+    ).rejects.toThrow(/non-bootstrap/)
 
     expect(fetchSpy).not.toHaveBeenCalled()
   })

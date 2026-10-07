@@ -55,17 +55,7 @@ export function DescribeChatPane({
   return (
     <div className="wz-describe-root plan-chat">
       {unavailable && (
-        <div
-          className="wz-describe-offline-banner"
-          role="alert"
-          style={{
-            width: '100%',
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            zIndex: 10,
-          }}
-        >
+        <div className="wz-describe-offline-banner" role="alert">
           <div className="wz-describe-offline-text">
             <span>
               {errorMessage ||

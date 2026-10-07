@@ -5,6 +5,7 @@
 
 .wz-describe-root {
   display: flex;
+  position: relative;
   height: 100%;
   min-height: 440px;
   max-height: 520px;
@@ -16,6 +17,11 @@
 
 /* ── Offline Banner ── */
 .wz-describe-offline-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -163,7 +169,7 @@
   min-width: 0;
   background-color: var(--theme-bg, #020804);
   background-image: radial-gradient(
-    rgba(0, 255, 65, 0.13) 1px,
+    color-mix(in srgb, var(--theme-success, #00ff41) 13%, transparent) 1px,
     transparent 1px
   );
   background-size: 18px 18px;

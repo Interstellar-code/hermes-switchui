@@ -88,6 +88,7 @@ nodes:
     applyParsedDocument: (doc) => {
       setName(doc.name)
       setDescription(doc.description)
+      props.onAppliedYaml?.(doc.name)
     },
     setYaml: (nextYaml) => {
       setYaml(nextYaml)
@@ -491,5 +492,225 @@ nodes:
     fireEvent.click(templateBtn)
 
     expect(onKindChange).toHaveBeenCalledWith('template')
+  })
+
+  it('shows offline banner and does not call chat when create response lacks a session id', async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string | URL) => {
+      const urlStr = String(url)
+      if (urlStr === '/api/sessions') {
+        return jsonResponse({ ok: true })
+      }
+      return jsonResponse({})
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    render(<DescribeTestHarness />)
+
+    const input = screen.getByPlaceholderText(
+      /Describe your workflow in plain language…/,
+    )
+    const sendBtn = screen.getByRole('button', { name: 'Send' })
+
+    fireEvent.change(input, { target: { value: 'Create workflow' } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('AI drafting unavailable — start from a template'),
+      ).toBeDefined()
+    })
+
+    const calls = fetchSpy.mock.calls.map((c) => String(c[0]))
+    expect(calls).toContain('/api/sessions')
+    expect(calls.some((c) => c.includes('/api/send-stream'))).toBe(false)
+  })
+
+  it('does not create a revision or update wizard YAML on clarify turn or identical YAML', async () => {
+    const onAppliedYaml = vi.fn()
+    const draftSessionId = 'wf-clarify-session'
+    const initialYaml = `name: Demo Workflow
+nodes:
+  - id: start
+    prompt: initial prompt
+`
+
+    let turn = 0
+    const fetchSpy = vi.fn().mockImplementation((url: string | URL) => {
+      const urlStr = String(url)
+      if (urlStr === '/api/sessions') {
+        return jsonResponse({
+          sessionId: draftSessionId,
+          sessionKey: draftSessionId,
+        })
+      }
+      if (urlStr.includes('/api/send-stream')) {
+        turn++
+        if (turn === 1) {
+          // Unstructured clarify turn (no workflow_yaml)
+          return sseResponse({
+            reply: 'Could you clarify the trigger?',
+          })
+        }
+        // Identical YAML turn
+        return sseResponse({
+          reply: 'Here is the draft without changes',
+          workflow_yaml: initialYaml,
+        })
+      }
+      return jsonResponse({})
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    render(
+      <DescribeTestHarness
+        initialYaml={initialYaml}
+        onAppliedYaml={onAppliedYaml}
+      />,
+    )
+
+    const input = screen.getByPlaceholderText(
+      /Describe your workflow in plain language…/,
+    )
+    const sendBtn = screen.getByRole('button', { name: 'Send' })
+
+    // Turn 1: Clarify
+    fireEvent.change(input, { target: { value: 'What should I do?' } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('Could you clarify the trigger?')).toBeDefined()
+    })
+
+    expect(screen.getByText('Waiting for prompt')).toBeDefined()
+    expect(screen.queryByRole('button', { name: 'REV 1' })).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Node changes' })).toBeNull()
+    expect(onAppliedYaml).not.toHaveBeenCalled()
+
+    // Turn 2: Identical YAML
+    fireEvent.change(input, { target: { value: 'Keep it as is' } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('Here is the draft without changes'),
+      ).toBeDefined()
+    })
+
+    expect(screen.queryByRole('button', { name: 'REV 1' })).toBeNull()
+    expect(onAppliedYaml).not.toHaveBeenCalled()
+  })
+
+  it('does not update wizard YAML until "Use this draft" is clicked', async () => {
+    const onAppliedYaml = vi.fn()
+    const draftSessionId = 'wf-use-draft-session'
+
+    const fetchSpy = vi.fn().mockImplementation((url: string | URL) => {
+      const urlStr = String(url)
+      if (urlStr === '/api/sessions') {
+        return jsonResponse({
+          sessionId: draftSessionId,
+          sessionKey: draftSessionId,
+        })
+      }
+      if (urlStr.includes('/api/send-stream')) {
+        return sseResponse({
+          reply: 'Generated initial draft',
+          workflow_yaml: `name: Updated Draft
+nodes:
+  - id: step_one
+    prompt: run step one
+`,
+        })
+      }
+      return jsonResponse({})
+    })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    render(<DescribeTestHarness onAppliedYaml={onAppliedYaml} />)
+
+    const input = screen.getByPlaceholderText(
+      /Describe your workflow in plain language…/,
+    )
+    const sendBtn = screen.getByRole('button', { name: 'Send' })
+
+    fireEvent.change(input, { target: { value: 'Generate a plan' } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(screen.getByText('Generated initial draft')).toBeDefined()
+      expect(screen.getByRole('button', { name: 'REV 1' })).toBeDefined()
+    })
+
+    // Wizard YAML must NOT be updated yet
+    expect(onAppliedYaml).not.toHaveBeenCalled()
+
+    // Click "Use this draft"
+    const useDraftBtn = screen.getByRole('button', { name: 'Use this draft' })
+    fireEvent.click(useDraftBtn)
+
+    // Now wizard has been updated
+    expect(onAppliedYaml).toHaveBeenCalledTimes(1)
+  })
+
+  it('header sessionId does not overwrite the initial draft session id', async () => {
+    const initialDraftId = 'wf-initial-draft-id'
+    const sendBodies: Array<Record<string, unknown>> = []
+
+    const fetchSpy = vi
+      .fn()
+      .mockImplementation((url: string | URL, init?: RequestInit) => {
+        const urlStr = String(url)
+        if (urlStr === '/api/sessions') {
+          return jsonResponse({
+            sessionId: initialDraftId,
+            sessionKey: initialDraftId,
+          })
+        }
+        if (urlStr.includes('/api/send-stream')) {
+          if (init?.body) {
+            sendBodies.push(
+              JSON.parse(String(init.body)) as Record<string, unknown>,
+            )
+          }
+          const stream = createEventStream([
+            'event: chunk\n',
+            `data: ${JSON.stringify({ text: JSON.stringify({ reply: 'Turn ok', workflow_yaml: 'name: W\nnodes: []\n' }) })}\n\n`,
+          ])
+          return new Response(stream, {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/event-stream',
+              'X-Hermes-Session-Key': 'server-different-session-key',
+            },
+          })
+        }
+        return jsonResponse({})
+      })
+    vi.stubGlobal('fetch', fetchSpy)
+
+    render(<DescribeTestHarness />)
+
+    const input = screen.getByPlaceholderText(
+      /Describe your workflow in plain language…/,
+    )
+    const sendBtn = screen.getByRole('button', { name: 'Send' })
+
+    // Turn 1
+    fireEvent.change(input, { target: { value: 'First prompt' } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(sendBodies.length).toBe(1)
+    })
+    expect(sendBodies[0].sessionKey).toBe(initialDraftId)
+
+    // Turn 2
+    fireEvent.change(input, { target: { value: 'Second prompt' } })
+    fireEvent.click(sendBtn)
+
+    await waitFor(() => {
+      expect(sendBodies.length).toBe(2)
+    })
+    expect(sendBodies[1].sessionKey).toBe(initialDraftId)
   })
 })

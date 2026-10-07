@@ -110,12 +110,15 @@ export function useDescribeChat({
         history: [...chatHistory, { role: 'user', msg: userMsg }],
       })
 
-      if (result.sessionId) {
-        setWizardSessionId(result.sessionId)
-      }
       setChatHistory((h) => [...h, { role: 'assistant', msg: result.reply }])
 
-      if (result.workflow_yaml) {
+      const nextYaml = result.workflow_yaml.trim()
+      const isNewStructuredYaml =
+        result.structured !== false &&
+        Boolean(nextYaml) &&
+        nextYaml !== activeYaml.trim()
+
+      if (isNewStructuredYaml) {
         const prevYaml =
           revisions.length > 0 ? revisions[revisions.length - 1].yaml : null
         const diff = diffWorkflowYaml(prevYaml, result.workflow_yaml)
@@ -132,24 +135,6 @@ export function useDescribeChat({
         }
         setRevisions((prev) => [...prev, nextRev])
         setSelectedRevision(newRevNum)
-
-        const parsedDoc = toWorkflowDocumentDraft(result.workflow_yaml)
-        if (parsedDoc) {
-          applyParsedDocument(parsedDoc, {
-            wizardId:
-              id ||
-              result.suggested_id ||
-              slugify(result.suggested_name || name || 'workflow'),
-            forceName:
-              result.suggested_name || parsedDoc.name || name || 'Workflow',
-            forceDescription:
-              result.suggested_description ||
-              parsedDoc.description ||
-              description,
-          })
-        } else {
-          setYaml(result.workflow_yaml)
-        }
       }
     } catch (err) {
       console.warn('[workflow-wizard] Describe chat turn failed', err)
