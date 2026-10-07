@@ -1,11 +1,21 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen } from '@testing-library/react'
 import { WorkflowsTopBar, computeWorkflowStats } from './workflows-top-bar'
 import type { WorkflowSummary } from './types'
 
+let mockFeatures:
+  | { features: Array<string>; schedulerAlive: boolean; profile: string | null }
+  | undefined = undefined
+
+vi.mock('./use-workflows', () => ({
+  useWorkflowFeatures: () => ({ data: mockFeatures }),
+}))
+
 afterEach(() => {
   cleanup()
+  vi.clearAllMocks()
+  mockFeatures = undefined
 })
 
 function makeWf(partial: Partial<WorkflowSummary>): WorkflowSummary {
@@ -80,12 +90,11 @@ describe('computeWorkflowStats', () => {
     expect(stats.factory).toBe(2)
     expect(stats.withApproval).toBe(3)
     expect(stats.edited7d).toBe(3)
-    expect(stats.yamlErrors).toBe(0)
   })
 })
 
 describe('WorkflowsTopBar', () => {
-  it('renders all stat categories and numbers in the top bar', () => {
+  it('renders the real stat categories and numbers', () => {
     const now = Date.now()
     const workflows: Array<WorkflowSummary> = [
       makeWf({ id: 'w1', source: 'user', has_approval: true, updated_at: now }),
@@ -101,12 +110,50 @@ describe('WorkflowsTopBar', () => {
     expect(screen.getByText('FACTORY')).toBeTruthy()
     expect(screen.getByText('WITH APPROVAL')).toBeTruthy()
     expect(screen.getByText('EDITED 7D')).toBeTruthy()
-    expect(screen.getByText('YAML ERRORS')).toBeTruthy()
+    // YAML ERRORS stat removed: no batch validation data exists
+    expect(screen.queryByText('YAML ERRORS')).toBeNull()
 
     const statRegion = screen.getByRole('region', {
       name: /workflow statistics/i,
     })
     expect(statRegion.textContent).toContain('3') // total
     expect(statRegion.textContent).toContain('1') // user
+  })
+
+  it('hides the scheduler pill while the feature probe is unknown', () => {
+    mockFeatures = undefined
+    render(<WorkflowsTopBar workflows={[]} />)
+    expect(screen.queryByText(/scheduler/)).toBeNull()
+  })
+
+  it('shows scheduler ok / down from real feature data, with profile', () => {
+    mockFeatures = {
+      features: ['validate'],
+      schedulerAlive: true,
+      profile: 'hermes-switch',
+    }
+    const { unmount } = render(<WorkflowsTopBar workflows={[]} />)
+    expect(screen.getByText(/hermes-switch · scheduler ok/)).toBeTruthy()
+    unmount()
+
+    mockFeatures = {
+      features: [],
+      schedulerAlive: false,
+      profile: null,
+    }
+    render(<WorkflowsTopBar workflows={[]} />)
+    expect(screen.getByText(/scheduler down/)).toBeTruthy()
+  })
+
+  it('shows — for every stat while the engine is down instead of zeros', () => {
+    render(<WorkflowsTopBar workflows={[]} engineDown />)
+    const statRegion = screen.getByRole('region', {
+      name: /workflow statistics/i,
+    })
+    const values = statRegion.querySelectorAll('.v')
+    expect(values.length).toBe(6)
+    for (const v of values) {
+      expect(v.textContent).toBe('—')
+    }
   })
 })

@@ -3,7 +3,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WorkflowTable } from './workflow-table'
+import type { ReactNode } from 'react'
 import type { WorkflowSummary } from './types'
+// Router Link stub: Conductor links must not need a router context (hoisted).
+vi.mock('@tanstack/react-router', async () => {
+  const React = await import('react')
+  return {
+    Link: (props: { to?: string; children?: ReactNode }) =>
+      React.createElement('a', { href: props.to ?? '#' }, props.children),
+  }
+})
 
 afterEach(() => {
   cleanup()
@@ -42,6 +51,16 @@ function makeWf(partial: Partial<WorkflowSummary>): WorkflowSummary {
     node_types: ['prompt'],
     ...partial,
   }
+}
+
+// tsc needs the input cast; eslint's separate tsconfig calls it unnecessary —
+// the double cast satisfies both.
+function checkboxState(el: HTMLElement): {
+  indeterminate: boolean
+  checked: boolean
+} {
+  const input = el as unknown as HTMLInputElement
+  return { indeterminate: input.indeterminate, checked: input.checked }
 }
 
 describe('WorkflowTable (F2)', () => {
@@ -86,13 +105,14 @@ describe('WorkflowTable (F2)', () => {
     expect(bulkBar.textContent).toContain('3 selected')
     expect(bulkBar.textContent).toContain('2 user · 1 factory')
 
-    // Export and duplicate buttons reflect count
+    // Export reflects the count; DUPLICATE is single-select only
     expect(
       screen.getByRole('button', { name: /export yaml \(3\)/i }),
     ).toBeTruthy()
-    expect(
-      screen.getByRole('button', { name: /duplicate \(3\)/i }),
-    ).toBeTruthy()
+    const dupBtn = screen.getByRole('button', {
+      name: /duplicate selected workflow/i,
+    })
+    expect(dupBtn.hasAttribute('disabled')).toBe(true)
 
     // Click clear selection button
     const clearBtn = screen.getByRole('button', { name: /clear selection/i })
@@ -100,6 +120,103 @@ describe('WorkflowTable (F2)', () => {
 
     // Bulk bar is removed
     expect(screen.queryByRole('region', { name: /bulk actions/i })).toBeNull()
+  })
+
+  it('prunes the selection when the filtered list shrinks under it', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'w1', name: 'WF 1' }),
+      makeWf({ id: 'w2', name: 'WF 2' }),
+    ]
+    const { rerender } = renderWithClient(
+      <WorkflowTable workflows={workflows} onSelect={vi.fn()} />,
+    )
+    fireEvent.click(screen.getByLabelText('Select WF 1'))
+    fireEvent.click(screen.getByLabelText('Select WF 2'))
+    expect(
+      screen.getByRole('region', { name: /bulk actions/i }).textContent,
+    ).toContain('2 selected')
+
+    // filter removes WF 2 → selection drops to 1 without any click
+    rerender(
+      <QueryClientProvider client={new QueryClient()}>
+        <WorkflowTable workflows={[workflows[0]]} onSelect={vi.fn()} />
+      </QueryClientProvider>,
+    )
+    const bulk = screen.getByRole('region', { name: /bulk actions/i })
+    expect(bulk.textContent).toContain('1 selected')
+    expect(bulk.textContent).not.toContain('2 selected')
+  })
+
+  it('marks the select-all box indeterminate on partial selection', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'w1', name: 'WF 1' }),
+      makeWf({ id: 'w2', name: 'WF 2' }),
+      makeWf({ id: 'w3', name: 'WF 3' }),
+    ]
+    renderWithClient(<WorkflowTable workflows={workflows} onSelect={vi.fn()} />)
+    const selectAll = screen.getByLabelText(/select all workflows/i)
+    expect(checkboxState(selectAll).indeterminate).toBe(false)
+
+    fireEvent.click(screen.getByLabelText('Select WF 2'))
+    expect(checkboxState(selectAll).indeterminate).toBe(true)
+    expect(checkboxState(selectAll).checked).toBe(false)
+
+    fireEvent.click(screen.getByLabelText('Select WF 1'))
+    fireEvent.click(screen.getByLabelText('Select WF 3'))
+    expect(checkboxState(selectAll).indeterminate).toBe(false)
+    expect(checkboxState(selectAll).checked).toBe(true)
+  })
+
+  it('export creates a real download: appended anchor, delayed revoke', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'w1', name: 'WF 1', yaml: 'nodes: []' }),
+    ]
+    const createObjectURL = vi.fn(() => 'blob:mock-url')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    })
+    const clickSpy = vi.fn()
+    const realAppend = document.body.appendChild.bind(document.body)
+    const appendSpy = vi.spyOn(document.body, 'appendChild')
+    appendSpy.mockImplementation((node) => {
+      if (node instanceof HTMLAnchorElement) {
+        node.click = clickSpy
+      }
+      return realAppend(node)
+    })
+
+    try {
+      renderWithClient(
+        <WorkflowTable workflows={workflows} onSelect={vi.fn()} />,
+      )
+      fireEvent.click(screen.getByLabelText('Select WF 1'))
+      fireEvent.click(
+        screen.getByRole('button', { name: /export yaml \(1\)/i }),
+      )
+
+      expect(createObjectURL).toHaveBeenCalledTimes(1)
+      expect(clickSpy).toHaveBeenCalledTimes(1)
+      // revoked only after a delay, not synchronously with the click
+      expect(revokeObjectURL).not.toHaveBeenCalled()
+    } finally {
+      appendSpy.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it('renders no invented validity or run state', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'w1', name: 'WF 1', run_count: 4, last_used_at: null }),
+    ]
+    renderWithClient(<WorkflowTable workflows={workflows} onSelect={vi.fn()} />)
+    // VALID column header stays, but every row shows "—" (no invented data)
+    expect(screen.queryByText(/✓ valid/i)).toBeNull()
+    expect(screen.queryByText(/running · ok/i)).toBeNull()
+    expect(screen.queryByText(/✓/)).toBeNull()
+    expect(screen.getAllByText('—').length).toBeGreaterThan(0)
   })
 
   it('does NOT contain any delete actions anywhere (deferred to F8)', () => {

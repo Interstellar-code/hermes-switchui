@@ -33,16 +33,22 @@ export function WorkflowsLayout() {
 
   const [filteredWorkflows, setFilteredWorkflows] =
     useState<Array<WorkflowSummary>>(workflows)
+  // Bumped by the grid's CLEAR ALL FILTERS; the library resets on change.
+  const [clearFiltersKey, setClearFiltersKey] = useState(0)
 
-  // Read ?wf=<id> (OPEN IN EDITOR), ?wizard=<id> and ?run=<id> on mount
+  // Read ?wf=<id> (OPEN IN EDITOR), ?wizard=<id> and ?run=<id> on mount —
+  // and again on popstate so the browser Back button restores the view.
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const wfId = params.get('wf')
-    if (wfId) setSelectedWorkflowId(wfId)
-    const wizardId = params.get('wizard')
-    if (wizardId) setWizardOpenForId(wizardId)
-    const runId = params.get('run')
-    if (runId) setActiveRunId(runId)
+    function readUrlParams() {
+      const params = new URLSearchParams(window.location.search)
+      setSelectedWorkflowId(params.get('wf'))
+      setWizardOpenForId(params.get('wizard'))
+      setActiveRunId(params.get('run'))
+      if (!params.get('wf')) setIsEditingGraph(false)
+    }
+    readUrlParams()
+    window.addEventListener('popstate', readUrlParams)
+    return () => window.removeEventListener('popstate', readUrlParams)
   }, [])
 
   function handleOpenLaunchWizard(workflowId: string) {
@@ -107,6 +113,7 @@ export function WorkflowsLayout() {
             onToggleCollapse={() => setRailCollapsed((c) => !c)}
             onFilteredChange={handleFilteredChange}
             workflows={workflows}
+            clearKey={clearFiltersKey}
           />
         </aside>
         <main
@@ -115,6 +122,7 @@ export function WorkflowsLayout() {
           <WorkflowsTopBar
             workflows={workflows}
             templateCount={workflows.length}
+            engineDown={Boolean(workflowsError)}
             onRefresh={() => void refetchWorkflows()}
           />
           <div className="wf-editor-content">
@@ -158,9 +166,21 @@ export function WorkflowsLayout() {
                   url.searchParams.set('wf', id)
                   window.history.pushState(null, '', url.toString())
                 }}
+                onEdit={(id) => {
+                  setSelectedWorkflowId(id)
+                  setIsEditingGraph(true)
+                  const url = new URL(window.location.href)
+                  url.searchParams.set('wf', id)
+                  window.history.pushState(null, '', url.toString())
+                }}
                 onOpenLaunchWizard={handleOpenLaunchWizard}
                 loadError={workflowsError?.message ?? null}
                 onRetry={() => void refetchWorkflows()}
+                onClearFilters={() => setClearFiltersKey((k) => k + 1)}
+                subgraphCount={
+                  workflows.filter((w) => w.kind === 'subgraph').length
+                }
+                hasAnyWorkflows={workflows.length > 0}
               />
             )}
           </div>

@@ -124,4 +124,82 @@ describe('WorkflowLibrary filter rail', () => {
     fireEvent.keyDown(window, { key: '/' })
     expect(document.activeElement).toBe(searchInput)
   })
+
+  it('ignores / with modifiers, while typing, or with a dialog open', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'w1', name: 'WF 1' }),
+    ]
+
+    renderWithClient(
+      <WorkflowLibrary
+        selectedId={null}
+        onSelectWorkflow={vi.fn()}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        workflows={workflows}
+      />,
+    )
+
+    const searchInput = screen.getByRole('searchbox')
+
+    fireEvent.keyDown(window, { key: '/', ctrlKey: true })
+    fireEvent.keyDown(window, { key: '/', metaKey: true })
+    fireEvent.keyDown(window, { key: '/', altKey: true })
+    expect(document.activeElement).not.toBe(searchInput)
+
+    // typing in another input: '/' must type, not steal focus
+    const other = document.createElement('input')
+    document.body.appendChild(other)
+    other.focus()
+    fireEvent.keyDown(window, { key: '/' })
+    expect(document.activeElement).toBe(other)
+    other.remove()
+
+    // a dialog on top: '/' must not steal focus
+    const dialog = document.createElement('div')
+    dialog.setAttribute('role', 'dialog')
+    document.body.appendChild(dialog)
+    searchInput.blur()
+    fireEvent.keyDown(window, { key: '/' })
+    expect(document.activeElement).not.toBe(searchInput)
+    dialog.remove()
+  })
+
+  it('resets every filter when clearKey bumps (grid CLEAR ALL FILTERS)', () => {
+    const workflows: Array<WorkflowSummary> = [
+      makeWf({ id: 'w1', name: 'User WF', source: 'user' }),
+      makeWf({ id: 'w2', name: 'Factory WF', source: 'bundled' }),
+    ]
+    const onFilteredChange = vi.fn()
+
+    const { rerender } = renderWithClient(
+      <WorkflowLibrary
+        selectedId={null}
+        onSelectWorkflow={vi.fn()}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        onFilteredChange={onFilteredChange}
+        workflows={workflows}
+        clearKey={0}
+      />,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /User\s*1/i }))
+    expect(onFilteredChange).toHaveBeenLastCalledWith([
+      expect.objectContaining({ id: 'w1' }),
+    ])
+
+    rerender(
+      <WorkflowLibrary
+        selectedId={null}
+        onSelectWorkflow={vi.fn()}
+        collapsed={false}
+        onToggleCollapse={vi.fn()}
+        onFilteredChange={onFilteredChange}
+        workflows={workflows}
+        clearKey={1}
+      />,
+    )
+    expect(onFilteredChange).toHaveBeenLastCalledWith(workflows)
+  })
 })

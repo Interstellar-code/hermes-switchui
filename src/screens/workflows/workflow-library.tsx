@@ -2,10 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { nodeColor } from './node-colors'
 import { isWithin7Days } from './workflows-top-bar'
+import { isScheduledYaml } from './schedule'
 import type { NodeType, WorkflowSummary } from './types'
 
 export type OriginFilter = 'all' | 'bundled' | 'user' | 'project'
-export type StateFilter = 'any' | 'edited7d' | 'valid' | 'yaml-error'
+export type StateFilter = 'any' | 'edited7d'
 
 const DISPLAY_NODE_TYPES: ReadonlyArray<NodeType> = [
   'prompt',
@@ -36,7 +37,7 @@ function detectNodeTypes(workflow: WorkflowSummary): Set<string> {
 }
 
 function isScheduled(workflow: WorkflowSummary): boolean {
-  return /^\s+(schedule|cron):/m.test(workflow.yaml || '')
+  return isScheduledYaml(workflow.yaml || '')
 }
 
 function hasInputs(workflow: WorkflowSummary): boolean {
@@ -59,15 +60,19 @@ export interface WorkflowLibraryProps {
   onToggleCollapse: () => void
   onFilteredChange?: (workflows: Array<WorkflowSummary>) => void
   workflows: Array<WorkflowSummary>
+  /** Bumped by the grid's CLEAR ALL FILTERS; resets every filter. */
+  clearKey?: number
 }
 
 export function WorkflowLibrary({
   selectedId,
+  onSelectWorkflow,
   onClearSelection,
   collapsed,
   onToggleCollapse,
   onFilteredChange,
   workflows,
+  clearKey = 0,
 }: WorkflowLibraryProps) {
   const [search, setSearch] = useState('')
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all')
@@ -89,22 +94,38 @@ export function WorkflowLibrary({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
-  // Keyboard shortcut '/' focuses search
+  // Keyboard shortcut '/' focuses search — plain key only: no modifiers,
+  // no typing context (inputs / contentEditable), no open dialog on top.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return
       const activeEl = document.activeElement
       if (
-        e.key === '/' &&
-        (!activeEl ||
-          !['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName))
+        activeEl instanceof HTMLElement &&
+        (['INPUT', 'TEXTAREA', 'SELECT'].includes(activeEl.tagName) ||
+          activeEl.isContentEditable)
       ) {
-        e.preventDefault()
-        searchInputRef.current?.focus()
+        return
       }
+      if (document.querySelector('dialog[open], [role="dialog"]')) return
+      e.preventDefault()
+      searchInputRef.current?.focus()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  useEffect(() => {
+    if (clearKey === 0) return
+    setSearch('')
+    setOriginFilter('all')
+    setNodeTypeFilter(null)
+    setHasApprovalFilter(false)
+    setScheduledFilter(false)
+    setHasInputsFilter(false)
+    setShowSubgraphs(false)
+    setStateFilter('any')
+  }, [clearKey])
 
   // Origin counts
   const originCounts = useMemo(() => {
@@ -147,7 +168,8 @@ export function WorkflowLibrary({
     return { approval, cron, inputs, subgraphs }
   }, [workflows])
 
-  // State counts
+  // State counts (validity needs a per-definition validate call — no batch
+  // API — so the Valid / YAML-error segments are not offered).
   const stateCounts = useMemo(() => {
     let edited7d = 0
     for (const w of workflows) {
@@ -158,8 +180,6 @@ export function WorkflowLibrary({
     return {
       any: workflows.length,
       edited7d,
-      valid: workflows.length,
-      yamlError: 0,
     }
   }, [workflows])
 
@@ -197,10 +217,6 @@ export function WorkflowLibrary({
         stateFilter === 'edited7d' &&
         !isWithin7Days(w.updated_at ?? w.created_at)
       ) {
-        return false
-      }
-      if (stateFilter === 'yaml-error') {
-        // No yaml errors in current data
         return false
       }
 
@@ -540,28 +556,6 @@ export function WorkflowLibrary({
             >
               Edited 7d<span className="n">{stateCounts.edited7d}</span>
             </button>
-            <button
-              type="button"
-              className="opt"
-              aria-pressed={stateFilter === 'valid'}
-              onClick={() => {
-                setStateFilter('valid')
-                onClearSelection?.()
-              }}
-            >
-              Valid<span className="n">{stateCounts.valid}</span>
-            </button>
-            <button
-              type="button"
-              className="opt"
-              aria-pressed={stateFilter === 'yaml-error'}
-              onClick={() => {
-                setStateFilter('yaml-error')
-                onClearSelection?.()
-              }}
-            >
-              YAML error<span className="n">{stateCounts.yamlError}</span>
-            </button>
           </div>
         </fieldset>
       </div>
@@ -608,6 +602,7 @@ export function WorkflowLibrary({
           initialYaml={modalInitialYaml}
           initialId={modalInitialId}
           onClose={() => setModalOpen(false)}
+          onOpenWorkflow={onSelectWorkflow}
         />
       )}
     </aside>

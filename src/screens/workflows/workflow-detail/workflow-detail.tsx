@@ -1,5 +1,7 @@
 import { Suspense, useMemo, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
+  parseTags,
   useDeleteWorkflowDefinition,
   useResetWorkflowDefinitionToFactory,
   useUpsertWorkflowDefinition,
@@ -8,7 +10,6 @@ import {
   useWorkflowDefinitionVersions,
   useWorkflowFeatures,
   useWorkflowParsed,
-  useWorkflowRuns,
 } from '../use-workflows'
 import { nodeColor } from '../node-colors'
 import { PROVENANCE_LABEL, provenanceOf } from '../provenance'
@@ -46,7 +47,10 @@ interface WorkflowDetailProps {
 function yamlLine(line: string, idx: number): React.ReactElement {
   if (/^\s*#/.test(line)) {
     return (
-      <span key={idx} style={{ color: 'var(--m-text-faint, #6f8a78)' }}>
+      <span
+        key={idx}
+        style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}
+      >
         {line}
         {'\n'}
       </span>
@@ -55,19 +59,23 @@ function yamlLine(line: string, idx: number): React.ReactElement {
   const kvMatch = line.match(/^(\s*)([^:\s][^:]*?)(\s*:\s*)(.*)$/)
   if (kvMatch) {
     const [, indent, key, colon, value] = kvMatch
-    let valueColor = 'var(--m-text, var(--theme-fg, #d8ffe3))'
+    let valueColor = 'var(--m-text, var(--theme-text))'
     if (value === '' || value === '|' || value === '>') {
-      valueColor = 'var(--m-text-faint, #6f8a78)'
+      valueColor = 'var(--m-text-faint, var(--theme-muted))'
     } else if (/^".*"$/.test(value) || /^'.*'$/.test(value)) {
-      valueColor = 'var(--m-cyan-400, #5ad3ff)'
+      valueColor = 'var(--m-cyan-400, var(--theme-active))'
     } else if (/^\d+(\.\d+)?$/.test(value)) {
-      valueColor = 'var(--m-amber-400, #ffb454)'
+      valueColor = 'var(--m-amber-400, var(--theme-warning))'
     }
     return (
       <span key={idx}>
         {indent}
-        <span style={{ color: 'var(--m-green-400, #00ff41)' }}>{key}</span>
-        <span style={{ color: 'var(--m-text-faint, #6f8a78)' }}>{colon}</span>
+        <span style={{ color: 'var(--m-green-400, var(--theme-success))' }}>
+          {key}
+        </span>
+        <span style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}>
+          {colon}
+        </span>
         <span style={{ color: valueColor }}>{value}</span>
         {'\n'}
       </span>
@@ -135,25 +143,29 @@ export function WorkflowDetail({
   const [copiedYaml, setCopiedYaml] = useState(false)
 
   const { data, isLoading, error, refetch } = useWorkflowParsed(workflowId)
-  const { data: runsData } = useWorkflowRuns(workflowId)
   const { data: featuresData } = useWorkflowFeatures()
   const { data: schedData } = useConductorScheduled()
 
   const deleteMutation = useDeleteWorkflowDefinition()
   const resetMutation = useResetWorkflowDefinitionToFactory()
   const duplicateMutation = useUpsertWorkflowDefinition()
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const features = useMemo(() => featuresData?.features ?? [], [featuresData])
   const hasValidate = features.includes('validate')
   const hasVersions = features.includes('definition_versions')
+  const hasCron = features.includes('cron_schedule')
 
   const parsed = data?.parsed
   const def = data?.definition
 
-  const { data: validationResult, isLoading: validationLoading } =
-    useValidateWorkflowDefinition(def?.yaml, def?.id, {
-      enabled: hasValidate && Boolean(def?.yaml),
-    })
+  const {
+    data: validationResult,
+    isLoading: validationLoading,
+    error: validationError,
+  } = useValidateWorkflowDefinition(def?.yaml, def?.id, {
+    enabled: hasValidate && Boolean(def?.yaml),
+  })
 
   const [viewVersionChecksum, setViewVersionChecksum] = useState<string | null>(
     null,
@@ -175,16 +187,17 @@ export function WorkflowDetail({
     return buildDag(parsed)
   }, [parsed])
 
+  // Schedules: shown (enabled AND disabled) for this workflow.
   const schedulesForThisWf = useMemo(() => {
     if (!schedData?.scheduled) return []
-    return schedData.scheduled.filter(
-      (s) => s.workflowId === workflowId && s.enabled,
-    )
+    return schedData.scheduled.filter((s) => s.workflowId === workflowId)
   }, [schedData, workflowId])
 
   const inputs = useMemo(() => inputFields(parsed), [parsed])
 
-  const runCount = runsData ? runsData.length : def ? def.run_count : 0
+  // Run count from the definition row — the bounded column, not an
+  // unbounded run-list query.
+  const runCount = def?.run_count ?? 0
 
   if (isLoading) {
     return (
@@ -219,7 +232,7 @@ export function WorkflowDetail({
           <div className="wfd-state-box">
             <div
               className="wfd-state-title"
-              style={{ color: 'var(--m-red-400, #ff6b6b)' }}
+              style={{ color: 'var(--m-red-400, var(--theme-danger))' }}
             >
               WORKFLOW ENGINE DOWN
             </div>
@@ -320,6 +333,7 @@ export function WorkflowDetail({
 
   function handleDuplicate() {
     const nextId = duplicateWorkflowId(def!.id)
+    setActionError(null)
     duplicateMutation.mutate(
       {
         id: nextId,
@@ -328,29 +342,44 @@ export function WorkflowDetail({
         source: 'user',
         yaml: def!.yaml,
         version: def!.version ?? undefined,
-        tags: def!.tags ? JSON.parse(def!.tags) : undefined,
+        tags: parseTags(def!.tags),
       },
       {
         onSuccess: () => {
           onSelectWorkflow?.(nextId)
+        },
+        onError: (err: Error & { serverError?: string }) => {
+          setActionError(`Duplicate failed — ${err.serverError ?? err.message}`)
         },
       },
     )
   }
 
   function handleConfirmAction() {
+    if (!confirmAction || deleteMutation.isPending || resetMutation.isPending) {
+      return
+    }
+    setActionError(null)
     if (confirmAction === 'delete') {
       deleteMutation.mutate(def!.id, {
         onSuccess: () => {
           setConfirmAction(null)
           onBack()
         },
+        onError: (err: Error & { serverError?: string }) => {
+          setConfirmAction(null)
+          setActionError(`Delete failed — ${err.serverError ?? err.message}`)
+        },
       })
-    } else if (confirmAction === 'reset') {
+    } else {
       resetMutation.mutate(def!.id, {
         onSuccess: () => {
           setConfirmAction(null)
           void refetch()
+        },
+        onError: (err: Error & { serverError?: string }) => {
+          setConfirmAction(null)
+          setActionError(`Reset failed — ${err.serverError ?? err.message}`)
         },
       })
     }
@@ -526,12 +555,14 @@ export function WorkflowDetail({
             {phasesCount > 0 ? ` · ${phasesCount} phases` : ''}
           </span>
           <span className="wfd-grow" />
-          <a
-            className="wfd-conductor-link"
-            href={`/conductor?wf=${encodeURIComponent(def.id)}`}
-          >
+          {actionError && (
+            <span className="wfd-action-error" role="alert" title={actionError}>
+              {actionError}
+            </span>
+          )}
+          <Link className="wfd-conductor-link" to="/conductor">
             {runCount} {runCount === 1 ? 'run' : 'runs'} in Conductor →
-          </a>
+          </Link>
         </div>
       </div>
 
@@ -564,16 +595,18 @@ export function WorkflowDetail({
         >
           INPUTS<span className="wfd-tab-c">{inputs.length}</span>
         </button>
-        <button
-          type="button"
-          role="tab"
-          className={`wfd-tab ${activeTab === 'SCHEDULES' ? 'on' : ''}`}
-          aria-selected={activeTab === 'SCHEDULES'}
-          onClick={() => setActiveTab('SCHEDULES')}
-        >
-          SCHEDULES
-          <span className="wfd-tab-c">{schedulesForThisWf.length}</span>
-        </button>
+        {hasCron && (
+          <button
+            type="button"
+            role="tab"
+            className={`wfd-tab ${activeTab === 'SCHEDULES' ? 'on' : ''}`}
+            aria-selected={activeTab === 'SCHEDULES'}
+            onClick={() => setActiveTab('SCHEDULES')}
+          >
+            SCHEDULES
+            <span className="wfd-tab-c">{schedulesForThisWf.length}</span>
+          </button>
+        )}
         <button
           type="button"
           role="tab"
@@ -622,11 +655,20 @@ export function WorkflowDetail({
                   ))}
                 </span>
                 <span className="wfd-grow" />
-                <span className="wfd-chip wfd-chip-ok">
-                  ✓ VALID · no cycles · deps resolve
-                </span>
+                {hasValidate &&
+                  validationResult &&
+                  (validationResult.ok ? (
+                    <span className="wfd-chip wfd-chip-ok">
+                      ✓ VALID · engine checked
+                    </span>
+                  ) : (
+                    <span className="wfd-chip wfd-chip-err">
+                      ✗ {validationResult.errors.length} ERROR
+                      {validationResult.errors.length === 1 ? '' : 'S'}
+                    </span>
+                  ))}
                 <span className="wfd-meta">
-                  drag to arrange · saved for this workflow
+                  read-only · drag does not persist
                 </span>
                 <button
                   type="button"
@@ -652,10 +694,11 @@ export function WorkflowDetail({
               {dag && dag.nodes.length > 0 ? (
                 <Suspense fallback={graphLoading}>
                   <FlowCanvas
-                    key={`ov-${workflowId}-${resetKey}`}
+                    key={`ov-${workflowId}`}
                     dag={dag}
                     workflowId={workflowId}
                     resetKey={resetKey}
+                    neutral
                   />
                 </Suspense>
               ) : (
@@ -674,18 +717,18 @@ export function WorkflowDetail({
                   {distinctTypes.length > 0 && (
                     <p
                       className="wfd-txt"
-                      style={{ color: 'var(--m-text-muted, #8fae9a)' }}
+                      style={{
+                        color: 'var(--m-text-muted, var(--theme-muted))',
+                      }}
                     >
                       {distinctTypes.join(' → ')}
                     </p>
                   )}
                   <dl className="wfd-kv" style={{ marginTop: 4 }}>
-                    <dt>trigger phrases</dt>
-                    <dd className="wfd-na">none in description</dd>
                     <dt>tags</dt>
                     <dd>
-                      {def.tags && JSON.parse(def.tags).length > 0 ? (
-                        JSON.parse(def.tags).join(', ')
+                      {parseTags(def.tags).length > 0 ? (
+                        parseTags(def.tags).join(', ')
                       ) : (
                         <span className="wfd-na">none</span>
                       )}
@@ -754,7 +797,12 @@ export function WorkflowDetail({
                 {hasValidate && (
                   <section className="wfd-card" aria-labelledby="h-val">
                     <h2 id="h-val">VALIDATION</h2>
-                    {validationLoading ? (
+                    {validationError ? (
+                      <p className="wfd-txt wfd-na">
+                        Validation unavailable — the workflow engine could not
+                        be reached. Retry via Refresh.
+                      </p>
+                    ) : validationLoading ? (
                       <p className="wfd-txt wfd-na">Validating YAML…</p>
                     ) : validationResult ? (
                       <div className="wfd-tw">
@@ -763,13 +811,19 @@ export function WorkflowDetail({
                           <dd>
                             {validationResult.ok ? (
                               <span
-                                style={{ color: 'var(--m-green-400, #00ff41)' }}
+                                style={{
+                                  color:
+                                    'var(--m-green-400, var(--theme-success))',
+                                }}
                               >
                                 ✓ Definition valid
                               </span>
                             ) : (
                               <span
-                                style={{ color: 'var(--m-red-400, #ff6b6b)' }}
+                                style={{
+                                  color:
+                                    'var(--m-red-400, var(--theme-danger))',
+                                }}
                               >
                                 ✗ {validationResult.errors.length} error(s)
                               </span>
@@ -781,13 +835,19 @@ export function WorkflowDetail({
                               style={{ display: 'contents' }}
                             >
                               <dt
-                                style={{ color: 'var(--m-red-400, #ff6b6b)' }}
+                                style={{
+                                  color:
+                                    'var(--m-red-400, var(--theme-danger))',
+                                }}
                               >
                                 {e.code}
-                                {e.line ? ` (L${e.line})` : ''}
+                                {e.line != null ? ` (L${e.line})` : ''}
                               </dt>
                               <dd
-                                style={{ color: 'var(--m-red-400, #ff6b6b)' }}
+                                style={{
+                                  color:
+                                    'var(--m-red-400, var(--theme-danger))',
+                                }}
                               >
                                 {e.message}
                               </dd>
@@ -799,13 +859,19 @@ export function WorkflowDetail({
                               style={{ display: 'contents' }}
                             >
                               <dt
-                                style={{ color: 'var(--m-amber-400, #ffb454)' }}
+                                style={{
+                                  color:
+                                    'var(--m-amber-400, var(--theme-warning))',
+                                }}
                               >
                                 {w.code}
-                                {w.line ? ` (L${w.line})` : ''}
+                                {w.line != null ? ` (L${w.line})` : ''}
                               </dt>
                               <dd
-                                style={{ color: 'var(--m-amber-400, #ffb454)' }}
+                                style={{
+                                  color:
+                                    'var(--m-amber-400, var(--theme-warning))',
+                                }}
                               >
                                 {w.message}
                               </dd>
@@ -814,35 +880,9 @@ export function WorkflowDetail({
                         </dl>
                       </div>
                     ) : (
-                      <dl className="wfd-kv">
-                        <dt>YAML</dt>
-                        <dd>
-                          <span
-                            style={{ color: 'var(--m-green-400, #00ff41)' }}
-                          >
-                            ✓
-                          </span>{' '}
-                          parses · schema ok
-                        </dd>
-                        <dt>graph</dt>
-                        <dd>
-                          <span
-                            style={{ color: 'var(--m-green-400, #00ff41)' }}
-                          >
-                            ✓
-                          </span>{' '}
-                          no cycles · {dag?.nodes.length ?? 0} nodes
-                        </dd>
-                        <dt>dependencies</dt>
-                        <dd>
-                          <span
-                            style={{ color: 'var(--m-green-400, #00ff41)' }}
-                          >
-                            ✓
-                          </span>{' '}
-                          all resolve
-                        </dd>
-                      </dl>
+                      <p className="wfd-txt wfd-na">
+                        Validation unavailable — the engine reported no result.
+                      </p>
                     )}
                   </section>
                 )}
@@ -921,21 +961,21 @@ export function WorkflowDetail({
                     style={{
                       marginTop: 6,
                       fontSize: 10,
-                      color: 'var(--m-text-muted, #8fae9a)',
+                      color: 'var(--m-text-muted, var(--theme-muted))',
                     }}
                   >
                     Snapshots are kept on save.
                   </p>
                   <p className="wfd-txt" style={{ marginTop: 6, fontSize: 10 }}>
-                    <a
-                      href={`/conductor?wf=${encodeURIComponent(def.id)}`}
+                    <Link
+                      to="/conductor"
                       style={{
-                        color: 'var(--m-green-400, #00ff41)',
+                        color: 'var(--m-green-400, var(--theme-success))',
                         textDecoration: 'none',
                       }}
                     >
                       {runCount} runs live in Conductor →
-                    </a>
+                    </Link>
                   </p>
                 </section>
               ) : (
@@ -946,14 +986,16 @@ export function WorkflowDetail({
                     Conductor.
                   </p>
                   <p style={{ marginTop: 10 }}>
-                    <a
+                    <Link
                       className="wfd-conductor-link"
-                      style={{ color: 'var(--m-green-400, #00ff41)' }}
-                      href={`/conductor?wf=${encodeURIComponent(def.id)}`}
+                      style={{
+                        color: 'var(--m-green-400, var(--theme-success))',
+                      }}
+                      to="/conductor"
                     >
                       {runCount} {runCount === 1 ? 'run' : 'runs'} in Conductor
                       →
-                    </a>
+                    </Link>
                   </p>
                 </section>
               )}
@@ -967,7 +1009,7 @@ export function WorkflowDetail({
             <div className="wfd-chd">
               <h2 className="wfd-ttl">FULL DEFINITION GRAPH</h2>
               <span className="wfd-meta">
-                {dag?.nodes.length ?? 0} nodes · interactive pan/zoom
+                {dag?.nodes.length ?? 0} nodes · read-only · pan/zoom
               </span>
               <span className="wfd-grow" />
               <button
@@ -981,10 +1023,11 @@ export function WorkflowDetail({
             {dag && dag.nodes.length > 0 ? (
               <Suspense fallback={graphLoading}>
                 <FlowCanvas
-                  key={`graph-tab-${workflowId}-${resetKey}`}
+                  key={`graph-tab-${workflowId}`}
                   dag={dag}
                   workflowId={workflowId}
                   resetKey={resetKey}
+                  neutral
                 />
               </Suspense>
             ) : (
@@ -1033,18 +1076,18 @@ export function WorkflowDetail({
         )}
 
         {/* SCHEDULES TAB */}
-        {activeTab === 'SCHEDULES' && (
+        {activeTab === 'SCHEDULES' && hasCron && (
           <div className="wfd-card" style={{ flexGrow: 1 }}>
             <h2>SCHEDULES FOR {def.id.toUpperCase()}</h2>
             {schedulesForThisWf.length === 0 ? (
               <div className="wfd-tw">
                 <p className="wfd-txt wfd-na">
-                  No active engine cron schedules configured for this workflow.
+                  No engine cron schedules configured for this workflow.
                 </p>
                 <p
                   className="wfd-txt"
                   style={{
-                    color: 'var(--m-text-muted, #8fae9a)',
+                    color: 'var(--m-text-muted, var(--theme-muted))',
                     marginTop: 8,
                   }}
                 >
@@ -1069,7 +1112,9 @@ export function WorkflowDetail({
                       <td className="wfd-k">{s.id}</td>
                       <td>{s.cron ?? '—'}</td>
                       <td>{s.scheduleLabel}</td>
-                      <td>{s.enabled ? 'Enabled' : 'Disabled'}</td>
+                      <td className={s.enabled ? '' : 'wfd-na'}>
+                        {s.enabled ? 'Enabled' : 'Disabled'}
+                      </td>
                       <td>
                         {s.nextRunAt
                           ? new Date(s.nextRunAt).toLocaleString()

@@ -36,7 +36,8 @@ import type {
 } from './api-client'
 import type { VersionTier, WorkflowSource, WorkflowSummary } from './types'
 
-function parseTags(raw: string | null): Array<string> {
+/** JSON-encoded tags column → string[]; never throws (shared by the detail page). */
+export function parseTags(raw: string | null): Array<string> {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw) as unknown

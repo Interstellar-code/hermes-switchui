@@ -63,6 +63,12 @@ export interface FlowCanvasProps {
   overridePositions?: Record<string, { x: number; y: number }>
   /** editable: per-node editor visuals (subtitle, validation marker). */
   nodeMeta?: Record<string, FlowNodeMeta>
+  /**
+   * F3 definition view (opt-in; Conductor defaults unchanged): nodes show
+   * their stage instead of run status, drag is session-only — nothing is
+   * read from or written to the shared Conductor layout store.
+   */
+  neutral?: boolean
 }
 
 // Pixel padding: a long chain is width-bound, so % padding would waste zoom.
@@ -95,6 +101,7 @@ function FlowCanvasInner({
   onPositionsChange,
   overridePositions,
   nodeMeta,
+  neutral = false,
 }: FlowCanvasProps) {
   const {
     setViewport,
@@ -105,13 +112,15 @@ function FlowCanvasInner({
     getNodesBounds,
   } = useReactFlow<FlowNode>()
   const hostRef = useRef<HTMLDivElement>(null)
+  // Neutral (definition) mode never reads or writes the shared layout store.
+  const storeId = neutral ? null : workflowId
   const saved = useConductorLayoutStore((s) =>
-    workflowId ? s.layouts[workflowId] : undefined,
+    storeId ? s.layouts[storeId] : undefined,
   )
   const savePositions = useConductorLayoutStore((s) => s.savePositions)
   const setLocked = useConductorLayoutStore((s) => s.setLocked)
   // The editor always allows dragging and never writes the Conductor store.
-  const locked = editable ? false : (saved?.locked ?? false)
+  const locked = editable || neutral ? false : (saved?.locked ?? false)
 
   const seed = useMemo(() => layoutDag(dag).positions, [dag])
   const [initialNodes] = useState(
@@ -128,6 +137,7 @@ function FlowCanvasInner({
         preview,
         editable,
         nodeMeta,
+        neutral,
       ).nodes,
   )
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
@@ -149,6 +159,7 @@ function FlowCanvasInner({
         preview,
         editable,
         nodeMeta,
+        neutral,
       ).nodes.map((n) => {
         const existing = byId.get(n.id)
         const next = { ...existing, ...n }
@@ -157,7 +168,16 @@ function FlowCanvasInner({
         return next
       })
     })
-  }, [dag, seed, preview, editable, nodeMeta, overridePositions, setNodes])
+  }, [
+    dag,
+    seed,
+    preview,
+    editable,
+    nodeMeta,
+    overridePositions,
+    neutral,
+    setNodes,
+  ])
 
   // Auto-fit follows container resizes until the user pans / zooms.
   const autoFit = useRef(true)
@@ -385,7 +405,7 @@ function FlowCanvasInner({
             onPositionsChange(Object.fromEntries(current))
             return
           }
-          if (!workflowId) return
+          if (neutral || !workflowId) return
           const current = new Map(getNodes().map((n) => [n.id, n.position]))
           for (const n of dragged) current.set(n.id, n.position)
           // Only moved nodes persist; the rest keep following the seed.
@@ -404,7 +424,7 @@ function FlowCanvasInner({
           <>
             <FlowControls
               locked={locked}
-              lockDisabled={!workflowId || editable}
+              lockDisabled={!workflowId || editable || neutral}
               onToggleLock={() =>
                 !editable && workflowId && setLocked(workflowId, !locked)
               }

@@ -17,6 +17,8 @@ export interface FlowNodeData extends Record<string, unknown> {
   preview: boolean
   /** F4 graph-editor mode (opt-in): connectable handles, editor card line. */
   editable?: boolean
+  /** F3 definition view (opt-in): neutral stage line instead of run status. */
+  neutral?: boolean
   /** Editor-only card line (body summary / "new · not connected"). */
   subtitle?: string | null
   /** Editor-only inline validation marker text. */
@@ -160,6 +162,7 @@ export function toFlow(
   preview = false,
   editable = false,
   nodeMeta?: Record<string, FlowNodeMeta>,
+  neutral = false,
 ): { nodes: Array<FlowNode>; edges: Array<Edge> } {
   const status = new Map(dag.nodes.map((n) => [n.id, n.status]))
   const blocked = failedDescendants(dag)
@@ -184,6 +187,7 @@ export function toFlow(
               disconnected: nodeMeta?.[n.id]?.disconnected ?? false,
             }
           : {}),
+        ...(neutral ? { neutral: true } : {}),
       },
     })),
     edges: dag.edges.map(([a, b]) => ({

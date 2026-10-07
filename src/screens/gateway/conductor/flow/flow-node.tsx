@@ -17,11 +17,12 @@ function FlowNodeView({ data }: NodeProps<FlowNode>) {
   )
   const badge = loopBadge(n.loop)
   const nAgents = agentCount(n.sessions)
-  const line = preview
-    ? n.stage.toLowerCase()
-    : editable
-      ? (data.subtitle ?? n.stage.toLowerCase())
-      : statusText(n, now, upstreamFailed)
+  const line =
+    preview || data.neutral === true
+      ? n.stage.toLowerCase()
+      : editable
+        ? (data.subtitle ?? n.stage.toLowerCase())
+        : statusText(n, now, upstreamFailed)
   const status = n.status === 'idle' ? 'pending' : n.status
 
   function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {

@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { WorkflowEngineUnavailableError } from '../api-client'
 import { WorkflowDetail } from './workflow-detail'
+import type { ReactNode } from 'react'
 import type { WorkflowDefinitionRow } from '../api-client'
 import type { ParsedWorkflow } from '../types'
 
@@ -56,6 +57,7 @@ let mockIsLoading = false
 let mockError: Error | null = null
 let mockFeatures: Array<string> = []
 let mockValidationResult: unknown = null
+let mockValidationError: Error | null = null
 let mockVersions: Array<unknown> | null = null
 let mockVersionsLoading = false
 let mockVersionDetail: unknown = null
@@ -65,14 +67,22 @@ const resetMutateMock = vi.fn()
 const duplicateMutateMock = vi.fn()
 
 vi.mock('../use-workflows', () => ({
+  parseTags: (raw: string | null) => {
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      return Array.isArray(parsed)
+        ? parsed.filter((x): x is string => typeof x === 'string')
+        : []
+    } catch {
+      return []
+    }
+  },
   useWorkflowParsed: () => ({
     data: mockWorkflowData,
     isLoading: mockIsLoading,
     error: mockError,
     refetch: vi.fn(),
-  }),
-  useWorkflowRuns: () => ({
-    data: [{ id: 'run-1' }, { id: 'run-2' }],
   }),
   useWorkflowFeatures: () => ({
     data: {
@@ -84,6 +94,7 @@ vi.mock('../use-workflows', () => ({
   useValidateWorkflowDefinition: () => ({
     data: mockValidationResult,
     isLoading: false,
+    error: mockValidationError,
   }),
   useWorkflowDefinitionVersions: () => ({
     data: mockVersions,
@@ -108,6 +119,31 @@ vi.mock('../use-workflows', () => ({
   }),
 }))
 
+// Router Link stub: detail Conductor links must not need a router context.
+vi.mock('@tanstack/react-router', async () => {
+  const React = await import('react')
+  return {
+    Link: (props: { to?: string; children?: ReactNode; className?: string }) =>
+      React.createElement('a', { href: props.to ?? '#' }, props.children),
+  }
+})
+
+let lastFlowCanvasProps: Record<string, unknown> | null = null
+vi.mock('@/screens/gateway/conductor/mission-canvas', async () => {
+  const React = await import('react')
+  return {
+    FlowCanvas: (props: Record<string, unknown>) => {
+      lastFlowCanvasProps = props
+      return React.createElement(
+        'div',
+        { 'data-testid': 'flow-canvas' },
+        `FlowCanvas for ${String(props['workflowId'])}`,
+      )
+    },
+    graphLoading: React.createElement('div', null, 'Loading graph…'),
+  }
+})
+
 vi.mock('@/screens/gateway/conductor/use-conductor-queries', () => ({
   useConductorScheduled: () => ({
     data: {
@@ -127,20 +163,6 @@ vi.mock('@/screens/gateway/conductor/use-conductor-queries', () => ({
   }),
 }))
 
-// FlowCanvas stub to avoid loading heavy @xyflow/react in unit tests
-vi.mock('@/screens/gateway/conductor/mission-canvas', async () => {
-  const React = await import('react')
-  return {
-    FlowCanvas: ({ workflowId }: { workflowId: string }) =>
-      React.createElement(
-        'div',
-        { 'data-testid': 'flow-canvas' },
-        `FlowCanvas for ${workflowId}`,
-      ),
-    graphLoading: React.createElement('div', null, 'Loading graph…'),
-  }
-})
-
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
@@ -149,13 +171,15 @@ afterEach(() => {
   mockError = null
   mockFeatures = []
   mockValidationResult = null
+  mockValidationError = null
   mockVersions = null
   mockVersionsLoading = false
   mockVersionDetail = null
+  lastFlowCanvasProps = null
 })
 
 describe('WorkflowDetail', () => {
-  it('renders all default tabs (OVERVIEW, GRAPH, INPUTS, SCHEDULES, YAML)', () => {
+  it('renders default tabs; SCHEDULES only with the cron_schedule feature', () => {
     mockFeatures = []
     render(
       <WorkflowDetail
@@ -168,14 +192,14 @@ describe('WorkflowDetail', () => {
     expect(screen.getByRole('tab', { name: /^OVERVIEW/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^GRAPH/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^INPUTS/i })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: /^SCHEDULES/i })).toBeTruthy()
     expect(screen.getByRole('tab', { name: /^YAML/i })).toBeTruthy()
-
-    // VERSIONS tab is hidden because definition_versions is absent from features
     expect(screen.queryByRole('tab', { name: /^VERSIONS/i })).toBeNull()
+    // no cron_schedule feature → tab hidden (never invented)
+    expect(screen.queryByRole('tab', { name: /^SCHEDULES/i })).toBeNull()
   })
 
   it('switches tabs when clicked', () => {
+    mockFeatures = ['cron_schedule']
     render(
       <WorkflowDetail
         workflowId="youtube-catalog-intake"
@@ -199,6 +223,81 @@ describe('WorkflowDetail', () => {
       screen.getByText(/SCHEDULES FOR YOUTUBE-CATALOG-INTAKE/i),
     ).toBeTruthy()
     expect(screen.getByText('sched-1')).toBeTruthy()
+  })
+
+  it('shows run count from def.run_count (not an unbounded run query)', () => {
+    mockWorkflowData = {
+      definition: { ...mockDefinition, run_count: 6 },
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByText(/6 runs in Conductor/).length).toBeGreaterThan(0)
+  })
+
+  it('renders the graph tab read-only: neutral FlowCanvas, no layout store writes', () => {
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    // overview canvas
+    expect(lastFlowCanvasProps?.['neutral']).toBe(true)
+    fireEvent.click(screen.getByRole('tab', { name: /^GRAPH/i }))
+    expect(lastFlowCanvasProps?.['neutral']).toBe(true)
+  })
+
+  it('shows validation unavailable when the engine validate call errors', () => {
+    mockFeatures = ['validate']
+    mockValidationError = new Error('boom')
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(
+      screen.getByText(/Validation unavailable — the workflow engine/i),
+    ).toBeTruthy()
+    // the fake ✓ rows are gone
+    expect(screen.queryByText(/parses · schema ok/i)).toBeNull()
+    expect(screen.queryByText(/all resolve/i)).toBeNull()
+  })
+
+  it('delete failure surfaces an error and the dialog closes (no silent state)', () => {
+    mockWorkflowData = {
+      definition: { ...mockDefinition, source: 'user' },
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: /DELETE/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete workflow' }))
+    expect(deleteMutateMock).toHaveBeenCalledTimes(1)
+
+    const opts = deleteMutateMock.mock.calls[0][1] as {
+      onError: (e: Error & { serverError?: string }) => void
+    }
+    act(() => {
+      opts.onError(
+        Object.assign(new Error('nope'), { serverError: 'engine down' }),
+      )
+    })
+    expect(screen.getByText(/Delete failed — engine down/i)).toBeTruthy()
+    expect(screen.queryByText('Delete workflow?')).toBeNull()
   })
 
   it('shows DELETE for user workflow and requires confirmation before deletion', () => {
