@@ -4,6 +4,7 @@ import {
   WorkflowEngineUnavailableError,
   cancelWorkflowRun,
   chatWorkflowWizard,
+  createWorkflowDraftSession,
   getWorkflowDefinitionVersion,
   getWorkflowFeatures,
   listRunEvents,
@@ -25,13 +26,65 @@ function createEventStream(events: Array<string>): ReadableStream<Uint8Array> {
   })
 }
 
-describe('chatWorkflowWizard', () => {
+describe('createWorkflowDraftSession & chatWorkflowWizard', () => {
   afterEach(() => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 
-  it('uses the same send-stream transport with the gateway session model', async () => {
+  it('createWorkflowDraftSession posts to /api/sessions with a formatted label', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          sessionKey: 'wf-draft-abc',
+          friendlyId: 'wf-draft-abc',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const fixedTime = new Date('2026-10-07T14:35:00')
+    const res = await createWorkflowDraftSession('My Pipeline', {
+      now: fixedTime,
+    })
+
+    expect(res.sessionId).toBe('wf-draft-abc')
+    expect(res.sessionKey).toBe('wf-draft-abc')
+    expect(res.label).toBe('Workflow draft · My Pipeline · 14:35')
+    expect(fetchSpy).toHaveBeenCalledOnce()
+
+    const [url, init] = fetchSpy.mock.calls[0]
+    expect(url).toBe('/api/sessions')
+    expect(init?.method).toBe('POST')
+    const body = JSON.parse(String(init?.body)) as Record<string, unknown>
+    expect(body.label).toBe('Workflow draft · My Pipeline · 14:35')
+    expect(JSON.stringify(body)).not.toContain('"main"')
+  })
+
+  it('createWorkflowDraftSession defaults to untitled when name is omitted or empty', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          ok: true,
+          sessionKey: 'wf-draft-xyz',
+          friendlyId: 'wf-draft-xyz',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      ),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
+    const fixedTime = new Date('2026-10-07T09:05:00')
+    const res = await createWorkflowDraftSession('', { now: fixedTime })
+
+    expect(res.sessionId).toBe('wf-draft-xyz')
+    expect(res.label).toBe('Workflow draft · untitled · 09:05')
+  })
+
+  it('chatWorkflowWizard sends sessionKey === draft id and never contains "main" in body', async () => {
+    const draftId = 'wf-draft-test-123'
     const fetchSpy = vi
       .fn()
       .mockResolvedValueOnce(
@@ -53,7 +106,7 @@ describe('chatWorkflowWizard', () => {
             status: 200,
             headers: {
               'Content-Type': 'text/event-stream',
-              'X-Hermes-Session-Key': 'wizard-session',
+              'X-Hermes-Session-Key': draftId,
             },
           },
         ),
@@ -62,24 +115,23 @@ describe('chatWorkflowWizard', () => {
     vi.stubGlobal('fetch', fetchSpy)
 
     const result = await chatWorkflowWizard({
-      sessionId: 'new',
-      message: 'hi',
+      sessionId: draftId,
+      message: 'build workflow',
       currentYaml: 'name: Current\nnodes: []\n',
     })
 
-    expect(result.sessionId).toBe('wizard-session')
+    expect(result.sessionId).toBe(draftId)
     expect(result.reply).toBe('ok')
     expect(fetchSpy).toHaveBeenNthCalledWith(1, '/api/session-status')
 
     const [, sendInit] = fetchSpy.mock.calls[1]
     expect(fetchSpy.mock.calls[1][0]).toBe('/api/send-stream')
-    const body = JSON.parse(String((sendInit as RequestInit).body)) as Record<
-      string,
-      unknown
-    >
+    const rawBody = String((sendInit as RequestInit).body)
+    expect(rawBody).not.toContain('"main"')
+    const body = JSON.parse(rawBody) as Record<string, unknown>
     expect(body).toMatchObject({
-      sessionKey: 'new',
-      friendlyId: 'new',
+      sessionKey: draftId,
+      friendlyId: draftId,
       model: 'anthropic/claude-sonnet-test',
     })
     expect(String(body.message)).toContain(
@@ -87,36 +139,30 @@ describe('chatWorkflowWizard', () => {
     )
   })
 
-  it('keeps using send-stream when session-status cannot resolve a model', async () => {
-    const fetchSpy = vi
-      .fn()
-      .mockResolvedValueOnce(new Response('', { status: 503 }))
-      .mockResolvedValueOnce(
-        new Response(
-          createEventStream([
-            'event: chunk\n',
-            'data: {"text":"plain assistant text"}\n\n',
-          ]),
-          { status: 200, headers: { 'Content-Type': 'text/event-stream' } },
-        ),
-      )
-
+  it('chatWorkflowWizard throws when sessionId is omitted or empty', async () => {
+    const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
 
-    const result = await chatWorkflowWizard({
-      message: 'hello',
-      currentYaml: 'name: Current\nnodes: []\n',
-    })
+    await expect(
+      chatWorkflowWizard({
+        message: 'hello',
+        currentYaml: 'name: Current\nnodes: []\n',
+      }),
+    ).rejects.toThrow(/sessionId/)
 
-    expect(result.reply).toBe('plain assistant text')
-    const body = JSON.parse(
-      String((fetchSpy.mock.calls[1][1] as RequestInit).body),
-    ) as Record<string, unknown>
-    expect(body).toMatchObject({ sessionKey: 'main', friendlyId: 'main' })
-    expect(body).not.toHaveProperty('model')
+    await expect(
+      chatWorkflowWizard({
+        sessionId: '   ',
+        message: 'hello',
+        currentYaml: 'name: Current\nnodes: []\n',
+      }),
+    ).rejects.toThrow(/sessionId/)
+
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('prefers the same persisted main-chat model override used by Switch UI chat', async () => {
+  it('reads persisted model for the draft session and ignores "main" entry in localStorage', async () => {
+    const draftId = 'wf-draft-persisted'
     const fetchSpy = vi
       .fn()
       .mockResolvedValue(
@@ -134,7 +180,12 @@ describe('chatWorkflowWizard', () => {
         getItem: (key: string) =>
           key === 'hermes-session-model'
             ? JSON.stringify({
-                state: { models: { main: 'hermes-agent' } },
+                state: {
+                  models: {
+                    main: 'ignored-main-model',
+                    [draftId]: 'draft-specific-model',
+                  },
+                },
                 version: 0,
               })
             : null,
@@ -142,18 +193,20 @@ describe('chatWorkflowWizard', () => {
     })
 
     await chatWorkflowWizard({
+      sessionId: draftId,
       message: 'hello',
       currentYaml: 'name: Current\nnodes: []\n',
     })
 
     expect(fetchSpy).toHaveBeenCalledOnce()
-    const body = JSON.parse(
-      String((fetchSpy.mock.calls[0][1] as RequestInit).body),
-    ) as Record<string, unknown>
+    const rawBody = String((fetchSpy.mock.calls[0][1] as RequestInit).body)
+    expect(rawBody).not.toContain('"main"')
+    expect(rawBody).not.toContain('ignored-main-model')
+    const body = JSON.parse(rawBody) as Record<string, unknown>
     expect(body).toMatchObject({
-      sessionKey: 'main',
-      friendlyId: 'main',
-      model: 'hermes-agent',
+      sessionKey: draftId,
+      friendlyId: draftId,
+      model: 'draft-specific-model',
     })
   })
 })
@@ -403,17 +456,15 @@ describe('listWorkflowDefinitionVersions / getWorkflowDefinitionVersion', () => 
   it('throws WorkflowEngineUnavailableError when the engine is down', async () => {
     vi.stubGlobal(
       'fetch',
-      vi
-        .fn()
-        .mockResolvedValue(
-          new Response(
-            JSON.stringify({
-              engine_ok: false,
-              error: 'Workflow engine unavailable',
-            }),
-            { status: 503, headers: { 'Content-Type': 'application/json' } },
-          ),
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            engine_ok: false,
+            error: 'Workflow engine unavailable',
+          }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } },
         ),
+      ),
     )
 
     await expect(listWorkflowDefinitionVersions('wf-1')).rejects.toThrow(

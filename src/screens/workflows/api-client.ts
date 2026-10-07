@@ -600,12 +600,12 @@ function buildWizardMessage(input: WorkflowWizardChatInput): string {
 
 async function resolveWorkflowWizardModel(
   explicitModel: string | undefined,
-  sessionId: string | undefined,
+  sessionId: string,
 ): Promise<string | undefined> {
   const trimmed = explicitModel?.trim()
   if (trimmed) return trimmed
 
-  const storedModel = readPersistedSessionModel(sessionId || 'main')
+  const storedModel = readPersistedSessionModel(sessionId)
   if (storedModel) return storedModel
 
   try {
@@ -635,9 +635,7 @@ async function resolveWorkflowWizardModel(
   }
 }
 
-function readPersistedSessionModel(
-  sessionId: string | undefined,
-): string | undefined {
+function readPersistedSessionModel(sessionId: string): string | undefined {
   if (typeof window === 'undefined') return undefined
 
   try {
@@ -649,12 +647,9 @@ function readPersistedSessionModel(
     const models = parsed.state?.models
     if (!models || typeof models !== 'object') return undefined
 
-    const candidates = [sessionId, 'main', 'new'].filter(
-      (candidate): candidate is string =>
-        typeof candidate === 'string' && candidate.trim().length > 0,
-    )
-    for (const candidate of candidates) {
-      const model = models[candidate]
+    const trimmed = sessionId.trim()
+    if (trimmed) {
+      const model = models[trimmed]
       if (typeof model === 'string' && model.trim()) return model.trim()
     }
   } catch {
@@ -664,10 +659,62 @@ function readPersistedSessionModel(
   return undefined
 }
 
+export interface CreateWorkflowDraftSessionResponse {
+  sessionId: string
+  sessionKey: string
+  friendlyId: string
+  label: string
+}
+
+export function buildWorkflowDraftSessionLabel(
+  name?: string,
+  now: Date = new Date(),
+): string {
+  const cleanName = name?.trim() || 'untitled'
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  return `Workflow draft · ${cleanName} · ${hh}:${mm}`
+}
+
+export async function createWorkflowDraftSession(
+  name?: string,
+  options?: { friendlyId?: string; now?: Date },
+): Promise<CreateWorkflowDraftSessionResponse> {
+  const label = buildWorkflowDraftSessionLabel(name, options?.now)
+  const res = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      label,
+      friendlyId: options?.friendlyId,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `createWorkflowDraftSession failed (${res.status})`)
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  const sessionId =
+    readString(data['sessionKey']) ||
+    readString(data['friendlyId']) ||
+    readString(data['sessionId']) ||
+    readString(data['id']) ||
+    crypto.randomUUID()
+  return {
+    sessionId,
+    sessionKey: sessionId,
+    friendlyId: readString(data['friendlyId']) || sessionId,
+    label,
+  }
+}
+
 export async function chatWorkflowWizard(
   input: WorkflowWizardChatInput,
 ): Promise<WorkflowWizardChatResponse> {
-  const sessionKey = input.sessionId || 'main'
+  const sessionKey = input.sessionId?.trim()
+  if (!sessionKey) {
+    throw new Error('chatWorkflowWizard requires a sessionId')
+  }
   const model = await resolveWorkflowWizardModel(input.model, sessionKey)
   const res = await fetch('/api/send-stream', {
     method: 'POST',

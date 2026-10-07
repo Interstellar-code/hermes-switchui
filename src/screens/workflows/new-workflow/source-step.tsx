@@ -3,12 +3,19 @@
  * describe (chat pane injected by the wizard — redesign is F7), template,
  * duplicate, import YAML, blank.
  */
-import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { WorkflowEngineUnavailableError } from '../api-client'
 import { IdField } from './id-field'
 import { SavedGraphPreview } from './graph-preview'
 import { shortIssueMessage, suggestFreeIds } from './yaml-lint'
-import type { ReactNode } from 'react'
+import type { ReactElement, ReactNode } from 'react'
 import type { LintIssue } from './yaml-lint'
 import type { IdStatus } from './use-wizard-validation'
 import type { WorkflowSummary } from '../types'
@@ -512,7 +519,17 @@ export function SourceStep(p: SourceStepProps) {
         ))}
       </fieldset>
       <div className="wz2-pane">
-        {p.kind === 'describe' && p.describePane}
+        {p.kind === 'describe' &&
+          (isValidElement(p.describePane)
+            ? cloneElement(
+                p.describePane as ReactElement<{
+                  onSwitchToTemplate?: () => void
+                }>,
+                {
+                  onSwitchToTemplate: () => p.onKind('template'),
+                },
+              )
+            : p.describePane)}
         {(p.kind === 'template' || p.kind === 'duplicate') && (
           <Picker
             key={p.kind}

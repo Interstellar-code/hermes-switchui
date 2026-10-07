@@ -1,0 +1,291 @@
+/**
+ * workflow-wizard-describe.css — styles for the Describe-with-AI wizard step (F7).
+ * Scoped to .wz-describe-*; badge colours come only from --theme-* tokens.
+ */
+
+.wz-describe-root {
+  display: flex;
+  height: 100%;
+  min-height: 440px;
+  max-height: 520px;
+  width: 100%;
+  overflow: hidden;
+  background: var(--theme-bg, #06120a);
+  border-radius: 6px;
+}
+
+/* ── Offline Banner ── */
+.wz-describe-offline-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+  background: var(--theme-card, #170808);
+  border: 1px solid var(--theme-warning, #ffb454);
+  color: var(--theme-text, #ffd9a8);
+  font: 400 11px var(--m-font-mono, monospace);
+  line-height: 1.4;
+}
+
+.wz-describe-offline-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wz-describe-offline-btn {
+  padding: 4px 10px;
+  font: 600 10px var(--m-font-mono, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  background: var(--theme-warning, #ffb454);
+  color: var(--theme-bg, #020804);
+  border: 1px solid var(--theme-warning, #ffb454);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wz-describe-offline-btn:hover {
+  filter: brightness(1.1);
+}
+
+/* ── Chat Column ── */
+.wz-describe-chat-col {
+  width: 360px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--theme-border-subtle, rgba(0, 255, 65, 0.14));
+  min-height: 0;
+  padding: 10px 12px;
+}
+
+.wz-describe-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--theme-border-subtle, rgba(0, 255, 65, 0.1));
+  font: 600 10px var(--m-font-mono, monospace);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--theme-muted, #8fae9a);
+}
+
+.wz-describe-session-badge {
+  font: 500 9px var(--m-font-mono, monospace);
+  letter-spacing: 0.08em;
+  border: 1px solid var(--theme-border-subtle, rgba(143, 174, 154, 0.5));
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--theme-muted, #8fae9a);
+}
+
+.wz-describe-chat-msgs {
+  flex-grow: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  max-height: 380px;
+}
+
+.wz-describe-chat-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: 90%;
+  font: 400 11px var(--m-font-sans, sans-serif);
+  line-height: 1.5;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+
+.wz-describe-chat-msg.user {
+  align-self: flex-end;
+  background: var(--theme-card, rgba(0, 255, 65, 0.1));
+  border: 1px solid var(--theme-border, rgba(0, 255, 65, 0.3));
+  color: var(--theme-text, #d8ffe3);
+}
+
+.wz-describe-chat-msg.assistant {
+  align-self: flex-start;
+  background: var(--theme-card, #07130a);
+  border: 1px solid var(--theme-border-subtle, rgba(216, 255, 227, 0.14));
+  color: var(--theme-text, #c4e2cd);
+}
+
+.wz-describe-chat-who {
+  font: 600 9px var(--m-font-mono, monospace);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--theme-muted, #8fae9a);
+}
+
+.wz-describe-chat-msg.assistant .wz-describe-chat-who {
+  color: var(--theme-success, #00ff41);
+}
+
+.wz-describe-chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--theme-border-subtle, rgba(0, 255, 65, 0.14));
+}
+
+.wz-describe-input {
+  flex: 1;
+  background: var(--theme-input, rgba(0, 0, 0, 0.4));
+  border: 1px solid var(--theme-border, #333);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font: 400 12px var(--m-font-sans, sans-serif);
+  color: var(--theme-text, #f0f0f0);
+  outline: none;
+}
+
+.wz-describe-input:focus {
+  border-color: var(--theme-success, #00ff41);
+}
+
+/* ── Live Draft Graph Column ── */
+.wz-describe-graph-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  background-color: var(--theme-bg, #020804);
+  background-image: radial-gradient(
+    rgba(0, 255, 65, 0.13) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+  overflow: hidden;
+}
+
+.wz-describe-graph-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--theme-border-subtle, rgba(0, 255, 65, 0.14));
+  z-index: 4;
+}
+
+.wz-describe-graph-title {
+  font: 700 10px var(--m-font-mono, monospace);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--theme-text, #d8ffe3);
+}
+
+.wz-describe-graph-meta {
+  font: 400 10px var(--m-font-mono, monospace);
+  color: var(--theme-muted, #8fae9a);
+}
+
+.wz-describe-revisions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  z-index: 4;
+}
+
+.wz-describe-rev-btn {
+  font: 600 9px var(--m-font-mono, monospace);
+  letter-spacing: 0.08em;
+  background: var(--theme-card, #06120a);
+  border: 1px solid var(--theme-border, rgba(0, 255, 65, 0.25));
+  border-radius: 3px;
+  color: var(--theme-muted, #8fae9a);
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.wz-describe-rev-btn.active {
+  color: var(--theme-success, #00ff41);
+  border-color: var(--theme-success, #00ff41);
+  background: var(--theme-card, rgba(0, 255, 65, 0.1));
+}
+
+.wz-describe-canvas-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Node Diff Badges ── */
+.wz-diff-badge {
+  font: 700 8px var(--m-font-mono, monospace);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.wz-diff-badge--added,
+.chg-added {
+  background: var(--theme-success, #00ff41);
+  color: var(--theme-bg, #020804);
+}
+
+.wz-diff-badge--changed,
+.chg-changed {
+  background: var(--theme-accent, #5ad3ff);
+  color: var(--theme-bg, #020804);
+}
+
+.wz-diff-badge--removed,
+.chg-removed {
+  background: var(--theme-danger, #ff6b6b);
+  color: var(--theme-text, #ffffff);
+}
+
+.wz-diff-badge-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 14px;
+  z-index: 4;
+}
+
+.wz-describe-footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--theme-border-subtle, rgba(0, 255, 65, 0.14));
+  z-index: 4;
+}
+
+.wz-describe-use-btn {
+  font: 600 10px var(--m-font-mono, monospace);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--theme-success, #00ff41);
+  background: var(--theme-success, #00ff41);
+  color: var(--theme-bg, #020804);
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.wz-describe-use-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}

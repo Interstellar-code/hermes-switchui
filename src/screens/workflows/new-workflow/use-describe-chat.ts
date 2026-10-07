@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { chatWorkflowWizard } from '../api-client'
-import {
-  buildWorkflowFromPrompt,
-  slugify,
-  toWorkflowDocumentDraft,
-} from './wizard-draft'
+import { chatWorkflowWizard, createWorkflowDraftSession } from '../api-client'
+import { slugify, toWorkflowDocumentDraft } from './wizard-draft'
+import { diffWorkflowYaml } from './draft-diff'
+import { yamlToParsedWorkflow } from './yaml-lint'
 import type { WizardDocumentDraft } from './wizard-draft'
+import type { DraftDiffResult } from './draft-diff'
+import type { ParsedWorkflow } from '../types'
 import type { ChatMessage } from './describe-chat'
 
 export type { ChatMessage }
@@ -17,7 +17,16 @@ export const NWZ_CHAT_INIT: Array<ChatMessage> = [
   },
 ]
 
-let chatWarnFired = false
+export interface DraftRevision {
+  revision: number
+  yaml: string
+  diff: DraftDiffResult
+  parsed: ParsedWorkflow | null
+  suggestedId?: string
+  suggestedName?: string
+  suggestedDescription?: string
+  timestamp: number
+}
 
 export interface DescribeChat {
   chatHistory: Array<ChatMessage>
@@ -26,6 +35,14 @@ export interface DescribeChat {
   wizardSessionId: string | null
   onChatInput: (v: string) => void
   onSend: () => void
+  revisions: Array<DraftRevision>
+  currentRevision: number
+  selectedRevision: number
+  onSelectRevision: (rev: number) => void
+  onUseDraft: (rev?: number) => void
+  unavailable: boolean
+  errorMessage: string | null
+  onSwitchToTemplate?: () => void
 }
 
 export interface UseDescribeChatOptions {
@@ -42,6 +59,7 @@ export interface UseDescribeChatOptions {
     },
   ) => void
   setYaml: (yaml: string) => void
+  onSwitchToTemplate?: () => void
 }
 
 export function useDescribeChat({
@@ -51,12 +69,17 @@ export function useDescribeChat({
   id,
   applyParsedDocument,
   setYaml,
+  onSwitchToTemplate,
 }: UseDescribeChatOptions): DescribeChat {
   const [chatHistory, setChatHistory] =
     useState<Array<ChatMessage>>(NWZ_CHAT_INIT)
   const [chatInput, setChatInput] = useState('')
   const [chatPending, setChatPending] = useState(false)
   const [wizardSessionId, setWizardSessionId] = useState<string | null>(null)
+  const [revisions, setRevisions] = useState<Array<DraftRevision>>([])
+  const [selectedRevision, setSelectedRevision] = useState<number>(0)
+  const [unavailable, setUnavailable] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   async function handleSend() {
     const userMsg = chatInput.trim()
@@ -64,59 +87,98 @@ export function useDescribeChat({
     setChatHistory((h) => [...h, { role: 'user', msg: userMsg }])
     setChatInput('')
     setChatPending(true)
+    setUnavailable(false)
+    setErrorMessage(null)
+
+    let sid = wizardSessionId
     try {
+      if (!sid) {
+        const sessionRes = await createWorkflowDraftSession(name)
+        sid = sessionRes.sessionId
+        setWizardSessionId(sid)
+      }
+
+      const activeYaml =
+        revisions.length > 0 ? revisions[revisions.length - 1].yaml : yaml
+
       const result = await chatWorkflowWizard({
-        sessionId: wizardSessionId ?? undefined,
+        sessionId: sid,
         message: userMsg,
-        currentYaml: yaml,
+        currentYaml: activeYaml,
         currentName: name,
         currentDescription: description,
         history: [...chatHistory, { role: 'user', msg: userMsg }],
       })
-      setWizardSessionId(result.sessionId ?? null)
+
+      if (result.sessionId) {
+        setWizardSessionId(result.sessionId)
+      }
       setChatHistory((h) => [...h, { role: 'assistant', msg: result.reply }])
 
-      const parsed = toWorkflowDocumentDraft(result.workflow_yaml)
-      if (parsed) {
-        applyParsedDocument(parsed, {
-          wizardId:
-            id ||
-            result.suggested_id ||
-            slugify(result.suggested_name || name || 'workflow'),
-          forceName: result.suggested_name || parsed.name || name || 'Workflow',
-          forceDescription:
-            result.suggested_description || parsed.description || description,
-        })
-      } else {
-        setYaml(result.workflow_yaml)
+      if (result.workflow_yaml) {
+        const prevYaml =
+          revisions.length > 0 ? revisions[revisions.length - 1].yaml : null
+        const diff = diffWorkflowYaml(prevYaml, result.workflow_yaml)
+        const newRevNum = revisions.length + 1
+        const nextRev: DraftRevision = {
+          revision: newRevNum,
+          yaml: result.workflow_yaml,
+          diff,
+          parsed: yamlToParsedWorkflow(result.workflow_yaml),
+          suggestedId: result.suggested_id,
+          suggestedName: result.suggested_name,
+          suggestedDescription: result.suggested_description,
+          timestamp: Date.now(),
+        }
+        setRevisions((prev) => [...prev, nextRev])
+        setSelectedRevision(newRevNum)
+
+        const parsedDoc = toWorkflowDocumentDraft(result.workflow_yaml)
+        if (parsedDoc) {
+          applyParsedDocument(parsedDoc, {
+            wizardId:
+              id ||
+              result.suggested_id ||
+              slugify(result.suggested_name || name || 'workflow'),
+            forceName:
+              result.suggested_name || parsedDoc.name || name || 'Workflow',
+            forceDescription:
+              result.suggested_description ||
+              parsedDoc.description ||
+              description,
+          })
+        } else {
+          setYaml(result.workflow_yaml)
+        }
       }
     } catch (err) {
-      // Warn once per session so future debugging is easier; fallback builds a local draft.
-      if (!chatWarnFired) {
-        chatWarnFired = true
-        console.warn(
-          '[workflow-wizard] Hermes scratch chat failed — using local fallback',
-          err,
-        )
-      }
-      const fallbackDoc = buildWorkflowFromPrompt(
-        userMsg,
-        name || 'My Workflow',
-      )
-      applyParsedDocument(fallbackDoc, {
-        wizardId: id || slugify(fallbackDoc.name || userMsg || 'workflow'),
-        forceName: fallbackDoc.name || name || 'Workflow',
-        forceDescription: fallbackDoc.description || description,
-      })
-      setChatHistory((h) => [
-        ...h,
-        {
-          role: 'assistant',
-          msg: 'I could not reach the live Hermes chat service for this turn, so I created a local workflow draft from your message. Review the DAG in Step 2, refine nodes in Step 3, or tell me more about the trigger, steps, and expected output.',
-        },
-      ])
+      console.warn('[workflow-wizard] Describe chat turn failed', err)
+      setUnavailable(true)
+      setErrorMessage('AI drafting unavailable — start from a template')
     } finally {
       setChatPending(false)
+    }
+  }
+
+  function handleUseDraft(targetRev?: number) {
+    if (revisions.length === 0) return
+    const revNum = targetRev ?? selectedRevision
+    const rev =
+      revisions.find((r) => r.revision === revNum) ??
+      revisions[revisions.length - 1]
+    const parsedDoc = toWorkflowDocumentDraft(rev.yaml)
+    if (parsedDoc) {
+      applyParsedDocument(parsedDoc, {
+        wizardId:
+          id ||
+          rev.suggestedId ||
+          slugify(rev.suggestedName || name || 'workflow'),
+        forceName: rev.suggestedName || parsedDoc.name || name || 'Workflow',
+        forceDescription:
+          rev.suggestedDescription || parsedDoc.description || description,
+      })
+    } else {
+      setYaml(rev.yaml)
     }
   }
 
@@ -129,5 +191,13 @@ export function useDescribeChat({
     onSend: () => {
       void handleSend()
     },
+    revisions,
+    currentRevision: revisions.length,
+    selectedRevision,
+    onSelectRevision: setSelectedRevision,
+    onUseDraft: handleUseDraft,
+    unavailable,
+    errorMessage,
+    onSwitchToTemplate,
   }
 }
