@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { NodeTypeBar } from './workflow-grid'
+import { BulkDeleteDialog } from './bulk-delete-dialog'
 import { getScheduleLabel } from './schedule'
 import { formatVersion, relativeTime } from './types'
 import type { WorkflowSource, WorkflowSummary } from './types'
@@ -86,6 +87,9 @@ export function WorkflowTable({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false)
   const [duplicateYaml, setDuplicateYaml] = useState<string | undefined>()
   const [duplicateId, setDuplicateId] = useState<string | undefined>()
+
+  // F8 bulk delete state
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
 
   function handleSortToggle(col: TableSortCol) {
     if (sortCol === col) {
@@ -218,6 +222,21 @@ export function WorkflowTable({
     return { user, factory, project }
   }, [workflows, selectedIds])
 
+  const selectedWorkflows = useMemo(
+    () => workflows.filter((w) => selectedIds.has(w.id)),
+    [workflows, selectedIds],
+  )
+
+  // F8: only rows the server actually acted on leave the selection — failed
+  // rows stay selected for a retry-by-user, never an automatic one.
+  function handleBulkCleared(ids: Array<string>) {
+    const cleared = new Set(ids)
+    setSelectedIds((prev) => {
+      const next = new Set([...prev].filter((id) => !cleared.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }
+
   return (
     <>
       {/* BULK ACTIONS BAR (visible when items selected) */}
@@ -266,6 +285,15 @@ export function WorkflowTable({
             aria-label="Duplicate selected workflow (single selection only)"
           >
             DUPLICATE
+          </button>
+          <button
+            type="button"
+            className="btn sm red"
+            onClick={() => setBulkDeleteOpen(true)}
+            aria-label={`Delete selected workflows (${selectedIds.size})`}
+            title="Delete or reset the selected workflows"
+          >
+            DELETE…
           </button>
           <button
             type="button"
@@ -585,6 +613,13 @@ export function WorkflowTable({
           onClose={() => setDuplicateModalOpen(false)}
         />
       )}
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        selected={selectedWorkflows}
+        onClose={() => setBulkDeleteOpen(false)}
+        onCleared={handleBulkCleared}
+      />
     </>
   )
 }
