@@ -50,6 +50,7 @@ import { graphReducer, initHistory, unsavedCount } from './graph-history'
 import { NodePalette } from './palette'
 import { NodeConfigPanel } from './node-config-panel'
 import { ValidationPanel } from './validation-panel'
+import type { RefObject } from 'react'
 import type { EditorIssue, ValidationState } from './validation-panel'
 import type { Point } from '@/screens/gateway/conductor/dag-layout'
 import type { NodeType } from '../types'
@@ -97,22 +98,36 @@ function normaliseIssue(raw: {
 // TanStack history's per-entry position (history.state.__TSR_index).
 const HISTORY_INDEX = '__TSR_index'
 
+/** F6: the create wizard's DESIGN step. The host owns the draft YAML. */
+export interface EmbeddedGraphEditor {
+  yaml: string
+  onChange: (yaml: string) => void
+}
+
 export interface WorkflowGraphEditorProps {
-  workflowId: string
-  /** Back to the detail page. */
-  onExit: () => void
+  /** Route mode: the definition to load and save. */
+  workflowId?: string
+  /** Route mode: back to the detail page. */
+  onExit?: () => void
+  /**
+   * Embedded mode (wizard): no load, no SAVE/DISCARD bar, no leave guards,
+   * no route coupling — `yaml` in, `onChange(yaml)` out.
+   */
+  embedded?: EmbeddedGraphEditor
 }
 
 export function WorkflowGraphEditor({
   workflowId,
-  onExit,
+  onExit = () => {},
+  embedded,
 }: WorkflowGraphEditorProps) {
+  const isEmbedded = embedded !== undefined
   const {
     data: defData,
     isLoading,
     error,
     refetch,
-  } = useWorkflowParsed(workflowId)
+  } = useWorkflowParsed(workflowId ?? null)
   const { data: featuresData } = useWorkflowFeatures()
   const saveMutation = useUpsertWorkflowDefinition()
   const hasValidate = (featuresData?.features ?? []).includes('validate')
@@ -128,6 +143,16 @@ export function WorkflowGraphEditor({
   if (def && baseline?.id !== def.id) {
     setBaseline({ id: def.id, checksum: def.checksum })
     dispatch({ type: 'reset', yaml: def.yaml })
+  }
+
+  // Embedded: adopt the host's yaml whenever it changes from outside (e.g.
+  // CONFIGURE edits); every draft change is reported back below.
+  const [syncedYaml, setSyncedYaml] = useState<string | null>(null)
+  if (embedded && embedded.yaml !== syncedYaml) {
+    setSyncedYaml(embedded.yaml)
+    if (embedded.yaml !== history.present) {
+      dispatch({ type: 'reset', yaml: embedded.yaml })
+    }
   }
 
   const draft = history.present
@@ -278,7 +303,7 @@ export function WorkflowGraphEditor({
 
   // Debounced validation: engine when the feature is live, client lint otherwise.
   useEffect(() => {
-    if (!baseline) return
+    if (!baseline && !isEmbedded) return
     let cancelled = false
     setValidation((prev) =>
       prev.phase === 'idle' ? { phase: 'loading' } : prev,
@@ -338,7 +363,15 @@ export function WorkflowGraphEditor({
       cancelled = true
       clearTimeout(timer)
     }
-  }, [draft, hasValidate, baseline])
+  }, [draft, hasValidate, baseline, isEmbedded])
+
+  const onChangeRef = useRef(embedded?.onChange)
+  onChangeRef.current = embedded?.onChange
+  useEffect(() => {
+    if (syncedYaml === null || draft === syncedYaml) return
+    setSyncedYaml(draft)
+    onChangeRef.current?.(draft)
+  }, [draft, syncedYaml])
 
   // Leave-page guard: beforeunload + router blocker.
   const dirtyRef = useRef(dirty)
@@ -350,14 +383,16 @@ export function WorkflowGraphEditor({
   const addAfterSelectedRef = useRef(() => {})
   addAfterSelectedRef.current = () =>
     handleAddNode(lastPaletteType, undefined, selectedNodeId ?? undefined)
+  // Set on the editor root: a dialog that hosts the (embedded) editor is not
+  // "another dialog on top".
+  const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (isTypingTarget(event.target)) return
-      if (
-        document.querySelector(
-          'dialog[open], [role="dialog"], [role="alertdialog"]',
-        )
-      ) {
+      const dialogs = document.querySelectorAll(
+        'dialog[open], [role="dialog"], [role="alertdialog"]',
+      )
+      if (Array.from(dialogs).some((d) => !d.contains(rootRef.current))) {
         return
       }
       const meta = event.metaKey || event.ctrlKey
@@ -385,48 +420,15 @@ export function WorkflowGraphEditor({
   }
   const confirmLeaveRef = useRef(confirmLeave)
   confirmLeaveRef.current = confirmLeave
-  // The one guard for every navigation: app links, the workflows layout's
-  // ?wf=/?run= changes, and browser Back/Forward/Go.
-  const router = useRouter()
-  useBlocker({
-    shouldBlockFn: async ({ action, current, next }) => {
-      // Only another page or workflow (the layout's ?wf=) leaves the editor;
-      // ?run=/?wizard= changes keep it mounted.
-      const search = (l: typeof next) => l.search as Record<string, unknown>
-      if (
-        next.pathname === current.pathname &&
-        search(next).wf === search(current).wf
-      ) {
-        return false
-      }
-      if (action === 'PUSH' || action === 'REPLACE') {
-        return !confirmLeaveRef.current()
-      }
-      // A pop has already moved the browser. TanStack undoes a blocked pop
-      // with history.go(1), which is right only for Back — so step back by
-      // the real delta ourselves and let the router re-read the restored URL.
-      const delta =
-        Number(window.history.state?.[HISTORY_INDEX]) -
-        Number(router.history.location.state[HISTORY_INDEX])
-      if (confirmLeaveRef.current()) return false
-      if (!Number.isFinite(delta)) return true // unknown entry: TanStack's go(1)
-      await new Promise<void>((resolve) => {
-        window.addEventListener('popstate', () => resolve(), { once: true })
-        window.history.go(-delta)
-      })
-      return false
-    },
-    enableBeforeUnload: false,
-  })
   useEffect(() => {
-    if (!dirty) return
+    if (!dirty || isEmbedded) return
     function onBeforeUnload(event: BeforeUnloadEvent) {
       event.preventDefault()
       event.returnValue = ''
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [dirty])
+  }, [dirty, isEmbedded])
 
   function guardedExit() {
     if (!confirmLeave()) return
@@ -490,7 +492,7 @@ export function WorkflowGraphEditor({
     void persist(undefined)
   }
 
-  if (isLoading) {
+  if (!isEmbedded && isLoading) {
     return (
       <div className="wge-root">
         <div className="wge-state">
@@ -503,7 +505,7 @@ export function WorkflowGraphEditor({
     )
   }
 
-  if (error || !def) {
+  if (!isEmbedded && (error || !def)) {
     return (
       <div className="wge-root" role="alert">
         <div className="wge-state">
@@ -526,8 +528,8 @@ export function WorkflowGraphEditor({
     )
   }
 
-  const prov = provenanceOf(def.source, def.user_modified)
-  const currentVersion = Math.max(1, parseInt(def.version ?? '1', 10) || 1)
+  const prov = def ? provenanceOf(def.source, def.user_modified) : null
+  const currentVersion = Math.max(1, parseInt(def?.version ?? '1', 10) || 1)
   const noChecksum = !baseline?.checksum
   const saveDisabled =
     blockingErrors > 0 || !dirty || noChecksum || save.kind === 'saving'
@@ -541,32 +543,38 @@ export function WorkflowGraphEditor({
           : 'Save as a new version'
 
   return (
-    <div className="wge-root">
-      <div className="wge-head">
-        <div className="wge-r">
-          <button type="button" className="wge-back" onClick={guardedExit}>
-            ← WORKFLOW
-          </button>
-          <h1 className="wge-dt" title={def.name}>
-            {def.name}
-          </h1>
-          <span className="wge-chip">
-            {PROVENANCE_LABEL[prov].toUpperCase()}
-          </span>
-          <span className="wge-chip wge-chip-mu">
-            {dirty
-              ? `v${currentVersion} → v${currentVersion + 1} draft`
-              : `v${currentVersion}`}
-          </span>
+    <div
+      ref={rootRef}
+      className={`wge-root${isEmbedded ? ' wge-root--embedded' : ''}`}
+    >
+      {!isEmbedded && <RouteLeaveGuard confirmLeave={confirmLeaveRef} />}
+      {def && prov && (
+        <div className="wge-head">
+          <div className="wge-r">
+            <button type="button" className="wge-back" onClick={guardedExit}>
+              ← WORKFLOW
+            </button>
+            <h1 className="wge-dt" title={def.name}>
+              {def.name}
+            </h1>
+            <span className="wge-chip">
+              {PROVENANCE_LABEL[prov].toUpperCase()}
+            </span>
+            <span className="wge-chip wge-chip-mu">
+              {dirty
+                ? `v${currentVersion} → v${currentVersion + 1} draft`
+                : `v${currentVersion}`}
+            </span>
+          </div>
+          <div className="wge-r wge-meta">
+            <span>{def.id}</span>
+            <span>·</span>
+            <span>
+              saving creates a new version; past runs keep their pinned version
+            </span>
+          </div>
         </div>
-        <div className="wge-r wge-meta">
-          <span>{def.id}</span>
-          <span>·</span>
-          <span>
-            saving creates a new version; past runs keep their pinned version
-          </span>
-        </div>
-      </div>
+      )}
 
       <div className="wge-main">
         <NodePalette onAdd={(type) => handleAddNode(type)} />
@@ -631,28 +639,32 @@ export function WorkflowGraphEditor({
               YAML MIRROR
             </button>
             <span className="wge-grow" />
-            {dirty && (
-              <span className="wge-dirty" role="status">
-                {changes} UNSAVED {changes === 1 ? 'CHANGE' : 'CHANGES'}
-              </span>
+            {!isEmbedded && (
+              <>
+                {dirty && (
+                  <span className="wge-dirty" role="status">
+                    {changes} UNSAVED {changes === 1 ? 'CHANGE' : 'CHANGES'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="wge-btn wge-btn-gh"
+                  disabled={!dirty}
+                  onClick={() => setConfirmDiscard(true)}
+                >
+                  DISCARD
+                </button>
+                <button
+                  type="button"
+                  className="wge-btn wge-btn-p"
+                  disabled={saveDisabled}
+                  title={saveTitle}
+                  onClick={handleSave}
+                >
+                  {save.kind === 'saving' ? 'SAVING…' : 'SAVE'}
+                </button>
+              </>
             )}
-            <button
-              type="button"
-              className="wge-btn wge-btn-gh"
-              disabled={!dirty}
-              onClick={() => setConfirmDiscard(true)}
-            >
-              DISCARD
-            </button>
-            <button
-              type="button"
-              className="wge-btn wge-btn-p"
-              disabled={saveDisabled}
-              title={saveTitle}
-              onClick={handleSave}
-            >
-              {save.kind === 'saving' ? 'SAVING…' : 'SAVE'}
-            </button>
           </div>
 
           <div className={`wge-canvas-row${mirrorOpen ? ' with-mirror' : ''}`}>
@@ -664,7 +676,7 @@ export function WorkflowGraphEditor({
             >
               <div className="wge-chd">
                 <h2 className="wge-ttl">GRAPH · EDITING</h2>
-                {dirty && (
+                {dirty && !isEmbedded && (
                   <span className="wge-dirty">
                     {changes} UNSAVED {changes === 1 ? 'CHANGE' : 'CHANGES'}
                   </span>
@@ -678,7 +690,7 @@ export function WorkflowGraphEditor({
                 <Suspense fallback={graphLoading}>
                   <FlowCanvas
                     dag={editorDag.dag}
-                    workflowId={def.id}
+                    workflowId={def?.id ?? 'wizard-draft'}
                     editable
                     resetKey={autoLayoutKey}
                     focusNodeId={focusNodeId}
@@ -707,7 +719,7 @@ export function WorkflowGraphEditor({
               <div className="wge-mirror" aria-label="YAML mirror, read-only">
                 <div className="wge-mirror-head">
                   <span className="wge-meta">
-                    {def.id}.yaml · draft (read-only)
+                    {def ? `${def.id}.yaml · ` : ''}draft (read-only)
                   </span>
                 </div>
                 <div className="wge-mirror-body">
@@ -732,7 +744,7 @@ export function WorkflowGraphEditor({
                 .join('; ')}
             </div>
           )}
-          {noChecksum && (
+          {def && noChecksum && (
             <div className="wge-save-error" role="status">
               SAVE BLOCKED — this definition has no checksum, so a save could
               silently overwrite a newer version. Reload the workflow.
@@ -813,22 +825,24 @@ export function WorkflowGraphEditor({
         )}
       </div>
 
-      <ConfirmDialog
-        open={confirmDiscard}
-        title="Discard unsaved changes?"
-        message={`Discard ${changes} unsaved ${changes === 1 ? 'change' : 'changes'} and restore the last saved version of "${def.name}"?`}
-        confirmLabel="Discard changes"
-        destructive
-        onConfirm={() => {
-          setConfirmDiscard(false)
-          dispatch({ type: 'reset', yaml: def.yaml })
-          setBaseline({ id: def.id, checksum: def.checksum })
-          setSelectedNodeId(null)
-          setPositions({})
-          setFocusNodeId(null)
-        }}
-        onCancel={() => setConfirmDiscard(false)}
-      />
+      {def && (
+        <ConfirmDialog
+          open={confirmDiscard}
+          title="Discard unsaved changes?"
+          message={`Discard ${changes} unsaved ${changes === 1 ? 'change' : 'changes'} and restore the last saved version of "${def.name}"?`}
+          confirmLabel="Discard changes"
+          destructive
+          onConfirm={() => {
+            setConfirmDiscard(false)
+            dispatch({ type: 'reset', yaml: def.yaml })
+            setBaseline({ id: def.id, checksum: def.checksum })
+            setSelectedNodeId(null)
+            setPositions({})
+            setFocusNodeId(null)
+          }}
+          onCancel={() => setConfirmDiscard(false)}
+        />
+      )}
 
       {save.kind === 'conflict' && (
         <div className="wge-dialog-backdrop" role="presentation">
@@ -873,4 +887,46 @@ export function WorkflowGraphEditor({
       )}
     </div>
   )
+}
+
+/** Route mode only: the editor's leave guard as a router blocker. */
+function RouteLeaveGuard({
+  confirmLeave,
+}: {
+  confirmLeave: RefObject<() => boolean>
+}) {
+  // The one guard for every navigation: app links, the workflows layout's
+  // ?wf=/?run= changes, and browser Back/Forward/Go.
+  const router = useRouter()
+  useBlocker({
+    shouldBlockFn: async ({ action, current, next }) => {
+      // Only another page or workflow (the layout's ?wf=) leaves the editor;
+      // ?run=/?wizard= changes keep it mounted.
+      const search = (l: typeof next) => l.search as Record<string, unknown>
+      if (
+        next.pathname === current.pathname &&
+        search(next).wf === search(current).wf
+      ) {
+        return false
+      }
+      if (action === 'PUSH' || action === 'REPLACE') {
+        return !confirmLeave.current()
+      }
+      // A pop has already moved the browser. TanStack undoes a blocked pop
+      // with history.go(1), which is right only for Back — so step back by
+      // the real delta ourselves and let the router re-read the restored URL.
+      const delta =
+        Number(window.history.state?.[HISTORY_INDEX]) -
+        Number(router.history.location.state[HISTORY_INDEX])
+      if (confirmLeave.current()) return false
+      if (!Number.isFinite(delta)) return true // unknown entry: TanStack's go(1)
+      await new Promise<void>((resolve) => {
+        window.addEventListener('popstate', () => resolve(), { once: true })
+        window.history.go(-delta)
+      })
+      return false
+    },
+    enableBeforeUnload: false,
+  })
+  return null
 }

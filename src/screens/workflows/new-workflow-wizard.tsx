@@ -3,8 +3,11 @@
  * hosted on the same fixed-size shell as the Run-workflow dialog.
  *
  * Step 1 SOURCE         — describe (chat) / template / duplicate / import YAML / blank
- * Step 2 DESIGN         — live DAG preview (DagSvg + parseDagFromYaml)
- * Step 3 CONFIGURE      — node-level editing with YAML round-tripping
+ * Step 2 DESIGN         — the F4 graph editor, embedded (palette, connect, undo)
+ * Step 3 CONFIGURE      — per-node forms, live YAML mirror, validation + fixes
+ *
+ * DESIGN and CONFIGURE edit the one `yaml` draft held here; Next on both is
+ * gated on the engine's validation of exactly that yaml.
  * Step 4 REVIEW & SAVE  — graph, checks, save target → POST /api/workflow-definitions
  *
  * Step components live in ./new-workflow/.
@@ -21,14 +24,18 @@ import { WorkflowEngineUnavailableError } from './api-client'
 import { buildChecks } from './new-workflow/checks'
 import { ReviewStep } from './new-workflow/review-step'
 import { BLANK_YAML, SourceStep } from './new-workflow/source-step'
-import { useWizardValidation } from './new-workflow/use-wizard-validation'
+import {
+  issuesBlockNext,
+  useWizardValidation,
+  wizardIssueState,
+} from './new-workflow/use-wizard-validation'
 import { WizardShell } from './new-workflow/wizard-shell'
 import { lintWorkflowYaml, suggestFreeIds } from './new-workflow/yaml-lint'
 import { parseDagFromYaml } from './new-workflow/parse-dag'
 import {
   YAML_TEMPLATE,
-  createDefaultNodeDraft,
   serializeWorkflowYaml,
+  setWorkflowField,
   slugify,
   toNodeDraft,
   toWorkflowDocumentDraft,
@@ -40,14 +47,9 @@ import {
 } from './new-workflow/use-describe-chat'
 import { DesignStep } from './new-workflow/design-step'
 import { ConfigureStep } from './new-workflow/configure-step'
-import type {
-  WizardDocumentDraft,
-  WizardHermesTaskDraft,
-  WizardNodeDraft,
-} from './new-workflow/wizard-draft'
+import type { WizardDocumentDraft } from './new-workflow/wizard-draft'
 import type { SaveFailure } from './new-workflow/review-step'
 import type { SourceKind } from './new-workflow/source-step'
-import type { NodeType } from './types'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
 // Legacy contract: provider/model authoring deprecated; handled in ./new-workflow/configure-step.tsx
@@ -106,15 +108,6 @@ export function NewWorkflowWizard({
   const [name, setName] = useState(initialDocument.name || 'My Workflow')
   const [description, setDescription] = useState(initialDocument.description)
   const [source, setSource] = useState<'user' | 'project'>('project')
-  const [topLevelDraft, setTopLevelDraft] = useState<Record<string, unknown>>(
-    initialDocument.topLevel,
-  )
-  const [nodeDrafts, setNodeDrafts] = useState<Array<WizardNodeDraft>>(
-    initialDocument.nodes,
-  )
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(
-    initialDocument.nodes[0]?.id ?? null,
-  )
   const [yaml, setYaml] = useState(
     initialYaml ??
       serializeWorkflowYaml({
@@ -202,27 +195,6 @@ export function NewWorkflowWizard({
       }),
   )
 
-  function buildDocument(
-    next: {
-      name?: string
-      description?: string
-      topLevel?: Record<string, unknown>
-      nodes?: Array<WizardNodeDraft>
-    } = {},
-  ): WizardDocumentDraft {
-    return {
-      id: '',
-      name: next.name ?? name,
-      description: next.description ?? description,
-      topLevel: next.topLevel ?? topLevelDraft,
-      nodes: next.nodes ?? nodeDrafts,
-    }
-  }
-
-  function syncYamlFromDocument(nextDoc: WizardDocumentDraft) {
-    setYaml(serializeWorkflowYaml(nextDoc))
-  }
-
   function applyParsedDocument(
     nextDoc: WizardDocumentDraft,
     options?: {
@@ -238,22 +210,10 @@ export function NewWorkflowWizard({
       name: nextName || 'My Workflow',
       description: nextDescription,
     }
-    setTopLevelDraft(normalizedDoc.topLevel)
-    setNodeDrafts(normalizedDoc.nodes)
     setName(normalizedDoc.name)
     setDescription(normalizedDoc.description)
     if (options?.wizardId !== undefined) setId(options.wizardId)
-    setSelectedNodeId((current) =>
-      normalizedDoc.nodes.some((node) => node.id === current)
-        ? current
-        : (normalizedDoc.nodes[0]?.id ?? null),
-    )
-    syncYamlFromDocument(normalizedDoc)
-  }
-
-  function updateNodes(nextNodes: Array<WizardNodeDraft>) {
-    setNodeDrafts(nextNodes)
-    syncYamlFromDocument(buildDocument({ nodes: nextNodes }))
+    setYaml(serializeWorkflowYaml(normalizedDoc))
   }
 
   const describeChat = useDescribeChat({
@@ -364,56 +324,8 @@ export function NewWorkflowWizard({
     setYaml(nextYaml)
     const parsed = toWorkflowDocumentDraft(nextYaml)
     if (!parsed) return
-    setTopLevelDraft(parsed.topLevel)
-    setNodeDrafts(parsed.nodes)
     if (parsed.name) setName(parsed.name)
     setDescription(parsed.description)
-    setSelectedNodeId((current) =>
-      parsed.nodes.some((node) => node.id === current)
-        ? current
-        : (parsed.nodes[0]?.id ?? null),
-    )
-  }
-
-  function handleUpdateNode(nodeId: string, patch: Partial<WizardNodeDraft>) {
-    const nextNodes = nodeDrafts.map((node) =>
-      node.id === nodeId ? { ...node, ...patch } : node,
-    )
-    if (patch.id && selectedNodeId === nodeId) setSelectedNodeId(patch.id)
-    updateNodes(nextNodes)
-  }
-
-  function handleUpdateHermesTask(
-    nodeId: string,
-    patch: Partial<WizardHermesTaskDraft>,
-  ) {
-    const nextNodes = nodeDrafts.map((node) =>
-      node.id === nodeId
-        ? { ...node, hermes_task: { ...node.hermes_task, ...patch } }
-        : node,
-    )
-    updateNodes(nextNodes)
-  }
-
-  function handleAddNode(type: NodeType) {
-    const draft = createDefaultNodeDraft(type, nodeDrafts.length)
-    if (nodeDrafts.length > 0) {
-      draft.depends_on = [nodeDrafts[nodeDrafts.length - 1]?.id].filter(Boolean)
-    }
-    const nextNodes = [...nodeDrafts, draft]
-    setSelectedNodeId(draft.id)
-    updateNodes(nextNodes)
-  }
-
-  function handleRemoveNode(nodeId: string) {
-    const nextNodes = nodeDrafts
-      .filter((node) => node.id !== nodeId)
-      .map((node) => ({
-        ...node,
-        depends_on: node.depends_on.filter((dep) => dep !== nodeId),
-      }))
-    setSelectedNodeId(nextNodes[0]?.id ?? null)
-    updateNodes(nextNodes)
   }
 
   async function handleSave(over: { run?: boolean; id?: string } = {}) {
@@ -466,6 +378,45 @@ export function NewWorkflowWizard({
   }
 
   const isReview = step === 3
+  // DESIGN / CONFIGURE: engine issues for exactly the current yaml.
+  const issues = wizardIssueState(validation)
+  const stepBlocked = (step === 1 || step === 2) && issuesBlockNext(issues)
+  const issueCounts =
+    issues.kind === 'ready' ? (
+      <>
+        {issues.errors.length > 0 && (
+          <span className="wz2-chip er">
+            {issues.errors.length}{' '}
+            {issues.errors.length === 1 ? 'ERROR' : 'ERRORS'}
+          </span>
+        )}
+        {issues.warnings.length > 0 && (
+          <span className="wz2-chip wa">
+            {issues.warnings.length}{' '}
+            {issues.warnings.length === 1 ? 'WARNING' : 'WARNINGS'}
+          </span>
+        )}
+        {issues.errors.length + issues.warnings.length === 0 && (
+          <span className="wz2-chip ok">VALID</span>
+        )}
+      </>
+    ) : issues.kind === 'pending' ? (
+      <span className="wz2-chip">VALIDATING…</span>
+    ) : (
+      <span className="wz2-chip">VALIDATION UNAVAILABLE</span>
+    )
+  const stepNote =
+    step === 1 || step === 2 ? (
+      <span className="wfl-meta" role="status">
+        {issues.kind === 'pending'
+          ? 'Validating…'
+          : issues.kind === 'unavailable'
+            ? `Validation unavailable (${issues.reason}) — checks run again on Review`
+            : issues.errors.length > 0
+              ? `Fix ${issues.errors.length} ${issues.errors.length === 1 ? 'error' : 'errors'} to continue`
+              : `Step ${step + 1} of 4 · valid`}
+      </span>
+    ) : undefined
   const suggestion = suggestFreeIds(id, takenIds)[0]
   const conflict = failure?.kind === 'conflict'
 
@@ -481,6 +432,8 @@ export function NewWorkflowWizard({
           <span className="wz2-chip wa">1 TO ACKNOWLEDGE</span>
         )}
       </>
+    ) : step === 1 || step === 2 ? (
+      issueCounts
     ) : step === 0 ? (
       defs.isError ? (
         <span className="wz2-chip er">
@@ -546,7 +499,7 @@ export function NewWorkflowWizard({
     <button
       type="button"
       className="wfw-btn wfw-btn--primary"
-      disabled={step === 0 && !sourceReady}
+      disabled={(step === 0 && !sourceReady) || stepBlocked}
       onClick={() => setStep((s) => s + 1)}
     >
       Next ▶
@@ -560,6 +513,7 @@ export function NewWorkflowWizard({
         stepIndex={step}
         onStepClick={setStep}
         railRight={railRight}
+        footerNote={stepNote}
         onBack={step > 0 ? () => setStep((s) => s - 1) : null}
         actions={actions}
         onClose={requestClose}
@@ -589,17 +543,16 @@ export function NewWorkflowWizard({
           />
         )}
 
-        {step === 1 && <DesignStep yaml={yaml} />}
+        {step === 1 && (
+          <DesignStep yaml={yaml} onChange={handleYamlChange} issues={issues} />
+        )}
 
         {step === 2 && (
           <ConfigureStep
-            nodes={nodeDrafts}
-            selectedNodeId={selectedNodeId}
-            onSelectNode={setSelectedNodeId}
-            onUpdateNode={handleUpdateNode}
-            onUpdateHermesTask={handleUpdateHermesTask}
-            onAddNode={handleAddNode}
-            onRemoveNode={handleRemoveNode}
+            yaml={yaml}
+            onChange={handleYamlChange}
+            issues={issues}
+            workflowId={id}
           />
         )}
 
@@ -623,11 +576,11 @@ export function NewWorkflowWizard({
             }}
             onName={(v) => {
               setName(v)
-              syncYamlFromDocument(buildDocument({ name: v }))
+              setYaml((y) => setWorkflowField(y, 'name', v))
             }}
             onDescription={(v) => {
               setDescription(v)
-              syncYamlFromDocument(buildDocument({ description: v }))
+              setYaml((y) => setWorkflowField(y, 'description', v))
             }}
             onSource={setSource}
             onOpenAfter={setOpenAfter}
@@ -721,13 +674,6 @@ export function NewWorkflowWizard({
           color: var(--m-text, #ccc);
         }
 
-        /* Route / DAG step */
-        .wz-route { padding: 4px 0; }
-        .route-note {
-          font: 400 11px var(--m-font-mono, monospace);
-          color: var(--m-text-muted, #888);
-          margin-bottom: 12px;
-        }
         .node-breakdown {
           display: flex;
           flex-direction: column;
@@ -749,136 +695,6 @@ export function NewWorkflowWizard({
         }
         .nb-type { flex: 1; color: var(--m-text, #e0e0e0); }
         .nb-n { color: var(--m-text-muted, #888); }
-
-        /* Step 3: Configure nodes */
-        .wz-config {
-          display: grid;
-          grid-template-columns: 280px 1fr;
-          gap: 16px;
-          min-height: 420px;
-        }
-        .wz-config-list {
-          border-right: 1px solid var(--m-border, #2a2a2a);
-          padding-right: 16px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .wz-config-toolbar {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-        }
-        .wz-config-add {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 6px;
-        }
-        .wz-config-cards {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          overflow-y: auto;
-          max-height: 440px;
-        }
-        .wz-node-card {
-          width: 100%;
-          text-align: left;
-          background: rgba(255,255,255,.02);
-          border: 1px solid var(--m-border, #2a2a2a);
-          border-radius: 6px;
-          padding: 10px 12px;
-          color: inherit;
-          cursor: pointer;
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        .wz-node-card:hover {
-          border-color: var(--m-border-strong, #3a3a3a);
-          background: rgba(255,255,255,.04);
-        }
-        .wz-node-card.sel {
-          border-color: var(--m-green-500, #00ff41);
-          background: rgba(0,255,65,.06);
-          box-shadow: 0 0 10px rgba(0,255,65,.12);
-        }
-        .wz-node-card-row {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 8px;
-        }
-        .wz-node-card-id {
-          font: 600 12px var(--m-font-mono, monospace);
-          color: var(--m-text, #f0f0f0);
-        }
-        .wz-node-card-type {
-          font: 500 10px var(--m-font-mono, monospace);
-          text-transform: uppercase;
-          letter-spacing: .08em;
-          border: 1px solid currentColor;
-          border-radius: 3px;
-          padding: 1px 5px;
-        }
-        .wz-node-card-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 8px;
-          font: 400 10px var(--m-font-mono, monospace);
-          color: var(--m-text-muted, #888);
-        }
-        .wz-config-editor {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-        .wz-config-editor-head {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          gap: 12px;
-        }
-        .wz-config-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-        }
-        .wz-field {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-          font: 500 11px var(--m-font-mono, monospace);
-          color: var(--m-text-muted, #888);
-          text-transform: uppercase;
-          letter-spacing: .08em;
-        }
-        .wz-field-full {
-          grid-column: 1 / -1;
-        }
-        .wz-check {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          font: 400 12px var(--m-font-sans, sans-serif);
-          color: var(--m-text, #f0f0f0);
-          cursor: pointer;
-        }
-        .wz-hermes-box {
-          border: 1px solid var(--m-border, #2a2a2a);
-          background: rgba(0,255,65,.03);
-          border-radius: 6px;
-          padding: 12px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        .wz-empty-config {
-          font: 400 12px var(--m-font-sans, sans-serif);
-          color: var(--m-text-muted, #888);
-          padding: 24px;
-          text-align: center;
-        }
 
         /* Review step */
         .wz-review {

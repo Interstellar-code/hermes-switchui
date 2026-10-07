@@ -5,6 +5,7 @@ import { parse as parseYaml } from 'yaml'
 import {
   addDependency,
   addNode,
+  declareInput,
   duplicateNode,
   findDanglingOutputRefs,
   readGraph,
@@ -364,5 +365,20 @@ describe('yaml-model lossless round-trip', () => {
     expect(applyBlock.indexOf('depends_on:')).toBeLessThan(
       applyBlock.indexOf('retry:'),
     )
+  })
+
+  it('declareInput appends to inputs: (or creates it) and keeps everything else', () => {
+    const text =
+      'name: x # keep\nx-custom: 1\nnodes:\n  - id: a\n    prompt: $INPUTS.repo\n'
+    const once = declareInput(text, 'repo')
+    expect(parseYaml(once).inputs).toEqual([{ name: 'repo' }])
+    expect(once).toContain('name: x # keep')
+    expect(once).toContain('x-custom: 1')
+    const twice = declareInput(declareInput(once, 'branch'), 'repo')
+    expect(parseYaml(twice).inputs).toEqual([
+      { name: 'repo' },
+      { name: 'branch' },
+    ])
+    expect(() => declareInput('inputs: {a: 1}\nnodes: []\n', 'b')).toThrow()
   })
 })

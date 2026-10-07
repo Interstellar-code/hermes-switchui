@@ -236,7 +236,7 @@ function edit(
     }
   }
   mutate(doc, nodes)
-  return doc.toString({ lineWidth: 0 })
+  return doc.toString({ lineWidth: 0, flowCollectionPadding: false })
 }
 
 function findNode(nodes: YAMLSeq<YAMLMap>, id: string): YAMLMap {
@@ -584,6 +584,27 @@ export function removeDependency(
     const kept = dep.items.filter((d) => !(isScalar(d) && d.value === depId))
     if (kept.length === 0) raw.delete('depends_on')
     else dep.items = kept
+  })
+}
+
+/**
+ * Declare a workflow input: append `- name: <name>` to top-level `inputs:`
+ * (created when absent). No-op when already declared there. Throws when
+ * `inputs:` exists but is not a list (the engine's only accepted shape).
+ */
+export function declareInput(text: string, name: string): string {
+  return edit(text, (doc) => {
+    const root = doc.contents as YAMLMap
+    const inputs = root.get('inputs', true)
+    if (inputs == null) {
+      root.set('inputs', doc.createNode([{ name }]))
+      return
+    }
+    if (!isSeq(inputs)) throw new Error('`inputs:` is not a list')
+    const exists = inputs.items.some(
+      (i) => isMap(i) && scalarText(i.get('name', true)) === name,
+    )
+    if (!exists) inputs.add(doc.createNode({ name }))
   })
 }
 
