@@ -2998,6 +2998,13 @@
     overflow-y: auto;
   }
 
+  /* The workflow rail sits in a --wf-lib-w grid column (290px): fill it
+     instead of leaving a strip of empty column beside the fixed 248px. */
+  .wf-rail {
+    width: auto;
+    min-width: 0;
+  }
+
   .crail {
     width: 44px;
     flex-shrink: 0;
