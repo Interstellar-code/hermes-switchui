@@ -50,17 +50,21 @@ describe('DELETE /api/workflow-definitions/:id', () => {
     expect((await del('wf')).status).toBe(200)
   })
 
-  it('returns 409 with a clear reason when run history blocks the delete', async () => {
-    engine.deleteWorkflowDefinition.mockRejectedValue(new Error('DELETE: 500'))
-    engine.listRuns.mockResolvedValue([{ id: 'r1' }])
+  it('passes through 409 conflict verbatim when the engine refuses delete', async () => {
+    const err = Object.assign(
+      new Error('Cannot delete workflow with active runs'),
+      { status: 409 },
+    )
+    engine.deleteWorkflowDefinition.mockRejectedValue(err)
     const res = await del('wf')
     expect(res.status).toBe(409)
-    expect((await res.json()).error).toMatch(/run history/)
+    expect(await res.json()).toEqual({
+      error: 'Cannot delete workflow with active runs',
+    })
   })
 
   it('rethrows other failures', async () => {
     engine.deleteWorkflowDefinition.mockRejectedValue(new Error('boom'))
-    engine.listRuns.mockResolvedValue([])
     await expect(del('wf')).rejects.toThrow('boom')
   })
 })

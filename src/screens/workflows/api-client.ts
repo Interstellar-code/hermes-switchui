@@ -16,6 +16,13 @@ function wfFetch(input: string, init?: RequestInit): Promise<Response> {
   return fetch(input, init)
 }
 
+export class WorkflowEngineUnavailableError extends Error {
+  constructor(message = 'Workflow engine unavailable') {
+    super(message)
+    this.name = 'WorkflowEngineUnavailableError'
+  }
+}
+
 export interface WorkflowDefinitionRow {
   id: string
   name: string
@@ -34,7 +41,7 @@ export interface WorkflowDefinitionRow {
   tags: string | null // JSON-encoded string[]
   created_at: number
   updated_at: number
-  node_count: number
+  node_count?: number
   run_count: number
   last_used_at: number | null
   // Enriched by summariseWorkflowYaml on the list route
@@ -42,6 +49,7 @@ export interface WorkflowDefinitionRow {
   has_approval?: boolean
   required_inputs?: Array<string>
   optional_inputs?: Array<string>
+  node_types?: Array<string>
 }
 
 export async function listWorkflowDefinitions(params?: {
@@ -56,6 +64,13 @@ export async function listWorkflowDefinitions(params?: {
   }
   const body = (await res.json()) as {
     definitions: Array<WorkflowDefinitionRow>
+    engine_ok?: boolean
+    error?: string
+  }
+  if (body.engine_ok === false) {
+    throw new WorkflowEngineUnavailableError(
+      body.error || 'Workflow engine unavailable',
+    )
   }
   return body.definitions
 }
@@ -72,7 +87,10 @@ export async function getWorkflowDefinitionParsed(
     `/api/workflow-definitions/${encodeURIComponent(id)}/parsed`,
   )
   if (!res.ok) {
-    throw new Error(`getWorkflowDefinitionParsed failed (${res.status})`)
+    throw Object.assign(
+      new Error(`getWorkflowDefinitionParsed failed (${res.status})`),
+      { status: res.status },
+    )
   }
   return (await res.json()) as WorkflowDefinitionParsedResponse
 }
@@ -435,6 +453,10 @@ export interface UpsertWorkflowDefinitionInput {
   tags?: Array<string>
   /** sha256 of the yaml from the last GET — optimistic-concurrency precondition (ETag). Triggers 409 on mismatch. */
   expected_checksum?: string
+  /** Provenance for the engine: 'import' when the yaml came from the Import-YAML path. Omitted on normal saves. */
+  save_source?: 'save' | 'import'
+  /** Create-only guard (feature `create_only`): the engine 409s with code 'id_taken' and writes nothing when the id exists. */
+  if_absent?: boolean
 }
 
 export interface WorkflowWizardChatHistoryMessage {
@@ -457,6 +479,7 @@ export interface WorkflowWizardChatResponse {
   reply: string
   stage: 'clarify' | 'drafting_nodes' | 'refine_structure' | 'ready_for_design'
   workflow_yaml: string
+  structured?: boolean
   suggested_id?: string
   suggested_name?: string
   suggested_description?: string
@@ -505,6 +528,7 @@ function normalizeWizardAssistantResponse(
         'I could not structure a workflow update from that turn. Please clarify the first node or trigger.',
       stage: 'clarify',
       workflow_yaml: fallbackYaml,
+      structured: false,
       notes: [
         'Assistant response was not valid structured JSON; kept previous workflow YAML.',
       ],
@@ -512,6 +536,7 @@ function normalizeWizardAssistantResponse(
   }
 
   const stage = readString(parsed.stage)
+  const parsedYaml = readString(parsed.workflow_yaml)
   return {
     reply:
       readString(parsed.reply) ||
@@ -522,7 +547,8 @@ function normalizeWizardAssistantResponse(
       stage === 'ready_for_design'
         ? stage
         : 'clarify',
-    workflow_yaml: readString(parsed.workflow_yaml) || fallbackYaml,
+    workflow_yaml: parsedYaml || fallbackYaml,
+    structured: Boolean(parsedYaml),
     suggested_id: readString(parsed.suggested_id) || undefined,
     suggested_name: readString(parsed.suggested_name) || undefined,
     suggested_description:
@@ -578,12 +604,12 @@ function buildWizardMessage(input: WorkflowWizardChatInput): string {
 
 async function resolveWorkflowWizardModel(
   explicitModel: string | undefined,
-  sessionId: string | undefined,
+  sessionId: string,
 ): Promise<string | undefined> {
   const trimmed = explicitModel?.trim()
   if (trimmed) return trimmed
 
-  const storedModel = readPersistedSessionModel(sessionId || 'main')
+  const storedModel = readPersistedSessionModel(sessionId)
   if (storedModel) return storedModel
 
   try {
@@ -613,9 +639,7 @@ async function resolveWorkflowWizardModel(
   }
 }
 
-function readPersistedSessionModel(
-  sessionId: string | undefined,
-): string | undefined {
+function readPersistedSessionModel(sessionId: string): string | undefined {
   if (typeof window === 'undefined') return undefined
 
   try {
@@ -627,12 +651,9 @@ function readPersistedSessionModel(
     const models = parsed.state?.models
     if (!models || typeof models !== 'object') return undefined
 
-    const candidates = [sessionId, 'main', 'new'].filter(
-      (candidate): candidate is string =>
-        typeof candidate === 'string' && candidate.trim().length > 0,
-    )
-    for (const candidate of candidates) {
-      const model = models[candidate]
+    const trimmed = sessionId.trim()
+    if (trimmed) {
+      const model = models[trimmed]
       if (typeof model === 'string' && model.trim()) return model.trim()
     }
   } catch {
@@ -642,10 +663,76 @@ function readPersistedSessionModel(
   return undefined
 }
 
+export const WORKFLOW_DRAFT_REJECTED_SESSION_IDS = new Set(['main', 'new'])
+
+function isInvalidWorkflowDraftSessionId(id: string | undefined): boolean {
+  const trimmed = id?.trim()
+  return !trimmed || WORKFLOW_DRAFT_REJECTED_SESSION_IDS.has(trimmed)
+}
+
+export interface CreateWorkflowDraftSessionResponse {
+  sessionId: string
+  sessionKey: string
+  friendlyId: string
+  label: string
+}
+
+export function buildWorkflowDraftSessionLabel(
+  name?: string,
+  now: Date = new Date(),
+): string {
+  const cleanName = name?.trim() || 'untitled'
+  const hh = String(now.getHours()).padStart(2, '0')
+  const mm = String(now.getMinutes()).padStart(2, '0')
+  return `Workflow draft · ${cleanName} · ${hh}:${mm}`
+}
+
+export async function createWorkflowDraftSession(
+  name?: string,
+  options?: { friendlyId?: string; now?: Date },
+): Promise<CreateWorkflowDraftSessionResponse> {
+  const label = buildWorkflowDraftSessionLabel(name, options?.now)
+  const res = await fetch('/api/sessions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      label,
+      friendlyId: options?.friendlyId,
+    }),
+  })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `createWorkflowDraftSession failed (${res.status})`)
+  }
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>
+  const rawId =
+    readString(data['sessionKey']) ||
+    readString(data['friendlyId']) ||
+    readString(data['sessionId']) ||
+    readString(data['id'])
+  if (isInvalidWorkflowDraftSessionId(rawId)) {
+    throw new Error(
+      `createWorkflowDraftSession failed: invalid or missing session id returned (${rawId || 'empty'})`,
+    )
+  }
+  const sessionId = rawId.trim()
+  return {
+    sessionId,
+    sessionKey: sessionId,
+    friendlyId: readString(data['friendlyId']) || sessionId,
+    label,
+  }
+}
+
 export async function chatWorkflowWizard(
   input: WorkflowWizardChatInput,
 ): Promise<WorkflowWizardChatResponse> {
-  const sessionKey = input.sessionId || 'main'
+  const sessionKey = input.sessionId?.trim()
+  if (!sessionKey || WORKFLOW_DRAFT_REJECTED_SESSION_IDS.has(sessionKey)) {
+    throw new Error(
+      `chatWorkflowWizard requires a valid, non-bootstrap sessionId (got "${sessionKey || ''}")`,
+    )
+  }
   const model = await resolveWorkflowWizardModel(input.model, sessionKey)
   const res = await fetch('/api/send-stream', {
     method: 'POST',
@@ -739,6 +826,8 @@ export async function chatWorkflowWizard(
 
 export interface UpsertWorkflowDefinitionError {
   error: string
+  /** 409 only: the engine's code, e.g. 'id_taken' (create-only guard). */
+  code?: string
 }
 
 export async function upsertWorkflowDefinition(
@@ -755,7 +844,7 @@ export async function upsertWorkflowDefinition(
     }))) as UpsertWorkflowDefinitionError
     const code =
       res.status === 409
-        ? 'conflict'
+        ? (body.code ?? 'conflict')
         : res.status === 422
           ? 'validation'
           : undefined
@@ -778,7 +867,13 @@ export async function resetWorkflowDefinitionToFactory(
 ): Promise<{ definition: WorkflowDefinitionRow }> {
   const res = await wfFetch(
     `/api/workflow-definitions/${encodeURIComponent(id)}/reset-factory`,
-    { method: 'POST' },
+    {
+      method: 'POST',
+      // The route's requireJsonContentType guard 415s any POST without a
+      // JSON Content-Type (F8 review HIGH) — same shape as the delete client.
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    },
   )
   if (!res.ok) {
     const body = (await res.json().catch(() => ({
@@ -820,4 +915,132 @@ export async function deleteWorkflowDefinition(id: string): Promise<void> {
       },
     )
   }
+}
+
+export interface WorkflowValidationIssue {
+  /** 1-based; null when the engine cannot pin the issue to a line (cycles, schema-level errors). */
+  line: number | null
+  col: number | null
+  code: string
+  message: string
+  node_id?: string
+}
+
+export interface WorkflowValidationResult {
+  ok: boolean
+  errors: Array<WorkflowValidationIssue>
+  warnings: Array<WorkflowValidationIssue>
+  /** null when the backend could not decide (no id supplied). */
+  id_available: boolean | null
+}
+
+/**
+ * POST /definitions/validate — server-side lint of a draft definition.
+ * Only call when `useWorkflowFeatures()` lists `validate`.
+ */
+export async function validateWorkflowDefinition(
+  yaml: string,
+  id?: string,
+): Promise<WorkflowValidationResult> {
+  const res = await wfFetch('/api/workflow-definitions/validate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(id ? { yaml, id } : { yaml }),
+  })
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as {
+      error?: string
+      engine_ok?: boolean
+    } | null
+    if (res.status === 503 || body?.engine_ok === false) {
+      throw new WorkflowEngineUnavailableError(
+        body?.error || 'Workflow engine unavailable',
+      )
+    }
+    throw new Error(
+      body?.error || `validateWorkflowDefinition failed (${res.status})`,
+    )
+  }
+  const body = (await res.json()) as Partial<WorkflowValidationResult>
+  return {
+    ok: body.ok === true,
+    errors: Array.isArray(body.errors) ? body.errors : [],
+    warnings: Array.isArray(body.warnings) ? body.warnings : [],
+    id_available:
+      typeof body.id_available === 'boolean' ? body.id_available : null,
+  }
+}
+
+export type WorkflowVersionSource = 'save' | 'import' | 'reset' | 'seed' | 'run'
+
+export interface WorkflowDefinitionVersionSummary {
+  checksum: string
+  version: string | null
+  saved_at: number | null
+  source: WorkflowVersionSource
+  /** null when an old snapshot no longer parses. */
+  node_count: number | null
+  size_bytes: number
+  in_use_by_runs: number
+}
+
+export interface WorkflowDefinitionVersionDetail extends WorkflowDefinitionVersionSummary {
+  yaml: string
+  parsed: Record<string, unknown> | null
+}
+
+async function wfJsonError(
+  res: Response,
+  fallback: string,
+): Promise<{ status: number; message: string; engineDown: boolean }> {
+  const body = (await res.json().catch(() => null)) as {
+    error?: string
+    engine_ok?: boolean
+  } | null
+  return {
+    status: res.status,
+    message: body?.error || `${fallback} failed (${res.status})`,
+    engineDown: res.status === 503 || body?.engine_ok === false,
+  }
+}
+
+/** Snapshot history, newest first. Only call when the `definition_versions` feature is listed. */
+export async function listWorkflowDefinitionVersions(
+  id: string,
+): Promise<Array<WorkflowDefinitionVersionSummary>> {
+  const res = await wfFetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}/versions`,
+  )
+  if (!res.ok) {
+    const { status, message, engineDown } = await wfJsonError(
+      res,
+      'listWorkflowDefinitionVersions',
+    )
+    if (engineDown) throw new WorkflowEngineUnavailableError(message)
+    throw Object.assign(new Error(message), { status, serverError: message })
+  }
+  const body = (await res.json()) as { versions?: unknown }
+  return Array.isArray(body.versions)
+    ? (body.versions as Array<WorkflowDefinitionVersionSummary>)
+    : []
+}
+
+/** One snapshot with its yaml (VIEW in the VERSIONS tab). */
+export async function getWorkflowDefinitionVersion(
+  id: string,
+  checksum: string,
+): Promise<WorkflowDefinitionVersionDetail> {
+  const res = await wfFetch(
+    `/api/workflow-definitions/${encodeURIComponent(id)}/versions/${encodeURIComponent(checksum)}`,
+  )
+  if (!res.ok) {
+    const { status, message, engineDown } = await wfJsonError(
+      res,
+      'getWorkflowDefinitionVersion',
+    )
+    if (engineDown) throw new WorkflowEngineUnavailableError(message)
+    throw Object.assign(new Error(message), { status, serverError: message })
+  }
+  const body = (await res.json()) as { version?: unknown }
+  return body.version as WorkflowDefinitionVersionDetail
 }

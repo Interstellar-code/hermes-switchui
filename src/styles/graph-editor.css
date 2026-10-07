@@ -1,0 +1,908 @@
+/* graph-editor.css — F4 Workflows v2 graph editor, scoped to .wge-root.
+   Theme tokens only (no hard-coded Matrix colours). The shared canvas styles
+   come from conductor-flow.css scoped to .flow-host (loads with the canvas
+   module); editor-only handle/edge overrides live at the bottom. */
+
+.wge-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--m-bg, var(--theme-bg, #020804));
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+  font-family: var(
+    --m-font-mono,
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace
+  );
+  font-size: 11px;
+  position: relative;
+}
+
+.wge-root button,
+.wge-root input,
+.wge-root select,
+.wge-root textarea {
+  font: inherit;
+  color: inherit;
+}
+
+.wge-root h1,
+.wge-root h2,
+.wge-root p {
+  margin: 0;
+}
+
+.wge-root .wge-grow {
+  flex-grow: 1;
+}
+
+.wge-meta {
+  font-size: 10px;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+}
+
+/* ── header ── */
+.wge-head {
+  padding: 12px 20px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  border-bottom: 1px solid
+    var(--m-border, var(--theme-border, rgba(0, 255, 65, 0.12)));
+  background: var(--m-panel, var(--theme-card, #030a05));
+  flex-shrink: 0;
+}
+
+.wge-r {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.wge-back {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+  text-decoration: none;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+}
+
+.wge-back:hover {
+  color: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-dt {
+  font-size: 18px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40vw;
+}
+
+.wge-chip {
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  border: 1px solid
+    var(--m-border-strong, var(--theme-border, rgba(0, 255, 65, 0.5)));
+  border-radius: 3px;
+  padding: 1px 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  color: var(--m-cyan-400, var(--theme-active, #5ad3ff));
+}
+
+.wge-chip-mu {
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+  border-color: var(--m-border, var(--theme-border, rgba(143, 174, 154, 0.5)));
+}
+
+/* ── buttons ── */
+.wge-btn {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  background: none;
+  border: 1px solid
+    var(--m-green-700, var(--theme-accent, rgba(0, 255, 65, 0.4)));
+  border-radius: 4px;
+  padding: 6px 11px;
+  color: var(--m-green-400, var(--theme-accent, #00ff41));
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.wge-btn:hover:not(:disabled) {
+  border-color: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-btn:focus-visible,
+.wge-ib:focus-visible,
+.wge-pi:focus-visible {
+  outline: 2px solid var(--m-text, var(--theme-text, #d8ffe3));
+  outline-offset: 2px;
+}
+
+.wge-btn-p {
+  background: var(--m-green-400, var(--theme-accent, #00ff41));
+  color: var(--m-bg, var(--theme-bg));
+  font-weight: 800;
+  border-color: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-btn-red {
+  color: var(--m-red-400, var(--theme-danger, #ff6b6b));
+  border-color: color-mix(
+    in srgb,
+    var(--m-red-400, var(--theme-danger)) 60%,
+    transparent
+  );
+}
+
+.wge-btn-gh {
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+  border-color: color-mix(
+    in srgb,
+    var(--m-text, var(--theme-text)) 25%,
+    transparent
+  );
+}
+
+.wge-btn:disabled {
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+  border-color: color-mix(
+    in srgb,
+    var(--m-text-muted, var(--theme-muted)) 30%,
+    transparent
+  );
+  background: none;
+  cursor: not-allowed;
+}
+
+.wge-ib {
+  background: none;
+  border: 1px solid
+    var(--m-border-strong, var(--theme-border, rgba(0, 255, 65, 0.3)));
+  border-radius: 4px;
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+  width: 28px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.wge-ib:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.wge-ib.flip {
+  transform: scaleX(-1);
+}
+
+/* ── main three-column layout ── */
+.wge-main {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px 12px;
+}
+
+/* palette */
+.wge-pal {
+  width: 150px;
+  flex-shrink: 0;
+  border: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.16)));
+  border-radius: 6px;
+  background: var(--m-card, var(--theme-card, #06120a));
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wge-pal h2,
+.wge-cfg h2 {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+  font-weight: 400;
+}
+
+.wge-pi {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(216, 255, 227, 0.16)));
+  border-left: 0;
+  border-radius: 4px;
+  padding: 6px 8px;
+  background: var(--m-card, var(--theme-card, #07130a));
+  font-size: 10px;
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+  cursor: grab;
+  position: relative;
+  text-align: left;
+}
+
+.wge-pi::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--c, var(--m-green-400, var(--theme-accent, #00ff41)));
+  border-radius: 4px 0 0 4px;
+}
+
+.wge-pi svg {
+  color: var(--c, var(--m-green-400, var(--theme-accent, #00ff41)));
+  flex-shrink: 0;
+}
+
+.wge-pi:hover {
+  border-color: var(
+    --m-border-strong,
+    var(--theme-border, rgba(216, 255, 227, 0.4))
+  );
+}
+
+.wge-pal .wge-meta {
+  margin-top: auto;
+  line-height: 1.5;
+}
+
+/* centre column */
+.wge-center {
+  flex-grow: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wge-etb {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.wge-etb-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.wge-etb-left button {
+  flex-shrink: 0;
+}
+.wge-etb-left::-webkit-scrollbar {
+  display: none;
+}
+
+.wge-etb-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.wge-dirty {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--m-amber-400, var(--theme-warning, #ffb454));
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--m-amber-400, var(--theme-warning)) 55%,
+      transparent
+    );
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.wge-canvas-row {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.wge-canvas-wrap {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.16)));
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--m-bg, var(--theme-bg, #020804));
+}
+
+.wge-canvas-wrap .flow-host {
+  border: none;
+  border-radius: 0;
+}
+
+.wge-canvas-empty {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+  font-size: 11px;
+  background-image: radial-gradient(
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.13))) 1px,
+    transparent 1px
+  );
+  background-size: 18px 18px;
+}
+
+.wge-chd {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.wge-chd .wge-meta,
+.wge-chd .wge-dirty {
+  pointer-events: auto;
+}
+
+.wge-ttl {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+/* YAML mirror */
+.wge-mirror {
+  width: 38%;
+  min-width: 220px;
+  flex-shrink: 0;
+  border: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.16)));
+  border-radius: 6px;
+  background: var(--m-card, var(--theme-card, #06120a));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.wge-mirror-head {
+  padding: 7px 10px;
+  border-bottom: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.16)));
+  flex-shrink: 0;
+}
+
+.wge-mirror-body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  overflow: auto;
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.wge-mirror-gutter {
+  padding: 6px 8px;
+  text-align: right;
+  color: var(--m-text-faint, var(--theme-muted, #6f8a78));
+  user-select: none;
+  border-right: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.16)));
+  flex-shrink: 0;
+}
+
+.wge-mirror-code {
+  margin: 0;
+  padding: 6px 10px;
+  white-space: pre;
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+}
+
+/* validation strip */
+.wge-val {
+  border: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.3)));
+  border-radius: 6px;
+  background: var(--m-card, var(--theme-card, #06120a));
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10px;
+  flex-shrink: 0;
+  max-height: 110px;
+  overflow: auto;
+}
+
+.wge-val.has-errors {
+  border-color: color-mix(
+    in srgb,
+    var(--m-red-400, var(--theme-danger, #ff6b6b)) 45%,
+    transparent
+  );
+  background: color-mix(
+    in srgb,
+    var(--m-red-400, var(--theme-danger, #ff6b6b)) 6%,
+    var(--m-card, var(--theme-card, #06120a))
+  );
+}
+
+.wge-val-h {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+}
+
+.wge-val.has-errors .wge-val-h {
+  color: var(--m-red-400, var(--theme-danger, #ff8f8f));
+}
+
+.wge-val-src {
+  color: var(--m-text-faint, var(--theme-muted, #6f8a78));
+  letter-spacing: 0.06em;
+}
+
+.wge-val-item {
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+}
+
+.wge-val-item.warning {
+  color: var(--m-amber-400, var(--theme-warning, #ffb454));
+}
+
+.wge-val-item.error {
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+}
+
+.wge-val-node {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--m-cyan-400, var(--theme-active, #5ad3ff));
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.wge-save-error {
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--m-red-400, var(--theme-danger, #ff6b6b)) 45%,
+      transparent
+    );
+  border-radius: 6px;
+  color: var(--m-red-400, var(--theme-danger, #ff8f8f));
+  padding: 7px 10px;
+  font-size: 10px;
+  flex-shrink: 0;
+}
+
+/* ── config panel ── */
+.wge-cfg {
+  width: 290px;
+  flex-shrink: 0;
+  border: 1px solid
+    var(--m-border-faint, var(--theme-border, rgba(0, 255, 65, 0.16)));
+  border-radius: 6px;
+  background: var(--m-card, var(--theme-card, #06120a));
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  overflow: auto;
+}
+
+.wge-cfg-id {
+  color: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-cfg-empty {
+  overflow: hidden;
+}
+
+.wge-cfg-empty .wge-meta {
+  line-height: 1.6;
+}
+
+.wge-cfg-err {
+  color: var(--m-red-400, var(--theme-danger, #ff6b6b));
+  font-size: 9.5px;
+}
+
+.wge-f {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.wge-f label {
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+}
+
+.wge-f input,
+.wge-f select,
+.wge-f textarea {
+  background: var(--m-bg, var(--theme-bg, #030b06));
+  border: 1px solid
+    var(--m-border-strong, var(--theme-border, rgba(0, 255, 65, 0.3)));
+  border-radius: 4px;
+  padding: 5px 7px;
+  font-size: 10.5px;
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+  font-family: inherit;
+  min-width: 0;
+}
+
+.wge-f input:focus,
+.wge-f select:focus,
+.wge-f textarea:focus-visible {
+  outline: none;
+  border-color: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-f textarea {
+  resize: vertical;
+  height: 72px;
+  line-height: 1.45;
+}
+
+.wge-f2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.wge-dep {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.wge-dep-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8.5px;
+  letter-spacing: 0.08em;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--m-amber-400, var(--theme-warning, #ffb454)) 60%,
+      transparent
+    );
+  border-radius: 3px;
+  padding: 1px 5px;
+  color: var(--m-amber-400, var(--theme-warning, #ffb454));
+}
+
+.wge-dep-chip button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.wge-dep-add {
+  background: none;
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--m-text, var(--theme-text, #d8ffe3)) 25%,
+      transparent
+    );
+  border-radius: 4px;
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+  font-size: 9px;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+
+.wge-ft {
+  margin-top: auto;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* ── dialogs ── */
+.wge-dialog-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(
+    in srgb,
+    var(--m-bg, var(--theme-bg, #020804)) 72%,
+    transparent
+  );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.wge-dialog {
+  width: 420px;
+  max-width: calc(100vw - 40px);
+  background: var(--m-panel, var(--theme-card, #030a05));
+  border: 1px solid var(--m-border, var(--theme-border, rgba(0, 255, 65, 0.28)));
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--m-shadow-2, var(--theme-shadow-2));
+}
+
+.wge-dialog h2 {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--m-amber-400, var(--theme-warning, #ffb454));
+}
+
+.wge-dialog p {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--m-text, var(--theme-text, #d8ffe3));
+}
+
+.wge-dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ── loading / error states ── */
+.wge-state {
+  margin: auto;
+  max-width: 420px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wge-state-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.wge-state-msg {
+  font-size: 10.5px;
+  color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+}
+
+/* ── editor-only React Flow overrides. The old selectors
+       ([data-screen='conductor'] .wge-canvas-wrap …) never matched — both
+       classes sit on the same element, so a descendant combinator between
+       them is empty (QA1 F4-1/F4-6). Scope to the editor canvas classes. ── */
+.wge-canvas-wrap .flow-host.editable .react-flow__handle {
+  pointer-events: all;
+  width: 8px;
+  height: 8px;
+  border-color: var(--m-text-muted, var(--theme-muted, #8fae9a));
+  cursor: crosshair;
+}
+
+.wge-canvas-wrap .flow-host.editable .react-flow__handle:hover {
+  border-color: var(--m-green-400, var(--theme-accent, #00ff41));
+  background: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-canvas-wrap .flow-host.editable .react-flow__handle.connecting {
+  border-color: var(--m-green-400, var(--theme-accent, #00ff41));
+}
+
+.wge-canvas-wrap .flow-host .react-flow__edge.selected path {
+  stroke: var(--m-green-400, var(--theme-accent, #00ff41));
+  stroke-width: 2;
+}
+
+/* new, unconnected node: dashed card border */
+.wge-canvas-wrap .flow-host .dn.dn-new {
+  border-style: dashed;
+}
+
+/* inline validation marker on the node card */
+.wge-canvas-wrap .flow-host .dn .dn-errmsg {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: -16px;
+  font-size: 8.5px;
+  color: var(--m-red-400, var(--theme-danger, #ff8f8f));
+  background: color-mix(
+    in srgb,
+    var(--m-red-400, var(--theme-danger, #ff6b6b)) 10%,
+    var(--m-bg, var(--theme-bg, #020804))
+  );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--m-red-400, var(--theme-danger, #ff6b6b)) 60%,
+      transparent
+    );
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* ── layout (QA1 F4-2 / QA2 NEW-3) ── */
+
+/* The toolbar is single-row; left group scrolls if constrained, right group never wraps */
+.wge-etb {
+  flex-wrap: nowrap;
+  position: relative;
+  z-index: 8;
+}
+
+@media (max-width: 600px) {
+  .wge-etb {
+    flex-wrap: wrap;
+  }
+}
+
+.wge-canvas-row {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.wge-canvas-wrap {
+  flex: 1 1 360px;
+  min-width: 320px;
+}
+
+/* At ≤1280 the three fixed columns no longer fit beside the app sidebar and
+   filter rail, and an absolutely positioned panel covered SAVE/DISCARD
+   (QA2 NEW-3). Instead everything reflows: the palette becomes a horizontal
+   strip, the centre column (toolbar + canvas) takes the full width — the
+   canvas keeps ≥480px even at 1024 — and the YAML mirror and the node
+   config panel move below the canvas. Nothing is overlaid, so the toolbar
+   is reachable at every width. */
+@media (max-width: 1280px) {
+  .wge-main {
+    flex-wrap: wrap;
+  }
+
+  .wge-pal {
+    flex: 1 1 100%;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: 92px;
+    overflow-y: auto;
+  }
+
+  .wge-pal .wge-meta {
+    margin-top: 0;
+  }
+
+  .wge-center {
+    flex: 1 1 100%;
+  }
+
+  .wge-canvas-row {
+    flex-wrap: wrap;
+  }
+
+  .wge-canvas-wrap {
+    min-width: 480px;
+    min-height: 360px;
+  }
+
+  .wge-mirror {
+    flex: 1 1 100%;
+    width: auto;
+    max-height: 40%;
+  }
+
+  .wge-cfg {
+    flex: 1 1 100%;
+    width: auto;
+    max-height: 42%;
+  }
+}
+
+/* At ≤1024 (FIX8b): the palette, toolbar, canvas, validation strip and
+   selected node panel stack vertically. At 1024×900, ensure the canvas retains
+   ≥360px height by keeping the canvas row and wrap from shrinking, allow the
+   editor page to scroll vertically, and limit the validation strip and node
+   config panel to at most 180px with internal scroll so they do not squeeze
+   the canvas. */
+@media (max-width: 1024px) {
+  .wge-root {
+    overflow-y: auto;
+    height: 100%;
+  }
+
+  .wge-main {
+    flex: 1 0 auto;
+    min-height: min-content;
+  }
+
+  .wge-center {
+    flex: 1 0 100%;
+    min-height: min-content;
+  }
+
+  .wge-canvas-row {
+    flex: 0 0 auto;
+    min-height: 360px;
+    height: auto;
+  }
+
+  .wge-canvas-wrap {
+    min-height: 360px;
+    height: 360px;
+    flex: 1 0 360px;
+  }
+
+  .wge-val {
+    max-height: 180px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .wge-cfg {
+    max-height: 180px;
+    overflow-y: auto;
+    flex: 0 0 auto;
+  }
+
+  .wge-mirror {
+    max-height: 240px;
+    flex: 0 0 auto;
+  }
+}

@@ -15,6 +15,16 @@ export interface FlowNodeData extends Record<string, unknown> {
   /** A failed ancestor means this node will not run ("upstream failed"). */
   upstreamFailed: boolean
   preview: boolean
+  /** F4 graph-editor mode (opt-in): connectable handles, editor card line. */
+  editable?: boolean
+  /** F3 definition view (opt-in): neutral stage line instead of run status. */
+  neutral?: boolean
+  /** Editor-only card line (body summary / "new · not connected"). */
+  subtitle?: string | null
+  /** Editor-only inline validation marker text. */
+  errorText?: string | null
+  /** Editor-only "new, not connected" dashed styling. */
+  disconnected?: boolean
 }
 
 export type FlowNode = Node<FlowNodeData, 'dag'>
@@ -139,10 +149,20 @@ const ARROW = {
   color: 'var(--m-text-faint, var(--theme-muted))',
 }
 
+/** Editor-only node visuals keyed by node id (see FlowNodeData). */
+export interface FlowNodeMeta {
+  subtitle?: string
+  errorText?: string | null
+  disconnected?: boolean
+}
+
 export function toFlow(
   dag: DagModel,
   positions: Record<string, Point>,
   preview = false,
+  editable = false,
+  nodeMeta?: Record<string, FlowNodeMeta>,
+  neutral = false,
 ): { nodes: Array<FlowNode>; edges: Array<Edge> } {
   const status = new Map(dag.nodes.map((n) => [n.id, n.status]))
   const blocked = failedDescendants(dag)
@@ -153,12 +173,21 @@ export function toFlow(
       position: positions[n.id] ?? { x: 0, y: 0 },
       width: NODE_W,
       height: NODE_H,
-      connectable: false,
-      deletable: false,
+      connectable: editable,
+      deletable: editable,
       data: {
         node: n,
         upstreamFailed: blocked.has(n.id) && n.status !== 'failed',
         preview,
+        ...(editable
+          ? {
+              editable: true,
+              subtitle: nodeMeta?.[n.id]?.subtitle ?? null,
+              errorText: nodeMeta?.[n.id]?.errorText ?? null,
+              disconnected: nodeMeta?.[n.id]?.disconnected ?? false,
+            }
+          : {}),
+        ...(neutral ? { neutral: true } : {}),
       },
     })),
     edges: dag.edges.map(([a, b]) => ({
@@ -166,8 +195,9 @@ export function toFlow(
       source: a,
       target: b,
       className: preview ? 'pending' : edgeClass(status.get(a), status.get(b)),
-      selectable: false,
-      focusable: false,
+      selectable: editable,
+      focusable: editable,
+      ...(editable ? { deletable: true } : {}),
       markerEnd: ARROW,
     })),
   }

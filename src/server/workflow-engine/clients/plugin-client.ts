@@ -19,8 +19,11 @@ import type {
   RunSessions,
   TriggerInfo,
   WorkflowDefinitionRow,
+  WorkflowDefinitionVersionDetail,
+  WorkflowDefinitionVersionSummary,
   WorkflowEngineInterface,
   WorkflowRun,
+  WorkflowValidationReport,
 } from '../interface.js'
 
 const PLUGIN_BASE = '/api/plugins/workflow-engine'
@@ -66,6 +69,27 @@ export class WorkflowForbiddenError extends Error {
     super(message)
     this.name = 'WorkflowForbiddenError'
   }
+}
+
+export class WorkflowPayloadTooLargeError extends Error {
+  status = 413
+  code = 'too_large' as const
+  constructor(message: string) {
+    super(message)
+    this.name = 'WorkflowPayloadTooLargeError'
+  }
+}
+
+/** Extract a human message from a plugin error body (JSON {error|detail} or plain text). */
+function _pluginErrorMessage(text: string, fallback: string): string {
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown; detail?: unknown }
+    if (typeof parsed.error === 'string') return parsed.error
+    if (typeof parsed.detail === 'string') return parsed.detail
+  } catch {
+    return text.trim() || fallback
+  }
+  return fallback
 }
 
 /** POST /runs/{id}/retry rejected: `status` is the plugin's 400/404/409, `message` its error text. */
@@ -177,7 +201,14 @@ export class PluginClient implements WorkflowEngineInterface {
   async upsertDefinition(
     yaml: string,
     sourcePath?: string,
-    opts?: { id?: string; name?: string; expected_checksum?: string },
+    opts?: {
+      id?: string
+      name?: string
+      source?: 'user' | 'project' | 'bundled'
+      expected_checksum?: string
+      save_source?: 'save' | 'import'
+      if_absent?: boolean
+    },
   ): Promise<WorkflowDefinitionRow> {
     const res = await _proxyFetch(`${PLUGIN_BASE}/definitions`, {
       method: 'POST',
@@ -187,9 +218,12 @@ export class PluginClient implements WorkflowEngineInterface {
         source_path: sourcePath,
         ...(opts?.id != null ? { id: opts.id } : {}),
         ...(opts?.name != null ? { name: opts.name } : {}),
+        ...(opts?.source != null ? { source: opts.source } : {}),
         ...(opts?.expected_checksum != null
           ? { expected_checksum: opts.expected_checksum }
           : {}),
+        ...(opts?.save_source != null ? { save_source: opts.save_source } : {}),
+        ...(opts?.if_absent === true ? { if_absent: true } : {}),
       }),
     })
     if (!res.ok) {
@@ -233,6 +267,70 @@ export class PluginClient implements WorkflowEngineInterface {
       if (e instanceof Error && e.message.includes('404')) return null
       throw e
     }
+  }
+
+  async validateDefinition(
+    yaml: string,
+    id?: string,
+  ): Promise<WorkflowValidationReport> {
+    const res = await _proxyFetch(`${PLUGIN_BASE}/definitions/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml, ...(id != null ? { id } : {}) }),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      if (res.status === 413)
+        throw new WorkflowPayloadTooLargeError(
+          _pluginErrorMessage(text, 'yaml exceeds the size limit'),
+        )
+      if (res.status === 400)
+        throw new WorkflowValidationError(
+          _pluginErrorMessage(text, 'Bad request'),
+        )
+      throw new Error(
+        `PluginClient POST /definitions/validate: ${res.status} ${text}`,
+      )
+    }
+    return (await res.json()) as WorkflowValidationReport
+  }
+
+  async listDefinitionVersions(
+    id: string,
+  ): Promise<Array<WorkflowDefinitionVersionSummary>> {
+    const res = await _proxyFetch(
+      `${PLUGIN_BASE}/definitions/${encodeURIComponent(id)}/versions`,
+    )
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      if (res.status === 404)
+        throw new WorkflowNotFoundError(_pluginErrorMessage(text, 'not found'))
+      throw new Error(
+        `PluginClient GET /definitions/${id}/versions: ${res.status} ${text}`,
+      )
+    }
+    const data = (await res.json()) as unknown
+    return Array.isArray(data)
+      ? (data as Array<WorkflowDefinitionVersionSummary>)
+      : []
+  }
+
+  async getDefinitionVersion(
+    id: string,
+    checksum: string,
+  ): Promise<WorkflowDefinitionVersionDetail> {
+    const res = await _proxyFetch(
+      `${PLUGIN_BASE}/definitions/${encodeURIComponent(id)}/versions/${encodeURIComponent(checksum)}`,
+    )
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      if (res.status === 404)
+        throw new WorkflowNotFoundError(_pluginErrorMessage(text, 'not found'))
+      throw new Error(
+        `PluginClient GET /definitions/${id}/versions/${checksum}: ${res.status} ${text}`,
+      )
+    }
+    return (await res.json()) as WorkflowDefinitionVersionDetail
   }
 
   async deleteWorkflowDefinition(id: string): Promise<number> {

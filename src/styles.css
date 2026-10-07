@@ -245,7 +245,7 @@ code {
 }
 
 .numbered-sections h2.numbered-heading::before {
-  content: counter(section-h2) " · ";
+  content: counter(section-h2) ' · ';
   font-family: var(--m-font-mono, monospace);
   font-size: 0.85em;
   font-weight: 600;
@@ -259,7 +259,7 @@ code {
 }
 
 .numbered-sections h3.numbered-heading::before {
-  content: counter(section-h2) "." counter(section-h3) " · ";
+  content: counter(section-h2) '.' counter(section-h3) ' · ';
   font-family: var(--m-font-mono, monospace);
   font-size: 0.85em;
   font-weight: 600;
@@ -745,13 +745,33 @@ code {
   0%,
   100% {
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 32%, transparent),
-      0 0 10px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 18%, transparent);
+      0 0 0 1px
+        color-mix(
+          in srgb,
+          var(--m-green-500, var(--theme-accent)) 32%,
+          transparent
+        ),
+      0 0 10px
+        color-mix(
+          in srgb,
+          var(--m-green-500, var(--theme-accent)) 18%,
+          transparent
+        );
   }
   50% {
     box-shadow:
-      0 0 0 1px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 62%, transparent),
-      0 0 22px 2px color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 34%, transparent);
+      0 0 0 1px
+        color-mix(
+          in srgb,
+          var(--m-green-500, var(--theme-accent)) 62%,
+          transparent
+        ),
+      0 0 22px 2px
+        color-mix(
+          in srgb,
+          var(--m-green-500, var(--theme-accent)) 34%,
+          transparent
+        );
   }
 }
 
@@ -773,7 +793,11 @@ code {
   .attention-pulse {
     animation: none;
     box-shadow: 0 0 0 1px
-      color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 48%, transparent);
+      color-mix(
+        in srgb,
+        var(--m-green-500, var(--theme-accent)) 48%,
+        transparent
+      );
   }
 }
 
@@ -1025,19 +1049,20 @@ code {
   --theme-border: rgba(0, 126, 34, 0.2);
   --theme-border-subtle: rgba(0, 126, 34, 0.1);
   --theme-text: #062a12;
-  --theme-muted: rgba(6, 42, 18, 0.55);
+  /* QA1 light-theme contrast: 3.65:1 → ≥4.5:1 on every light surface. */
+  --theme-muted: rgba(6, 42, 18, 0.68);
   --theme-shadow-1: 0 1px 2px rgba(0, 80, 20, 0.08);
   --theme-shadow-2: 0 10px 28px rgba(0, 80, 20, 0.1);
   --theme-shadow-3: 0 18px 54px rgba(0, 80, 20, 0.14);
   --theme-glass: rgba(244, 255, 246, 0.88);
   --theme-focus: #008f2d;
-  --theme-accent: #008f2d;
+  --theme-accent: #00832a;
   --theme-accent-secondary: #006b22;
   --theme-accent-subtle: rgba(0, 143, 45, 0.1);
   --theme-accent-border: rgba(0, 143, 45, 0.3);
   --theme-active: #008f2d;
   --theme-link: #006b22;
-  --theme-success: #008f2d;
+  --theme-success: #00832a;
   --theme-warning: #7a6200;
   --theme-danger: #c0392b;
   --theme-stripe: rgba(0, 143, 45, 0.04);
@@ -1059,6 +1084,9 @@ code {
   --code-bg: #eafff0;
   --code-border: rgba(0, 126, 34, 0.14);
   --theme-input: #ffffff;
+  /* QA1 LOW: mono token so --m-font-mono consumers keep JetBrains Mono. */
+  --m-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 [data-theme='claude-official'] {
@@ -1213,7 +1241,8 @@ code {
   --theme-border: #cdd5da;
   --theme-border-subtle: #e3e8e7;
   --theme-text: #16315f;
-  --theme-muted: #6f7d96;
+  /* QA1 light-theme contrast: 3.87:1 → ≥4.5:1 on every light surface. */
+  --theme-muted: #5e6a80;
   --theme-shadow-1: 0 0 0 rgba(22, 49, 95, 0);
   --theme-shadow-2: 0 1px 2px rgba(22, 49, 95, 0.03);
   --theme-shadow-3: 0 8px 24px rgba(22, 49, 95, 0.05);
@@ -1225,8 +1254,8 @@ code {
   --theme-accent-border: rgba(37, 87, 183, 0.18);
   --theme-active: #2557b7;
   --theme-link: #2557b7;
-  --theme-success: #4f7c64;
-  --theme-warning: #9c6b2f;
+  --theme-success: #4b765e;
+  --theme-warning: #92642c;
   --theme-danger: #a24b4b;
   --theme-stripe: rgba(205, 213, 218, 0.5);
   --theme-header-bg: #f4f5ef;
@@ -1248,6 +1277,9 @@ code {
   --code-border: #d2dce0;
   --code-foreground: #16315f;
   --theme-input: #fbfcf7;
+  /* QA1 LOW: mono token so --m-font-mono consumers keep JetBrains Mono. */
+  --m-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 [data-theme='claude-classic-light'] {
@@ -1265,14 +1297,14 @@ code {
   --theme-shadow-3: 0 18px 40px rgba(31, 24, 18, 0.14);
   --theme-glass: rgba(245, 242, 237, 0.84);
   --theme-focus: #b98a44;
-  --theme-accent: #b98a44;
+  --theme-accent: #8e6730;
   --theme-accent-secondary: #d3a45a;
   --theme-accent-subtle: rgba(185, 138, 68, 0.12);
   --theme-accent-border: rgba(185, 138, 68, 0.28);
   --theme-active: #4c88c7;
   --theme-link: #8e6428;
-  --theme-success: #3e8b59;
-  --theme-warning: #b67a24;
+  --theme-success: #34744c;
+  --theme-warning: #8c5e1c;
   --theme-danger: #b55252;
   --theme-stripe: rgba(216, 204, 188, 0.4);
   --theme-header-bg: #f3eee7;
@@ -1294,6 +1326,9 @@ code {
   --code-border: #d8ccbc;
   --code-foreground: #2b3139;
   --theme-input: #fffdf9;
+  /* QA1 LOW: mono token so --m-font-mono consumers keep JetBrains Mono. */
+  --m-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 [data-theme='claude-slate-light'] {
@@ -1311,14 +1346,14 @@ code {
   --theme-shadow-3: 0 18px 40px rgba(36, 41, 47, 0.14);
   --theme-glass: rgba(246, 248, 250, 0.84);
   --theme-focus: #3b82f6;
-  --theme-accent: #3b82f6;
+  --theme-accent: #2563eb;
   --theme-accent-secondary: #60a5fa;
   --theme-accent-subtle: rgba(59, 130, 246, 0.12);
   --theme-accent-border: rgba(59, 130, 246, 0.25);
   --theme-active: #2563eb;
   --theme-link: #2563eb;
-  --theme-success: #2da44e;
-  --theme-warning: #bf8700;
+  --theme-success: #217f3d;
+  --theme-warning: #8f6500;
   --theme-danger: #cf222e;
   --theme-stripe: rgba(208, 215, 222, 0.42);
   --theme-header-bg: #f6f8fa;
@@ -1340,6 +1375,9 @@ code {
   --code-border: #d0d7de;
   --code-foreground: #1f2328;
   --theme-input: #ffffff;
+  /* QA1 LOW: mono token so --m-font-mono consumers keep JetBrains Mono. */
+  --m-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* ============================================================
@@ -1403,7 +1441,8 @@ code {
   --theme-border: rgba(30, 74, 92, 0.18);
   --theme-border-subtle: rgba(30, 74, 92, 0.1);
   --theme-text: #16315f;
-  --theme-muted: rgba(22, 49, 95, 0.6);
+  /* QA1 light-theme contrast: 3.75:1 → ≥4.5:1 on every light surface. */
+  --theme-muted: rgba(22, 49, 95, 0.72);
   --theme-shadow-1: 0 0 0 rgba(22, 49, 95, 0);
   --theme-shadow-2: 0 1px 2px rgba(22, 49, 95, 0.03);
   --theme-shadow-3: 0 8px 24px rgba(22, 49, 95, 0.05);
@@ -1415,8 +1454,8 @@ code {
   --theme-accent-border: rgba(37, 87, 183, 0.18);
   --theme-active: #2557b7;
   --theme-link: #2557b7;
-  --theme-success: #4f7c64;
-  --theme-warning: #9c6b2f;
+  --theme-success: #4b765e;
+  --theme-warning: #92642c;
   --theme-danger: #a24b4b;
   --theme-stripe: rgba(30, 74, 92, 0.05);
   --theme-header-bg: #f2f6f4;
@@ -1438,6 +1477,9 @@ code {
   --code-border: rgba(30, 74, 92, 0.14);
   --code-foreground: #16315f;
   --theme-input: #fbfdfb;
+  /* QA1 LOW: mono token so --m-font-mono consumers keep JetBrains Mono. */
+  --m-font-mono:
+    'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 [data-theme='claude-nous'] html,

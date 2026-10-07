@@ -8,14 +8,16 @@ import {
   useWorkflowRuns,
 } from './use-workflows'
 import { relativeTime } from './types'
-import {
-  PROVENANCE_LABEL,
-  provenanceOf,
-} from './provenance'
+import { PROVENANCE_LABEL, provenanceOf } from './provenance'
 import { NODE_COLOR } from './node-colors'
 import type React from 'react'
 import type { WorkflowDefinitionRow, WorkflowRunRow } from './api-client'
-import type { NodeType, ParsedWorkflow, WorkflowDagNode, WorkflowSource } from './types'
+import type {
+  NodeType,
+  ParsedWorkflow,
+  WorkflowDagNode,
+  WorkflowSource,
+} from './types'
 import { ConfirmDialog } from '@/screens/profiles/components/confirm-dialog'
 
 /** Editor palette: `subagent` is a run-view type, not authorable here. */
@@ -84,7 +86,6 @@ function parseTags(raw: string | null): Array<string> {
 function duplicateWorkflowId(id: string): string {
   return `${id}-copy-${Date.now().toString(36)}`
 }
-
 
 function filePathFor(def: WorkflowDefinitionRow): string {
   if (def.source === 'bundled') {
@@ -225,10 +226,18 @@ function yamlLine(line: string, idx: number): React.ReactElement {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SourceBadge({ source, userModified }: { source: string; userModified?: 0 | 1 }) {
+function SourceBadge({
+  source,
+  userModified,
+}: {
+  source: string
+  userModified?: 0 | 1
+}) {
   const prov = provenanceOf(source as WorkflowSource, userModified)
   return (
-    <span className={`wfl-src-badge wfl-src-${prov === 'modified-factory' ? 'modified' : source}`}>
+    <span
+      className={`wfl-src-badge wfl-src-${prov === 'modified-factory' ? 'modified' : source}`}
+    >
       {PROVENANCE_LABEL[prov]}
     </span>
   )
@@ -325,14 +334,18 @@ function WorkflowHeaderActions({
         className="ed-action-btn ed-action-btn--danger"
         disabled={isBundled || deleteMutation.isPending}
         onClick={() => setConfirmDelete(true)}
-        title={isBundled ? 'Bundled workflows cannot be deleted — use Reset to factory to restore' : undefined}
+        title={
+          isBundled
+            ? 'Bundled workflows cannot be deleted — use Reset to factory to restore'
+            : undefined
+        }
       >
         {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
       </button>
       <ConfirmDialog
         open={confirmDelete}
         title="Delete workflow?"
-        message={`Delete workflow "${def.name}"? This cannot be undone.`}
+        message={`Delete workflow "${def.name}"? Deleting removes the workflow and its completed run history. Workflows with an active run are skipped. This cannot be undone.`}
         confirmLabel="Delete workflow"
         destructive
         onConfirm={handleDelete}
@@ -491,7 +504,10 @@ function OverviewTab({
           <div className="ov-meta-row">
             <span className="ov-meta-key">Source</span>
             <span className="ov-meta-value">
-              <SourceBadge source={def.source} userModified={def.user_modified} />
+              <SourceBadge
+                source={def.source}
+                userModified={def.user_modified}
+              />
             </span>
           </div>
           <div className="ov-meta-row">
@@ -926,7 +942,11 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
               <div className="dag-tt-task">
                 <div>Subgraph ref: {tooltipNode.subgraph.ref}</div>
                 <div style={{ opacity: 0.7, fontSize: 10 }}>
-                  Click node to {expandedSubgraphs.has(tooltipNode.id) ? 'collapse' : 'expand'} children
+                  Click node to{' '}
+                  {expandedSubgraphs.has(tooltipNode.id)
+                    ? 'collapse'
+                    : 'expand'}{' '}
+                  children
                 </div>
               </div>
             )}
@@ -949,7 +969,11 @@ function DagSvgTab({ parsed }: { parsed: ParsedWorkflow }) {
             )}
             <div
               className="dag-tt-type"
-              style={{ color: tooltipNode.subgraph ? '#bf97ff' : NODE_COLOR[tooltipNode.type] }}
+              style={{
+                color: tooltipNode.subgraph
+                  ? '#bf97ff'
+                  : NODE_COLOR[tooltipNode.type],
+              }}
             >
               {tooltipNode.subgraph ? 'subgraph' : tooltipNode.type}
             </div>
@@ -1227,11 +1251,7 @@ function YamlTab({
 
 // ── When-to-Use Tab ───────────────────────────────────────────────────────────
 
-function WhenToUseTab({
-  parsed,
-}: {
-  parsed: ParsedWorkflow
-}) {
+function WhenToUseTab({ parsed }: { parsed: ParsedWorkflow }) {
   return (
     <div className="wtu-tab">
       <div className="wtu-info">
@@ -1537,10 +1557,10 @@ export function WorkflowEditor({
       <div className="ed-body">
         {activeTab === 'Overview' && <OverviewTab def={def} parsed={parsed} />}
         {activeTab === 'Visual DAG' && <DagSvgTab parsed={parsed} />}
-        {activeTab === 'YAML' && <YamlTab def={def} parsed={parsed} onRefetch={() => void refetch()} />}
-        {activeTab === 'When-to-Use' && (
-          <WhenToUseTab parsed={parsed} />
+        {activeTab === 'YAML' && (
+          <YamlTab def={def} parsed={parsed} onRefetch={() => void refetch()} />
         )}
+        {activeTab === 'When-to-Use' && <WhenToUseTab parsed={parsed} />}
         {activeTab === 'History' && (
           <>
             <HistoryTab

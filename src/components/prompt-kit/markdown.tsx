@@ -10,7 +10,6 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ReactElement, ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
@@ -24,6 +23,7 @@ import {
   Lightbulb,
 } from 'lucide-react'
 import { CodeBlock } from './code-block'
+import type { ReactElement, ReactNode } from 'react'
 import type { Components } from 'react-markdown'
 import { cn } from '@/lib/utils'
 import { writeRichTextToClipboard } from '@/lib/clipboard'
@@ -160,7 +160,7 @@ export function isSafeHref(href: string | null | undefined): boolean {
   // Strip C0/C1 control characters and Unicode whitespace that browsers ignore
   // before parsing the URL scheme (prevents java\x09script: bypasses).
   // Control chars in the class are intentional — that's the bypass we defend against.
-  // eslint-disable-next-line no-control-regex
+
   const cleaned = href.replace(/[ -  -Ÿ\s]/g, '')
   const lower = cleaned.toLowerCase()
   // Relative links — safe by construction.
@@ -351,9 +351,7 @@ function isNumericCell(text: string): boolean {
   )
 }
 
-function getVerdictBadge(
-  text: string,
-): {
+function getVerdictBadge(text: string): {
   label: 'PICK' | 'YES' | 'NO'
   variant: 'accent' | 'success' | 'danger'
 } | null {
@@ -412,7 +410,10 @@ const INITIAL_COMPONENTS: Partial<Components> = {
               }
             }}
           >
-            <FileIcon className="w-3.5 h-3.5 shrink-0 opacity-80" aria-hidden="true" />
+            <FileIcon
+              className="w-3.5 h-3.5 shrink-0 opacity-80"
+              aria-hidden="true"
+            />
             <span className="truncate">{children}</span>
           </a>
         )

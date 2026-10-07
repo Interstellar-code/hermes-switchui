@@ -3,6 +3,24 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.13.0] — 2026-10-07
+
+Workflows v2: manage and create workflow DAGs — library, table, detail page, graph editor, a new create-workflow wizard and bulk delete. Requires hermes-agent workflow-engine with the `validate`, `definition_versions` and `create_only` features (older engines degrade gracefully).
+
+### Added
+
+- **Workflow library and table**: card grid with live graph previews, filter rail (origin, node types, shape, state), sortable table with multi-select export/duplicate; unknown data shows "—", never invented values.
+- **Workflow detail page** (`?wf=<id>`): OVERVIEW · GRAPH · INPUTS · SCHEDULES · YAML · VERSIONS tabs, engine-side validation card, version history, deep links.
+- **Graph editor**: palette, drag-to-connect, per-node config, undo/redo, auto-layout, YAML mirror, inline validation, "SAVE AS vN" with a stale-save checksum guard and a leave-page guard for unsaved edits.
+- **Create-workflow wizard v2**: SOURCE (describe with AI, template, duplicate, import, blank) → DESIGN (embedded graph editor) → CONFIGURE (per-node forms, live YAML mirror, one-click fixes) → REVIEW. Describe-with-AI runs in its own draft session and never touches `main`; saves are create-only (409 `id_taken` → suggestions).
+- **Bulk delete**: confirmation dialog listing every workflow, type-to-confirm above 5, opt-in factory reset, per-row results from the server. Deleting removes the workflow and its completed run history; workflows with an active run are skipped.
+- **Server routes**: `POST /api/workflow-definitions/validate`, `GET /api/workflow-definitions/$id/versions`, `GET …/versions/$checksum`; `POST /api/workflow-definitions` accepts `expected_checksum`, `save_source`, `if_absent`.
+
+### Fixed
+
+- "Reset to factory" on the detail page always failed with 415 (missing JSON Content-Type).
+- Workflow timestamps in seconds rendered as thousands of days ago; workflow scope "User" was saved as project.
+
 ## [2.12.1] — 2026-10-06
 
 SwitchUI chat experience upgrade: Markdown formatting kit (GFM callouts, zebra tables, interactive file chips, TOC jump bar, auto-numbered sections) and modernized chat composer (capacity ring, attachment tray with thumbnails, slash popover, floating latest pill, mobile 390 compact action menu).

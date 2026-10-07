@@ -12,16 +12,19 @@ import {
   cancelWorkflowRun,
   deleteWorkflowDefinition,
   getWorkflowDefinitionParsed,
+  getWorkflowDefinitionVersion,
   getWorkflowFeatures,
   getWorkflowRun,
   launchWorkflowRun,
   listRunEvents,
   listRunEventsPaged,
+  listWorkflowDefinitionVersions,
   listWorkflowDefinitions,
   listWorkflowRuns,
   resetWorkflowDefinitionToFactory,
   retryWorkflowRun,
   upsertWorkflowDefinition,
+  validateWorkflowDefinition,
 } from './api-client'
 import type {
   ApproveWorkflowInput,
@@ -31,9 +34,11 @@ import type {
   UpsertWorkflowDefinitionInput,
   WorkflowDefinitionRow,
 } from './api-client'
+import type { QueryClient } from '@tanstack/react-query'
 import type { VersionTier, WorkflowSource, WorkflowSummary } from './types'
 
-function parseTags(raw: string | null): Array<string> {
+/** JSON-encoded tags column → string[]; never throws (shared by the detail page). */
+export function parseTags(raw: string | null): Array<string> {
   if (!raw) return []
   try {
     const parsed = JSON.parse(raw) as unknown
@@ -52,7 +57,7 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     description: row.description ?? '',
     source: row.source,
     tags: parseTags(row.tags),
-    node_count: row.node_count,
+    node_count: row.node_count ?? 0,
     last_used_at: row.last_used_at != null ? String(row.last_used_at) : null,
     version_tier: 'v1',
     // Pass through enrichment fields added by summariseWorkflowYaml on the list route.
@@ -61,6 +66,7 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     has_approval: row.has_approval ?? false,
     required_inputs: row.required_inputs ?? [],
     optional_inputs: row.optional_inputs ?? [],
+    node_types: row.node_types ?? [],
     when_to_use: '',
     dag_depth: 0,
     max_parallelism: 0,
@@ -69,6 +75,11 @@ function adaptDefinition(row: WorkflowDefinitionRow): WorkflowSummary {
     dag_edges: [],
     yaml: row.yaml,
     kind: row.kind,
+    user_modified: row.user_modified,
+    bundled_checksum: row.bundled_checksum,
+    updated_at: row.updated_at,
+    created_at: row.created_at,
+    version: row.version ?? null,
   }
 }
 
@@ -89,6 +100,38 @@ export function useWorkflowParsed(id: string | null) {
     queryFn: () => getWorkflowDefinitionParsed(id!),
     enabled: !!id,
     staleTime: 30_000,
+  })
+}
+
+/** Sidebar badge cache (QA2 F1-9): every definitions write must refresh it. */
+function invalidateNavWorkflowCount(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ['nav-count', 'workflows'] })
+}
+
+/** Snapshot history, newest first (feature `definition_versions`). */
+export function useWorkflowDefinitionVersions(
+  id: string | null,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['workflow-definitions', id, 'versions'],
+    queryFn: () => listWorkflowDefinitionVersions(id!),
+    enabled: !!id && enabled,
+    staleTime: 30_000,
+  })
+}
+
+/** One snapshot with its yaml — VIEW in the VERSIONS tab. */
+export function useWorkflowDefinitionVersion(
+  id: string | null,
+  checksum: string | null,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: ['workflow-definitions', id, 'versions', checksum],
+    queryFn: () => getWorkflowDefinitionVersion(id!, checksum!),
+    enabled: !!id && !!checksum && enabled,
+    staleTime: 60_000,
   })
 }
 
@@ -234,6 +277,10 @@ export function useUpsertWorkflowDefinition() {
       void queryClient.invalidateQueries({
         queryKey: ['workflow-definitions', data.definition.id, 'parsed'],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['workflow-definitions', data.definition.id, 'versions'],
+      })
+      invalidateNavWorkflowCount(queryClient)
     },
   })
 }
@@ -247,6 +294,10 @@ export function useResetWorkflowDefinitionToFactory() {
       void queryClient.invalidateQueries({
         queryKey: ['workflow-definitions', data.definition.id, 'parsed'],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['workflow-definitions', data.definition.id, 'versions'],
+      })
+      invalidateNavWorkflowCount(queryClient)
     },
   })
 }
@@ -257,6 +308,20 @@ export function useDeleteWorkflowDefinition() {
     mutationFn: (id: string) => deleteWorkflowDefinition(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
+      invalidateNavWorkflowCount(queryClient)
     },
+  })
+}
+
+export function useValidateWorkflowDefinition(
+  yaml: string | null | undefined,
+  id?: string,
+  options?: { enabled?: boolean },
+) {
+  return useQuery({
+    queryKey: ['workflow-definition-validate', id ?? 'no-id', yaml],
+    queryFn: () => validateWorkflowDefinition(yaml!, id),
+    enabled: Boolean(yaml) && (options?.enabled ?? true),
+    staleTime: 60_000,
   })
 }

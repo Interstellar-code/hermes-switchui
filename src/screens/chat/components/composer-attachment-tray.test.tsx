@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import {
   ComposerAttachmentTray,
   attachmentBadge,
@@ -45,10 +45,7 @@ describe('ComposerAttachmentTray', () => {
   it('renders chips for each attachment with name, badge, and size', () => {
     const onRemove = vi.fn()
     render(
-      <ComposerAttachmentTray
-        attachments={attachments}
-        onRemove={onRemove}
-      />,
+      <ComposerAttachmentTray attachments={attachments} onRemove={onRemove} />,
     )
 
     expect(screen.getByText('notes.md')).toBeDefined()
@@ -60,14 +57,15 @@ describe('ComposerAttachmentTray', () => {
   it('triggers onRemove with attachment id when remove button is clicked', () => {
     const onRemove = vi.fn()
     render(
-      <ComposerAttachmentTray
-        attachments={attachments}
-        onRemove={onRemove}
-      />,
+      <ComposerAttachmentTray attachments={attachments} onRemove={onRemove} />,
     )
 
-    const removeButtonNotes = screen.getByRole('button', { name: 'Remove notes.md' })
-    const removeButtonDiagram = screen.getByRole('button', { name: 'Remove diagram.png' })
+    const removeButtonNotes = screen.getByRole('button', {
+      name: 'Remove notes.md',
+    })
+    const removeButtonDiagram = screen.getByRole('button', {
+      name: 'Remove diagram.png',
+    })
     expect(removeButtonNotes).toBeDefined()
     expect(removeButtonDiagram).toBeDefined()
 

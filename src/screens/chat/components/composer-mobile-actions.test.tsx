@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
-import { describe, expect, it, vi, afterEach } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FileText, Mic, Sparkles } from 'lucide-react'
 import { ComposerMobileActionsMenu } from './composer-mobile-actions'
 
@@ -16,7 +16,9 @@ describe('ComposerMobileActionsMenu', () => {
     ]
 
     render(<ComposerMobileActionsMenu actions={actions} />)
-    const trigger = screen.getByTestId('composer-mobile-actions-trigger')
+    const trigger = screen.getByTestId<HTMLButtonElement>(
+      'composer-mobile-actions-trigger',
+    )
     expect(trigger).toBeDefined()
 
     // Popover content should not be present before click
@@ -55,7 +57,9 @@ describe('ComposerMobileActionsMenu', () => {
       { id: 'sparkles', label: 'Reasoning', icon: Sparkles, onClick: vi.fn() },
     ]
     render(<ComposerMobileActionsMenu actions={actions} disabled />)
-    const trigger = screen.getByTestId('composer-mobile-actions-trigger') as HTMLButtonElement
+    const trigger = screen.getByTestId<HTMLButtonElement>(
+      'composer-mobile-actions-trigger',
+    )
     expect(trigger.disabled).toBe(true)
   })
 })

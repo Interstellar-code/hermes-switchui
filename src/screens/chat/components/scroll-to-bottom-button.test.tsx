@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { ScrollToBottomButton } from './scroll-to-bottom-button'
 
 describe('ScrollToBottomButton', () => {
