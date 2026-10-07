@@ -66,6 +66,10 @@ const deleteMutateMock = vi.fn()
 const resetMutateMock = vi.fn()
 const duplicateMutateMock = vi.fn()
 
+// QA1 F3-3: the detail must validate WITHOUT its own id — recording calls
+// lets tests assert the second hook argument is undefined.
+const validateCalls: Array<Array<unknown>> = []
+
 vi.mock('../use-workflows', () => ({
   parseTags: (raw: string | null) => {
     if (!raw) return []
@@ -91,11 +95,14 @@ vi.mock('../use-workflows', () => ({
       profile: 'hermes-switch',
     },
   }),
-  useValidateWorkflowDefinition: () => ({
-    data: mockValidationResult,
-    isLoading: false,
-    error: mockValidationError,
-  }),
+  useValidateWorkflowDefinition: (...args: Array<unknown>) => {
+    validateCalls.push(args)
+    return {
+      data: mockValidationResult,
+      isLoading: false,
+      error: mockValidationError,
+    }
+  },
   useWorkflowDefinitionVersions: () => ({
     data: mockVersions,
     isLoading: mockVersionsLoading,
@@ -176,6 +183,7 @@ afterEach(() => {
   mockVersionsLoading = false
   mockVersionDetail = null
   lastFlowCanvasProps = null
+  validateCalls.length = 0
 })
 
 describe('WorkflowDetail', () => {
@@ -638,5 +646,89 @@ describe('WorkflowDetail VERSIONS (definition_versions feature)', () => {
 
     expect(screen.getByText('cycle: a -> b -> a')).toBeTruthy()
     expect(screen.queryByText('(L')).toBeNull()
+  })
+
+  // QA1 F3-3: the detail used to validate WITH its own id, so every saved
+  // workflow collided with itself and showed a false id_taken error.
+  it('validates the definition without passing its own id (QA1 F3-3)', () => {
+    mockFeatures = ['validate']
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(validateCalls.length).toBeGreaterThan(0)
+    for (const args of validateCalls) {
+      expect(args[1]).toBeUndefined()
+    }
+    expect(validateCalls[0][0]).toBe(mockDefinition.yaml)
+  })
+
+  // QA1 F3-4: no run data from the API → "— runs", never an invented 0.
+  it('renders an em dash run count when the definition has no run_count (QA1 F3-4)', () => {
+    const { run_count: _omit, ...noRuns } = mockDefinition
+    mockWorkflowData = {
+      definition: noRuns as WorkflowDefinitionRow,
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    const links = screen.getAllByRole('link', { name: /runs in Conductor/i })
+    expect(links.some((l) => /— runs/.test(l.textContent))).toBe(true)
+    expect(links.some((l) => /0 runs/.test(l.textContent))).toBe(false)
+  })
+
+  it('renders the real run count when the API provides one (QA1 F3-4)', () => {
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    const links = screen.getAllByRole('link', { name: /runs in Conductor/i })
+    expect(links.some((l) => /6 runs/.test(l.textContent))).toBe(true)
+  })
+
+  // QA1 F3-5: a project-source workflow showed a USER chip; the header must
+  // show the real origin.
+  it('labels a project-source workflow PROJECT, not USER (QA1 F3-5)', () => {
+    mockWorkflowData = {
+      definition: { ...mockDefinition, source: 'project' },
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(screen.getByText('PROJECT')).toBeTruthy()
+    expect(screen.queryByText('USER')).toBeNull()
+  })
+
+  // QA1 F1-3/F3-5: a null version is unknown, not v1.
+  it('renders an em dash version chip for a null version (QA1 F1-3)', () => {
+    mockWorkflowData = {
+      definition: { ...mockDefinition, version: null },
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByText(/^—$/).length).toBeGreaterThan(0)
+    expect(screen.queryAllByText(/^v1$/)).toHaveLength(0)
   })
 })

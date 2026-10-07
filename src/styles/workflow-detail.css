@@ -57,6 +57,9 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  /* QA1 F3-6: wrap instead of crushing the title to "youtube-catalog…"
+     when the filter rail leaves too little header width. */
+  flex-wrap: wrap;
 }
 
 .wfd-back {

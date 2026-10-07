@@ -1,7 +1,7 @@
 /* graph-editor.css — F4 Workflows v2 graph editor, scoped to .wge-root.
-   Theme tokens only (no hard-coded Matrix colours). The canvas wrapper also
-   carries data-screen="conductor" so the shared React Flow styles apply;
-   editor-only handle/edge overrides live at the bottom. */
+   Theme tokens only (no hard-coded Matrix colours). The shared canvas styles
+   come from conductor-flow.css scoped to .flow-host (loads with the canvas
+   module); editor-only handle/edge overrides live at the bottom. */
 
 .wge-root {
   display: flex;
@@ -694,9 +694,11 @@
   color: var(--m-text-muted, var(--theme-muted, #8fae9a));
 }
 
-/* ── editor-only React Flow overrides (canvas wrapper is
-      data-screen="conductor", so conductor-flow.css applies first) ── */
-[data-screen='conductor'] .wge-canvas-wrap .react-flow__handle {
+/* ── editor-only React Flow overrides. The old selectors
+       ([data-screen='conductor'] .wge-canvas-wrap …) never matched — both
+       classes sit on the same element, so a descendant combinator between
+       them is empty (QA1 F4-1/F4-6). Scope to the editor canvas classes. ── */
+.wge-canvas-wrap .flow-host.editable .react-flow__handle {
   pointer-events: all;
   width: 8px;
   height: 8px;
@@ -704,27 +706,27 @@
   cursor: crosshair;
 }
 
-[data-screen='conductor'] .wge-canvas-wrap .react-flow__handle:hover {
+.wge-canvas-wrap .flow-host.editable .react-flow__handle:hover {
   border-color: var(--m-green-400, var(--theme-accent, #00ff41));
   background: var(--m-green-400, var(--theme-accent, #00ff41));
 }
 
-[data-screen='conductor'] .wge-canvas-wrap .react-flow__handle.connecting {
+.wge-canvas-wrap .flow-host.editable .react-flow__handle.connecting {
   border-color: var(--m-green-400, var(--theme-accent, #00ff41));
 }
 
-[data-screen='conductor'] .wge-canvas-wrap .react-flow__edge.selected path {
+.wge-canvas-wrap .flow-host .react-flow__edge.selected path {
   stroke: var(--m-green-400, var(--theme-accent, #00ff41));
   stroke-width: 2;
 }
 
 /* new, unconnected node: dashed card border */
-[data-screen='conductor'] .wge-canvas-wrap .react-flow__node .dn.dn-new {
+.wge-canvas-wrap .flow-host .dn.dn-new {
   border-style: dashed;
 }
 
 /* inline validation marker on the node card */
-[data-screen='conductor'] .wge-canvas-wrap .dn .dn-errmsg {
+.wge-canvas-wrap .flow-host .dn .dn-errmsg {
   position: absolute;
   left: 4px;
   right: 4px;
@@ -748,4 +750,42 @@
   overflow: hidden;
   text-overflow: ellipsis;
   pointer-events: none;
+}
+
+/* ── layout (QA1 F4-2) ── */
+
+/* The toolbar wraps instead of overflowing under the config panel, so
+   SAVE/DISCARD are never covered at any width. */
+.wge-etb {
+  flex-wrap: wrap;
+}
+
+/* The canvas keeps a usable floor width instead of collapsing to 0. */
+.wge-canvas-row {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.wge-canvas-wrap {
+  flex: 1 1 360px;
+  min-width: 320px;
+}
+
+/* At ≤1280 the config panel overlays the canvas instead of squeezing it out
+   of the row (app sidebar 240 + filter rail 248 leave too little width). */
+@media (max-width: 1280px) {
+  .wge-main {
+    position: relative;
+  }
+
+  .wge-cfg {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    bottom: 12px;
+    width: 290px;
+    max-width: min(290px, calc(100vw - 200px));
+    z-index: 6;
+    box-shadow: var(--m-shadow-2, var(--theme-shadow-2));
+  }
 }

@@ -235,4 +235,43 @@ describe('WorkflowTable (F2)', () => {
     expect(screen.queryByText(/delete/i)).toBeNull()
     expect(screen.queryByRole('button', { name: /delete/i })).toBeNull()
   })
+
+  // QA1 F1-2/F2-1: LAST RUN is "—" when the API ships no run data —
+  // "never" is only for an explicit 0.
+  it('shows an em dash LAST RUN when run_count is unknown, "never" only at 0 (QA1 F1-2)', () => {
+    const unknown = makeWf({ id: 'w1', name: 'Unknown Runs' })
+    delete (unknown as Partial<WorkflowSummary>).run_count
+    const zero = makeWf({ id: 'w2', name: 'Zero Runs', run_count: 0 })
+    const three = makeWf({ id: 'w3', name: 'Three Runs', run_count: 3 })
+
+    renderWithClient(
+      <WorkflowTable workflows={[unknown, zero, three]} onSelect={vi.fn()} />,
+    )
+
+    const rows = screen.getAllByRole('row')
+    // Row 1 (after header): unknown → em dash, not "never"
+    expect(rows[1].textContent).toContain('—')
+    expect(rows[1].textContent).not.toMatch(/never/)
+    // Row 2: explicit 0 → "never"
+    expect(rows[2].textContent).toMatch(/never/)
+    // Row 3: real count
+    expect(rows[3].textContent).toMatch(/3 runs/)
+  })
+
+  // QA1 F1-3/F2-1: VER is "—" for a null version, not "v1".
+  it('shows an em dash VER for a null version (QA1 F1-3)', () => {
+    renderWithClient(
+      <WorkflowTable
+        workflows={[
+          makeWf({ id: 'w1', name: 'No Version' }),
+          makeWf({ id: 'w2', name: 'Versioned', version: '4' }),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    )
+    const rows = screen.getAllByRole('row')
+    expect(rows[1].textContent).not.toContain('v1')
+    expect(rows[1].textContent).toContain('—')
+    expect(rows[2].textContent).toContain('v4')
+  })
 })

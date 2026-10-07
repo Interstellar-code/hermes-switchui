@@ -57,7 +57,8 @@ export interface WorkflowSummary {
   when_to_use: string
   dag_depth: number
   max_parallelism: number
-  run_count: number
+  /** Absent when the definitions API returns no run data — render "—", not 0. */
+  run_count?: number
   dag: Array<WorkflowDagNode>
   dag_edges: Array<[string, string]>
   yaml: string
@@ -107,10 +108,16 @@ export interface ParsedWorkflow {
   node_count: number
 }
 
+/** Version chip text: "—" when the API gives no version (QA1 F1-3). */
+export function formatVersion(version?: string | null): string {
+  return version ? `v${version}` : '—'
+}
+
 /** Utility: relative time string from ISO/epoch timestamp */
 export function relativeTime(ts: string | number | null | undefined): string {
   if (!ts) return 'Never'
-  const d = typeof ts === 'number' ? new Date(ts * 1000) : new Date(ts)
+  // Numeric timestamps from the workflow API are epoch ms, not seconds.
+  const d = typeof ts === 'number' ? new Date(ts) : new Date(ts)
   if (isNaN(d.getTime())) return 'Never'
   const sec = Math.floor((Date.now() - d.getTime()) / 1000)
   if (sec < 60) return 'just now'
