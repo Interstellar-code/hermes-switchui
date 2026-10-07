@@ -15,6 +15,7 @@
  * Design source: docs/Design Assets/Hermes-Switchui/workflows-app.jsx + Workflows.html
  */
 import { useEffect, useMemo, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   useUpsertWorkflowDefinition,
   useWorkflowDefinitions,
@@ -128,6 +129,7 @@ export function NewWorkflowWizard({
   const upsert = useUpsertWorkflowDefinition()
   const defs = useWorkflowDefinitions()
   const existingWorkflows = defs.data
+  const queryClient = useQueryClient()
 
   // null while the catalog is missing: a 409 alone must not make other ids
   // look free. Conflicts are checked separately by the validation hook.
@@ -348,7 +350,16 @@ export function NewWorkflowWizard({
         setRunAfter(saveId)
         return
       }
-      if (openAfter) onOpenWorkflow?.(saveId)
+      if (openAfter) {
+        // QA2 F5-3: the definitions refetch must land BEFORE ?wf= is set —
+        // the library clears a selected id that is not in the loaded list,
+        // and the stale post-save list does not contain the new id yet, so
+        // navigating immediately dropped the deep link back to /workflows.
+        await queryClient.invalidateQueries({
+          queryKey: ['workflow-definitions'],
+        })
+        onOpenWorkflow?.(saveId)
+      }
       onClose()
     } catch (err) {
       const { status, code } = err as { status?: number; code?: string }

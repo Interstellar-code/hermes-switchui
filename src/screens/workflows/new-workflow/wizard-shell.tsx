@@ -86,7 +86,11 @@ export function WizardShell({
                     disabled={i > stepIndex}
                     onClick={() => onStepClick(i)}
                   >
-                    {i + 1} {i < stepIndex ? '✓' : s.title.toUpperCase()}
+                    {/* QA2 F5-5: completed steps keep their label. */}
+                    {i + 1}{' '}
+                    {i < stepIndex
+                      ? `✓ ${s.title.toUpperCase()}`
+                      : s.title.toUpperCase()}
                   </button>
                 </li>
               ))}

@@ -292,6 +292,34 @@ describe('WorkflowTable (F2)', () => {
     expect(rows[2].textContent).toContain('v4')
   })
 
+  // QA2 F1-6: user rows must show USER even when user_modified=1 (the table
+  // had its own chip copy with the old precedence).
+  it('labels user rows USER in the table, not MODIFIED (QA2 F1-6)', () => {
+    renderWithClient(
+      <WorkflowTable
+        workflows={[
+          makeWf({
+            id: 'w1',
+            name: 'User WF',
+            source: 'user',
+            user_modified: 1,
+          }),
+          makeWf({
+            id: 'w2',
+            name: 'Tweaked Factory',
+            source: 'bundled',
+            user_modified: 1,
+          }),
+        ]}
+        onSelect={vi.fn()}
+      />,
+    )
+    const rows = screen.getAllByRole('row')
+    expect(rows[1].textContent).toContain('USER')
+    expect(rows[1].textContent).not.toContain('MODIFIED')
+    expect(rows[2].textContent).toContain('MODIFIED')
+  })
+
   // F8: the bulk bar gains DELETE… which opens the confirmation dialog.
   it('DELETE… in the bulk bar opens the bulk delete dialog (F8)', () => {
     const workflows = [

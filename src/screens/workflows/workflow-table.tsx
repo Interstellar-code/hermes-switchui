@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
-import { NodeTypeBar } from './workflow-grid'
+import { NodeTypeBar, renderOriginChip } from './workflow-grid'
 import { BulkDeleteDialog } from './bulk-delete-dialog'
 import { getScheduleLabel } from './schedule'
 import { formatVersion, relativeTime } from './types'
-import type { WorkflowSource, WorkflowSummary } from './types'
+import type { WorkflowSummary } from './types'
 
 export type TableSortCol =
   | 'name'
@@ -24,35 +24,6 @@ export interface WorkflowTableProps {
   onEdit?: (id: string) => void
   onOpenLaunchWizard?: (id: string) => void
   onDuplicate?: (workflow: WorkflowSummary) => void
-}
-
-function renderOriginChip(source: WorkflowSource, userModified?: 0 | 1) {
-  if (userModified === 1) {
-    return (
-      <span className="chip cy" style={{ flexShrink: 0 }}>
-        MODIFIED
-      </span>
-    )
-  }
-  if (source === 'user') {
-    return (
-      <span className="chip cy" style={{ flexShrink: 0 }}>
-        USER
-      </span>
-    )
-  }
-  if (source === 'project') {
-    return (
-      <span className="chip pu" style={{ flexShrink: 0 }}>
-        PROJECT
-      </span>
-    )
-  }
-  return (
-    <span className="chip mu" style={{ flexShrink: 0 }}>
-      FACTORY
-    </span>
-  )
 }
 
 function formatEditedTime(wf: WorkflowSummary): string {

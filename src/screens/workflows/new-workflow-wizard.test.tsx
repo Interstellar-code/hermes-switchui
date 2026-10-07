@@ -8,6 +8,14 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  useNavigate,
+} from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { WorkflowEngineUnavailableError } from './api-client'
 import * as apiClient from './api-client'
@@ -1178,5 +1186,145 @@ nodes:
     const title = await screen.findByText(/! Risky shell · soft/i)
     expect(title.textContent).not.toMatch(/line/i)
     expect(title.closest('.wz2-risk-i')?.querySelector('code')).toBeNull()
+  })
+})
+
+describe('QA2 F5-3 — "Open in Workflows after save" navigates to ?wf= via the router', () => {
+  it('waits for the definitions refetch, then navigates (real router)', async () => {
+    const VALID = `name: Router Flow\nnodes:\n  - id: n1\n    prompt: hi\n`
+    let listCalls = 0
+    let releaseList!: (r: Response) => void
+    const deferredList = new Promise<Response>((res) => {
+      releaseList = res
+    })
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((url: string, init?: RequestInit) => {
+        if (url.includes('/api/workflow-features'))
+          return Promise.resolve(
+            jsonRes({ features: [], schedulerAlive: false, profile: null }),
+          )
+        if (
+          url.includes('/api/workflow-definitions') &&
+          init?.method === 'POST'
+        ) {
+          return Promise.resolve(
+            jsonRes({ definition: { id: 'router-saved-1' } }),
+          )
+        }
+        if (url.includes('/api/workflow-definitions')) {
+          listCalls++
+          // Initial mount list resolves; the post-save refetch is deferred.
+          if (listCalls === 1)
+            return Promise.resolve(
+              jsonRes({ definitions: SAMPLE_TEMPLATES, engine_ok: true }),
+            )
+          return deferredList
+        }
+        return Promise.resolve(new Response('{}', { status: 200 }))
+      })
+    vi.stubGlobal('fetch', fetchMock)
+
+    // Real router, exactly like the layout: ?wf= is written via navigate().
+    let navigateRef: ((s: { wf: string }) => void) | null = null
+    const rootRoute = createRootRoute()
+    const wfRoute = createRoute({
+      getParentRoute: () => rootRoute,
+      path: '/workflows',
+      component: function Host() {
+        const navigate = useNavigate()
+        navigateRef = (search) =>
+          void navigate({
+            to: '/workflows',
+            search: ((s: Record<string, unknown>) => ({
+              ...s,
+              ...search,
+            })) as never,
+          })
+        return (
+          <NewWorkflowWizard
+            initialYaml={VALID}
+            initialId="router-saved-1"
+            onClose={vi.fn()}
+            onOpenWorkflow={(id) => navigateRef?.({ wf: id })}
+          />
+        )
+      },
+    })
+    const routeTree = rootRoute.addChildren([wfRoute])
+    const router = createRouter({
+      routeTree,
+      history: createMemoryHistory({ initialEntries: ['/workflows'] }),
+    })
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>,
+    )
+
+    await screen.findByRole('button', { name: /next/i })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await screen.findByText(/AVAILABLE/i)
+    fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
+
+    // Save POST resolved, but the definitions refetch is still in flight —
+    // navigating now would race the library's not-visible clear (QA2 F5-3).
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.filter(
+          ([url, init]) =>
+            String(url).includes('/api/workflow-definitions') &&
+            (init as RequestInit | undefined)?.method === 'POST',
+        ),
+      ).toHaveLength(1)
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect((router.state.location.search as { wf?: string }).wf).toBeUndefined()
+
+    // Refetch lands with the saved id; only then does ?wf= appear.
+    releaseList(
+      jsonRes({
+        definitions: [
+          ...SAMPLE_TEMPLATES,
+          { ...SAMPLE_TEMPLATES[0], id: 'router-saved-1' },
+        ],
+        engine_ok: true,
+      }),
+    )
+    await waitFor(() => {
+      expect((router.state.location.search as { wf?: string }).wf).toBe(
+        'router-saved-1',
+      )
+    })
+  })
+})
+
+describe('QA2 F5-5 — stepper keeps labels on completed steps', () => {
+  it('a completed step shows its number, check AND label', async () => {
+    stubWizardFetch({
+      features: [],
+      onSave: () => jsonRes({ definition: { id: 'x' } }),
+    })
+    renderWizard({
+      initialYaml: `name: Safe\nnodes:\n  - id: n1\n    prompt: hello\n`,
+      initialId: 'step-labels',
+    })
+    const next = await screen.findByRole('button', { name: /next/i })
+    // Step 0 (Source) pending: label, no check.
+    expect(screen.getByText(/^1 SOURCE$/)).toBeTruthy()
+    fireEvent.click(next)
+    await screen.findAllByRole('button')
+    // Step 0 done — the label stays ("1 ✓ SOURCE", not "1 ✓").
+    expect(screen.getByText(/^1 ✓ SOURCE$/)).toBeTruthy()
+    expect(screen.queryByText(/^1 ✓$/)).toBeNull()
   })
 })

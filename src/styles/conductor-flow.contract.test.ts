@@ -81,11 +81,63 @@ describe('editor layout (QA1 F4-2)', () => {
     expect(graphEditorCss).toMatch(/\.wge-etb\s*\{[^}]*flex-wrap:\s*wrap/s)
   })
 
-  it('gives the canvas a usable minimum width and overlays the node panel at ≤1280', () => {
+  it('gives the canvas a usable minimum width and a ≤1280 reflow', () => {
     expect(graphEditorCss).toMatch(
       /\.wge-canvas-wrap\s*\{[^}]*min-width:\s*320px/s,
     )
     expect(graphEditorCss).toMatch(/@media\s*\(max-width:\s*1280px\)/)
-    expect(graphEditorCss).toMatch(/\.wge-cfg\s*\{[^}]*position:\s*absolute/s)
+    // QA2 NEW-3: the absolute-overlay variant covered SAVE/DISCARD — gone.
+    expect(graphEditorCss).not.toMatch(
+      /\.wge-cfg\s*\{[^}]*position:\s*absolute/s,
+    )
+  })
+})
+
+describe('canvas heights everywhere FlowCanvas renders (QA2 NEW-2/F1-4/F3-2)', () => {
+  it('.flow-host fills block parents: height 100% (flex parents keep flex-basis sizing)', () => {
+    const rule = flowCss.match(/^\.flow-host\s*\{[^}]*\}/m)
+    expect(rule?.[0]).toMatch(/height:\s*100%/)
+  })
+
+  it('the detail graph container is a flex column so .flow-host fills it', () => {
+    const wrap = read('src/styles/workflow-detail.css').match(
+      /\.wfd-canvas-wrap\s*\{[^}]*\}/,
+    )
+    expect(wrap?.[0]).toMatch(/display:\s*flex/)
+    expect(wrap?.[0]).toMatch(/flex-direction:\s*column/)
+    // both variants keep a definite height
+    const detailCss = read('src/styles/workflow-detail.css')
+    expect(detailCss).toMatch(/\.wfd-canvas-overview\s*\{[^}]*height:/s)
+    expect(detailCss).toMatch(/\.wfd-canvas-full\s*\{[^}]*min-height:/s)
+  })
+
+  it('the card preview box has an explicit height for the canvas to fill', () => {
+    const pv = read('src/styles/matrix-workflows.css').match(
+      /(^|\n)\s+\.pv\s*\{[^}]*\}/,
+    )
+    expect(pv?.[0]).toMatch(/height:\s*86px/)
+  })
+})
+
+describe('editor layout at ≤1280 (QA2 NEW-3/F4-2)', () => {
+  const media = graphEditorCss.match(
+    /@media\s*\(max-width:\s*1280px\)\s*\{[\s\S]*\n\}/,
+  )
+
+  it('no absolutely positioned config panel: everything reflows in flow', () => {
+    expect(media?.[0]).toBeTruthy()
+    expect(media?.[0]).not.toMatch(/position:\s*absolute/)
+  })
+
+  it('the palette becomes a horizontal strip and the centre takes full width', () => {
+    expect(media?.[0]).toMatch(/\.wge-pal\s*\{[^}]*flex-direction:\s*row/s)
+    expect(media?.[0]).toMatch(/\.wge-center\s*\{[^}]*flex:\s*1 1 100%/s)
+    expect(media?.[0]).toMatch(/\.wge-cfg\s*\{[^}]*flex:\s*1 1 100%/s)
+  })
+
+  it('the toolbar stays above every panel', () => {
+    // the layout rule (second .wge-etb occurrence), not the base one
+    const etb = graphEditorCss.match(/\.wge-etb\s*\{[^}]*z-index:\s*8[^}]*\}/s)
+    expect(etb?.[0]).toBeTruthy()
   })
 })

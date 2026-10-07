@@ -34,6 +34,7 @@ import type {
   UpsertWorkflowDefinitionInput,
   WorkflowDefinitionRow,
 } from './api-client'
+import type { QueryClient } from '@tanstack/react-query'
 import type { VersionTier, WorkflowSource, WorkflowSummary } from './types'
 
 /** JSON-encoded tags column → string[]; never throws (shared by the detail page). */
@@ -100,6 +101,11 @@ export function useWorkflowParsed(id: string | null) {
     enabled: !!id,
     staleTime: 30_000,
   })
+}
+
+/** Sidebar badge cache (QA2 F1-9): every definitions write must refresh it. */
+function invalidateNavWorkflowCount(queryClient: QueryClient) {
+  void queryClient.invalidateQueries({ queryKey: ['nav-count', 'workflows'] })
 }
 
 /** Snapshot history, newest first (feature `definition_versions`). */
@@ -271,6 +277,10 @@ export function useUpsertWorkflowDefinition() {
       void queryClient.invalidateQueries({
         queryKey: ['workflow-definitions', data.definition.id, 'parsed'],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['workflow-definitions', data.definition.id, 'versions'],
+      })
+      invalidateNavWorkflowCount(queryClient)
     },
   })
 }
@@ -284,6 +294,10 @@ export function useResetWorkflowDefinitionToFactory() {
       void queryClient.invalidateQueries({
         queryKey: ['workflow-definitions', data.definition.id, 'parsed'],
       })
+      void queryClient.invalidateQueries({
+        queryKey: ['workflow-definitions', data.definition.id, 'versions'],
+      })
+      invalidateNavWorkflowCount(queryClient)
     },
   })
 }
@@ -294,6 +308,7 @@ export function useDeleteWorkflowDefinition() {
     mutationFn: (id: string) => deleteWorkflowDefinition(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['workflow-definitions'] })
+      invalidateNavWorkflowCount(queryClient)
     },
   })
 }

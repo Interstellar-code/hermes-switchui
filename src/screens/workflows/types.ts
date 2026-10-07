@@ -113,11 +113,19 @@ export function formatVersion(version?: string | null): string {
   return version ? `v${version}` : '—'
 }
 
+/**
+ * Numeric workflow timestamps are a mix of epoch seconds (older rows, e.g.
+ * gateway-health-check-v2) and epoch milliseconds — anything below 1e12
+ * cannot be a current-era ms value, so it is seconds (QA2 NEW-1).
+ */
+export function toEpochMs(ts: number): number {
+  return ts < 1e12 ? ts * 1000 : ts
+}
+
 /** Utility: relative time string from ISO/epoch timestamp */
 export function relativeTime(ts: string | number | null | undefined): string {
   if (!ts) return 'Never'
-  // Numeric timestamps from the workflow API are epoch ms, not seconds.
-  const d = typeof ts === 'number' ? new Date(ts) : new Date(ts)
+  const d = typeof ts === 'number' ? new Date(toEpochMs(ts)) : new Date(ts)
   if (isNaN(d.getTime())) return 'Never'
   const sec = Math.floor((Date.now() - d.getTime()) / 1000)
   if (sec < 60) return 'just now'

@@ -1,17 +1,13 @@
 import { useMemo } from 'react'
 import { useWorkflowFeatures } from './use-workflows'
+import { toEpochMs } from './types'
 import type { WorkflowSummary } from './types'
 
 const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000
 
 export function isWithin7Days(ts: number | string | null | undefined): boolean {
   if (!ts) return false
-  const epoch =
-    typeof ts === 'number'
-      ? ts < 1e11
-        ? ts * 1000
-        : ts
-      : new Date(ts).getTime()
+  const epoch = typeof ts === 'number' ? toEpochMs(ts) : new Date(ts).getTime()
   if (isNaN(epoch) || epoch <= 0) return false
   const diff = Date.now() - epoch
   return diff >= 0 && diff <= SEVEN_DAYS_MS

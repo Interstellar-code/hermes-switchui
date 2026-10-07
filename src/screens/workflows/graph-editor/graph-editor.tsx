@@ -33,6 +33,7 @@ import {
   duplicateNode,
   findDanglingOutputRefs,
   getYamlParseError,
+  readWorkflowVersion,
   removeDependency,
   removeNodes,
   renameNode,
@@ -42,6 +43,7 @@ import {
   setNodeTimeout,
   setNodeTrigger,
   setNodeType,
+  setWorkflowVersion,
   suggestNodeId,
   wouldCreateCycle,
 } from './yaml-model'
@@ -445,7 +447,10 @@ export function WorkflowGraphEditor({
         description: def.description ?? undefined,
         source: def.source,
         scope_path: def.scope_path ?? undefined,
-        yaml: draft,
+        // QA2 F4-8: stamp the bumped version into the saved YAML so the
+        // label survives the round-trip (the engine never writes the row's
+        // version column on save).
+        yaml: setWorkflowVersion(draft, String(currentVersion + 1)),
         version: def.version ?? undefined,
         expected_checksum: expectedChecksum,
       })
@@ -536,7 +541,10 @@ export function WorkflowGraphEditor({
         ? PROVENANCE_LABEL[prov]
         : def.source
       : ''
-  const currentVersion = Math.max(1, parseInt(def?.version ?? '1', 10) || 1)
+  // QA2 F4-8: the row's version column is often null (the engine's upsert
+  // never writes it); the YAML's own `version:` label is the fallback.
+  const versionLabel = def?.version ?? readWorkflowVersion(def?.yaml ?? '')
+  const currentVersion = Math.max(1, parseInt(versionLabel ?? '1', 10) || 1)
   const noChecksum = !baseline?.checksum
   const saveDisabled =
     blockingErrors > 0 || !dirty || noChecksum || save.kind === 'saving'
@@ -666,7 +674,9 @@ export function WorkflowGraphEditor({
                   title={saveTitle}
                   onClick={handleSave}
                 >
-                  {save.kind === 'saving' ? 'SAVING…' : 'SAVE'}
+                  {save.kind === 'saving'
+                    ? 'SAVING…'
+                    : `SAVE AS v${currentVersion + 1}`}
                 </button>
               </>
             )}
@@ -681,11 +691,6 @@ export function WorkflowGraphEditor({
             >
               <div className="wge-chd">
                 <h2 className="wge-ttl">GRAPH · EDITING</h2>
-                {dirty && !isEmbedded && (
-                  <span className="wge-dirty">
-                    {changes} UNSAVED {changes === 1 ? 'CHANGE' : 'CHANGES'}
-                  </span>
-                )}
                 <span className="wge-grow" />
                 <span className="wge-meta">
                   drag from palette · connect by dragging a handle · Del removes

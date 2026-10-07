@@ -663,7 +663,39 @@ export function suggestNodeId(taken: Array<string>, base: string): string {
     const candidate = `${stem}-${n}`
     if (!used.has(candidate)) return candidate
   }
-  return `${stem}-${Date.now().toString(36)}`
+  return `${base}-${Date.now().toString(36)}`
+}
+
+/** Top-level `version:` label, or null when the YAML carries none. */
+export function readWorkflowVersion(text: string): string | null {
+  try {
+    const doc = parseDocument(text)
+    if (doc.errors.length > 0) return null
+    const root = doc.contents
+    if (!isMap(root)) return null
+    const v = (root as YAMLMap).get('version')
+    return typeof v === 'string' || typeof v === 'number' ? String(v) : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Stamp the top-level `version:` label into the YAML. The engine's upsert
+ * never writes the row's version column (QA2 F4-8), so the label travels in
+ * the YAML and readers fall back to it when the column is null.
+ */
+export function setWorkflowVersion(text: string, version: string): string {
+  const doc = parseDocument(text)
+  if (doc.errors.length > 0) {
+    throw new Error('Cannot edit: the draft YAML does not parse')
+  }
+  const root = doc.contents
+  if (!isMap(root)) {
+    throw new Error('Cannot edit: the draft has no top-level map')
+  }
+  ;(root as YAMLMap).set('version', version)
+  return String(doc)
 }
 
 /**

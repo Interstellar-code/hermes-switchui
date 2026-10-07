@@ -14,6 +14,7 @@ import {
 import { nodeColor } from '../node-colors'
 import { PROVENANCE_LABEL, provenanceOf } from '../provenance'
 import { formatVersion } from '../types'
+import { readWorkflowVersion } from '../graph-editor/yaml-model'
 import { WorkflowEngineUnavailableError } from '../api-client'
 import type { ParsedWorkflow, WorkflowInputDetail } from '../types'
 import type React from 'react'
@@ -308,7 +309,11 @@ export function WorkflowDetail({
   const isModifiedFactory = prov === 'modified-factory'
 
   const shortChecksum = def.checksum ? def.checksum.slice(0, 8) : '—'
-  const versionStr = formatVersion(def.version)
+  // QA2 F4-8: fall back to the YAML's `version:` label — the engine's save
+  // path never writes the row's version column, so a freshly saved workflow
+  // would otherwise still show "—" after "SAVE AS vN".
+  const yamlVersion = readWorkflowVersion(def.yaml)
+  const versionStr = formatVersion(def.version ?? yamlVersion)
   const editedStr = formatEditedTime(def.updated_at)
   // Real origin on the header chip: project rows showed "USER" before (F3-5).
   const originLabel = isFactory ? PROVENANCE_LABEL[prov] : def.source
@@ -938,7 +943,12 @@ export function WorkflowDetail({
                         {versions.slice(0, 3).map((v) => (
                           <tr key={v.checksum}>
                             <td className="wfd-k">
-                              {v.version ? `v${v.version}` : '—'}
+                              {formatVersion(
+                                v.version ??
+                                  (v.checksum === def.checksum
+                                    ? yamlVersion
+                                    : null),
+                              )}
                               {v.checksum === def.checksum && (
                                 <span className="wfd-chip wfd-chip-mu">
                                   CURRENT
@@ -1261,7 +1271,12 @@ export function WorkflowDetail({
                       {versions.map((v) => (
                         <tr key={v.checksum}>
                           <td className="wfd-k">
-                            {v.version ? `v${v.version}` : '—'}
+                            {formatVersion(
+                              v.version ??
+                                (v.checksum === def.checksum
+                                  ? yamlVersion
+                                  : null),
+                            )}
                             {v.checksum === def.checksum && (
                               <span className="wfd-chip wfd-chip-mu">
                                 CURRENT

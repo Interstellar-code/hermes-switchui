@@ -258,7 +258,7 @@ describe('WorkflowGraphEditor', () => {
     expect(
       screen.getByRole('button', { name: /Add approval node/i }),
     ).toBeTruthy()
-    expect(screen.getByRole('button', { name: /^SAVE$/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^SAVE AS v\d+$/i })).toBeTruthy()
     expect(container.querySelector('[data-editable="yes"]')).toBeTruthy()
     // client lint of the pristine definition: valid
     await act(async () => {
@@ -334,7 +334,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     // client lint: no_nodes is an error → save blocked
-    const save = screen.getByRole('button', { name: /^SAVE$/i })
+    const save = screen.getByRole('button', { name: /^SAVE AS v\d+$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
 
     // palette still works on the empty draft (nodes list recreated)
@@ -373,7 +373,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     expect(screen.getByText(/1 ERROR/i)).toBeTruthy()
-    const save = screen.getByRole('button', { name: /^SAVE$/i })
+    const save = screen.getByRole('button', { name: /^SAVE AS v\d+$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
     expect(save.getAttribute('title')).toContain('Fix 1 error')
   })
@@ -415,7 +415,7 @@ describe('WorkflowGraphEditor', () => {
     expect(mockValidate).toHaveBeenCalledWith(DEF_YAML, undefined)
     expect(screen.getByText(/1 ERROR · 1 WARNING/i)).toBeTruthy()
     expect(screen.getByText(/Cycle in depends_on/i)).toBeTruthy()
-    const save = screen.getByRole('button', { name: /^SAVE$/i })
+    const save = screen.getByRole('button', { name: /^SAVE AS v\d+$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
     // clicking the node ref in the panel focuses the node
     fireEvent.click(screen.getByRole('button', { name: 'extract' }))
@@ -429,7 +429,7 @@ describe('WorkflowGraphEditor', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
 
-    const save = screen.getByRole('button', { name: /^SAVE$/i })
+    const save = screen.getByRole('button', { name: /^SAVE AS v\d+$/i })
     await act(async () => {
       await vi.advanceTimersByTimeAsync(450)
     })
@@ -447,6 +447,25 @@ describe('WorkflowGraphEditor', () => {
     const savedYaml = mockUpsert.mock.calls[0][0]!.yaml as string
     expect(savedYaml).toContain('id: bash-node')
     expect(savedYaml).toContain('yt-dlp --flat-playlist')
+    // QA2 F4-8: the bumped version label travels in the saved YAML.
+    expect(savedYaml).toMatch(/^version: ['"]?3['"]?$/m)
+  })
+
+  it('labels the save button with the next version (QA2 F4-8)', async () => {
+    await renderReady()
+    // mock definition version is '2'
+    expect(screen.getByRole('button', { name: /^SAVE AS v3$/i })).toBeTruthy()
+  })
+
+  it('shows the unsaved-changes badge once, in the toolbar only (QA2 F4-6)', async () => {
+    await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20)
+    })
+    const badges = screen.getAllByText(/1 UNSAVED CHANGE/i)
+    expect(badges).toHaveLength(1)
+    expect(badges[0].closest('.wge-etb')).toBeTruthy()
   })
 
   it('409 conflict offers reload and overwrite (overwrite drops expected_checksum)', async () => {
@@ -473,7 +492,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^SAVE$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^SAVE AS v\d+$/i }))
       await vi.advanceTimersByTimeAsync(20)
     })
 
@@ -525,7 +544,7 @@ describe('WorkflowGraphEditor', () => {
       await vi.advanceTimersByTimeAsync(450)
     })
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: /^SAVE$/i }))
+      fireEvent.click(screen.getByRole('button', { name: /^SAVE AS v\d+$/i }))
       await vi.advanceTimersByTimeAsync(20)
     })
 
@@ -554,7 +573,7 @@ describe('WorkflowGraphEditor', () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(450)
     })
-    const save = screen.getByRole('button', { name: /^SAVE$/i })
+    const save = screen.getByRole('button', { name: /^SAVE AS v\d+$/i })
     expect(save.hasAttribute('disabled')).toBe(true)
     expect(save.getAttribute('title')).toMatch(/no checksum/i)
     expect(screen.getByText(/SAVE BLOCKED/)).toBeTruthy()

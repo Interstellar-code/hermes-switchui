@@ -332,6 +332,11 @@
 /* ── Canvas container ── */
 .wfd-canvas-wrap {
   position: relative;
+  /* QA2 NEW-2: a flex column makes .flow-host (flex: 1 1 0) actually fill
+     the overview's fixed 318px and the GRAPH tab's flexed height; the old
+     block parent left the canvas 2px tall (React Flow error #004). */
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
   background-color: var(--m-bg, var(--theme-bg));
   background-image: radial-gradient(

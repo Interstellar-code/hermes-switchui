@@ -752,15 +752,15 @@
   pointer-events: none;
 }
 
-/* ── layout (QA1 F4-2) ── */
+/* ── layout (QA1 F4-2 / QA2 NEW-3) ── */
 
-/* The toolbar wraps instead of overflowing under the config panel, so
-   SAVE/DISCARD are never covered at any width. */
+/* The toolbar wraps instead of overflowing, and stays above every panel. */
 .wge-etb {
   flex-wrap: wrap;
+  position: relative;
+  z-index: 8;
 }
 
-/* The canvas keeps a usable floor width instead of collapsing to 0. */
 .wge-canvas-row {
   min-width: 0;
   overflow-x: auto;
@@ -771,21 +771,52 @@
   min-width: 320px;
 }
 
-/* At ≤1280 the config panel overlays the canvas instead of squeezing it out
-   of the row (app sidebar 240 + filter rail 248 leave too little width). */
+/* At ≤1280 the three fixed columns no longer fit beside the app sidebar and
+   filter rail, and an absolutely positioned panel covered SAVE/DISCARD
+   (QA2 NEW-3). Instead everything reflows: the palette becomes a horizontal
+   strip, the centre column (toolbar + canvas) takes the full width — the
+   canvas keeps ≥480px even at 1024 — and the YAML mirror and the node
+   config panel move below the canvas. Nothing is overlaid, so the toolbar
+   is reachable at every width. */
 @media (max-width: 1280px) {
   .wge-main {
-    position: relative;
+    flex-wrap: wrap;
+  }
+
+  .wge-pal {
+    flex: 1 1 100%;
+    width: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    max-height: 92px;
+    overflow-y: auto;
+  }
+
+  .wge-pal .wge-meta {
+    margin-top: 0;
+  }
+
+  .wge-center {
+    flex: 1 1 100%;
+  }
+
+  .wge-canvas-row {
+    flex-wrap: wrap;
+  }
+
+  .wge-canvas-wrap {
+    min-width: 0;
+  }
+
+  .wge-mirror {
+    flex: 1 1 100%;
+    width: auto;
+    max-height: 40%;
   }
 
   .wge-cfg {
-    position: absolute;
-    top: 10px;
-    right: 14px;
-    bottom: 12px;
-    width: 290px;
-    max-width: min(290px, calc(100vw - 200px));
-    z-index: 6;
-    box-shadow: var(--m-shadow-2, var(--theme-shadow-2));
+    flex: 1 1 100%;
+    width: auto;
+    max-height: 42%;
   }
 }

@@ -14,6 +14,21 @@ describe('relativeTime — epoch-milliseconds input (QA1 F1-1)', () => {
     expect(relativeTime(ts)).toBe('3m ago')
   })
 
+  // QA2 NEW-1: some rows (e.g. gateway-health-check-v2) carry epoch SECONDS
+  // — on e658e043 that rendered "20712d ago".
+  it('treats sub-1e12 numbers as epoch seconds (QA2 NEW-1)', () => {
+    const seconds = Math.floor((Date.now() - 5 * 60 * 1000) / 1000)
+    expect(relativeTime(seconds)).toBe('5m ago')
+    const days = Math.floor((Date.now() - 2 * 24 * 3600 * 1000) / 1000)
+    expect(relativeTime(days)).toBe('2d ago')
+  })
+
+  it('still treats 1e12+ numbers as epoch milliseconds', () => {
+    const ms = Date.now() - 4 * 60 * 1000
+    expect(ms).toBeGreaterThan(1e12)
+    expect(relativeTime(ms)).toBe('4m ago')
+  })
+
   it('renders hours ago for a numeric ms timestamp', () => {
     const ts = Date.now() - 2 * 60 * 60 * 1000
     expect(relativeTime(ts)).toBe('2h ago')

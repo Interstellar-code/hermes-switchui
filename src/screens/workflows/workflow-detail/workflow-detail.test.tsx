@@ -731,4 +731,25 @@ describe('WorkflowDetail VERSIONS (definition_versions feature)', () => {
     expect(screen.getAllByText(/^—$/).length).toBeGreaterThan(0)
     expect(screen.queryAllByText(/^v1$/)).toHaveLength(0)
   })
+
+  // QA2 F4-8: after "SAVE AS vN" the row version column stays null (the
+  // engine never writes it) — the chip falls back to the YAML's label.
+  it('falls back to the YAML version label when the column is null (QA2 F4-8)', () => {
+    mockWorkflowData = {
+      definition: {
+        ...mockDefinition,
+        version: null,
+        yaml: `version: 3\n${mockDefinition.yaml}`,
+      },
+      parsed: mockParsed,
+    }
+    render(
+      <WorkflowDetail
+        workflowId="youtube-catalog-intake"
+        onBack={vi.fn()}
+        onEditGraph={vi.fn()}
+      />,
+    )
+    expect(screen.getAllByText(/^v3$/).length).toBeGreaterThan(0)
+  })
 })

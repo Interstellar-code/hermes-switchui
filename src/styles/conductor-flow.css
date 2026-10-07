@@ -10,6 +10,12 @@
   position: relative;
   flex: 1 1 0;
   min-height: 0;
+  /* QA2 NEW-2/F1-4/F3-2: on the detail page and card previews the parent is
+     a block box with an explicit height, where `flex: 1 1 0` sizes nothing
+     and the canvas collapsed to 2px. height:100% fills those parents; in the
+     flex-column parents (Conductor, editor, wizard preview) flex-basis still
+     governs, so their layout is unchanged. */
+  height: 100%;
   border: 1px solid var(--m-border-faint, var(--theme-border));
   border-radius: var(--m-radius-lg, 8px);
   overflow: hidden;

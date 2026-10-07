@@ -169,7 +169,7 @@ function CardGraphPreview({ workflow }: { workflow: WorkflowSummary }) {
   )
 }
 
-function renderOriginChip(source: WorkflowSource, userModified?: 0 | 1) {
+export function renderOriginChip(source: WorkflowSource, userModified?: 0 | 1) {
   if (source === 'user') {
     return (
       <span className="chip cy" style={{ flexShrink: 0 }}>

@@ -111,10 +111,11 @@ export function BulkDeleteDialog({
     onCleared(
       result.results.filter((r) => r.outcome !== 'failed').map((r) => r.id),
     )
-    // Definitions list refreshed exactly once per run.
+    // Definitions list + sidebar badge refreshed exactly once per run.
     await queryClient.invalidateQueries({
       queryKey: ['workflow-definitions'],
     })
+    void queryClient.invalidateQueries({ queryKey: ['nav-count', 'workflows'] })
   }
 
   const failedRows = summary?.results.filter((r) => r.outcome === 'failed')
