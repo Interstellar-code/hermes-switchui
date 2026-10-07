@@ -1739,7 +1739,9 @@ export function NewWorkflowWizard({
         source,
         yaml,
         ...(kind === 'import' ? { save_source: 'import' as const } : {}),
-        ...(validation.hasCreateOnly ? { if_absent: true } : {}),
+        // Always create-only: a failed features fetch looks like `[]`, and
+        // older engines ignore the unknown key.
+        if_absent: true,
       })
       if (over.run) {
         // Hand over to the Run-workflow dialog for the freshly saved definition.

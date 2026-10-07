@@ -677,7 +677,7 @@ nodes:
     )
   })
 
-  it('sends if_absent when the create_only feature is listed, omits it otherwise', async () => {
+  it('sends if_absent whether or not the create_only feature is listed', async () => {
     const upsertSpy = vi
       .spyOn(apiClient, 'upsertWorkflowDefinition')
       .mockResolvedValue({
@@ -736,7 +736,8 @@ nodes:
     })
     expect(upsertSpy.mock.calls[0][0]).toMatchObject({ if_absent: true })
 
-    // Second save without the feature must NOT carry if_absent.
+    // Features empty (old engine, or a failed fetch, which also yields []):
+    // the save must still be create-only.
     upsertSpy.mockClear()
     cleanup()
     vi.stubGlobal(
@@ -777,7 +778,7 @@ nodes:
     await waitFor(() => {
       expect(upsertSpy).toHaveBeenCalledTimes(1)
     })
-    expect(upsertSpy.mock.calls[0][0]).not.toHaveProperty('if_absent')
+    expect(upsertSpy.mock.calls[0][0]).toMatchObject({ if_absent: true })
   })
 
   it('blocks Save while the id status is unknown and Retry re-checks the catalog', async () => {
