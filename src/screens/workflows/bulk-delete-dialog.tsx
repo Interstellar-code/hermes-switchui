@@ -200,6 +200,12 @@ export function BulkDeleteDialog({
                   />
                 </div>
               )}
+
+              <p className="wbd-warning" role="note">
+                Deleting removes the workflow{' '}
+                <strong>and its completed run history</strong>. Workflows with
+                an active run are skipped.
+              </p>
             </div>
             <div className="pf-confirm-actions">
               <button

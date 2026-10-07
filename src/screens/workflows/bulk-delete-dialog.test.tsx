@@ -58,14 +58,13 @@ function renderDialog(
   )
 }
 
-/** The route's real 409 body (F8 review LOW: tests used a made-up string). */
-const RUN_HISTORY_ERROR =
-  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250)."
+/** The route's 409 body on active run. */
+const ACTIVE_RUN_ERROR = 'Skipped — has an active run'
 
 /**
  * Route-like fetch mock (F8 review MED): mutating calls without a JSON
  * Content-Type get the same 415 the route's guard returns. DELETE /u2
- * fails with the real run-history 409; everything else 200.
+ * fails with 409; everything else 200.
  */
 function failingFetch() {
   return vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
@@ -82,7 +81,7 @@ function failingFetch() {
     }
     if (method === 'DELETE' && url.includes('/u2')) {
       return Promise.resolve(
-        new Response(JSON.stringify({ error: RUN_HISTORY_ERROR }), {
+        new Response(JSON.stringify({ error: ACTIVE_RUN_ERROR }), {
           status: 409,
           headers: { 'Content-Type': 'application/json' },
         }),
@@ -154,6 +153,14 @@ describe('BulkDeleteDialog — confirm view', () => {
     })
     expect(confirm.disabled).toBe(true)
   })
+
+  it('warns that deleting removes the workflow and its completed run history', () => {
+    renderDialog([makeWf('u1', 'user')])
+    expect(screen.getByText(/completed run history/i)).toBeTruthy()
+    expect(
+      screen.getByText(/Workflows with an active run are skipped/i),
+    ).toBeTruthy()
+  })
 })
 
 describe('BulkDeleteDialog — run + result view', () => {
@@ -167,7 +174,7 @@ describe('BulkDeleteDialog — run + result view', () => {
     // Dialog switches to the result view (never auto-closes on failure).
     expect(await screen.findByText('Bulk delete results')).toBeTruthy()
     expect(screen.getByText(/Deleted 1 · Reset 0 · Failed 1/)).toBeTruthy()
-    expect(screen.getByText(RUN_HISTORY_ERROR)).toBeTruthy()
+    expect(screen.getByText(ACTIVE_RUN_ERROR)).toBeTruthy()
     expect(screen.getByText("Can't delete — 1")).toBeTruthy()
     expect(screen.getByRole('button', { name: /close/i })).toBeTruthy()
 

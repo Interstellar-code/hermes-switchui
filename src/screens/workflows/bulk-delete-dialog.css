@@ -118,3 +118,15 @@
   font-size: 11px;
   color: var(--m-text, var(--theme-text));
 }
+
+.wbd-warning {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--m-amber-400, var(--theme-warning));
+}
+
+.wbd-warning strong {
+  font-weight: 700;
+  color: var(--m-text, var(--theme-text));
+}

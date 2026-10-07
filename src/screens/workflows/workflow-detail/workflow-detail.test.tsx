@@ -329,6 +329,7 @@ describe('WorkflowDetail', () => {
     // Click DELETE opens confirmation dialog
     fireEvent.click(deleteBtn)
     expect(screen.getByText('Delete workflow?')).toBeTruthy()
+    expect(screen.getByText(/completed run history/i)).toBeTruthy()
     expect(deleteMutateMock).not.toHaveBeenCalled()
 
     // Confirm in dialog

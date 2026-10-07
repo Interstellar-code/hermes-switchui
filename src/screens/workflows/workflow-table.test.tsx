@@ -364,8 +364,7 @@ describe('WorkflowTable (F2)', () => {
           return Promise.resolve(
             new Response(
               JSON.stringify({
-                error:
-                  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250).",
+                error: 'Cannot delete workflow with active runs',
               }),
               { status: 409, headers: { 'Content-Type': 'application/json' } },
             ),
@@ -382,7 +381,7 @@ describe('WorkflowTable (F2)', () => {
 
     const workflows = [
       makeWf({ id: 'u1', name: 'Kept Selected', source: 'user' }),
-      makeWf({ id: 'u2', name: 'Run History', source: 'user' }),
+      makeWf({ id: 'u2', name: 'Active Run', source: 'user' }),
     ]
     renderWithClient(<WorkflowTable workflows={workflows} onSelect={vi.fn()} />)
 
@@ -401,9 +400,7 @@ describe('WorkflowTable (F2)', () => {
     // u1 succeeded → dropped; u2 failed → still selected ("1 selected").
     await waitFor(() => expect(bulkBar().textContent).toMatch(/1 selected/))
     expect(
-      screen.getByText(
-        "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250).",
-      ),
+      screen.getByText('Cannot delete workflow with active runs'),
     ).toBeTruthy()
   })
 

@@ -45,9 +45,8 @@ function makeWf(
   }
 }
 
-/** The route's real 409 body (F8 review LOW: tests used a made-up string). */
-const RUN_HISTORY_ERROR =
-  "Can't delete — this workflow has run history. Removing runs isn't supported yet (hermes-agent#250)."
+/** The route's 409 body on active run. */
+const ACTIVE_RUN_ERROR = 'Skipped — has an active run'
 
 interface RecordedCall {
   method: string
@@ -74,7 +73,7 @@ function routeFetch(calls: Array<RecordedCall>) {
     }
     if (method === 'DELETE') {
       if (url.includes('/u2'))
-        return Promise.resolve(jsonResponse({ error: RUN_HISTORY_ERROR }, 409))
+        return Promise.resolve(jsonResponse({ error: ACTIVE_RUN_ERROR }, 409))
       return Promise.resolve(jsonResponse({}, 200))
     }
     if (method === 'POST' && url.includes('/reset-factory')) {
@@ -163,7 +162,7 @@ describe('executeBulkDelete', () => {
     expect(byId.f1.outcome).toBe('reset')
     expect(byId.u2.outcome).toBe('failed')
     // The server's message, verbatim.
-    expect(byId.u2.message).toBe(RUN_HISTORY_ERROR)
+    expect(byId.u2.message).toBe(ACTIVE_RUN_ERROR)
   })
 
   it('a failed row does not stop the run and is never retried', async () => {
@@ -268,5 +267,22 @@ describe('executeBulkDelete — guards (F8 review LOWs)', () => {
 
     expect(calls).toHaveLength(1) // the DELETE ran; the reset pass was aborted
     expect(summary.results.map((r) => r.id)).toEqual(['u1'])
+  })
+
+  it('uses default "Skipped — has an active run" on 409 without server message', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(
+          new Response(null, {
+            status: 409,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        ),
+      ),
+    )
+    const plan = planBulkDelete([makeWf('u1', 'user')], false)
+    const summary = await executeBulkDelete(plan)
+    expect(summary.results[0].message).toBe('Skipped — has an active run')
   })
 })

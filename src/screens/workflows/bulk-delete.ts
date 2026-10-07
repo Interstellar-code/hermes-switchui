@@ -3,7 +3,7 @@
  *
  * User decisions (user go 2026-10-07 10:35): hard delete through the
  * existing routes; user AND project rows delete; factory rows reset (only
- * when opted in); rows with run history fail server-side and are reported.
+ * when opted in); rows with an active run fail server-side (409) and are reported.
  * Calls run sequentially through the existing clients — no retries, no new
  * endpoints, and no result is claimed before the server answered.
  */
@@ -62,10 +62,11 @@ export function planBulkDelete(
 
 /**
  * Run the plan: deletes first, then resets, one row at a time. The route's
- * run-history 409, 403 on bundled and 404 all land as `failed` with the
- * server's message verbatim. A failed row never stops the run and is never
- * retried. `isAborted` is checked before each row (the dialog unmounted
- * mid-run): remaining rows are dropped and the results so far are returned.
+ * active-run 409, 403 on bundled and 404 all land as `failed` with the
+ * server's message verbatim (or "Skipped — has an active run" on 409). A
+ * failed row never stops the run and is never retried. `isAborted` is
+ * checked before each row (the dialog unmounted mid-run): remaining rows are
+ * dropped and the results so far are returned.
  */
 export async function executeBulkDelete(
   plan: BulkPlan,
@@ -102,11 +103,16 @@ function failedResult(
   fallback: string,
 ): BulkRowResult {
   const serverError = (err as { serverError?: string }).serverError
+  const status = (err as { status?: number }).status
+  let message = serverError
+  if ((!message || message === `HTTP ${status}`) && status === 409) {
+    message = 'Skipped — has an active run'
+  }
   return {
     id: wf.id,
     name: wf.name,
     outcome: 'failed',
-    message: serverError ?? (err instanceof Error ? err.message : fallback),
+    message: message ?? (err instanceof Error ? err.message : fallback),
   }
 }
 

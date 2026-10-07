@@ -1334,7 +1334,7 @@ export function WorkflowDetail({
         }
         message={
           confirmAction === 'delete'
-            ? `Delete workflow "${def.name}"? This cannot be undone.`
+            ? `Delete workflow "${def.name}"? Deleting removes the workflow and its completed run history. Workflows with an active run are skipped. This cannot be undone.`
             : `Discard user customizations and restore the factory definition for "${def.name}"?`
         }
         confirmLabel={
