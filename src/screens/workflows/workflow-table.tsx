@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { NodeTypeBar } from './workflow-grid'
+import { getScheduleLabel } from './schedule'
 import { relativeTime } from './types'
 import type { WorkflowSource, WorkflowSummary } from './types'
 
@@ -17,6 +19,8 @@ export type SortDirection = 'asc' | 'desc'
 export interface WorkflowTableProps {
   workflows: Array<WorkflowSummary>
   onSelect: (id: string) => void
+  /** EDIT opens the F4 graph editor (vs the name link → detail page). */
+  onEdit?: (id: string) => void
   onOpenLaunchWizard?: (id: string) => void
   onDuplicate?: (workflow: WorkflowSummary) => void
 }
@@ -50,11 +54,6 @@ function renderOriginChip(source: WorkflowSource, userModified?: 0 | 1) {
   )
 }
 
-function getScheduleLabel(yaml: string): string | null {
-  const match = /^\s*(?:schedule|cron):\s*(['"]?)([^'"\n\r]+)\1/m.exec(yaml)
-  return match ? match[2].trim() : null
-}
-
 function formatEditedTime(wf: WorkflowSummary): string {
   const ts = wf.updated_at ?? wf.created_at
   if (!ts) return 'Never'
@@ -64,7 +63,7 @@ function formatEditedTime(wf: WorkflowSummary): string {
 export function WorkflowTable({
   workflows,
   onSelect,
-  onOpenLaunchWizard: _onOpenLaunchWizard,
+  onEdit,
   onDuplicate,
 }: WorkflowTableProps) {
   // Sort state: default sort is 'edited' descending (newest first)
@@ -74,8 +73,14 @@ export function WorkflowTable({
   // Multi-select state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  // Hovered row for action visibility
-  const [hoveredId, setHoveredId] = useState<string | null>(null)
+  // Filters change the list under the selection: prune ids that vanished.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const present = new Set(workflows.map((w) => w.id))
+      const pruned = new Set([...prev].filter((id) => present.has(id)))
+      return pruned.size === prev.size ? prev : pruned
+    })
+  }, [workflows])
 
   // Duplication wizard state
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false)
@@ -126,9 +131,16 @@ export function WorkflowTable({
     return list
   }, [workflows, sortCol, sortDir])
 
-  // Select all toggle
+  // Select all toggle: membership-based (not size-only) + indeterminate box
   const allSelected =
-    workflows.length > 0 && selectedIds.size === workflows.length
+    workflows.length > 0 && workflows.every((w) => selectedIds.has(w.id))
+  const someSelected = selectedIds.size > 0 && !allSelected
+  const selectAllRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected
+    }
+  }, [someSelected, allSelected, selectedIds.size])
 
   function handleSelectAllToggle() {
     if (allSelected) {
@@ -170,22 +182,25 @@ export function WorkflowTable({
     const a = document.createElement('a')
     a.href = url
     a.download = `workflows-export-${Date.now()}.yaml`
+    document.body.appendChild(a)
     a.click()
-    URL.revokeObjectURL(url)
+    a.remove()
+    // Give the browser the click before freeing the blob URL.
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
+  // Duplicate is single-select: the wizard duplicates exactly one YAML draft.
   function handleDuplicateSelected() {
-    const selected = workflows.filter((w) => selectedIds.has(w.id))
-    if (selected.length === 1) {
-      handleDuplicateRow(selected[0], {
-        stopPropagation: () => {},
-      } as React.MouseEvent)
-    } else if (selected.length > 1) {
-      // Duplicate the first one in dialog
-      handleDuplicateRow(selected[0], {
-        stopPropagation: () => {},
-      } as React.MouseEvent)
+    if (selectedIds.size !== 1) return
+    const wf = workflows.find((w) => selectedIds.has(w.id))
+    if (!wf) return
+    if (onDuplicate) {
+      onDuplicate(wf)
+      return
     }
+    setDuplicateYaml(wf.yaml)
+    setDuplicateId(`${wf.id}-copy`)
+    setDuplicateModalOpen(true)
   }
 
   // Breakdown of selected items
@@ -242,9 +257,15 @@ export function WorkflowTable({
             type="button"
             className="btn sm"
             onClick={handleDuplicateSelected}
-            aria-label={`Duplicate (${selectedIds.size})`}
+            disabled={selectedIds.size !== 1}
+            title={
+              selectedIds.size === 1
+                ? 'Duplicate the selected workflow'
+                : 'Select exactly one workflow to duplicate'
+            }
+            aria-label="Duplicate selected workflow (single selection only)"
           >
-            DUPLICATE ({selectedIds.size})
+            DUPLICATE
           </button>
           <button
             type="button"
@@ -278,6 +299,7 @@ export function WorkflowTable({
             <tr>
               <th scope="col" className="c">
                 <input
+                  ref={selectAllRef}
                   type="checkbox"
                   aria-label={`Select all workflows (${selectedIds.size} of ${workflows.length} selected)`}
                   checked={allSelected}
@@ -404,10 +426,10 @@ export function WorkflowTable({
                 <button type="button">SCHEDULE</button>
               </th>
               <th scope="col" style={{ width: '64px' }}>
-                <button type="button">VALID</button>
+                VALID
               </th>
               <th scope="col" style={{ width: '96px' }}>
-                <button type="button">LAST RUN</button>
+                LAST RUN
               </th>
               <th scope="col" style={{ width: '122px' }}>
                 <span className="sr">Actions</span>
@@ -417,20 +439,15 @@ export function WorkflowTable({
           <tbody>
             {sortedWorkflows.map((wf) => {
               const isSelected = selectedIds.has(wf.id)
-              const isHovered = hoveredId === wf.id
               const totalInputs =
                 wf.required_inputs.length + wf.optional_inputs.length
               const schedule = getScheduleLabel(wf.yaml)
+              const lastUsed = wf.last_used_at
+                ? relativeTime(wf.last_used_at)
+                : null
 
               return (
-                <tr
-                  key={wf.id}
-                  className={`${isSelected ? 'sel' : ''}${isHovered ? ' hov' : ''}`}
-                  onMouseEnter={() => setHoveredId(wf.id)}
-                  onMouseLeave={() => setHoveredId(null)}
-                  onFocus={() => setHoveredId(wf.id)}
-                  onBlur={() => setHoveredId(null)}
-                >
+                <tr key={wf.id} className={isSelected ? 'sel' : ''}>
                   <td className="c">
                     <input
                       type="checkbox"
@@ -480,45 +497,31 @@ export function WorkflowTable({
                     )}
                   </td>
                   <td>
-                    <span className="ok" style={{ border: 0 }}>
-                      ✓
-                    </span>{' '}
-                    valid
+                    <span className="na" title="Validate on the detail page">
+                      —
+                    </span>
                   </td>
                   <td>
-                    {wf.run_count > 0 ? (
-                      <a
-                        className="na"
-                        href={`/conductor?wf=${encodeURIComponent(wf.id)}`}
-                        style={{ textDecoration: 'none' }}
-                        title="Open runs in Conductor"
-                      >
-                        <span style={{ color: '#00ff41' }}>
-                          <span className="pulse" /> running · ok
-                        </span>
-                      </a>
-                    ) : (
-                      <a
-                        className="na"
-                        href={`/conductor?wf=${encodeURIComponent(wf.id)}`}
-                        style={{ textDecoration: 'none' }}
-                        title="Open runs in Conductor"
-                      >
-                        <span className="na">
-                          <span className="g">○</span>never
-                        </span>
-                      </a>
-                    )}
-                  </td>
-                  <td>
-                    <div
-                      className="acts"
-                      style={{ visibility: isHovered ? 'visible' : 'hidden' }}
+                    <Link
+                      to="/conductor"
+                      className="na"
+                      style={{ textDecoration: 'none' }}
+                      title="Open runs in Conductor"
                     >
+                      {lastUsed ||
+                        (wf.run_count > 0
+                          ? `${wf.run_count} ${wf.run_count === 1 ? 'run' : 'runs'}`
+                          : 'never')}
+                    </Link>
+                  </td>
+                  <td>
+                    <div className="acts">
                       <button
                         type="button"
                         className="btn sm p"
-                        onClick={() => onSelect(wf.id)}
+                        onClick={() =>
+                          onEdit ? onEdit(wf.id) : onSelect(wf.id)
+                        }
                         aria-label={`Edit ${wf.name}`}
                       >
                         <svg
@@ -554,28 +557,6 @@ export function WorkflowTable({
                           <path d="M3.5 10.5h-1v-8h8v1" />
                         </svg>
                       </button>
-                      <button
-                        type="button"
-                        className="ib"
-                        aria-label={`More actions for ${wf.name}`}
-                        title="More actions"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelect(wf.id)
-                        }}
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 16 16"
-                          fill="currentColor"
-                          aria-hidden="true"
-                        >
-                          <circle cx="3.5" cy="8" r="1.3" />
-                          <circle cx="8" cy="8" r="1.3" />
-                          <circle cx="12.5" cy="8" r="1.3" />
-                        </svg>
-                      </button>
                     </div>
                   </td>
                 </tr>
@@ -592,7 +573,7 @@ export function WorkflowTable({
         <span>·</span>
         <span>row actions on hover / focus</span>
         <span>·</span>
-        <span>runs and history live in Conductor; last run links there</span>
+        <span>runs and history live in Conductor</span>
       </div>
 
       {duplicateModalOpen && (

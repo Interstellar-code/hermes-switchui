@@ -12,6 +12,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  applyEdgeChanges,
   getViewportForBounds,
   useNodesInitialized,
   useNodesState,
@@ -22,7 +23,8 @@ import { FlowControls } from './flow-controls'
 import { FlowNodeComponent } from './flow-node'
 import { mergePositions, toFlow } from './flow-model'
 import { StageLanes } from './stage-lanes'
-import type { FlowNode } from './flow-model'
+import type { Edge, EdgeChange } from '@xyflow/react'
+import type { FlowNode, FlowNodeMeta } from './flow-model'
 import type { DagModel } from '../dag-model'
 import { useConductorLayoutStore } from '@/stores/conductor-layout-store'
 import { nodeColor } from '@/screens/workflows/node-colors'
@@ -39,6 +41,40 @@ export interface FlowCanvasProps {
   focusNodeId?: string | null
   /** Bumped by RESET LAYOUT: back to the seeded layout, refit. */
   resetKey?: number
+  /**
+   * F4 graph editor (opt-in; Conductor defaults unchanged): connectable
+   * handles, Delete/Backspace removal, palette drop-to-add, selection
+   * tracking and editor-owned position overrides instead of the layout store.
+   */
+  editable?: boolean
+  /** editable: drag handle → handle means target depends_on source. */
+  onConnect?: (connection: { source: string; target: string }) => void
+  /**
+   * editable: one Delete keypress — removed nodes plus removed edges
+   * (= depends_on entries) that do not touch a removed node.
+   */
+  onDelete?: (deleted: {
+    nodeIds: Array<string>
+    edges: Array<{ source: string; target: string }>
+  }) => void
+  /** editable: palette drag-and-drop; position is in flow coordinates. */
+  onDropNode?: (nodeType: string, position: { x: number; y: number }) => void
+  /** editable: selection changes (node ids; empty = nothing selected). */
+  onSelectionChange?: (nodeIds: Array<string>) => void
+  /** editable: positions after a node drag (all nodes, flow coordinates). */
+  onPositionsChange?: (
+    positions: Record<string, { x: number; y: number }>,
+  ) => void
+  /** editable: editor-owned positions that win over seed/saved (drop spots). */
+  overridePositions?: Record<string, { x: number; y: number }>
+  /** editable: per-node editor visuals (subtitle, validation marker). */
+  nodeMeta?: Record<string, FlowNodeMeta>
+  /**
+   * F3 definition view (opt-in; Conductor defaults unchanged): nodes show
+   * their stage instead of run status, drag is session-only — nothing is
+   * read from or written to the shared Conductor layout store.
+   */
+  neutral?: boolean
 }
 
 // Pixel padding: a long chain is width-bound, so % padding would waste zoom.
@@ -62,16 +98,34 @@ function FlowCanvasInner({
   onNodeSelect,
   focusNodeId = null,
   resetKey = 0,
+  editable = false,
+  onConnect,
+  onDelete,
+  onDropNode,
+  onSelectionChange,
+  onPositionsChange,
+  overridePositions,
+  nodeMeta,
+  neutral = false,
 }: FlowCanvasProps) {
-  const { setViewport, setCenter, getNodes, getNode, getNodesBounds } =
-    useReactFlow<FlowNode>()
+  const {
+    setViewport,
+    setCenter,
+    screenToFlowPosition,
+    getNodes,
+    getNode,
+    getNodesBounds,
+  } = useReactFlow<FlowNode>()
   const hostRef = useRef<HTMLDivElement>(null)
+  // Neutral (definition) mode never reads or writes the shared layout store.
+  const storeId = neutral ? null : workflowId
   const saved = useConductorLayoutStore((s) =>
-    workflowId ? s.layouts[workflowId] : undefined,
+    storeId ? s.layouts[storeId] : undefined,
   )
   const savePositions = useConductorLayoutStore((s) => s.savePositions)
   const setLocked = useConductorLayoutStore((s) => s.setLocked)
-  const locked = saved?.locked ?? false
+  // The editor always allows dragging and never writes the Conductor store.
+  const locked = editable || neutral ? false : (saved?.locked ?? false)
 
   const seed = useMemo(() => layoutDag(dag).positions, [dag])
   const [initialNodes] = useState(
@@ -80,14 +134,62 @@ function FlowCanvasInner({
         dag,
         mergePositions(
           seed,
-          saved?.positions,
+          editable
+            ? { ...(saved?.positions ?? {}), ...overridePositions }
+            : saved?.positions,
           dag.nodes.map((n) => n.id),
         ),
         preview,
+        editable,
+        nodeMeta,
+        neutral,
       ).nodes,
   )
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const edges = useMemo(() => toFlow(dag, {}, preview).edges, [dag, preview])
+  const initialEdges = useMemo(
+    () => toFlow(dag, {}, preview, editable).edges,
+    [dag, preview, editable],
+  )
+  const [edges, setEdges] = useState<Array<Edge>>(initialEdges)
+
+  useEffect(() => {
+    setEdges((prev) => {
+      const selectedIds = new Set(
+        prev.filter((e) => e.selected).map((e) => e.id),
+      )
+      return toFlow(dag, {}, preview, editable).edges.map((e) => {
+        if (selectedIds.has(e.id)) return { ...e, selected: true }
+        return e
+      })
+    })
+  }, [dag, preview, editable])
+
+  // Editor: removals are never applied locally — the parent edits the YAML
+  // and the rebuilt dag redraws the canvas, so canvas and YAML cannot diverge.
+  const onEdgesChange = (changes: Array<EdgeChange>) => {
+    const local = changes.filter((c) => c.type !== 'remove')
+    if (local.length) setEdges((eds) => applyEdgeChanges(local, eds))
+  }
+  const onEditableNodesChange: typeof onNodesChange = (changes) => {
+    const local = changes.filter((c) => c.type !== 'remove')
+    if (local.length) onNodesChange(local)
+  }
+  // Single delete path: one callback per Delete keypress. Edges touching a
+  // deleted node are dropped (removeNodes scrubs them) → one undo step.
+  const handleDelete = ({
+    nodes: deletedNodes,
+    edges: deletedEdges,
+  }: {
+    nodes: Array<FlowNode>
+    edges: Array<Edge>
+  }) => {
+    const gone = new Set(deletedNodes.map((n) => n.id))
+    const kept = deletedEdges
+      .filter((e) => !gone.has(e.source) && !gone.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target }))
+    if (gone.size || kept.length)
+      onDelete?.({ nodeIds: [...gone], edges: kept })
+  }
 
   // Status polls rebuild node data; on-canvas positions (and measurements) stay.
   useEffect(() => {
@@ -95,11 +197,32 @@ function FlowCanvasInner({
       const current = Object.fromEntries(prev.map((n) => [n.id, n.position]))
       const ids = dag.nodes.map((n) => n.id)
       const byId = new Map(prev.map((n) => [n.id, n]))
-      return toFlow(dag, mergePositions(seed, current, ids), preview).nodes.map(
-        (n) => ({ ...byId.get(n.id), ...n }),
-      )
+      const base = editable ? { ...current, ...overridePositions } : current
+      return toFlow(
+        dag,
+        mergePositions(seed, base, ids),
+        preview,
+        editable,
+        nodeMeta,
+        neutral,
+      ).nodes.map((n) => {
+        const existing = byId.get(n.id)
+        const next = { ...existing, ...n }
+        // Editor rebuilds on validation updates; keep the selection.
+        if (editable && existing?.selected) next.selected = true
+        return next
+      })
     })
-  }, [dag, seed, preview, setNodes])
+  }, [
+    dag,
+    seed,
+    preview,
+    editable,
+    nodeMeta,
+    overridePositions,
+    neutral,
+    setNodes,
+  ])
 
   // Auto-fit follows container resizes until the user pans / zooms.
   const autoFit = useRef(true)
@@ -189,18 +312,50 @@ function FlowCanvasInner({
   }
 
   return (
-    <div ref={hostRef} className={`flow-host${preview ? ' preview' : ''}`}>
+    <div
+      ref={hostRef}
+      className={`flow-host${preview ? ' preview' : ''}${editable ? ' editable' : ''}`}
+      {...(editable
+        ? {
+            onDragOver: (event) => {
+              event.preventDefault()
+              event.dataTransfer.dropEffect = 'copy'
+            },
+            onDrop: (event) => {
+              if (!onDropNode) return
+              event.preventDefault()
+              const type = event.dataTransfer.getData(
+                'application/x-switchui-wf-node',
+              )
+              if (!type) return
+              onDropNode(
+                type,
+                screenToFlowPosition({
+                  x: event.clientX,
+                  y: event.clientY,
+                }),
+              )
+            },
+          }
+        : {})}
+    >
       <ReactFlow
-        aria-label={preview ? 'Mission flow preview' : 'Mission flow canvas'}
+        aria-label={
+          preview
+            ? 'Mission flow preview'
+            : editable
+              ? 'Workflow graph editor canvas'
+              : 'Mission flow canvas'
+        }
         nodes={nodes}
         edges={edges}
         nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        deleteKeyCode={null}
-        nodesConnectable={false}
+        onNodesChange={editable ? onEditableNodesChange : onNodesChange}
+        deleteKeyCode={editable ? ['Delete', 'Backspace'] : null}
+        nodesConnectable={editable}
         nodesDraggable={!locked && !preview}
         nodesFocusable={false}
-        edgesFocusable={false}
+        edgesFocusable={editable}
         elementsSelectable={!preview}
         panOnDrag={!preview}
         zoomOnScroll={!preview}
@@ -224,8 +379,35 @@ function FlowCanvasInner({
             ? (_, node) => onNodeSelect(node.id)
             : undefined
         }
+        onConnect={
+          editable && onConnect
+            ? (connection) => {
+                if (!connection.source || !connection.target) return
+                if (connection.source === connection.target) return
+                onConnect({
+                  source: connection.source,
+                  target: connection.target,
+                })
+              }
+            : undefined
+        }
+        onDelete={editable ? handleDelete : undefined}
+        onEdgesChange={editable ? onEdgesChange : undefined}
+        onSelectionChange={
+          editable && onSelectionChange
+            ? ({ nodes: selected }) =>
+                onSelectionChange(selected.map((n) => n.id))
+            : undefined
+        }
         onNodeDragStop={(_, __, dragged) => {
-          if (!workflowId) return
+          if (editable) {
+            if (!onPositionsChange) return
+            const current = new Map(getNodes().map((n) => [n.id, n.position]))
+            for (const n of dragged) current.set(n.id, n.position)
+            onPositionsChange(Object.fromEntries(current))
+            return
+          }
+          if (neutral || !workflowId) return
           const current = new Map(getNodes().map((n) => [n.id, n.position]))
           for (const n of dragged) current.set(n.id, n.position)
           // Only moved nodes persist; the rest keep following the seed.
@@ -244,8 +426,10 @@ function FlowCanvasInner({
           <>
             <FlowControls
               locked={locked}
-              lockDisabled={!workflowId}
-              onToggleLock={() => workflowId && setLocked(workflowId, !locked)}
+              lockDisabled={!workflowId || editable || neutral}
+              onToggleLock={() =>
+                !editable && workflowId && setLocked(workflowId, !locked)
+              }
               minimap={minimap}
               onToggleMinimap={() => setMinimap((m) => !m)}
               onFit={() => refit(200)}

@@ -1,4 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { NewWorkflowWizard } from './new-workflow-wizard'
 import { nodeColor } from './node-colors'
 import { isWithin7Days } from './workflows-top-bar'
@@ -11,6 +12,58 @@ import { FlowCanvas } from '@/screens/gateway/conductor/mission-canvas'
 
 export type SortKey = 'recent' | 'alpha' | 'nodes'
 export type ViewMode = 'grid' | 'table'
+
+/**
+ * ONE IntersectionObserver behind every card preview (F1/F2 review: was one
+ * per card). Elements register a callback until they intersect once, then
+ * unregister — the observer itself lives for the screen's lifetime.
+ */
+let sharedPreviewObserver: IntersectionObserver | null = null
+const pendingPreviews = new Map<Element, () => void>()
+function getSharedPreviewObserver(): IntersectionObserver {
+  if (!sharedPreviewObserver) {
+    sharedPreviewObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          const onVisible = pendingPreviews.get(entry.target)
+          if (onVisible) {
+            pendingPreviews.delete(entry.target)
+            sharedPreviewObserver?.unobserve(entry.target)
+            onVisible()
+          }
+        }
+      },
+      { rootMargin: '120px' },
+    )
+  }
+  return sharedPreviewObserver
+}
+
+function observePreview(el: Element, onVisible: () => void): () => void {
+  if (typeof IntersectionObserver === 'undefined') {
+    onVisible()
+    return () => {}
+  }
+  const observer = getSharedPreviewObserver()
+  pendingPreviews.set(el, onVisible)
+  observer.observe(el)
+  return () => {
+    pendingPreviews.delete(el)
+    observer.unobserve(el)
+  }
+}
+
+function useInView(): [React.RefObject<HTMLDivElement | null>, boolean] {
+  const ref = useRef<HTMLDivElement>(null)
+  const [isVisible, setIsVisible] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    return observePreview(el, () => setIsVisible(true))
+  }, [])
+  return [ref, isVisible]
+}
 
 export function cleanDescription(desc: string | null | undefined): string {
   if (!desc) return ''
@@ -81,31 +134,7 @@ export function NodeTypeBar({
 }
 
 function CardGraphPreview({ workflow }: { workflow: WorkflowSummary }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [isVisible, setIsVisible] = useState(false)
-
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    if (typeof IntersectionObserver === 'undefined') {
-      setIsVisible(true)
-      return
-    }
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            setIsVisible(true)
-            observer.disconnect()
-            break
-          }
-        }
-      },
-      { rootMargin: '120px' },
-    )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+  const [containerRef, isVisible] = useInView()
 
   const { data } = useWorkflowParsed(isVisible ? workflow.id : null)
   const dag = useMemo(() => {
@@ -190,19 +219,28 @@ function formatEditedTime(wf: WorkflowSummary): string {
 interface WorkflowGridProps {
   workflows: Array<WorkflowSummary>
   onSelect: (id: string) => void
+  /** EDIT opens the F4 graph editor (vs OPEN → detail page). */
+  onEdit?: (id: string) => void
   onOpenLaunchWizard?: (id: string) => void
   loadError?: string | null
   onRetry?: () => void
   onClearFilters?: () => void
+  /** Subgraphs in the UNFILTERED list (they are hidden from the grid). */
+  subgraphCount?: number
+  /** False on a fresh install → "No workflows yet" instead of "no match". */
+  hasAnyWorkflows?: boolean
 }
 
 export function WorkflowGrid({
   workflows,
   onSelect,
+  onEdit,
   onOpenLaunchWizard,
   loadError,
   onRetry,
   onClearFilters,
+  subgraphCount = 0,
+  hasAnyWorkflows = true,
 }: WorkflowGridProps) {
   // Sort default: recently edited
   const [sort, setSort] = useState<SortKey>('recent')
@@ -212,11 +250,6 @@ export function WorkflowGrid({
   const [duplicateModalOpen, setDuplicateModalOpen] = useState(false)
   const [duplicateYaml, setDuplicateYaml] = useState<string | undefined>()
   const [duplicateId, setDuplicateId] = useState<string | undefined>()
-
-  // Subgraph count
-  const hiddenSubgraphsCount = useMemo(() => {
-    return workflows.filter((w) => w.kind === 'subgraph').length
-  }, [workflows])
 
   // Recently edited top 4
   const recentlyEdited = useMemo(() => {
@@ -312,8 +345,57 @@ export function WorkflowGrid({
     )
   }
 
-  // Empty state when 0 workflows match
+  // Empty state: fresh install (no workflows exist) vs filters match nothing
   if (workflows.length === 0) {
+    if (!hasAnyWorkflows) {
+      return (
+        <div className="wfg-root" style={{ padding: '32px' }}>
+          <div className="qb ctr" style={{ textAlign: 'center' }}>
+            <h2 className="big" style={{ fontSize: '16px', fontWeight: 800 }}>
+              No workflows yet
+            </h2>
+            <p
+              className="txt"
+              style={{
+                margin: '8px 0 16px',
+                color: 'var(--m-text-muted, var(--theme-muted))',
+              }}
+            >
+              A workflow is a graph of prompt, bash, approval and loop nodes
+              that Hermes runs for you. Build one, or import a YAML file you
+              already have.
+            </p>
+            <div className="row" style={{ justifyContent: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="btn p sm"
+                onClick={() => {
+                  setDuplicateYaml(undefined)
+                  setDuplicateId(undefined)
+                  setDuplicateModalOpen(true)
+                }}
+              >
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  aria-hidden="true"
+                >
+                  <path d="M8 3v10M3 8h10" />
+                </svg>
+                NEW WORKFLOW
+              </button>
+            </div>
+            <p className="meta" style={{ marginTop: 14 }}>
+              Factory templates are seeded by the workflow-engine plugin.
+            </p>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="wfg-root" style={{ padding: '32px' }}>
         <div className="qb ctr" style={{ textAlign: 'center' }}>
@@ -324,7 +406,7 @@ export function WorkflowGrid({
             className="txt"
             style={{
               margin: '8px 0 16px',
-              color: 'var(--m-text-muted, #8fae9a)',
+              color: 'var(--m-text-muted, var(--theme-muted))',
             }}
           >
             No workflows match the current filters or search query.
@@ -350,10 +432,9 @@ export function WorkflowGrid({
         <span className="cnt">
           <b>{workflows.length}</b> WORKFLOWS
         </span>
-        {hiddenSubgraphsCount > 0 && (
+        {subgraphCount > 0 && (
           <span className="meta">
-            +{hiddenSubgraphsCount} subgraph
-            {hiddenSubgraphsCount > 1 ? 's' : ''} hidden
+            +{subgraphCount} subgraph{subgraphCount > 1 ? 's' : ''} hidden
           </span>
         )}
         <span className="grow" />
@@ -423,11 +504,14 @@ export function WorkflowGrid({
                     {recent7dCount} in the last 7 days
                   </span>
                   <span className="grow" />
-                  <a href="/conductor">RUNS LIVE IN CONDUCTOR →</a>
+                  <Link to="/conductor" className="meta">
+                    RUNS LIVE IN CONDUCTOR →
+                  </Link>
                 </div>
                 <div className="rr">
                   {recentlyEdited.map((wf) => (
                     <article key={wf.id} className="rc">
+                      <CardGraphPreview workflow={wf} />
                       <div className="r">
                         {renderOriginChip(wf.source, wf.user_modified)}
                         <span className="grow" />
@@ -439,15 +523,16 @@ export function WorkflowGrid({
                         {wf.name}
                       </h3>
                       <p className="l">
-                        {wf.node_count} nodes · {formatInputsSummary(wf)} ·
-                        valid
+                        {wf.node_count} nodes · {formatInputsSummary(wf)}
                       </p>
                       <NodeTypeBar workflow={wf} width="100%" />
                       <div className="r">
                         <button
                           type="button"
                           className="btn sm p"
-                          onClick={() => onSelect(wf.id)}
+                          onClick={() =>
+                            onEdit ? onEdit(wf.id) : onSelect(wf.id)
+                          }
                           aria-label={`Edit ${wf.name}`}
                         >
                           <svg
@@ -496,7 +581,7 @@ export function WorkflowGrid({
                   const tagPrompt =
                     wf.tags.length > 0 ? (
                       <>
-                        say <q>{wf.tags[0]}</q>
+                        tags: {wf.tags[0]}
                         {wf.tags.length > 1 && ` +${wf.tags.length - 1} more`}
                       </>
                     ) : (
@@ -542,11 +627,11 @@ export function WorkflowGrid({
                           )}
                           {wf.has_loop && <span className="chip yl">LOOP</span>}
                           <span className="grow" />
-                          <span>
-                            <span className="ok" style={{ border: 0 }}>
-                              ✓
-                            </span>{' '}
-                            valid
+                          <span
+                            className="na"
+                            title="Validate on the detail page"
+                          >
+                            —
                           </span>
                         </div>
                         <div className="cm">
@@ -554,18 +639,25 @@ export function WorkflowGrid({
                             v{wf.version || '1'} · edited {formatEditedTime(wf)}
                           </span>
                           <span className="grow" />
-                          {wf.run_count > 0 ? (
-                            <a
+                          {wf.last_used_at ? (
+                            <Link
+                              to="/conductor"
                               className="meta"
-                              href={`/conductor?wf=${encodeURIComponent(wf.id)}`}
                               style={{ textDecoration: 'none' }}
                             >
-                              last run{' '}
-                              <span className="ok" style={{ border: 0 }}>
-                                ✓
-                              </span>{' '}
-                              · Conductor →
-                            </a>
+                              last used {relativeTime(wf.last_used_at)} ·
+                              Conductor →
+                            </Link>
+                          ) : wf.run_count > 0 ? (
+                            <Link
+                              to="/conductor"
+                              className="meta"
+                              style={{ textDecoration: 'none' }}
+                            >
+                              {wf.run_count}{' '}
+                              {wf.run_count === 1 ? 'run' : 'runs'} · Conductor
+                              →
+                            </Link>
                           ) : (
                             <span className="meta">never run</span>
                           )}
@@ -574,7 +666,9 @@ export function WorkflowGrid({
                           <button
                             type="button"
                             className="btn sm p"
-                            onClick={() => onSelect(wf.id)}
+                            onClick={() =>
+                              onEdit ? onEdit(wf.id) : onSelect(wf.id)
+                            }
                             aria-label={`Edit ${wf.name}`}
                           >
                             <svg
@@ -653,6 +747,7 @@ export function WorkflowGrid({
           <WorkflowTable
             workflows={sortedWorkflows}
             onSelect={onSelect}
+            onEdit={onEdit}
             onOpenLaunchWizard={onOpenLaunchWizard}
           />
         )}

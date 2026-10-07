@@ -3,7 +3,17 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { WorkflowGrid, cleanDescription } from './workflow-grid'
+import type { ReactNode } from 'react'
 import type { WorkflowSummary } from './types'
+
+// Router Link stub: Conductor links must not need a router context.
+vi.mock('@tanstack/react-router', async () => {
+  const React = await import('react')
+  return {
+    Link: (props: { to?: string; children?: ReactNode }) =>
+      React.createElement('a', { href: props.to ?? '#' }, props.children),
+  }
+})
 
 afterEach(() => {
   cleanup()
@@ -88,6 +98,61 @@ describe('WorkflowGrid', () => {
     expect(
       screen.getByRole('heading', { name: /no workflows match/i }),
     ).toBeTruthy()
+  })
+
+  it('shows "No workflows yet" on a fresh install (hasAnyWorkflows=false)', () => {
+    renderWithClient(
+      <WorkflowGrid
+        workflows={[]}
+        onSelect={vi.fn()}
+        hasAnyWorkflows={false}
+      />,
+    )
+    expect(
+      screen.getByRole('heading', { name: /no workflows yet/i }),
+    ).toBeTruthy()
+    expect(
+      screen.queryByRole('heading', { name: /no workflows match/i }),
+    ).toBeNull()
+    expect(screen.getByRole('button', { name: /new workflow/i })).toBeTruthy()
+  })
+
+  it('counts hidden subgraphs from the unfiltered list, not the filtered one', () => {
+    const w = makeWf({ id: 'w1', name: 'Only One' })
+    renderWithClient(
+      <WorkflowGrid workflows={[w]} onSelect={vi.fn()} subgraphCount={2} />,
+    )
+    expect(screen.getByText(/\+2 subgraphs hidden/i)).toBeTruthy()
+  })
+
+  it('EDIT opens the graph editor (onEdit) while OPEN selects the detail page', () => {
+    const w = makeWf({ id: 'w1', name: 'Dual Buttons' })
+    const onSelect = vi.fn()
+    const onEdit = vi.fn()
+    renderWithClient(
+      <WorkflowGrid workflows={[w]} onSelect={onSelect} onEdit={onEdit} />,
+    )
+
+    const editBtn = screen.getAllByRole('button', {
+      name: /Edit Dual Buttons/i,
+    })
+    fireEvent.click(editBtn[editBtn.length - 1])
+    expect(onEdit).toHaveBeenCalledWith('w1')
+    expect(onSelect).not.toHaveBeenCalled()
+
+    const openBtns = screen.getAllByRole('button', { name: /^OPEN$/i })
+    fireEvent.click(openBtns[openBtns.length - 1])
+    expect(onSelect).toHaveBeenCalledWith('w1')
+    expect(onEdit).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders no invented validity or last-run state on cards', () => {
+    const w = makeWf({ id: 'w1', name: 'Honest Card', run_count: 3 })
+    renderWithClient(<WorkflowGrid workflows={[w]} onSelect={vi.fn()} />)
+    expect(screen.queryByText(/✓ valid/i)).toBeNull()
+    expect(screen.queryByText(/last run ✓/i)).toBeNull()
+    expect(screen.queryByText(/✓/)).toBeNull()
+    expect(screen.getByText(/3 runs · Conductor →/i)).toBeTruthy()
   })
 
   it('sorts by recently edited by default and renders stripped descriptions', () => {

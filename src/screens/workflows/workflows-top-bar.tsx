@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { useWorkflowFeatures } from './use-workflows'
 import type { WorkflowSummary } from './types'
 
 const SEVEN_DAYS_MS = 7 * 24 * 3600 * 1000
@@ -23,7 +24,6 @@ export interface HeaderStats {
   factory: number
   withApproval: number
   edited7d: number
-  yamlErrors: number
 }
 
 export function computeWorkflowStats(
@@ -34,7 +34,6 @@ export function computeWorkflowStats(
   let factory = 0
   let withApproval = 0
   let edited7d = 0
-  const yamlErrors = 0
 
   for (const w of workflows) {
     if (w.source === 'user') {
@@ -60,7 +59,6 @@ export function computeWorkflowStats(
     factory,
     withApproval,
     edited7d,
-    yamlErrors,
   }
 }
 
@@ -68,14 +66,20 @@ export interface WorkflowsTopBarProps {
   workflows?: Array<WorkflowSummary>
   templateCount?: number
   onRefresh?: () => void
+  /** Engine unreachable: stats show "—" instead of zeros. */
+  engineDown?: boolean
 }
 
 export function WorkflowsTopBar({
   workflows,
   templateCount = 0,
   onRefresh,
+  engineDown = false,
 }: WorkflowsTopBarProps) {
+  const { data: features } = useWorkflowFeatures()
+
   const stats = useMemo(() => {
+    if (engineDown) return null
     if (workflows) {
       return computeWorkflowStats(workflows)
     }
@@ -86,9 +90,18 @@ export function WorkflowsTopBar({
       factory: templateCount,
       withApproval: 0,
       edited7d: 0,
-      yamlErrors: 0,
     }
-  }, [workflows, templateCount])
+  }, [workflows, templateCount, engineDown])
+
+  // Pill only from real feature data: schedulerAlive true/false; hidden while
+  // unknown (query pending/failed) so we never invent "scheduler ok".
+  const schedulerKnown = features != null
+  const schedulerAlive = features?.schedulerAlive === true
+  const profile = features?.profile
+
+  function statValue(n: number): string {
+    return stats ? String(n) : '—'
+  }
 
   return (
     <header className="wf-top top" aria-label="Workflows header">
@@ -96,10 +109,23 @@ export function WorkflowsTopBar({
         <span className="crumb">
           SWITCH UI › <b>WORKFLOWS</b> · TEMPLATE LIBRARY
         </span>
-        <span className="pchip" title="Scheduler operational">
-          <span className="dot" style={{ background: '#00ff41' }} />
-          hermes-switch · scheduler ok
-        </span>
+        {schedulerKnown && (
+          <span
+            className={`pchip${schedulerAlive ? '' : ' down'}`}
+            title={
+              schedulerAlive
+                ? 'Engine scheduler reports alive'
+                : 'Engine scheduler reports down'
+            }
+          >
+            <span
+              className={`dot${schedulerAlive ? '' : ' down'}`}
+              aria-hidden="true"
+            />
+            {profile ? `${profile} · ` : ''}
+            {schedulerAlive ? 'scheduler ok' : 'scheduler down'}
+          </span>
+        )}
       </div>
 
       <span className="grow" />
@@ -109,45 +135,41 @@ export function WorkflowsTopBar({
         role="region"
         aria-label="Workflow statistics"
       >
-        <div className="st" title={`${stats.total} total workflows`}>
-          <span className="v">{stats.total}</span>
+        <div className="st" title={`${stats?.total ?? 0} total workflows`}>
+          <span className="v">{statValue(stats?.total ?? 0)}</span>
           <span className="l">WORKFLOWS</span>
         </div>
-        <div className="st" title={`${stats.user} user workflows`}>
-          <span className="v" style={{ color: '#5ad3ff' }}>
-            {stats.user}
-          </span>
+        <div
+          className="st st-user"
+          title={`${stats?.user ?? 0} user workflows`}
+        >
+          <span className="v">{statValue(stats?.user ?? 0)}</span>
           <span className="l">USER</span>
         </div>
-        <div className="st" title={`${stats.project} project workflows`}>
-          <span className="v" style={{ color: '#bf97ff' }}>
-            {stats.project}
-          </span>
+        <div
+          className="st st-project"
+          title={`${stats?.project ?? 0} project workflows`}
+        >
+          <span className="v">{statValue(stats?.project ?? 0)}</span>
           <span className="l">PROJECT</span>
         </div>
-        <div className="st" title={`${stats.factory} factory workflows`}>
-          <span className="v">{stats.factory}</span>
+        <div className="st" title={`${stats?.factory ?? 0} factory workflows`}>
+          <span className="v">{statValue(stats?.factory ?? 0)}</span>
           <span className="l">FACTORY</span>
         </div>
         <div
-          className="st"
-          title={`${stats.withApproval} workflows with approval gates`}
+          className="st st-approval"
+          title={`${stats?.withApproval ?? 0} workflows with approval gates`}
         >
-          <span className="v" style={{ color: '#ffb454' }}>
-            {stats.withApproval}
-          </span>
+          <span className="v">{statValue(stats?.withApproval ?? 0)}</span>
           <span className="l">WITH APPROVAL</span>
         </div>
         <div
           className="st"
-          title={`${stats.edited7d} workflows edited in 7 days`}
+          title={`${stats?.edited7d ?? 0} workflows edited in 7 days`}
         >
-          <span className="v">{stats.edited7d}</span>
+          <span className="v">{statValue(stats?.edited7d ?? 0)}</span>
           <span className="l">EDITED 7D</span>
-        </div>
-        <div className="st" title={`${stats.yamlErrors} YAML errors`}>
-          <span className="v">{stats.yamlErrors}</span>
-          <span className="l">YAML ERRORS</span>
         </div>
       </div>
 
