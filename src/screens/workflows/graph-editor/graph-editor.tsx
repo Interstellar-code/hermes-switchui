@@ -15,7 +15,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { useBlocker } from '@tanstack/react-router'
+import { useBlocker, useRouter } from '@tanstack/react-router'
 import {
   useUpsertWorkflowDefinition,
   useWorkflowFeatures,
@@ -94,18 +94,18 @@ function normaliseIssue(raw: {
   }
 }
 
+// TanStack history's per-entry position (history.state.__TSR_index).
+const HISTORY_INDEX = '__TSR_index'
+
 export interface WorkflowGraphEditorProps {
   workflowId: string
   /** Back to the detail page. */
   onExit: () => void
-  /** Lets the host screen guard in-app navigation while the draft is dirty. */
-  onRegisterGuard?: (guard: (() => boolean) | null) => void
 }
 
 export function WorkflowGraphEditor({
   workflowId,
   onExit,
-  onRegisterGuard,
 }: WorkflowGraphEditorProps) {
   const {
     data: defData,
@@ -225,18 +225,17 @@ export function WorkflowGraphEditor({
     }
   }
 
-  function handleNodesDelete(nodeIds: Array<string>) {
-    if (nodeIds.length === 0) return
-    applyEdit(removeNodes(draftRef.current, nodeIds))
-    if (selectedNodeId && nodeIds.includes(selectedNodeId)) {
-      setSelectedNodeId(null)
-    }
-    if (focusNodeId && nodeIds.includes(focusNodeId)) setFocusNodeId(null)
-  }
-
-  function handleEdgesDelete(edges: Array<{ source: string; target: string }>) {
-    // FlowCanvas already drops edges of nodes deleted in the same batch.
+  // One Delete keypress (or the panel's DELETE NODE) → one undo step.
+  function handleDelete({
+    nodeIds,
+    edges,
+  }: {
+    nodeIds: Array<string>
+    edges: Array<{ source: string; target: string }>
+  }) {
     let yaml = draftRef.current
+    if (nodeIds.length) yaml = removeNodes(yaml, nodeIds)
+    // FlowCanvas already drops edges of nodes deleted in the same batch.
     for (const { source, target } of edges) {
       try {
         yaml = removeDependency(yaml, target, source)
@@ -245,6 +244,10 @@ export function WorkflowGraphEditor({
       }
     }
     applyEdit(yaml)
+    if (selectedNodeId && nodeIds.includes(selectedNodeId)) {
+      setSelectedNodeId(null)
+    }
+    if (focusNodeId && nodeIds.includes(focusNodeId)) setFocusNodeId(null)
   }
 
   function handlePositionsChange(next: Record<string, Point>) {
@@ -337,7 +340,7 @@ export function WorkflowGraphEditor({
     }
   }, [draft, hasValidate, baseline])
 
-  // Leave-page guard: beforeunload + host-screen guard callback.
+  // Leave-page guard: beforeunload + router blocker.
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
   const changesRef = useRef(changes)
@@ -382,21 +385,39 @@ export function WorkflowGraphEditor({
   }
   const confirmLeaveRef = useRef(confirmLeave)
   confirmLeaveRef.current = confirmLeave
-  // App route changes (sidebar etc.). Browser Back/Forward are popstate and
-  // guarded once by the workflows layout — skipping them here avoids a
-  // second confirm for the same Back press.
+  // The one guard for every navigation: app links, the workflows layout's
+  // ?wf=/?run= changes, and browser Back/Forward/Go.
+  const router = useRouter()
   useBlocker({
-    shouldBlockFn: ({ action }) =>
-      action !== 'BACK' &&
-      action !== 'FORWARD' &&
-      action !== 'GO' &&
-      !confirmLeaveRef.current(),
+    shouldBlockFn: async ({ action, current, next }) => {
+      // Only another page or workflow (the layout's ?wf=) leaves the editor;
+      // ?run=/?wizard= changes keep it mounted.
+      const search = (l: typeof next) => l.search as Record<string, unknown>
+      if (
+        next.pathname === current.pathname &&
+        search(next).wf === search(current).wf
+      ) {
+        return false
+      }
+      if (action === 'PUSH' || action === 'REPLACE') {
+        return !confirmLeaveRef.current()
+      }
+      // A pop has already moved the browser. TanStack undoes a blocked pop
+      // with history.go(1), which is right only for Back — so step back by
+      // the real delta ourselves and let the router re-read the restored URL.
+      const delta =
+        Number(window.history.state?.[HISTORY_INDEX]) -
+        Number(router.history.location.state[HISTORY_INDEX])
+      if (confirmLeaveRef.current()) return false
+      if (!Number.isFinite(delta)) return true // unknown entry: TanStack's go(1)
+      await new Promise<void>((resolve) => {
+        window.addEventListener('popstate', () => resolve(), { once: true })
+        window.history.go(-delta)
+      })
+      return false
+    },
     enableBeforeUnload: false,
   })
-  useEffect(() => {
-    onRegisterGuard?.(() => confirmLeaveRef.current())
-    return () => onRegisterGuard?.(null)
-  }, [onRegisterGuard])
   useEffect(() => {
     if (!dirty) return
     function onBeforeUnload(event: BeforeUnloadEvent) {
@@ -662,8 +683,7 @@ export function WorkflowGraphEditor({
                     resetKey={autoLayoutKey}
                     focusNodeId={focusNodeId}
                     onConnect={handleConnect}
-                    onNodesDelete={handleNodesDelete}
-                    onEdgesDelete={handleEdgesDelete}
+                    onDelete={handleDelete}
                     onDropNode={(type, position) =>
                       handleAddNode(type as NodeType, position)
                     }
@@ -758,12 +778,20 @@ export function WorkflowGraphEditor({
               applyEdit(setNodeTrigger(draft, selectedNode.id, rule))
             }
             onRetryChange={(attempts) =>
-              applyEdit(setNodeRetry(draft, selectedNode.id, attempts))
+              applyEdit(
+                setNodeRetry(draft, selectedNode.id, attempts),
+                `${selectedNode.id}:retry`,
+              )
             }
             onTimeoutChange={(seconds) =>
-              applyEdit(setNodeTimeout(draft, selectedNode.id, seconds))
+              applyEdit(
+                setNodeTimeout(draft, selectedNode.id, seconds),
+                `${selectedNode.id}:timeout`,
+              )
             }
-            onDelete={() => handleNodesDelete([selectedNode.id])}
+            onDelete={() =>
+              handleDelete({ nodeIds: [selectedNode.id], edges: [] })
+            }
             onDuplicate={() => {
               try {
                 const result = duplicateNode(draft, selectedNode.id)

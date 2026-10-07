@@ -104,8 +104,10 @@ vi.mock('@/screens/gateway/conductor/mission-canvas', async () => {
       dag: { nodes: Array<{ id: string }>; edges: Array<[string, string]> }
       editable?: boolean
       onConnect?: (c: { source: string; target: string }) => void
-      onNodesDelete?: (ids: Array<string>) => void
-      onEdgesDelete?: (e: Array<{ source: string; target: string }>) => void
+      onDelete?: (d: {
+        nodeIds: Array<string>
+        edges: Array<{ source: string; target: string }>
+      }) => void
       onDropNode?: (t: string, p: { x: number; y: number }) => void
       onSelectionChange?: (ids: Array<string>) => void
     }) => (
@@ -145,7 +147,10 @@ vi.mock('@/screens/gateway/conductor/mission-canvas', async () => {
           data-testid="stub-delete-node"
           onClick={() => {
             const nodes = props.dag.nodes
-            props.onNodesDelete?.([nodes[nodes.length - 1].id])
+            props.onDelete?.({
+              nodeIds: [nodes[nodes.length - 1].id],
+              edges: [],
+            })
           }}
         >
           DELETE LAST NODE
@@ -156,7 +161,10 @@ vi.mock('@/screens/gateway/conductor/mission-canvas', async () => {
           onClick={() => {
             if (props.dag.edges.length === 0) return
             const [src, dst] = props.dag.edges[0]
-            props.onEdgesDelete?.([{ source: src, target: dst }])
+            props.onDelete?.({
+              nodeIds: [],
+              edges: [{ source: src, target: dst }],
+            })
           }}
         >
           DELETE FIRST EDGE
@@ -572,6 +580,21 @@ describe('WorkflowGraphEditor', () => {
     expect(mirrorYaml(container)).not.toContain('id: bash-node')
   })
 
+  it('typing "300" into TIMEOUT is one undo step', async () => {
+    const { container } = await renderReady()
+    fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
+    const timeout = container.querySelector('#wge-nto') as HTMLInputElement
+    for (const value of ['3', '30', '300']) {
+      fireEvent.change(timeout, { target: { value } })
+    }
+    openMirror()
+    expect(mirrorYaml(container)).toContain('timeout: 300')
+
+    fireEvent.click(screen.getByRole('button', { name: /Undo/i }))
+    expect(mirrorYaml(container)).not.toContain('timeout:')
+    expect(mirrorYaml(container)).toContain('id: bash-node')
+  })
+
   it('deleting a node with its edges is one undo step', async () => {
     const { container } = await renderReady()
     // canvas batch: the node plus the edge touching it (FlowCanvas drops the
@@ -632,25 +655,15 @@ describe('WorkflowGraphEditor', () => {
     confirmSpy.mockRestore()
   })
 
-  it('registers the guard with the host and discards via the confirm dialog', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false)
-    const onRegisterGuard = vi.fn()
-    const { container } = await renderReady({ onRegisterGuard })
-    await act(async () => {
-      await vi.advanceTimersByTimeAsync(0)
-    })
-    expect(onRegisterGuard).toHaveBeenCalled()
-    const guard = onRegisterGuard.mock.calls[0][0]!
-
+  it('discards via the confirm dialog', async () => {
+    const { container } = await renderReady()
     fireEvent.click(screen.getByRole('button', { name: /Add bash node/i }))
-    expect(guard()).toBe(false)
     openMirror()
     expect(mirrorYaml(container)).toContain('id: bash-node')
 
     confirmDiscardFlow()
     expect(mirrorYaml(container)).not.toContain('id: bash-node')
     expect(screen.queryByText(/UNSAVED/)).toBeNull()
-    confirmSpy.mockRestore()
   })
 })
 

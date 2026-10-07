@@ -49,10 +49,14 @@ export interface FlowCanvasProps {
   editable?: boolean
   /** editable: drag handle → handle means target depends_on source. */
   onConnect?: (connection: { source: string; target: string }) => void
-  /** editable: nodes removed with the Delete key / button. */
-  onNodesDelete?: (nodeIds: Array<string>) => void
-  /** editable: edges removed with the Delete key (= depends_on entries). */
-  onEdgesDelete?: (edges: Array<{ source: string; target: string }>) => void
+  /**
+   * editable: one Delete keypress — removed nodes plus removed edges
+   * (= depends_on entries) that do not touch a removed node.
+   */
+  onDelete?: (deleted: {
+    nodeIds: Array<string>
+    edges: Array<{ source: string; target: string }>
+  }) => void
   /** editable: palette drag-and-drop; position is in flow coordinates. */
   onDropNode?: (nodeType: string, position: { x: number; y: number }) => void
   /** editable: selection changes (node ids; empty = nothing selected). */
@@ -96,8 +100,7 @@ function FlowCanvasInner({
   resetKey = 0,
   editable = false,
   onConnect,
-  onNodesDelete,
-  onEdgesDelete,
+  onDelete,
   onDropNode,
   onSelectionChange,
   onPositionsChange,
@@ -173,7 +176,7 @@ function FlowCanvasInner({
   }
   // Single delete path: one callback per Delete keypress. Edges touching a
   // deleted node are dropped (removeNodes scrubs them) → one undo step.
-  const onDelete = ({
+  const handleDelete = ({
     nodes: deletedNodes,
     edges: deletedEdges,
   }: {
@@ -181,11 +184,11 @@ function FlowCanvasInner({
     edges: Array<Edge>
   }) => {
     const gone = new Set(deletedNodes.map((n) => n.id))
-    if (gone.size) onNodesDelete?.([...gone])
     const kept = deletedEdges
       .filter((e) => !gone.has(e.source) && !gone.has(e.target))
       .map((e) => ({ source: e.source, target: e.target }))
-    if (kept.length) onEdgesDelete?.(kept)
+    if (gone.size || kept.length)
+      onDelete?.({ nodeIds: [...gone], edges: kept })
   }
 
   // Status polls rebuild node data; on-canvas positions (and measurements) stay.
@@ -388,7 +391,7 @@ function FlowCanvasInner({
               }
             : undefined
         }
-        onDelete={editable ? onDelete : undefined}
+        onDelete={editable ? handleDelete : undefined}
         onEdgesChange={editable ? onEdgesChange : undefined}
         onSelectionChange={
           editable && onSelectionChange

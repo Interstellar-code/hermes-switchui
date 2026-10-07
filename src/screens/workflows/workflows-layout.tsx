@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
+import { useNavigate, useSearch } from '@tanstack/react-router'
 import { useWorkflowDefinitions } from './use-workflows'
 import { WorkflowsTopBar } from './workflows-top-bar'
 import { WorkflowLibrary } from './workflow-library'
@@ -9,16 +10,39 @@ import { LaunchWizard } from './launch-wizard'
 import { RunDetailPanel } from './run-detail-panel'
 import type { WorkflowSummary } from './types'
 
+const searchStr = (v: unknown): string | null =>
+  v == null || v === '' ? null : String(v)
+
 export function WorkflowsLayout() {
-  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
-    null,
-  )
-  const [isEditingGraph, setIsEditingGraph] = useState(false)
-  const [wizardOpenForId, setWizardOpenForId] = useState<string | null>(null)
-  const [activeRunId, setActiveRunId] = useState<string | null>(null)
+  // ?wf= / ?wizard= / ?run= are the view state (OPEN IN EDITOR, deep links,
+  // Back/Forward). All writes go through the router, so the graph editor's
+  // useBlocker is the one guard for every navigation away from a dirty draft.
+  const search: Record<string, unknown> = useSearch({ strict: false })
+  const navigate = useNavigate()
+  const selectedWorkflowId = searchStr(search.wf)
+  const wizardOpenForId = searchStr(search.wizard)
+  const activeRunId = searchStr(search.run)
+  function setSearch(
+    patch: Record<string, string | undefined>,
+    replace = false,
+  ) {
+    void navigate({
+      to: '/workflows',
+      // wf/wizard/run are not in the route's typed search.
+      search: ((s: Record<string, unknown>) => ({ ...s, ...patch })) as never,
+      replace,
+    })
+  }
+
+  // EDIT GRAPH has no URL of its own: the editor is open while this matches ?wf=.
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingFor, setEditingFor] = useState(selectedWorkflowId)
+  if (editingFor !== selectedWorkflowId) {
+    setEditingFor(selectedWorkflowId)
+    if (editingId !== selectedWorkflowId) setEditingId(null)
+  }
+  const isEditingGraph = editingId !== null && editingId === selectedWorkflowId
   const [railCollapsed, setRailCollapsed] = useState(false)
-  // F4: while the graph editor is open, it registers a dirty-leave guard.
-  const graphLeaveGuardRef = useRef<(() => boolean) | null>(null)
 
   // B.4: Library + Grid consume live data from /api/workflow-definitions.
   // B.4 Path B: Editor + Launch Wizard now load via useWorkflowParsed (parsed endpoint).
@@ -36,72 +60,12 @@ export function WorkflowsLayout() {
   // Bumped by the grid's CLEAR ALL FILTERS; the library resets on change.
   const [clearFiltersKey, setClearFiltersKey] = useState(0)
 
-  // Read ?wf=<id> (OPEN IN EDITOR), ?wizard=<id> and ?run=<id> on mount —
-  // and again on popstate so the browser Back button restores the view.
-  // Registered once: selection changes never re-read the URL. This is the
-  // only Back/Forward guard for a dirty graph editor (its router blocker
-  // skips popstate), so a Back press confirms exactly once.
-  useEffect(() => {
-    let undoingPop = false
-    function readUrlParams() {
-      const params = new URLSearchParams(window.location.search)
-      setSelectedWorkflowId(params.get('wf'))
-      setWizardOpenForId(params.get('wizard'))
-      setActiveRunId(params.get('run'))
-      if (!params.get('wf')) setIsEditingGraph(false)
-    }
-    function onPopState() {
-      if (undoingPop) {
-        undoingPop = false
-        return
-      }
-      const guard = graphLeaveGuardRef.current
-      if (guard && !guard()) {
-        // Cancelled: step forward again — the exact URL (wf/wizard/run) returns.
-        undoingPop = true
-        window.history.go(1)
-        return
-      }
-      readUrlParams()
-    }
-    readUrlParams()
-    window.addEventListener('popstate', onPopState)
-    return () => window.removeEventListener('popstate', onPopState)
-  }, [])
-
-  function handleOpenLaunchWizard(workflowId: string) {
-    setWizardOpenForId(workflowId)
-  }
-
-  function handleOpenRunPanel(runId: string) {
-    setActiveRunId(runId)
-    const url = new URL(window.location.href)
-    url.searchParams.set('run', runId)
-    window.history.pushState(null, '', url.toString())
-  }
-
-  function handleCloseRunPanel() {
-    setActiveRunId(null)
-    const url = new URL(window.location.href)
-    url.searchParams.delete('run')
-    window.history.pushState(null, '', url.toString())
-  }
-
   const handleFilteredChange = useCallback(
     (nextWorkflows: Array<WorkflowSummary>) => {
       setFilteredWorkflows(nextWorkflows)
     },
     [],
   )
-
-  // F4: in-app navigation away from a dirty graph editor goes through its guard
-  // (confirm-discard); non-editing navigation is untouched.
-  const leaveGraphEditor = useCallback((navigate: () => void) => {
-    const guard = graphLeaveGuardRef.current
-    if (guard && !guard()) return
-    setIsEditingGraph(false)
-    navigate()
-  }, [])
 
   return (
     <>
@@ -111,22 +75,8 @@ export function WorkflowsLayout() {
         <aside className={`wf-library${railCollapsed ? ' is-collapsed' : ''}`}>
           <WorkflowLibrary
             selectedId={selectedWorkflowId}
-            onSelectWorkflow={(id) =>
-              leaveGraphEditor(() => {
-                setSelectedWorkflowId(id)
-                const url = new URL(window.location.href)
-                url.searchParams.set('wf', id)
-                window.history.pushState(null, '', url.toString())
-              })
-            }
-            onClearSelection={() =>
-              leaveGraphEditor(() => {
-                setSelectedWorkflowId(null)
-                const url = new URL(window.location.href)
-                url.searchParams.delete('wf')
-                window.history.pushState(null, '', url.toString())
-              })
-            }
+            onSelectWorkflow={(id) => setSearch({ wf: id })}
+            onClearSelection={() => setSearch({ wf: undefined })}
             collapsed={railCollapsed}
             onToggleCollapse={() => setRailCollapsed((c) => !c)}
             onFilteredChange={handleFilteredChange}
@@ -148,50 +98,26 @@ export function WorkflowsLayout() {
               isEditingGraph ? (
                 <WorkflowGraphEditor
                   workflowId={selectedWorkflowId}
-                  onExit={() => setIsEditingGraph(false)}
-                  onRegisterGuard={(guard) => {
-                    graphLeaveGuardRef.current = guard
-                  }}
+                  onExit={() => setEditingId(null)}
                 />
               ) : (
                 <WorkflowDetail
                   workflowId={selectedWorkflowId}
-                  onBack={() => {
-                    setSelectedWorkflowId(null)
-                    setIsEditingGraph(false)
-                    const url = new URL(window.location.href)
-                    url.searchParams.delete('wf')
-                    window.history.pushState(null, '', url.toString())
-                  }}
-                  onEditGraph={() => setIsEditingGraph(true)}
-                  onOpenLaunchWizard={handleOpenLaunchWizard}
-                  onSelectWorkflow={(id) => {
-                    setSelectedWorkflowId(id)
-                    setIsEditingGraph(false)
-                    const url = new URL(window.location.href)
-                    url.searchParams.set('wf', id)
-                    window.history.pushState(null, '', url.toString())
-                  }}
+                  onBack={() => setSearch({ wf: undefined })}
+                  onEditGraph={() => setEditingId(selectedWorkflowId)}
+                  onOpenLaunchWizard={(id) => setSearch({ wizard: id }, true)}
+                  onSelectWorkflow={(id) => setSearch({ wf: id })}
                 />
               )
             ) : (
               <WorkflowGrid
                 workflows={filteredWorkflows}
-                onSelect={(id) => {
-                  setSelectedWorkflowId(id)
-                  setIsEditingGraph(false)
-                  const url = new URL(window.location.href)
-                  url.searchParams.set('wf', id)
-                  window.history.pushState(null, '', url.toString())
-                }}
+                onSelect={(id) => setSearch({ wf: id })}
                 onEdit={(id) => {
-                  setSelectedWorkflowId(id)
-                  setIsEditingGraph(true)
-                  const url = new URL(window.location.href)
-                  url.searchParams.set('wf', id)
-                  window.history.pushState(null, '', url.toString())
+                  setEditingId(id)
+                  setSearch({ wf: id })
                 }}
-                onOpenLaunchWizard={handleOpenLaunchWizard}
+                onOpenLaunchWizard={(id) => setSearch({ wizard: id }, true)}
                 loadError={workflowsError?.message ?? null}
                 onRetry={() => void refetchWorkflows()}
                 onClearFilters={() => setClearFiltersKey((k) => k + 1)}
@@ -206,7 +132,7 @@ export function WorkflowsLayout() {
             <div className="wf-run-panel">
               <RunDetailPanel
                 runId={activeRunId}
-                onClose={handleCloseRunPanel}
+                onClose={() => setSearch({ run: undefined })}
               />
             </div>
           )}
@@ -214,8 +140,8 @@ export function WorkflowsLayout() {
       </div>
       <LaunchWizard
         workflowId={wizardOpenForId}
-        onClose={() => setWizardOpenForId(null)}
-        onRunLaunched={handleOpenRunPanel}
+        onClose={() => setSearch({ wizard: undefined }, true)}
+        onRunLaunched={(runId) => setSearch({ wizard: undefined, run: runId })}
       />
     </>
   )

@@ -22,6 +22,8 @@ nodes:
   - id: extract
     prompt: Extract
     depends_on: [fetch]
+  - id: notify
+    bash: echo done
 `
 
 vi.mock('../api-client', async (importOriginal) => {
@@ -42,7 +44,7 @@ vi.mock('../api-client', async (importOriginal) => {
           tags: null,
           created_at: 0,
           updated_at: 0,
-          node_count: 2,
+          node_count: 3,
           run_count: 0,
           last_used_at: null,
         },
@@ -115,7 +117,7 @@ describe('graph editor with the real canvas', () => {
     await tick()
 
     const graph = readGraph(mirror(container))!
-    expect(graph.nodes.map((n) => n.id)).toEqual(['extract'])
+    expect(graph.nodes.map((n) => n.id)).toEqual(['extract', 'notify'])
     expect(graph.nodes[0].dependsOn).toEqual([])
     expect(container.querySelector('.react-flow__node[data-id="fetch"]')).toBe(
       null,
@@ -133,9 +135,37 @@ describe('graph editor with the real canvas', () => {
     await tick()
 
     const graph = readGraph(mirror(container))!
-    expect(graph.nodes.map((n) => n.id)).toEqual(['fetch', 'extract'])
+    expect(graph.nodes.map((n) => n.id)).toEqual(['fetch', 'extract', 'notify'])
     expect(graph.nodes[1].dependsOn).toEqual([])
     expect(container.querySelectorAll('.react-flow__edge')).toHaveLength(0)
+    fireEvent.click(screen.getByRole('button', { name: /Undo/i }))
+    expect(mirror(container)).toBe(DEF_YAML)
+  })
+
+  it('node + unrelated selected edge in one keypress is one undo step', async () => {
+    const { container } = await renderEditor()
+    fireEvent.click(
+      container.querySelector('.react-flow__node[data-id="notify"]')!,
+    )
+    // hold React Flow's multi-select key (Control in jsdom) and add the edge
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Control', code: 'ControlLeft' })
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    fireEvent.click(container.querySelector('.react-flow__edge')!, {
+      ctrlKey: true,
+    })
+    await act(async () => {
+      fireEvent.keyUp(document, { key: 'Control', code: 'ControlLeft' })
+      await new Promise((r) => setTimeout(r, 0))
+    })
+    await pressDelete()
+    await tick()
+
+    const graph = readGraph(mirror(container))!
+    expect(graph.nodes.map((n) => n.id)).toEqual(['fetch', 'extract'])
+    expect(graph.nodes[1].dependsOn).toEqual([])
+    expect(screen.getAllByText('1 UNSAVED CHANGE').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByRole('button', { name: /Undo/i }))
     expect(mirror(container)).toBe(DEF_YAML)
   })
