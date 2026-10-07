@@ -102,6 +102,46 @@ describe('PluginClient.deleteWorkflowDefinition', () => {
   })
 })
 
+describe('PluginClient.upsertDefinition — if_absent', () => {
+  it('puts if_absent: true in the POST body when asked', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ definition: { id: 'wf' } }))
+    await client.upsertDefinition('name: x', undefined, {
+      id: 'wf',
+      if_absent: true,
+    })
+    expect(lastUrl()).toContain(`${PLUGIN_BASE}/definitions`)
+    expect(lastInit()?.method).toBe('POST')
+    const body = JSON.parse(lastInit()?.body as string) as Record<
+      string,
+      unknown
+    >
+    expect(body.if_absent).toBe(true)
+  })
+
+  it('omits if_absent when not set', async () => {
+    fetchMock.mockResolvedValue(fakeResponse({ definition: { id: 'wf' } }))
+    await client.upsertDefinition('name: x', undefined, { id: 'wf' })
+    const body = JSON.parse(lastInit()?.body as string) as Record<
+      string,
+      unknown
+    >
+    expect('if_absent' in body).toBe(false)
+  })
+
+  it('throws a 409 carrying the engine body on id_taken', async () => {
+    const engineBody = {
+      error: "definition 'wf' already exists",
+      code: 'id_taken',
+    }
+    fetchMock.mockResolvedValue(fakeResponse(engineBody, 409))
+    const err = (await client
+      .upsertDefinition('name: x', undefined, { id: 'wf', if_absent: true })
+      .catch((e: unknown) => e)) as Error & { status?: number }
+    expect(err.status).toBe(409)
+    expect(JSON.parse(err.message)).toEqual(engineBody)
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Runs
 // ---------------------------------------------------------------------------

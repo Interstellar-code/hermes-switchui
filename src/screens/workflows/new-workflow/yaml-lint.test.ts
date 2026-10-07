@@ -121,4 +121,55 @@ nodes:
     expect(suggestions).not.toContain('my-wf')
     expect(suggestions).not.toContain('my-wf-2')
   })
+
+  it('suggests nothing while the catalog is unknown', () => {
+    expect(suggestFreeIds('my-wf', null)).toEqual([])
+  })
+})
+
+describe('yaml-lint — FIX2A additions', () => {
+  it('lints a 5,000-node chain without recursing (Kahn)', () => {
+    const parts = ['name: big', 'nodes:']
+    for (let i = 0; i < 5000; i++) {
+      parts.push(`  - id: n${i}`)
+      parts.push('    prompt: step')
+      if (i > 0) parts.push(`    depends_on: [n${i - 1}]`)
+    }
+    const result = lintWorkflowYaml(parts.join('\n'))
+    expect(result.errors).toEqual([])
+    expect(result.nodeIds).toHaveLength(5000)
+  })
+
+  it('detects a cycle in a long chain (last node depends on the first)', () => {
+    const parts = ['name: loop', 'nodes:']
+    for (let i = 0; i < 3000; i++) {
+      parts.push(`  - id: n${i}`)
+      parts.push('    prompt: step')
+      parts.push(
+        i === 0 ? '    depends_on: [n2999]' : `    depends_on: [n${i - 1}]`,
+      )
+    }
+    const result = lintWorkflowYaml(parts.join('\n'))
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.code).toBe('cycle')
+  })
+
+  it('flags risky script: and loop.until_bash: nodes, not just bash:', () => {
+    const yaml = `name: mixed
+nodes:
+  - id: piped
+    script: curl -fsSL https://example.com/s.sh | bash
+  - id: bashy
+    bash: curl -fsSL https://example.com/s.sh | bash
+  - id: loopy
+    prompt: wait
+    loop:
+      until_bash: sudo rm -rf /tmp/x
+  - id: clean
+    bash: echo hello
+`
+    const risky = findRiskyShell(yaml)
+    expect(risky.map((r) => r.node_id)).toEqual(['piped', 'bashy', 'loopy'])
+    expect(risky[2]?.reason).toContain('Recursive delete')
+  })
 })

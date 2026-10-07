@@ -455,6 +455,8 @@ export interface UpsertWorkflowDefinitionInput {
   expected_checksum?: string
   /** Provenance for the engine: 'import' when the yaml came from the Import-YAML path. Omitted on normal saves. */
   save_source?: 'save' | 'import'
+  /** Create-only guard (feature `create_only`): the engine 409s with code 'id_taken' and writes nothing when the id exists. */
+  if_absent?: boolean
 }
 
 export interface WorkflowWizardChatHistoryMessage {
@@ -759,6 +761,8 @@ export async function chatWorkflowWizard(
 
 export interface UpsertWorkflowDefinitionError {
   error: string
+  /** 409 only: the engine's code, e.g. 'id_taken' (create-only guard). */
+  code?: string
 }
 
 export async function upsertWorkflowDefinition(
@@ -775,7 +779,7 @@ export async function upsertWorkflowDefinition(
     }))) as UpsertWorkflowDefinitionError
     const code =
       res.status === 409
-        ? 'conflict'
+        ? (body.code ?? 'conflict')
         : res.status === 422
           ? 'validation'
           : undefined

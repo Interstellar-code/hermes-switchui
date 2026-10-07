@@ -21,7 +21,8 @@ export interface LintResult {
 
 export interface RiskyShell {
   node_id: string
-  line: number
+  /** null for server-only warnings the engine could not pin to a line. */
+  line: number | null
   reason: string
   snippet: string
 }
@@ -33,6 +34,26 @@ function pos(
   const offset = node?.range?.[0]
   if (offset == null) return { line: 1, col: 1 }
   return lc.linePos(offset)
+}
+
+interface CachedParse {
+  doc: ReturnType<typeof parseDocument>
+  lc: LineCounter
+}
+
+// The wizard lints the same draft several times per keystroke (import pane,
+// review checks, risky scan, graph preview). Parsing is the expensive part,
+// so keep the last parse keyed by the exact text.
+let _cachedText: string | null = null
+let _cachedParse: CachedParse | null = null
+
+function parseCached(text: string): CachedParse {
+  if (_cachedText === text && _cachedParse) return _cachedParse
+  const lc = new LineCounter()
+  const doc = parseDocument(text, { lineCounter: lc })
+  _cachedText = text
+  _cachedParse = { doc, lc }
+  return _cachedParse
 }
 
 /** Lint a draft. Never throws. */
@@ -49,8 +70,7 @@ export function lintWorkflowYaml(text: string): LintResult {
     })
     return { errors, warnings, nodeIds }
   }
-  const lc = new LineCounter()
-  const doc = parseDocument(text, { lineCounter: lc })
+  const { doc, lc } = parseCached(text)
   for (const err of doc.errors) {
     const p = err.linePos?.[0]
     errors.push({
@@ -152,44 +172,40 @@ export function lintWorkflowYaml(text: string): LintResult {
     }
   }
 
-  // Cycle detection (DFS, white/grey/black).
-  const graph = new Map(
-    deps.map((n) => [
-      n.id,
-      n.list.map((d) => d.ref).filter((r) => known.has(r)),
-    ]),
-  )
-  const state = new Map<string, 1 | 2>()
-  let cycleAt: string | null = null
-  function visit(id: string): string | null {
-    state.set(id, 1)
-    for (const next of graph.get(id) ?? []) {
-      if (state.get(next) === 1) return next
-      if (!state.has(next)) {
-        const found = visit(next)
-        if (found) return found
-      }
-    }
-    state.set(id, 2)
-    return null
-  }
-  for (const id of graph.keys()) {
-    if (!state.has(id)) {
-      const c = visit(id)
-      if (c) {
-        cycleAt = c
-        break
-      }
+  // Cycle detection (iterative Kahn — a long chain must not blow the stack).
+  const inDegree = new Map<string, number>()
+  for (const n of deps) inDegree.set(n.id, 0)
+  const adjacency = new Map<string, Array<string>>(deps.map((n) => [n.id, []]))
+  for (const n of deps) {
+    for (const dep of n.list) {
+      if (!inDegree.has(dep.ref)) continue
+      inDegree.set(n.id, (inDegree.get(n.id) ?? 0) + 1)
+      adjacency.get(dep.ref)?.push(n.id)
     }
   }
-  if (cycleAt) {
-    errors.push({
-      line: seen.get(cycleAt) ?? 1,
-      col: 1,
-      code: 'cycle',
-      message: `Cycle in depends_on involving “${cycleAt}”`,
-      node_id: cycleAt,
-    })
+  const queue: Array<string> = []
+  for (const [id, deg] of inDegree) if (deg === 0) queue.push(id)
+  let processed = 0
+  while (queue.length > 0) {
+    const id = queue.pop() as string
+    processed++
+    for (const next of adjacency.get(id) ?? []) {
+      const deg = (inDegree.get(next) ?? 0) - 1
+      inDegree.set(next, deg)
+      if (deg === 0) queue.push(next)
+    }
+  }
+  if (processed < inDegree.size) {
+    const member = deps.find((n) => (inDegree.get(n.id) ?? 0) > 0)?.id
+    if (member) {
+      errors.push({
+        line: seen.get(member) ?? 1,
+        col: 1,
+        code: 'cycle',
+        message: `Cycle in depends_on involving “${member}”`,
+        node_id: member,
+      })
+    }
   }
   return { errors, warnings, nodeIds }
 }
@@ -230,11 +246,14 @@ const RISKY_PATTERNS: Array<[RegExp, string]> = [
   [/\bchmod\s+-R\s+777\b/, 'World-writable permissions, recursively.'],
 ]
 
-/** Scan `bash:` nodes for commands that deserve an explicit acknowledge. */
+/**
+ * Scan shell-bearing nodes for commands that deserve an explicit acknowledge.
+ * Mirrors the server's risky_shell scope: `bash:`, `script:`, and loop
+ * nodes' `until_bash:`.
+ */
 export function findRiskyShell(text: string): Array<RiskyShell> {
   if (!text.trim()) return []
-  const lc = new LineCounter()
-  const doc = parseDocument(text, { lineCounter: lc })
+  const { doc, lc } = parseCached(text)
   const root = doc.contents
   if (doc.errors.length > 0 || !isMap(root)) return []
   const nodes = root.get('nodes', true)
@@ -242,19 +261,31 @@ export function findRiskyShell(text: string): Array<RiskyShell> {
   const out: Array<RiskyShell> = []
   for (const item of nodes.items) {
     if (!isMap(item)) continue
-    const bash = item.get('bash', true)
-    if (!isScalar(bash) || typeof bash.value !== 'string') continue
     const id = item.get('id')
-    for (const [re, reason] of RISKY_PATTERNS) {
-      const m = re.exec(bash.value)
-      if (!m) continue
-      out.push({
-        node_id: typeof id === 'string' ? id : '?',
-        line: pos(lc, bash).line,
-        reason,
-        snippet: m[0].trim(),
-      })
-      break
+    const shells: Array<{ node: YamlNode | undefined; command: string }> = []
+    for (const key of ['bash', 'script']) {
+      const scalar = item.get(key, true)
+      if (isScalar(scalar) && typeof scalar.value === 'string')
+        shells.push({ node: scalar, command: scalar.value })
+    }
+    const loop = item.get('loop', true)
+    if (isMap(loop)) {
+      const until = loop.get('until_bash', true)
+      if (isScalar(until) && typeof until.value === 'string')
+        shells.push({ node: until, command: until.value })
+    }
+    for (const { node, command } of shells) {
+      for (const [re, reason] of RISKY_PATTERNS) {
+        const m = re.exec(command)
+        if (!m) continue
+        out.push({
+          node_id: typeof id === 'string' ? id : '?',
+          line: pos(lc, node).line,
+          reason,
+          snippet: m[0].trim(),
+        })
+        break
+      }
     }
   }
   return out
@@ -303,12 +334,13 @@ export function yamlToParsedWorkflow(text: string): ParsedWorkflow | null {
   }
 }
 
-/** Free-id suggestions for a taken id (`-2`, `-copy`, …). */
+/** Free-id suggestions for a taken id (`-2`, `-copy`, …). None while the catalog (`taken`) is unknown. */
 export function suggestFreeIds(
   id: string,
-  taken: ReadonlySet<string>,
+  taken: ReadonlySet<string> | null,
   limit = 3,
 ): Array<string> {
+  if (!taken) return []
   const base = id.replace(/-(copy|\d+)$/, '') || id
   const candidates = [
     `${base}-2`,

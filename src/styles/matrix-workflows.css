@@ -2800,7 +2800,7 @@
         )
       );
     border-radius: 4px;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
     width: 28px;
     height: 26px;
     display: inline-flex;
@@ -3021,7 +3021,7 @@
     outline: 0;
     flex-grow: 1;
     font-size: 11px;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
     min-width: 0;
     padding: 0;
   }
@@ -3138,7 +3138,7 @@
     padding: 3px 8px 3px 6px;
     background: none;
     font-size: 9.5px;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
     cursor: pointer;
   }
 
@@ -3166,7 +3166,7 @@
     padding: 4px 0;
     font-size: 10.5px;
     cursor: pointer;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
   }
 
   .ck input {
@@ -3217,7 +3217,7 @@
   .cnt {
     font-size: 11px;
     letter-spacing: 0.12em;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
   }
 
   .cnt b {
@@ -3247,7 +3247,7 @@
     border-radius: 4px;
     padding: 4px 6px;
     font-size: 10px;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
   }
 
   .vt {
@@ -3310,7 +3310,7 @@
     font-size: 10px;
     letter-spacing: 0.16em;
     font-weight: 800;
-    color: var(--m-text, inherit);
+    color: var(--m-text, var(--theme-text));
   }
 
   .sh a {

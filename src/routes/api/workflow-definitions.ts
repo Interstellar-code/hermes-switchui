@@ -86,6 +86,7 @@ export const Route = createFileRoute('/api/workflow-definitions')({
           tags?: unknown
           expected_checksum?: unknown
           save_source?: unknown
+          if_absent?: unknown
         }
 
         // Codex Bundle 5 Q3 — Input validation.
@@ -190,6 +191,15 @@ export const Route = createFileRoute('/api/workflow-definitions')({
             { status: 400 },
           )
         }
+        if (
+          body.if_absent !== undefined &&
+          typeof body.if_absent !== 'boolean'
+        ) {
+          return Response.json(
+            { error: 'if_absent must be a boolean when provided' },
+            { status: 400 },
+          )
+        }
 
         // Plugin parses and validates YAML server-side; surfaces 409/422 errors.
         try {
@@ -205,14 +215,32 @@ export const Route = createFileRoute('/api/workflow-definitions')({
               ...(body.save_source === 'save' || body.save_source === 'import'
                 ? { save_source: body.save_source }
                 : {}),
+              ...(body.if_absent === true ? { if_absent: true } : {}),
             },
           )
           return Response.json({ definition: def })
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           const status = (err as { status?: number }).status
-          if (status === 409)
-            return Response.json({ error: msg }, { status: 409 })
+          if (status === 409) {
+            // The engine's 409 body (e.g. {error, code:'id_taken'}) arrives as the message.
+            let engineBody: { error?: unknown; code?: unknown } = {}
+            try {
+              engineBody = JSON.parse(msg) as typeof engineBody
+            } catch {
+              // plain-text conflict
+            }
+            return Response.json(
+              {
+                error:
+                  typeof engineBody.error === 'string' ? engineBody.error : msg,
+                ...(typeof engineBody.code === 'string'
+                  ? { code: engineBody.code }
+                  : {}),
+              },
+              { status: 409 },
+            )
+          }
           return Response.json({ error: msg }, { status: 422 })
         }
       },

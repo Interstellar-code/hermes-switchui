@@ -74,11 +74,12 @@ interface SourceStepProps {
   id: string
   onIdChange: (id: string) => void
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
   importText: string
   importFileName: string | null
   onImportText: (text: string, fileName?: string | null) => void
   importIssues: Array<LintIssue>
+  importTooLarge: boolean
 }
 
 function EngineDown({ onRetry }: { onRetry: () => void }) {
@@ -118,7 +119,7 @@ function Picker({
   id: string
   onIdChange: (id: string) => void
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
 }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'bundled' | 'project'>('all')
@@ -334,6 +335,7 @@ function ImportPane({
   fileName,
   onText,
   issues,
+  tooLarge,
   id,
   onIdChange,
   idStatus,
@@ -343,10 +345,11 @@ function ImportPane({
   fileName: string | null
   onText: (t: string, f?: string | null) => void
   issues: Array<LintIssue>
+  tooLarge: boolean
   id: string
   onIdChange: (id: string) => void
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const areaRef = useRef<HTMLTextAreaElement>(null)
@@ -368,7 +371,9 @@ function ImportPane({
         </label>
         <span className="wfl-grow" />
         {fileName && <span className="wfl-meta">{fileName}</span>}
-        {issues.length > 0 ? (
+        {tooLarge ? (
+          <span className="wz2-chip er">TOO LARGE</span>
+        ) : issues.length > 0 ? (
           <span className="wz2-chip er">
             {issues.length} ERROR{issues.length === 1 ? '' : 'S'}
           </span>
@@ -406,7 +411,13 @@ function ImportPane({
         placeholder="Paste a workflow definition here…"
         onChange={(e) => onText(e.target.value, fileName)}
       />
-      {issues.length > 0 && (
+      {tooLarge && (
+        <div className="wz2-ban er" role="alert">
+          <b>This YAML is larger than 1 MiB.</b> The server rejects definitions
+          over 1 MiB — trim it down and paste again.
+        </div>
+      )}
+      {!tooLarge && issues.length > 0 && (
         <>
           <CodeView text={text} issues={issues} />
           <ul className="wz2-errs" role="list" aria-label="YAML errors">
@@ -430,7 +441,7 @@ function ImportPane({
           </ul>
         </>
       )}
-      {issues.length === 0 && text.trim() && (
+      {!tooLarge && issues.length === 0 && text.trim() && (
         <IdField
           inputId="wz2-id-import"
           value={id}
@@ -524,6 +535,7 @@ export function SourceStep(p: SourceStepProps) {
             fileName={p.importFileName}
             onText={p.onImportText}
             issues={p.importIssues}
+            tooLarge={p.importTooLarge}
             id={p.id}
             onIdChange={p.onIdChange}
             idStatus={p.idStatus}
