@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render } from '@testing-library/react'
+import { act, cleanup, render, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useRef } from 'react'
 import { getWorkflowFeatures } from '../api-client'
@@ -81,5 +81,77 @@ describe('useWizardValidation debounce', () => {
       vi.advanceTimersByTime(4000)
     })
     expect(count()).toBe(settled)
+  })
+})
+
+function IdProbe(p: {
+  id: string
+  existingIds: ReadonlySet<string> | null
+  conflictIds?: ReadonlySet<string>
+}) {
+  const v = useWizardValidation({ yaml: 'name: x\n', ...p })
+  return <span data-testid="id" data-id={v.idStatus} />
+}
+
+function renderIdProbe(p: Parameters<typeof IdProbe>[0]) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={client}>
+      <IdProbe {...p} />
+    </QueryClientProvider>,
+  )
+}
+
+describe('useWizardValidation id status', () => {
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+  })
+
+  it('a 409 conflict alone never makes other ids available while the catalog is missing', async () => {
+    mockGetFeatures.mockResolvedValue({
+      features: ['create_only'],
+      schedulerAlive: false,
+      profile: null,
+    })
+    const conflictIds = new Set(['wf-a'])
+    const other = renderIdProbe({ id: 'wf-b', existingIds: null, conflictIds })
+    await waitFor(() =>
+      expect(other.getByTestId('id').dataset['id']).toBe('unknown'),
+    )
+    cleanup()
+    const same = renderIdProbe({ id: 'wf-a', existingIds: null, conflictIds })
+    await waitFor(() =>
+      expect(same.getByTestId('id').dataset['id']).toBe('taken'),
+    )
+  })
+
+  it('keeps the id unknown while the features query is loading', async () => {
+    mockGetFeatures.mockReturnValue(new Promise(() => {}))
+    const { getByTestId } = renderIdProbe({
+      id: 'wf-b',
+      existingIds: new Set(),
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(getByTestId('id').dataset['id']).toBe('unknown')
+  })
+
+  it('is available from the catalog once the features answer', async () => {
+    mockGetFeatures.mockResolvedValue({
+      features: [],
+      schedulerAlive: false,
+      profile: null,
+    })
+    const { getByTestId } = renderIdProbe({
+      id: 'wf-b',
+      existingIds: new Set(),
+    })
+    await waitFor(() =>
+      expect(getByTestId('id').dataset['id']).toBe('available'),
+    )
   })
 })

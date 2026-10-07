@@ -121,6 +121,10 @@ nodes:
     expect(suggestions).not.toContain('my-wf')
     expect(suggestions).not.toContain('my-wf-2')
   })
+
+  it('suggests nothing while the catalog is unknown', () => {
+    expect(suggestFreeIds('my-wf', null)).toEqual([])
+  })
 })
 
 describe('yaml-lint — FIX2A additions', () => {

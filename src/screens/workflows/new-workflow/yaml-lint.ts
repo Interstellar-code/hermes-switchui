@@ -21,7 +21,8 @@ export interface LintResult {
 
 export interface RiskyShell {
   node_id: string
-  line: number
+  /** null for server-only warnings the engine could not pin to a line. */
+  line: number | null
   reason: string
   snippet: string
 }
@@ -333,12 +334,13 @@ export function yamlToParsedWorkflow(text: string): ParsedWorkflow | null {
   }
 }
 
-/** Free-id suggestions for a taken id (`-2`, `-copy`, …). */
+/** Free-id suggestions for a taken id (`-2`, `-copy`, …). None while the catalog (`taken`) is unknown. */
 export function suggestFreeIds(
   id: string,
-  taken: ReadonlySet<string>,
+  taken: ReadonlySet<string> | null,
   limit = 3,
 ): Array<string> {
+  if (!taken) return []
   const base = id.replace(/-(copy|\d+)$/, '') || id
   const candidates = [
     `${base}-2`,

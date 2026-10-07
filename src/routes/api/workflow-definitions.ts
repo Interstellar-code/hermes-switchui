@@ -222,8 +222,25 @@ export const Route = createFileRoute('/api/workflow-definitions')({
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           const status = (err as { status?: number }).status
-          if (status === 409)
-            return Response.json({ error: msg }, { status: 409 })
+          if (status === 409) {
+            // The engine's 409 body (e.g. {error, code:'id_taken'}) arrives as the message.
+            let engineBody: { error?: unknown; code?: unknown } = {}
+            try {
+              engineBody = JSON.parse(msg) as typeof engineBody
+            } catch {
+              // plain-text conflict
+            }
+            return Response.json(
+              {
+                error:
+                  typeof engineBody.error === 'string' ? engineBody.error : msg,
+                ...(typeof engineBody.code === 'string'
+                  ? { code: engineBody.code }
+                  : {}),
+              },
+              { status: 409 },
+            )
+          }
           return Response.json({ error: msg }, { status: 422 })
         }
       },

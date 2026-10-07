@@ -65,7 +65,7 @@ export function buildChecks(
     rows.push({
       key: 'id',
       state: 'fail',
-      text: 'Cannot confirm the id is free yet — the workflow catalog is loading or unreachable. Retry below.',
+      text: 'Cannot confirm the id is free yet — the workflow catalog or engine features are loading or unreachable. Retry below.',
     })
 
   const parseErr = first(errs, PARSE_CODES)

@@ -74,7 +74,7 @@ interface SourceStepProps {
   id: string
   onIdChange: (id: string) => void
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
   importText: string
   importFileName: string | null
   onImportText: (text: string, fileName?: string | null) => void
@@ -119,7 +119,7 @@ function Picker({
   id: string
   onIdChange: (id: string) => void
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
 }) {
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState<'all' | 'bundled' | 'project'>('all')
@@ -349,7 +349,7 @@ function ImportPane({
   id: string
   onIdChange: (id: string) => void
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
 }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const areaRef = useRef<HTMLTextAreaElement>(null)

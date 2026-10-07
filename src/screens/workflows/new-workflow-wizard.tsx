@@ -1396,14 +1396,19 @@ export function NewWorkflowWizard({
   const defs = useWorkflowDefinitions()
   const existingWorkflows = defs.data
 
+  // null while the catalog is missing: a 409 alone must not make other ids
+  // look free. Conflicts are checked separately by the validation hook.
   const takenIds = useMemo<ReadonlySet<string> | null>(
     () =>
-      defs.data || conflicts.size > 0
-        ? new Set([...(defs.data ?? []).map((w) => w.id), ...conflicts])
-        : null,
+      defs.data ? new Set([...defs.data.map((w) => w.id), ...conflicts]) : null,
     [defs.data, conflicts],
   )
-  const validation = useWizardValidation({ yaml, id, existingIds: takenIds })
+  const validation = useWizardValidation({
+    yaml,
+    id,
+    existingIds: takenIds,
+    conflictIds: conflicts,
+  })
   const importIssues = useMemo(
     () =>
       !importTooLarge && importText.trim()
@@ -1443,8 +1448,9 @@ export function NewWorkflowWizard({
   }, [riskKey])
 
   function retryIdCheck() {
-    if (validation.hasValidate) validation.refetchServer()
-    else void defs.refetch()
+    // Re-asks the features while unknown, else the validate call (if listed).
+    validation.refetchServer()
+    if (!validation.hasValidate) void defs.refetch()
   }
 
   const [initialYamlSnapshot] = useState(
@@ -1743,11 +1749,16 @@ export function NewWorkflowWizard({
       if (openAfter) onOpenWorkflow?.(saveId)
       onClose()
     } catch (err) {
-      const status = (err as { status?: number }).status
+      const { status, code } = err as { status?: number; code?: string }
       const message = err instanceof Error ? err.message : 'Unknown error'
-      if (status === 409) {
+      if (status === 409 && code === 'id_taken') {
         setConflicts((prev) => new Set(prev).add(saveId))
-        setFailure({ kind: 'conflict', message })
+        setFailure({ kind: 'conflict', message, id: saveId })
+      } else if (status === 409) {
+        setFailure({
+          kind: 'other',
+          message: `The save conflicted with a change on the server: ${message}`,
+        })
       } else if (
         err instanceof WorkflowEngineUnavailableError ||
         status === 502 ||
@@ -1765,7 +1776,7 @@ export function NewWorkflowWizard({
   }
 
   const isReview = step === 3
-  const suggestion = suggestFreeIds(id, takenIds ?? NO_IDS)[0]
+  const suggestion = suggestFreeIds(id, takenIds)[0]
   const conflict = failure?.kind === 'conflict'
 
   const railRight =
@@ -1799,7 +1810,7 @@ export function NewWorkflowWizard({
           type="button"
           className="wfw-btn wfw-btn--secondary"
           onClick={() => {
-            onOpenWorkflow(id)
+            onOpenWorkflow(failure.id ?? id)
             onClose()
           }}
         >
@@ -1889,7 +1900,7 @@ export function NewWorkflowWizard({
             id={id}
             onIdChange={setId}
             idStatus={validation.idStatus}
-            takenIds={takenIds ?? NO_IDS}
+            takenIds={takenIds}
             importText={importText}
             importFileName={importedFileName}
             importTooLarge={importTooLarge}
@@ -1922,7 +1933,7 @@ export function NewWorkflowWizard({
             openAfter={openAfter}
             validation={validation}
             idStatus={validation.idStatus}
-            takenIds={takenIds ?? NO_IDS}
+            takenIds={takenIds}
             ack={ack}
             failure={failure}
             saving={upsert.isPending}

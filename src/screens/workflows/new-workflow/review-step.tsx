@@ -9,6 +9,8 @@ import type { IdStatus, WizardValidation } from './use-wizard-validation'
 export interface SaveFailure {
   kind: 'conflict' | 'engine' | 'other'
   message: string
+  /** conflict only: the id the engine refused (it may differ from the current id). */
+  id?: string
 }
 
 interface ReviewStepProps {
@@ -20,7 +22,7 @@ interface ReviewStepProps {
   openAfter: boolean
   validation: WizardValidation
   idStatus: IdStatus
-  takenIds: ReadonlySet<string>
+  takenIds: ReadonlySet<string> | null
   ack: boolean
   failure: SaveFailure | null
   saving: boolean
@@ -128,9 +130,9 @@ export function ReviewStep(p: ReviewStepProps) {
       <aside className="wz2-rp" aria-label="Checks and save">
         {p.failure?.kind === 'conflict' && (
           <div className="wz2-ban er" role="alert">
-            <b>{p.id} already exists.</b> Nothing was overwritten. Workflow ids
-            are global — pick a free id below. Edits to an existing definition
-            go through the Workflows editor.
+            <b>{p.failure.id ?? p.id} already exists.</b> Nothing was
+            overwritten. Workflow ids are global — pick a free id below. Edits
+            to an existing definition go through the Workflows editor.
           </div>
         )}
         {p.failure?.kind === 'engine' && (
@@ -154,8 +156,8 @@ export function ReviewStep(p: ReviewStepProps) {
         />
         {p.idStatus === 'unknown' && p.id.trim() && (
           <div className="wz2-ban wa" role="status">
-            <b>Can’t confirm “{p.id}” is free yet.</b> The workflow catalog is
-            loading or unreachable, so Save stays blocked.{' '}
+            <b>Can’t confirm “{p.id}” is free yet.</b> The workflow catalog or
+            engine features are loading or unreachable, so Save stays blocked.{' '}
             <button
               type="button"
               className="wfl-link"
@@ -194,11 +196,12 @@ export function ReviewStep(p: ReviewStepProps) {
             {p.validation.risky.map((r) => (
               <div key={`${r.node_id}-${r.line}`} className="wz2-risk-i">
                 <b>
-                  ! Risky shell · {r.node_id}, line {r.line}
+                  ! Risky shell · {r.node_id}
+                  {r.line != null && `, line ${r.line}`}
                 </b>
                 <span className="wfl-desc">
-                  {r.reason} <code>{r.snippet}</code>. Runs with this profile’s
-                  tools and env.
+                  {r.reason} {r.snippet && <code>{r.snippet}</code>}. Runs with
+                  this profile’s tools and env.
                 </span>
               </div>
             ))}

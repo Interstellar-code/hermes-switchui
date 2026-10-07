@@ -761,6 +761,8 @@ export async function chatWorkflowWizard(
 
 export interface UpsertWorkflowDefinitionError {
   error: string
+  /** 409 only: the engine's code, e.g. 'id_taken' (create-only guard). */
+  code?: string
 }
 
 export async function upsertWorkflowDefinition(
@@ -777,7 +779,7 @@ export async function upsertWorkflowDefinition(
     }))) as UpsertWorkflowDefinitionError
     const code =
       res.status === 409
-        ? 'conflict'
+        ? (body.code ?? 'conflict')
         : res.status === 422
           ? 'validation'
           : undefined

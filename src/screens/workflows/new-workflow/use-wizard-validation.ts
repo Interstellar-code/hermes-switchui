@@ -8,7 +8,7 @@
  *    definitions list. Anything that needs the backend is simply absent.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useWorkflowFeatures } from '../use-workflows'
 import {
   WorkflowEngineUnavailableError,
@@ -57,9 +57,15 @@ export function useWizardValidation(input: {
   id: string
   /** Ids of existing definitions; null while the list is loading / failed. */
   existingIds: ReadonlySet<string> | null
+  /** Ids the engine 409'd on save; taken even while the list is missing. */
+  conflictIds?: ReadonlySet<string>
 }): WizardValidation {
-  const { yaml, id, existingIds } = input
+  const { yaml, id, existingIds, conflictIds } = input
+  const queryClient = useQueryClient()
   const features = useWorkflowFeatures()
+  // Until the features answer, `create_only` is unknown and Save could go out
+  // without `if_absent` — so the id counts as unconfirmed.
+  const featuresReady = features.data != null && !features.isError
   const hasValidate =
     Array.isArray(features.data?.features) &&
     features.data.features.includes('validate')
@@ -97,7 +103,7 @@ export function useWizardValidation(input: {
       .filter((w) => w.code === 'risky_shell')
       .map((w) => ({
         node_id: w.node_id ?? '?',
-        line: w.line ?? 0,
+        line: w.line ?? null,
         reason: w.message,
         snippet: '',
       }))
@@ -111,15 +117,24 @@ export function useWizardValidation(input: {
   let idStatus: IdStatus
   if (!id) idStatus = 'empty'
   else if (!idOk) idStatus = 'invalid'
-  else if (existingIds?.has(id)) idStatus = 'taken'
+  else if (existingIds?.has(id) || conflictIds?.has(id)) idStatus = 'taken'
+  else if (!featuresReady) idStatus = 'unknown'
   else if (hasValidate && serverPending) idStatus = 'checking'
   else if (hasValidate && server?.id_available === true) idStatus = 'available'
   else if (hasValidate && server?.id_available === false) idStatus = 'taken'
   else if (existingIds) idStatus = 'available'
   else idStatus = 'unknown'
 
-  const refetchServerRef = useRef(query.refetch)
-  refetchServerRef.current = query.refetch
+  const refetchServerRef = useRef<() => Promise<unknown>>(query.refetch)
+  // A plain refetch would join a hung first load; cancel it, then ask again.
+  refetchServerRef.current = !featuresReady
+    ? () =>
+        queryClient
+          .cancelQueries({ queryKey: ['workflow-features'] })
+          .then(() => features.refetch())
+    : hasValidate
+      ? query.refetch
+      : () => Promise.resolve()
 
   return {
     hasValidate,

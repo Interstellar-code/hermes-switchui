@@ -79,6 +79,68 @@ nodes:
   },
 ]
 
+function jsonRes(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+/** The 409 body the real route returns when the engine refuses an existing id. */
+function idTaken409(id: string): Response {
+  return jsonRes(
+    { error: `definition '${id}' already exists`, code: 'id_taken' },
+    409,
+  )
+}
+
+/**
+ * fetch stub that lets the real `upsertWorkflowDefinition` run: GETs serve
+ * features + catalog, POST /api/workflow-definitions goes to `onSave`.
+ */
+function stubWizardFetch(opts: {
+  features?: Array<string>
+  onSave: (body: Record<string, unknown>) => Response | Promise<Response>
+}) {
+  const fetchMock = vi
+    .fn()
+    .mockImplementation((url: string, init?: RequestInit) => {
+      if (url.includes('/api/workflow-features'))
+        return Promise.resolve(
+          jsonRes({
+            features: opts.features ?? [],
+            schedulerAlive: false,
+            profile: null,
+          }),
+        )
+      if (url.includes('/api/workflow-definitions') && init?.method === 'POST')
+        return Promise.resolve(
+          opts.onSave(JSON.parse(String(init.body)) as Record<string, unknown>),
+        )
+      if (url.includes('/api/workflow-definitions'))
+        return Promise.resolve(
+          jsonRes({ definitions: SAMPLE_TEMPLATES, engine_ok: true }),
+        )
+      return Promise.resolve(new Response('{}', { status: 200 }))
+    })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
+function savedBodies(
+  fetchMock: ReturnType<typeof vi.fn>,
+): Array<Record<string, unknown>> {
+  return fetchMock.mock.calls
+    .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+    .map(
+      ([, init]) =>
+        JSON.parse(String((init as RequestInit).body)) as Record<
+          string,
+          unknown
+        >,
+    )
+}
+
 describe('NewWorkflowWizard v2', () => {
   beforeEach(() => {
     vi.stubGlobal(
@@ -250,21 +312,24 @@ nodes:
   })
 
   it('handles 409 id taken conflict on save with suggestions', async () => {
-    const upsertSpy = vi
-      .spyOn(apiClient, 'upsertWorkflowDefinition')
-      .mockRejectedValueOnce(
-        Object.assign(new Error('Conflict'), {
-          status: 409,
-          serverError: 'Workflow with ID already exists',
-        }),
-      )
-
     const validYaml = `name: Safe
 nodes:
   - id: n1
     prompt: hello
 `
-    renderWizard({ initialYaml: validYaml, initialId: 'conflict-id' })
+    const fetchMock = stubWizardFetch({
+      features: ['create_only'],
+      onSave: (body) =>
+        body.id === 'conflict-id'
+          ? idTaken409('conflict-id')
+          : jsonRes({ definition: { id: body.id } }),
+    })
+    const onOpenWorkflow = vi.fn()
+    renderWizard({
+      initialYaml: validYaml,
+      initialId: 'conflict-id',
+      onOpenWorkflow,
+    })
 
     // Step through to Review
     fireEvent.click(screen.getByRole('button', { name: /next/i }))
@@ -289,33 +354,93 @@ nodes:
       ).toBeDefined()
     })
 
-    upsertSpy.mockResolvedValueOnce({
-      definition: {
-        id: 'conflict-id-2',
-        name: 'Safe',
-        description: null,
-        source: 'project',
-        scope_path: null,
-        yaml: validYaml,
-        checksum: '123',
-        version: null,
-        tags: null,
-        created_at: Date.now(),
-        updated_at: Date.now(),
-        run_count: 0,
-        last_used_at: null,
-      },
-    })
-
     fireEvent.click(
       screen.getByRole('button', { name: /save as conflict-id-2/i }),
     )
 
     await waitFor(() => {
-      expect(upsertSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 'conflict-id-2' }),
-      )
+      expect(savedBodies(fetchMock)).toHaveLength(2)
     })
+    expect(savedBodies(fetchMock)[0]).toMatchObject({
+      id: 'conflict-id',
+      if_absent: true,
+    })
+    expect(savedBodies(fetchMock)[1]).toMatchObject({
+      id: 'conflict-id-2',
+      if_absent: true,
+    })
+    // Saved under the new id, which is what gets opened.
+    await waitFor(() => {
+      expect(onOpenWorkflow).toHaveBeenCalledWith('conflict-id-2')
+    })
+  })
+
+  it('"Open existing" opens the id that 409d, not the id typed since', async () => {
+    let answer: (r: Response) => void = () => {}
+    stubWizardFetch({
+      features: ['create_only'],
+      onSave: () =>
+        new Promise<Response>((resolve) => {
+          answer = resolve
+        }),
+    })
+    const onOpenWorkflow = vi.fn()
+    renderWizard({
+      initialYaml: `name: Safe\nnodes:\n  - id: n1\n    prompt: hello\n`,
+      initialId: 'taken-one',
+      onOpenWorkflow,
+    })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
+    // The user edits the id while the save is in flight; then the 409 lands.
+    await waitFor(() => {
+      expect(screen.getByText('Saving…', { selector: 'button' })).toBeDefined()
+    })
+    fireEvent.change(screen.getByLabelText('Workflow id'), {
+      target: { value: 'typed-later' },
+    })
+    answer(idTaken409('taken-one'))
+
+    await waitFor(() => {
+      expect(screen.getByText(/taken-one already exists/i)).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /open existing/i }))
+    expect(onOpenWorkflow).toHaveBeenCalledWith('taken-one')
+  })
+
+  it('shows a generic conflict (no suggestions) for a 409 without id_taken', async () => {
+    stubWizardFetch({
+      features: ['create_only'],
+      onSave: () => jsonRes({ error: 'Conflict: checksum mismatch' }, 409),
+    })
+    renderWizard({
+      initialYaml: `name: Safe\nnodes:\n  - id: n1\n    prompt: hello\n`,
+      initialId: 'plain-conflict',
+    })
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    fireEvent.click(screen.getByRole('button', { name: /save workflow/i }))
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /conflicted with a change on the server: Conflict: checksum mismatch/i,
+        ),
+      ).toBeDefined()
+    })
+    expect(screen.queryByText(/plain-conflict already exists/i)).toBeNull()
+    expect(screen.queryByRole('button', { name: /save as/i })).toBeNull()
+    expect(screen.queryByRole('button', { name: /open existing/i })).toBeNull()
+    expect(screen.getByText('AVAILABLE')).toBeDefined()
   })
 
   it('sends save_source "import" when saving from the Import YAML path', async () => {
@@ -713,25 +838,11 @@ nodes:
   })
 
   it('gates Save, Save & run and Save as on the risky acknowledge (script and until_bash included)', async () => {
-    const upsertSpy = vi
-      .spyOn(apiClient, 'upsertWorkflowDefinition')
-      .mockResolvedValue({
-        definition: {
-          id: 'x',
-          name: 'x',
-          description: null,
-          source: 'project',
-          scope_path: null,
-          yaml: '',
-          checksum: '123',
-          version: null,
-          tags: null,
-          created_at: Date.now(),
-          updated_at: Date.now(),
-          run_count: 0,
-          last_used_at: null,
-        },
-      })
+    // Every save 409s with the route's real id_taken body.
+    stubWizardFetch({
+      features: ['create_only'],
+      onSave: (body) => idTaken409(String(body.id)),
+    })
 
     const riskyYaml = `name: Risky
 nodes:
@@ -765,11 +876,6 @@ nodes:
     expect(saveRun).toHaveProperty('disabled', false)
 
     // Save-as suggestion follows the same gate.
-    const err = Object.assign(new Error('id_taken'), {
-      status: 409,
-      serverError: 'id_taken',
-    })
-    upsertSpy.mockRejectedValueOnce(err)
     fireEvent.click(save)
     await waitFor(() => {
       expect(
@@ -983,5 +1089,93 @@ nodes:
     })
     expect(screen.getByText('Checks · local')).toBeDefined()
     expect(screen.getByText('local checks only')).toBeDefined()
+  })
+})
+
+describe('NewWorkflowWizard v2 — FIX4A', () => {
+  const VALID_YAML = `name: Safe
+nodes:
+  - id: n1
+    prompt: hello
+`
+
+  function toReview() {
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+    fireEvent.click(screen.getByRole('button', { name: /next/i }))
+  }
+
+  it('blocks Save while the features query is loading, and Retry re-asks it', async () => {
+    let featureCalls = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/workflow-features')) {
+          featureCalls++
+          // First ask hangs: create_only is unknown, so if_absent could be skipped.
+          if (featureCalls === 1) return new Promise(() => {})
+          return Promise.resolve(
+            jsonRes({
+              features: ['create_only'],
+              schedulerAlive: false,
+              profile: null,
+            }),
+          )
+        }
+        return Promise.resolve(jsonRes({ definitions: [], engine_ok: true }))
+      }),
+    )
+
+    renderWizard({ initialYaml: VALID_YAML, initialId: 'fresh-id' })
+    toReview()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Can’t confirm “fresh-id” is free yet/i),
+      ).toBeDefined()
+    })
+    const save = screen.getByRole('button', { name: /save workflow/i })
+    expect(save).toHaveProperty('disabled', true)
+    expect(screen.getByRole('button', { name: /save & run/i })).toHaveProperty(
+      'disabled',
+      true,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    await waitFor(() => {
+      expect(screen.getByText('AVAILABLE')).toBeDefined()
+    })
+    expect(save).toHaveProperty('disabled', false)
+  })
+
+  it('renders a server-only risky warning without a line or an empty snippet', async () => {
+    vi.spyOn(apiClient, 'validateWorkflowDefinition').mockResolvedValue({
+      ok: true,
+      errors: [],
+      warnings: [
+        {
+          line: null,
+          col: null,
+          code: 'risky_shell',
+          message: "node 'soft' runs bash code on this machine",
+          node_id: 'soft',
+        },
+      ],
+      id_available: true,
+    })
+    stubWizardFetch({
+      features: ['validate'],
+      onSave: () => jsonRes({}, 500),
+    })
+
+    renderWizard({
+      initialYaml: `name: Soft\nnodes:\n  - id: soft\n    bash: echo hello\n`,
+      initialId: 'soft-flow',
+    })
+    toReview()
+
+    const title = await screen.findByText(/! Risky shell · soft/i)
+    expect(title.textContent).not.toMatch(/line/i)
+    expect(title.closest('.wz2-risk-i')?.querySelector('code')).toBeNull()
   })
 })
