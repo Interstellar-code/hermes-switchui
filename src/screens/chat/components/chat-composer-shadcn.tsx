@@ -102,10 +102,7 @@ import {
   useChatStore,
 } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
-import {
-  useEffectiveShowReasoning,
-  useSessionReasoningStore,
-} from '@/stores/session-reasoning-store'
+import { useReasoningToggle } from '@/stores/session-reasoning-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 
 // Mirror of the shared ChatComposerProps contract. Imported types keep the
@@ -240,12 +237,8 @@ function getQueuedMessagePreview(item: QueuedChatMessage): string {
  * of mounting the whole composer.
  */
 export function ReasoningToggle({ sessionKey }: { sessionKey?: string }) {
-  const effectiveShowReasoning = useEffectiveShowReasoning(sessionKey)
-  const setOverride = useSessionReasoningStore((s) => s.setOverride)
+  const { effective, label, toggle } = useReasoningToggle(sessionKey)
   if (!sessionKey) return null
-  const label = effectiveShowReasoning
-    ? 'Hide reasoning (this chat)'
-    : 'Show reasoning (this chat)'
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -253,12 +246,10 @@ export function ReasoningToggle({ sessionKey }: { sessionKey?: string }) {
           type="button"
           variant="ghost"
           size="icon-sm"
-          onClick={() => setOverride(sessionKey, !effectiveShowReasoning)}
+          onClick={toggle}
           aria-label={label}
-          aria-pressed={effectiveShowReasoning}
-          className={cn(
-            effectiveShowReasoning ? 'text-primary' : 'text-muted-foreground',
-          )}
+          aria-pressed={effective}
+          className={cn(effective ? 'text-primary' : 'text-muted-foreground')}
         >
           <Brain className="size-4" />
         </Button>
@@ -558,6 +549,13 @@ function ChatComposerShadcn({
   })
   const toggleVoice = () => voiceInput.toggle()
 
+  // ─── per-session reasoning (shared with the desktop Brain toggle) ───────
+  const {
+    effective: reasoningActive,
+    label: reasoningLabel,
+    toggle: toggleReasoning,
+  } = useReasoningToggle(sessionKey)
+
   // ─── submit ──────────────────────────────────────────────────────────────
   const canSend =
     !disabled &&
@@ -719,6 +717,16 @@ function ChatComposerShadcn({
       })
     }
 
+    if (sessionKey) {
+      list.push({
+        id: 'reasoning',
+        label: reasoningLabel,
+        icon: Brain,
+        onClick: toggleReasoning,
+        active: reasoningActive,
+      })
+    }
+
     if (onNewSession) {
       list.push({
         id: 'new-chat',
@@ -735,7 +743,11 @@ function ChatComposerShadcn({
     onCycleToolDisplayMode,
     onNewSession,
     onToggleSystemMessages,
+    reasoningActive,
+    reasoningLabel,
+    sessionKey,
     systemMessagesHidden,
+    toggleReasoning,
     toggleVoice,
     toolDisplayMode,
     voiceInput.isListening,

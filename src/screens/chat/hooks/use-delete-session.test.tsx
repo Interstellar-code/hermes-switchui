@@ -12,6 +12,7 @@ import { useSessionsFeed } from '../sessions-feed'
 import { useBulkDeleteSessions, useDeleteSession } from './use-delete-session'
 import type { ReactNode } from 'react'
 import { setSessionProfile } from '@/lib/session-scope'
+import { useSessionReasoningStore } from '@/stores/session-reasoning-store'
 
 let rows: Array<{ key: string; friendlyId: string; updatedAt: number }> = []
 // Tombstones are module state with an 8s TTL — fresh keys per test.
@@ -30,6 +31,7 @@ function json(body: unknown) {
 
 beforeEach(() => {
   run += 1
+  useSessionReasoningStore.setState({ overrides: {} })
   rows = [k('a'), k('b'), k('c')].map((key, i) => ({
     key,
     friendlyId: key,
@@ -110,5 +112,85 @@ describe.each([
       await result.current.single.deleteSession(k('b'), k('b'), false)
     })
     expect(ids(result)).toEqual([id('a'), id('c')])
+  })
+})
+
+/**
+ * A deleted chat's per-session reasoning override is dead weight in
+ * `switchui:session-reasoning`; both delete paths must drop it or the
+ * persisted map grows one key per deleted chat forever.
+ */
+describe('delete clears the per-session reasoning override', () => {
+  const overrides = () => useSessionReasoningStore.getState().overrides
+
+  it('single delete clears the key it was scoped to', async () => {
+    const { result } = setup()
+    useSessionReasoningStore.setState({ overrides: { [k('b')]: true } })
+
+    await act(async () => {
+      await result.current.single.deleteSession(k('b'), k('b'), false)
+    })
+
+    expect(overrides()).toEqual({})
+  })
+
+  it('single delete clears both the session key and a differing friendlyId', async () => {
+    const { result } = setup()
+    useSessionReasoningStore.setState({
+      overrides: { [k('b')]: true, [`${k('b')}-friendly`]: false },
+    })
+
+    await act(async () => {
+      await result.current.single.deleteSession(
+        k('b'),
+        `${k('b')}-friendly`,
+        false,
+      )
+    })
+
+    expect(overrides()).toEqual({})
+  })
+
+  it("leaves other sessions' overrides alone", async () => {
+    const { result } = setup()
+    useSessionReasoningStore.setState({
+      overrides: { [k('b')]: true, [k('a')]: false },
+    })
+
+    await act(async () => {
+      await result.current.single.deleteSession(k('b'), k('b'), false)
+    })
+
+    expect(overrides()).toEqual({ [k('a')]: false })
+  })
+
+  it('bulk delete clears the override of every deleted session', async () => {
+    const { result } = setup()
+    useSessionReasoningStore.setState({
+      overrides: { [k('a')]: true, [k('b')]: false, [k('c')]: true },
+    })
+
+    await act(async () => {
+      await result.current.bulk.deleteSessions([k('a'), k('b')])
+    })
+
+    expect(overrides()).toEqual({ [k('c')]: true })
+  })
+
+  it('keeps the override when the delete request fails', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('nope', { status: 500 }))),
+    )
+    const { result } = setup()
+    useSessionReasoningStore.setState({ overrides: { [k('b')]: true } })
+
+    await act(async () => {
+      await result.current.single
+        .deleteSession(k('b'), k('b'), false)
+        .catch(() => undefined)
+    })
+
+    expect(overrides()).toEqual({ [k('b')]: true })
   })
 })
