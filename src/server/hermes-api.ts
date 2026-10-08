@@ -29,7 +29,10 @@ import {
   updateSession as updateDashboardSession,
 } from './claude-dashboard-api'
 import { assertProfileResponseOk, scopedPath } from './profile-scope'
-import type { SessionSourceFilter } from './claude-dashboard-api'
+import type {
+  SessionArchivedFilter,
+  SessionSourceFilter,
+} from './claude-dashboard-api'
 
 const _authHeaders = (): Record<string, string> =>
   BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -73,6 +76,11 @@ export type ClaudeSession = {
   profile?: string
   profile_name?: string
   is_default_profile?: boolean
+  /** `sessions` table flags; 0/1 from raw SQLite rows, booleans from JSON
+   * layers — normalized in `toSessionSummary`. `hidden` is read-only. */
+  archived?: boolean | number
+  pinned?: boolean | number
+  hidden?: boolean | number
 }
 
 export type ClaudeMessage = {
@@ -207,7 +215,12 @@ async function claudePatch<T>(
   await assertProfileResponseOk(res, profile)
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
-    throw new Error(`Hermes Agent API PATCH ${path}: ${res.status} ${text}`)
+    // `status` lets a route tell a backend 404 apart from a message that
+    // merely contains "404" (session ids embed dates like 20260404).
+    throw Object.assign(
+      new Error(`Hermes Agent API PATCH ${path}: ${res.status} ${text}`),
+      { status: res.status },
+    )
   }
   return res.json() as Promise<T>
 }
@@ -327,6 +340,7 @@ export async function listSessions(
   limit = 50,
   offset = 0,
   filter?: SessionSourceFilter,
+  archived?: SessionArchivedFilter,
 ): Promise<Array<ClaudeSession>> {
   if (getCapabilities().dashboard.available) {
     // hermes-agent 0.21.3 caps dashboard /api/sessions at limit<=100 (422
@@ -341,16 +355,25 @@ export async function listSessions(
         pageSize,
         offset + sessions.length,
         filter,
+        archived,
       )
       sessions.push(...(resp.sessions as Array<ClaudeSession>))
       if (resp.sessions.length < pageSize) break
     }
     return sessions
   }
-  const resp = await claudeGet<{ items: Array<ClaudeSession>; total: number }>(
-    `/api/sessions?limit=${limit}&offset=${offset}`,
-  )
-  return resp.items
+  // The gateway list always excludes archived rows and has no `archived=`
+  // param, so `archived: 'include'` gets the unarchived window and
+  // `archived: 'only'` gets nothing (rather than unarchived rows).
+  const resp = await claudeGet<{
+    items?: Array<ClaudeSession>
+    data?: Array<ClaudeSession>
+    total?: number
+  }>(`/api/sessions?limit=${limit}&offset=${offset}`)
+  const rows = resp.data ?? resp.items ?? []
+  return archived === 'only'
+    ? rows.filter((row) => row.archived === true || row.archived === 1)
+    : rows
 }
 
 // The dashboard branches below are UNSCOPED — they hit :9119, which resolves
@@ -400,9 +423,9 @@ export async function createSession(
 
 export async function updateSession(
   sessionId: string,
-  updates: { title?: string },
+  updates: { title?: string; archived?: boolean; pinned?: boolean },
   profile?: string | null,
-): Promise<ClaudeSession> {
+): Promise<ClaudeSession | undefined> {
   // The dashboard shortcut has no `?profile=` scoping — for an explicit
   // profile it would silently rename in whatever profile the dashboard
   // considers active, dropping the scope (same guard as createSession()).
@@ -411,8 +434,9 @@ export async function updateSession(
     getCapabilities().dashboard.available &&
     !getCapabilities().enhancedChat
   ) {
+    // The dashboard PATCH answers `{ok, title, <flags>}` — no session row.
     const resp = await updateDashboardSession(sessionId, updates)
-    return resp.session as ClaudeSession
+    return resp.session as ClaudeSession | undefined
   }
   const resp = await claudePatch<{ session: ClaudeSession }>(
     `/api/sessions/${sessionId}`,
@@ -723,6 +747,8 @@ export function toSessionSummary(
       completionTokens: session.output_tokens ?? 0,
       totalTokens: (session.input_tokens ?? 0) + (session.output_tokens ?? 0),
     },
+    archived: session.archived === true || session.archived === 1,
+    pinned: session.pinned === true || session.pinned === 1,
   }
 }
 

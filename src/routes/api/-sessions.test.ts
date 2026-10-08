@@ -123,11 +123,18 @@ describe('GET /api/sessions', () => {
     const body = (await res.json()) as { sessions: Array<{ id: string }> }
 
     expect(res.status).toBe(200)
-    expect(hermes.listSessions).toHaveBeenNthCalledWith(1, 1000, 0, undefined)
+    expect(hermes.listSessions).toHaveBeenNthCalledWith(
+      1,
+      1000,
+      0,
+      undefined,
+      undefined,
+    )
     expect(hermes.listSessions).toHaveBeenNthCalledWith(
       2,
       1000,
       1000,
+      undefined,
       undefined,
     )
     expect(body.sessions).toHaveLength(1002)
@@ -154,7 +161,12 @@ describe('GET /api/sessions', () => {
 
     expect(res.status).toBe(200)
     expect(hermes.listSessions).toHaveBeenCalledTimes(1)
-    expect(hermes.listSessions).toHaveBeenCalledWith(200, 200, undefined)
+    expect(hermes.listSessions).toHaveBeenCalledWith(
+      200,
+      200,
+      undefined,
+      undefined,
+    )
     expect(body.sessions).toEqual([
       { id: 's-200', key: 's-200', friendlyId: 's-200' },
     ])
@@ -191,7 +203,7 @@ describe('GET /api/sessions', () => {
     })
     const body = (await res.json()) as { sessions: Array<{ id: string }> }
 
-    expect(hermes.listSessions).toHaveBeenCalledWith(3, 0, undefined)
+    expect(hermes.listSessions).toHaveBeenCalledWith(3, 0, undefined, undefined)
     expect(body.sessions.map((session) => session.id)).toEqual([
       'gateway-new',
       'local-new',
@@ -325,6 +337,7 @@ describe('GET /api/sessions?profile=', () => {
       1,
       0,
       undefined,
+      undefined,
     )
     // The unscoped active-profile listing is the silent wrong-profile hazard.
     expect(hermes.listSessions).not.toHaveBeenCalled()
@@ -351,10 +364,16 @@ describe('GET /api/sessions?profile=', () => {
       ),
     })
 
-    expect(dashboard.listProfileSessions).toHaveBeenCalledWith('neo', 200, 0, {
-      source: undefined,
-      exclude_sources: 'cron',
-    })
+    expect(dashboard.listProfileSessions).toHaveBeenCalledWith(
+      'neo',
+      200,
+      0,
+      {
+        source: undefined,
+        exclude_sources: 'cron',
+      },
+      undefined,
+    )
   })
 
   it('passes the dashboard errors[] through so a schema-drifted profile reads as degraded, not as 0', async () => {
@@ -423,7 +442,12 @@ describe('GET /api/sessions?profile=', () => {
 
     expect(res.status).toBe(200)
     expect(dashboard.listProfileSessions).not.toHaveBeenCalled()
-    expect(hermes.listSessions).toHaveBeenCalledWith(10, 0, undefined)
+    expect(hermes.listSessions).toHaveBeenCalledWith(
+      10,
+      0,
+      undefined,
+      undefined,
+    )
     expect(body.sessions).toEqual([{ key: 's-1', friendlyId: 's-1' }])
   })
 })
@@ -546,6 +570,145 @@ describe('POST /api/sessions', () => {
 describe('PATCH /api/sessions', () => {
   afterEach(() => {
     vi.clearAllMocks()
+  })
+
+  it("forwards archived/pinned to updateSession and doesn't return updated:false for a flag change", async () => {
+    hermes.ensureGatewayProbed.mockResolvedValue({
+      sessions: true,
+      dashboard: { available: true },
+      enhancedChat: false,
+    })
+    profileScope.readProfile.mockReturnValue(null)
+    hermes.updateSession.mockResolvedValue({ uuid: '123' })
+    hermes.toSessionSummary.mockReturnValue({ key: '123' })
+
+    const handler = (await getHandlers()).PATCH
+    const res = await handler({
+      request: new Request('http://localhost/api/sessions', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sessionKey: 'sess-9',
+          archived: true,
+          pinned: true,
+        }),
+      }),
+    })
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.updated).toBeUndefined()
+    expect(hermes.updateSession).toHaveBeenCalledWith(
+      'sess-9',
+      { archived: true, pinned: true, title: undefined },
+      null,
+    )
+  })
+
+  describe('flag safety (review r2)', () => {
+    afterEach(() => {
+      localStore.getLocalSession.mockReset()
+    })
+
+    async function patchFlags(body: Record<string, unknown>) {
+      hermes.ensureGatewayProbed.mockResolvedValue({
+        sessions: true,
+        dashboard: { available: true },
+        enhancedChat: true,
+      })
+      profileScope.readProfile.mockReturnValue(null)
+      const handler = (await getHandlers()).PATCH
+      const res = await handler({
+        request: new Request('http://localhost/api/sessions', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(body),
+        }),
+      })
+      return { res, body: await res.json() }
+    }
+
+    it('answers 404 session_not_found only for a backend "Session not found" 404', async () => {
+      hermes.updateSession.mockRejectedValue(
+        Object.assign(
+          new Error(
+            'Hermes Agent API PATCH /api/sessions/gone-1: 404 {"error":{"message":"Session not found: gone-1"}}',
+          ),
+          { status: 404 },
+        ),
+      )
+      const { res, body } = await patchFlags({
+        sessionKey: 'gone-1',
+        archived: true,
+      })
+      expect(res.status).toBe(404)
+      expect(body.code).toBe('session_not_found')
+    })
+
+    it('keeps a 500 whose message names a 2026-04-04 id a 500 (not "gone")', async () => {
+      hermes.updateSession.mockRejectedValue(
+        Object.assign(
+          new Error(
+            'Hermes Agent API PATCH /api/sessions/20260404_140412_ab: 500 boom',
+          ),
+          { status: 500 },
+        ),
+      )
+      const { res, body } = await patchFlags({
+        sessionKey: '20260404_140412_ab',
+        archived: true,
+      })
+      expect(res.status).toBe(500)
+      expect(body.code).toBeUndefined()
+    })
+
+    it('keeps a 404 for the route itself (backend without the PATCH) a 500', async () => {
+      hermes.updateSession.mockRejectedValue(
+        Object.assign(
+          new Error('Hermes Agent API PATCH /api/sessions/s1: 404 Not Found'),
+          { status: 404 },
+        ),
+      )
+      const { res } = await patchFlags({ sessionKey: 's1', pinned: true })
+      expect(res.status).toBe(500)
+    })
+
+    it('refuses a flag on a local portable session instead of reporting it applied', async () => {
+      localStore.getLocalSession.mockReturnValue({
+        id: 'loc-1',
+        createdAt: 1,
+        messageCount: 0,
+      })
+      const { res, body } = await patchFlags({
+        sessionKey: 'loc-1',
+        archived: true,
+      })
+      expect(res.status).toBe(409)
+      expect(body.ok).toBe(false)
+      expect(body.code).toBe('local_session')
+      expect(hermes.updateSession).not.toHaveBeenCalled()
+      expect(localStore.updateLocalSessionTitle).not.toHaveBeenCalled()
+    })
+
+    it.each([['true'], [1], [null]])(
+      'answers 400 for a non-boolean archived (%j) without calling the backend',
+      async (value) => {
+        const { res } = await patchFlags({ sessionKey: 's', archived: value })
+        expect(res.status).toBe(400)
+        expect(hermes.updateSession).not.toHaveBeenCalled()
+      },
+    )
+
+    it('answers ok when the dashboard PATCH returns no session row', async () => {
+      hermes.updateSession.mockResolvedValue(undefined)
+      const { res, body } = await patchFlags({
+        sessionKey: 's2',
+        pinned: false,
+      })
+      expect(res.status).toBe(200)
+      expect(body.ok).toBe(true)
+      expect(hermes.toSessionSummary).not.toHaveBeenCalled()
+    })
   })
 
   it('fails closed before any mutation when the profile cannot be proven routable', async () => {

@@ -47,6 +47,10 @@ vi.mock('@/screens/chat/hooks/use-rename-session', () => ({
   }),
 }))
 
+vi.mock('@/screens/chat/sessions-feed', () => ({
+  useUpdateSessionFlags: () => ({ updateSessionFlags: vi.fn() }),
+}))
+
 vi.mock('@/hooks/use-resolved-profile', () => ({
   useResolvedProfile: () => 'work',
 }))

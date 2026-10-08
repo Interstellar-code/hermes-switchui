@@ -19,6 +19,12 @@ export type DashboardSession = {
   last_active?: number | null
   is_active?: boolean
   preview?: string | null
+  /** `sessions` table flags. Raw SQLite rows send 0/1, JSON layers send
+   * booleans — normalized in `toSessionSummary`. `hidden` is read-only
+   * (UI writes are out of scope). */
+  archived?: boolean | number
+  pinned?: boolean | number
+  hidden?: boolean | number
 }
 
 export type DashboardMessage = {
@@ -152,10 +158,21 @@ async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await dashboardFetch(path, init)
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Agent dashboard ${path}: ${res.status} ${text}`)
+    throw Object.assign(
+      new Error(`Hermes Agent dashboard ${path}: ${res.status} ${text}`),
+      { status: res.status },
+    )
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>
+}
+
+/** Dashboard-side archived scoping for the session list endpoints
+ * (`archived=exclude|only|include`; dashboard default is `exclude`). */
+export type SessionArchivedFilter = 'exclude' | 'only' | 'include'
+
+function archivedFilterQuery(archived?: SessionArchivedFilter): string {
+  return archived ? `&archived=${encodeURIComponent(archived)}` : ''
 }
 
 /** Dashboard-side source scoping: `source=cron` or `exclude_sources=cron`. */
@@ -176,6 +193,7 @@ export async function listSessions(
   limit = 50,
   offset = 0,
   filter?: SessionSourceFilter,
+  archived?: SessionArchivedFilter,
 ): Promise<{
   sessions: Array<DashboardSession>
   total: number
@@ -183,7 +201,7 @@ export async function listSessions(
   offset: number
 }> {
   return dashboardJson(
-    `/api/sessions?limit=${limit}&offset=${offset}${sourceFilterQuery(filter)}`,
+    `/api/sessions?limit=${limit}&offset=${offset}${sourceFilterQuery(filter)}${archivedFilterQuery(archived)}`,
   )
 }
 
@@ -215,6 +233,7 @@ export async function listProfileSessions(
   limit = 50,
   offset = 0,
   filter?: SessionSourceFilter,
+  archived?: SessionArchivedFilter,
 ): Promise<{
   sessions: Array<DashboardProfileSession>
   total: number
@@ -224,7 +243,7 @@ export async function listProfileSessions(
   errors?: Array<{ profile: string; error: string }>
 }> {
   return dashboardJson(
-    `/api/profiles/sessions?profile=${encodeURIComponent(profile)}&limit=${limit}&offset=${offset}${sourceFilterQuery(filter)}`,
+    `/api/profiles/sessions?profile=${encodeURIComponent(profile)}&limit=${limit}&offset=${offset}${sourceFilterQuery(filter)}${archivedFilterQuery(archived)}`,
   )
 }
 

@@ -27,6 +27,7 @@ import type { ContextMenuPoint } from '@/lib/context-menu'
 import { clampContextMenuPosition } from '@/lib/context-menu'
 import { isChatSource } from '@/screens/chat/sessions-feed-types'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
+import { useUpdateSessionFlags } from '@/screens/chat/sessions-feed'
 import { useDeleteSession } from '@/screens/chat/hooks/use-delete-session'
 import { useForkSession } from '@/screens/chat/hooks/use-fork-session'
 import { useRenameSession } from '@/screens/chat/hooks/use-rename-session'
@@ -52,24 +53,21 @@ const selectPathname = (s: { location: { pathname: string } }) =>
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCardContextMenuV2Props) {
-  const {
-    isPinned,
-    isStarred,
-    isArchived,
-    togglePinned,
-    toggleStarred,
-    toggleArchived,
-  } = useSessionsLocalStore(
-    useShallow((s) => ({
-      isPinned: s.pinned.includes(item.id),
-      isStarred: s.starred.includes(item.id),
-      isArchived: s.archived.includes(item.id),
-      togglePinned: s.togglePinned,
-      toggleStarred: s.toggleStarred,
-      toggleArchived: s.toggleArchived,
-    })),
-  )
+export function SidebarCardContextMenuV2({
+  item,
+  position,
+  onClose,
+}: SidebarCardContextMenuV2Props) {
+  const { isPinned, isStarred, togglePinned, toggleStarred, toggleArchived } =
+    useSessionsLocalStore(
+      useShallow((s) => ({
+        isPinned: s.pinned.includes(item.id),
+        isStarred: s.starred.includes(item.id),
+        togglePinned: s.togglePinned,
+        toggleStarred: s.toggleStarred,
+        toggleArchived: s.toggleArchived,
+      })),
+    )
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -83,6 +81,61 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   const isChatItem = isChatSource(item.src)
   const rawId = item.id.split(':').slice(1).join(':')
 
+  // Backend-backed sessions PATCH archived/pinned to the gateway; local
+  // portable sessions and non-chat items have no backend row and keep the
+  // localStorage overlay.
+  const { updateSessionFlags } = useUpdateSessionFlags()
+  const backendBacked =
+    isChatSource(item.src) && item.sourceMeta.serverSource !== 'local'
+  const flagSessionKey =
+    (typeof item.sourceMeta.key === 'string' && item.sourceMeta.key) || rawId
+  const flagFriendlyId =
+    typeof item.sourceMeta.friendlyId === 'string'
+      ? item.sourceMeta.friendlyId
+      : null
+  const effectivePinned = item.pinned || isPinned
+  const effectiveArchived = item.archived || item.state === 'archived'
+
+  const handlePinToggle = useCallback(() => {
+    if (!backendBacked) {
+      togglePinned(item.id)
+      return
+    }
+    void updateSessionFlags({
+      sessionKey: flagSessionKey,
+      friendlyId: flagFriendlyId,
+      pinned: !effectivePinned,
+    })
+  }, [
+    backendBacked,
+    effectivePinned,
+    flagFriendlyId,
+    flagSessionKey,
+    item.id,
+    togglePinned,
+    updateSessionFlags,
+  ])
+
+  const handleArchiveToggle = useCallback(() => {
+    if (!backendBacked) {
+      toggleArchived(item.id)
+      return
+    }
+    void updateSessionFlags({
+      sessionKey: flagSessionKey,
+      friendlyId: flagFriendlyId,
+      archived: !effectiveArchived,
+    })
+  }, [
+    backendBacked,
+    effectiveArchived,
+    flagFriendlyId,
+    flagSessionKey,
+    item.id,
+    toggleArchived,
+    updateSessionFlags,
+  ])
+
   // Folders = the browsed profile's projects. The menu only mounts while
   // open, so this fetch is lazy in date mode and a cache hit in project mode.
   const profile = useResolvedProfile() ?? undefined
@@ -90,10 +143,6 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
   const bindProject = useBindSessionProject(profile)
   const unbindProject = useUnbindSessionProject(profile)
   const currentProjectId = folderMap?.sessions[rawId] ?? null
-
-  const handleArchiveToggle = useCallback(() => {
-    toggleArchived(item.id)
-  }, [toggleArchived, item.id])
 
   // Close on click-outside. Skip when a dialog is open — the dialog renders
   // as a sibling of the menu, so its clicks register as "outside" and would
@@ -118,10 +167,13 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     return () => document.removeEventListener('keydown', handle)
   }, [onClose])
 
-  const act = useCallback((fn: () => void) => {
-    fn()
-    onClose()
-  }, [onClose])
+  const act = useCallback(
+    (fn: () => void) => {
+      fn()
+      onClose()
+    },
+    [onClose],
+  )
 
   const { renameSession, renaming, error: renameError } = useRenameSession()
 
@@ -133,9 +185,12 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
       return
     }
     const sessionKey =
-      (typeof item.sourceMeta.key === 'string' ? item.sourceMeta.key : null) ?? rawId
+      (typeof item.sourceMeta.key === 'string' ? item.sourceMeta.key : null) ??
+      rawId
     const friendlyId =
-      typeof item.sourceMeta.friendlyId === 'string' ? item.sourceMeta.friendlyId : null
+      typeof item.sourceMeta.friendlyId === 'string'
+        ? item.sourceMeta.friendlyId
+        : null
     try {
       await renameSession(sessionKey, friendlyId, trimmed)
       setRenameOpen(false)
@@ -192,7 +247,10 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
     try {
       await deleteSession(rawId, rawId, isActive)
       if (isActive) {
-        void navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
+        void navigate({
+          to: '/chat/$sessionKey',
+          params: { sessionKey: 'new' },
+        })
       }
       setDeleteOpen(false)
       onClose()
@@ -227,9 +285,9 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
           }}
         >
           <MenuItem
-            label={isPinned ? 'Unpin' : 'Pin'}
-            icon={isPinned ? '★' : '☆'}
-            onClick={() => act(() => togglePinned(item.id))}
+            label={effectivePinned ? 'Unpin' : 'Pin'}
+            icon={effectivePinned ? '★' : '☆'}
+            onClick={() => act(handlePinToggle)}
           />
           <MenuItem
             label={isStarred ? 'Unstar' : 'Star'}
@@ -237,14 +295,20 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
             onClick={() => act(() => toggleStarred(item.id))}
           />
           <MenuItem
-            label={isArchived ? 'Unarchive' : 'Archive'}
+            label={effectiveArchived ? 'Unarchive' : 'Archive'}
             icon="⊞"
             onClick={() => act(handleArchiveToggle)}
           />
 
           {isChatItem && (
             <>
-              <div style={{ height: 1, background: 'var(--theme-border)', margin: '4px 0' }} />
+              <div
+                style={{
+                  height: 1,
+                  background: 'var(--theme-border)',
+                  margin: '4px 0',
+                }}
+              />
               <div
                 style={{ position: 'relative' }}
                 onMouseEnter={() => setMoveOpen(true)}
@@ -279,7 +343,10 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
                       inherited={folderMap?.inherited?.[rawId] === true}
                       onPick={(p) =>
                         act(() =>
-                          bindProject.mutate({ sessionKey: rawId, projectSlug: p.slug }),
+                          bindProject.mutate({
+                            sessionKey: rawId,
+                            projectSlug: p.slug,
+                          }),
                         )
                       }
                       onRemove={() => act(() => unbindProject.mutate(rawId))}
@@ -293,17 +360,23 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
               <MenuItem
                 label="Branch"
                 icon="⑂"
-                onClick={() => { setBranchOpen(true) }}
+                onClick={() => {
+                  setBranchOpen(true)
+                }}
               />
               <MenuItem
                 label="Rename"
                 icon="✎"
-                onClick={() => { setRenameOpen(true) }}
+                onClick={() => {
+                  setRenameOpen(true)
+                }}
               />
               <MenuItem
                 label="Delete"
                 icon="✕"
-                onClick={() => { setDeleteOpen(true) }}
+                onClick={() => {
+                  setDeleteOpen(true)
+                }}
                 danger
               />
             </>
@@ -312,38 +385,56 @@ export function SidebarCardContextMenuV2({ item, position, onClose }: SidebarCar
         document.body,
       )}
 
-      {renameOpen && createPortal(
-        <InlineRenameDialog
-          sessionTitle={item.title}
-          saving={renaming}
-          error={renameError}
-          onSave={handleRenameSave}
-          onCancel={() => { if (!renaming) { setRenameOpen(false); onClose() } }}
-        />,
-        document.body,
-      )}
+      {renameOpen &&
+        createPortal(
+          <InlineRenameDialog
+            sessionTitle={item.title}
+            saving={renaming}
+            error={renameError}
+            onSave={handleRenameSave}
+            onCancel={() => {
+              if (!renaming) {
+                setRenameOpen(false)
+                onClose()
+              }
+            }}
+          />,
+          document.body,
+        )}
 
-      {branchOpen && createPortal(
-        <InlineBranchDialog
-          sessionTitle={item.title}
-          forking={forking}
-          error={forkError}
-          onConfirm={handleBranchConfirm}
-          onCancel={() => { if (!forking) { setBranchOpen(false); onClose() } }}
-        />,
-        document.body,
-      )}
+      {branchOpen &&
+        createPortal(
+          <InlineBranchDialog
+            sessionTitle={item.title}
+            forking={forking}
+            error={forkError}
+            onConfirm={handleBranchConfirm}
+            onCancel={() => {
+              if (!forking) {
+                setBranchOpen(false)
+                onClose()
+              }
+            }}
+          />,
+          document.body,
+        )}
 
-      {deleteOpen && createPortal(
-        <InlineDeleteDialog
-          sessionTitle={item.title}
-          deleting={deleting}
-          error={deleteError}
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => { if (!deleting) { setDeleteOpen(false); onClose() } }}
-        />,
-        document.body,
-      )}
+      {deleteOpen &&
+        createPortal(
+          <InlineDeleteDialog
+            sessionTitle={item.title}
+            deleting={deleting}
+            error={deleteError}
+            onConfirm={handleDeleteConfirm}
+            onCancel={() => {
+              if (!deleting) {
+                setDeleteOpen(false)
+                onClose()
+              }
+            }}
+          />,
+          document.body,
+        )}
     </>
   )
 }
@@ -377,7 +468,11 @@ function InlineRenameDialog({
   return (
     <div style={overlayStyle}>
       <div style={dialogStyle}>
-        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>Rename session</p>
+        <p
+          style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}
+        >
+          Rename session
+        </p>
         <input
           autoFocus
           value={value}
@@ -387,14 +482,48 @@ function InlineRenameDialog({
             if (e.key === 'Enter' && !disabled) onSave(value)
             if (e.key === 'Escape' && !saving) onCancel()
           }}
-          style={{ width: '100%', padding: '4px 8px', marginBottom: 8, background: 'var(--theme-sidebar)', border: '1px solid var(--theme-border)', borderRadius: 4, color: 'var(--theme-text)', fontSize: 12, opacity: saving ? 0.6 : 1 }}
+          style={{
+            width: '100%',
+            padding: '4px 8px',
+            marginBottom: 8,
+            background: 'var(--theme-sidebar)',
+            border: '1px solid var(--theme-border)',
+            borderRadius: 4,
+            color: 'var(--theme-text)',
+            fontSize: 12,
+            opacity: saving ? 0.6 : 1,
+          }}
         />
         {error && (
-          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>{error}</p>
+          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>
+            {error}
+          </p>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} disabled={saving} style={{ ...cancelBtnStyle, opacity: saving ? 0.6 : 1, cursor: saving ? 'not-allowed' : 'pointer' }}>Cancel</button>
-          <button type="button" onClick={() => onSave(value)} disabled={disabled} style={{ ...confirmBtnStyle, opacity: disabled ? 0.6 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}>{saving ? 'Saving…' : 'Save'}</button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            style={{
+              ...cancelBtnStyle,
+              opacity: saving ? 0.6 : 1,
+              cursor: saving ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={() => onSave(value)}
+            disabled={disabled}
+            style={{
+              ...confirmBtnStyle,
+              opacity: disabled ? 0.6 : 1,
+              cursor: disabled ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
         </div>
       </div>
     </div>
@@ -423,19 +552,51 @@ function InlineBranchDialog({
   return (
     <div style={overlayStyle}>
       <div style={dialogStyle}>
-        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>
+        <p
+          style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}
+        >
           Branch <strong>{sessionTitle}</strong>?
         </p>
-        <p style={{ marginBottom: 8, fontSize: 11, color: 'var(--theme-text-muted, #888)' }}>
+        <p
+          style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: 'var(--theme-text-muted, #888)',
+          }}
+        >
           Copies the full history into a new session and opens it. The original
           is marked closed as “branched”.
         </p>
         {error && (
-          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>{error}</p>
+          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>
+            {error}
+          </p>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} disabled={forking} style={{ ...cancelBtnStyle, opacity: forking ? 0.6 : 1, cursor: forking ? 'not-allowed' : 'pointer' }}>Cancel</button>
-          <button type="button" onClick={onConfirm} disabled={forking} style={{ ...confirmBtnStyle, opacity: forking ? 0.6 : 1, cursor: forking ? 'not-allowed' : 'pointer' }}>{forking ? 'Branching…' : 'Branch'}</button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={forking}
+            style={{
+              ...cancelBtnStyle,
+              opacity: forking ? 0.6 : 1,
+              cursor: forking ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={forking}
+            style={{
+              ...confirmBtnStyle,
+              opacity: forking ? 0.6 : 1,
+              cursor: forking ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {forking ? 'Branching…' : 'Branch'}
+          </button>
         </div>
       </div>
     </div>
@@ -458,16 +619,51 @@ function InlineDeleteDialog({
   return (
     <div style={overlayStyle}>
       <div style={dialogStyle}>
-        <p style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}>
+        <p
+          style={{ marginBottom: 8, fontSize: 13, color: 'var(--theme-text)' }}
+        >
           Delete <strong>{sessionTitle}</strong>?
         </p>
-        <p style={{ marginBottom: 8, fontSize: 11, color: 'var(--theme-text-muted, #888)' }}>This cannot be undone.</p>
+        <p
+          style={{
+            marginBottom: 8,
+            fontSize: 11,
+            color: 'var(--theme-text-muted, #888)',
+          }}
+        >
+          This cannot be undone.
+        </p>
         {error && (
-          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>{error}</p>
+          <p style={{ marginBottom: 8, fontSize: 11, color: '#ff5f5f' }}>
+            {error}
+          </p>
         )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onCancel} disabled={deleting} style={{ ...cancelBtnStyle, opacity: deleting ? 0.6 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}>Cancel</button>
-          <button type="button" onClick={onConfirm} disabled={deleting} style={{ ...confirmBtnStyle, background: '#c0392b', opacity: deleting ? 0.6 : 1, cursor: deleting ? 'not-allowed' : 'pointer' }}>{deleting ? 'Deleting…' : 'Delete'}</button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={deleting}
+            style={{
+              ...cancelBtnStyle,
+              opacity: deleting ? 0.6 : 1,
+              cursor: deleting ? 'not-allowed' : 'pointer',
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            style={{
+              ...confirmBtnStyle,
+              background: '#c0392b',
+              opacity: deleting ? 0.6 : 1,
+              cursor: deleting ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {deleting ? 'Deleting…' : 'Delete'}
+          </button>
         </div>
       </div>
     </div>
@@ -475,24 +671,39 @@ function InlineDeleteDialog({
 }
 
 const overlayStyle: React.CSSProperties = {
-  position: 'fixed', inset: 0, zIndex: 1300,
+  position: 'fixed',
+  inset: 0,
+  zIndex: 1300,
   background: 'rgba(0,0,0,0.5)',
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 }
 const dialogStyle: React.CSSProperties = {
   background: 'var(--theme-card, #0d1117)',
   border: '1px solid var(--theme-border)',
-  borderRadius: 8, padding: 16, minWidth: 260, maxWidth: 360,
+  borderRadius: 8,
+  padding: 16,
+  minWidth: 260,
+  maxWidth: 360,
 }
 const cancelBtnStyle: React.CSSProperties = {
-  padding: '4px 12px', fontSize: 12, borderRadius: 4,
-  background: 'transparent', border: '1px solid var(--theme-border)',
-  color: 'var(--theme-text)', cursor: 'pointer',
+  padding: '4px 12px',
+  fontSize: 12,
+  borderRadius: 4,
+  background: 'transparent',
+  border: '1px solid var(--theme-border)',
+  color: 'var(--theme-text)',
+  cursor: 'pointer',
 }
 const confirmBtnStyle: React.CSSProperties = {
-  padding: '4px 12px', fontSize: 12, borderRadius: 4,
-  background: 'var(--theme-accent, #4CAF50)', border: 'none',
-  color: '#fff', cursor: 'pointer',
+  padding: '4px 12px',
+  fontSize: 12,
+  borderRadius: 4,
+  background: 'var(--theme-accent, #4CAF50)',
+  border: 'none',
+  color: '#fff',
+  cursor: 'pointer',
 }
 
 function MenuItem({ label, icon, onClick, danger }: MenuItemProps) {
@@ -525,7 +736,9 @@ function MenuItem({ label, icon, onClick, danger }: MenuItemProps) {
         e.currentTarget.style.background = 'transparent'
       }}
     >
-      <span style={{ width: 14, textAlign: 'center', fontSize: 10 }}>{icon}</span>
+      <span style={{ width: 14, textAlign: 'center', fontSize: 10 }}>
+        {icon}
+      </span>
       {label}
     </button>
   )

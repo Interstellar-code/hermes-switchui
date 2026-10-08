@@ -31,10 +31,12 @@ import {
   isSessionUpdateUnseen,
   useSessionsLocalStore,
 } from '@/stores/sessions-local-store'
+import { useBackendFlagsMigration } from '@/stores/session-flags-migration'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import {
   addUnloadedSourceCounts,
   mergeSessionFeedItems,
+  useArchivedSessionPages,
   useFolderPages,
   useProfileSessionTotals,
   useSessionSourceTotals,
@@ -44,6 +46,39 @@ import {
 } from '@/screens/chat/sessions-feed'
 import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
 import { DEFAULT_SESSION_LIST_LIMIT } from '@/screens/chat/chat-queries'
+
+/**
+ * Archived-view toggle: flips the filter store's `state` between `'all'` and
+ * `'archived'`, which `applyFiltersAndDecorate` turns into "list only
+ * backend-archived (and locally archived) sessions".
+ */
+export function ArchivedViewToggleV2({
+  active,
+  onToggle,
+}: {
+  active: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="flex shrink-0 px-3 py-1">
+      <button
+        type="button"
+        data-testid="archived-view-toggle"
+        aria-pressed={active}
+        aria-label="Show archived sessions"
+        onClick={onToggle}
+        className="m-chip m-label w-full rounded px-2 py-1 text-left whitespace-nowrap"
+        style={{
+          background: 'var(--theme-card)',
+          border: `1px solid ${active ? 'var(--theme-accent)' : 'var(--theme-border)'}`,
+          color: active ? 'var(--theme-accent)' : 'var(--theme-text)',
+        }}
+      >
+        {active ? '◧ ' : '▢ '}ARCHIVED
+      </button>
+    </div>
+  )
+}
 
 export function SidebarShellV2() {
   const collapsed = useSessionsFilterStore((s) => s.collapsed)
@@ -59,7 +94,13 @@ export function SidebarShellV2() {
   const fSort = useSessionsFilterStore((s) => s.sort)
   const fUpdatesOnly = useSessionsFilterStore((s) => s.updatesOnly)
   const toggleUpdatesOnly = useSessionsFilterStore((s) => s.toggleUpdatesOnly)
+  const fState = useSessionsFilterStore((s) => s.state)
+  const setFilterState = useSessionsFilterStore((s) => s.setState)
   const groupBy = useSessionsFilterStore((s) => s.groupBy)
+  const archivedView = fState === 'archived'
+
+  // One-time overlay→backend migration of locally archived/pinned chats.
+  useBackendFlagsMigration()
 
   // Folders = the browsed profile's projects; map only fetched in project mode.
   const profile = useResolvedProfile() ?? undefined
@@ -135,12 +176,19 @@ export function SidebarShellV2() {
     ].join('|')
   }, [folderMap, profile])
   const folderPages = useFolderPages(profile ?? null, folderSignal)
+  // Backend-archived rows are not in the base windows (`archived=exclude`);
+  // the Archived view pages them in from `archived=only`.
+  const archivedPages = useArchivedSessionPages(profile ?? null, archivedView)
   const items = useMemo(() => {
-    const extra = [...folderPages.items, ...windowPages.items]
+    const extra = [
+      ...folderPages.items,
+      ...windowPages.items,
+      ...archivedPages.items,
+    ]
     return extra.length > 0
       ? mergeSessionFeedItems(extra, baseItems)
       : baseItems
-  }, [baseItems, windowPages.items, folderPages.items])
+  }, [baseItems, windowPages.items, folderPages.items, archivedPages.items])
 
   const folders = useMemo((): FolderSupport | undefined => {
     if (!projectMode || !folderMap) return undefined
@@ -202,7 +250,7 @@ export function SidebarShellV2() {
         items,
         {
           sources: fSources,
-          state: 'all',
+          state: archivedView ? 'archived' : 'all',
           query: fQuery,
           dateRange: fDateRange,
           sort: fSort,
@@ -266,11 +314,19 @@ export function SidebarShellV2() {
   // but drop the "of M": the server total ignores those filters. Without a
   // total, offer it only once a full first window came back.
   const showTotal = progress !== null && !countFiltered
-  const loadMore =
-    windowPages.hasMore &&
-    (progress
-      ? progress.loaded < progress.total
-      : items.length >= DEFAULT_SESSION_LIST_LIMIT)
+  const loadMore = archivedView
+    ? archivedPages.hasMore
+      ? {
+          loaded: loadedVisible,
+          total: null,
+          loading: archivedPages.loading,
+          onLoadMore: archivedPages.loadMore,
+        }
+      : undefined
+    : windowPages.hasMore &&
+        (progress
+          ? progress.loaded < progress.total
+          : items.length >= DEFAULT_SESSION_LIST_LIMIT)
       ? {
           loaded: showTotal ? progress.loaded : loadedVisible,
           total: showTotal ? progress.total : null,
@@ -337,6 +393,10 @@ export function SidebarShellV2() {
               sourceResults={sources}
               sourceCounts={sourceCounts}
               attention={attention}
+            />
+            <ArchivedViewToggleV2
+              active={archivedView}
+              onToggle={() => setFilterState(archivedView ? 'all' : 'archived')}
             />
             <SidebarGroupToggleV2 profile={profile} map={folderMap} />
             <SidebarListV2

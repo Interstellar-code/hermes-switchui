@@ -22,6 +22,7 @@ import { useBulkMoveSessions, useSessionProjectMap } from '@/lib/projects-api'
 import { useBulkDeleteSessions } from '@/screens/chat/hooks/use-delete-session'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
+import { useUpdateSessionFlags } from '@/screens/chat/sessions-feed'
 
 const rawIdOf = (id: string) => id.split(':').slice(1).join(':')
 const plural = (n: number) => (n === 1 ? '' : 's')
@@ -50,6 +51,8 @@ export function SidebarBulkActionsV2({
   const setDialogOpen = useSessionsSelectionStore((s) => s.setDialogOpen)
   const profile = useResolvedProfile() ?? undefined
   const { data: map } = useSessionProjectMap(profile)
+  const setMany = useSessionsSelectionStore((s) => s.setMany)
+  const { updateSessionFlagsAsync } = useUpdateSessionFlags()
   const move = useBulkMoveSessions(profile)
   const { deleteSessions, progress } = useBulkDeleteSessions()
   const navigate = useNavigate()
@@ -101,12 +104,53 @@ export function SidebarBulkActionsV2({
     }
   }
 
-  function archive() {
-    useSessionsLocalStore.setState((s) => ({
-      archived: [...new Set([...s.archived, ...selectedIds])],
-    }))
-    toast(`Archived ${count} session${plural(count)}`, { type: 'success' })
-    exit()
+  const [archiving, setArchiving] = useState(false)
+
+  async function runArchive() {
+    setArchiving(true)
+    // Backend-backed chats go through the shared flag mutation (profile,
+    // optimistic flip, rollback, overlay clear); local portable sessions and
+    // non-chat items have no backend row and keep the local overlay.
+    const backend = picked.filter(
+      (i) => isChatSource(i.src) && i.sourceMeta.serverSource !== 'local',
+    )
+    const localIds = picked.filter((i) => !backend.includes(i)).map((i) => i.id)
+
+    try {
+      if (localIds.length > 0) {
+        useSessionsLocalStore.setState((s) => ({
+          archived: [...new Set([...s.archived, ...localIds])],
+        }))
+      }
+      const results = await Promise.allSettled(
+        backend.map((i) =>
+          updateSessionFlagsAsync({
+            sessionKey: rawIdOf(i.id),
+            archived: true,
+            silent: true,
+          }),
+        ),
+      )
+      const failedIds = backend
+        .filter((_, n) => results[n].status === 'rejected')
+        .map((i) => i.id)
+      if (failedIds.length > 0) {
+        const done = count - failedIds.length
+        // Keep only the failures selected so a retry is one click.
+        setMany(
+          selectedIds.filter((id) => !failedIds.includes(id)),
+          false,
+        )
+        toast(`Archived ${done} of ${count}; ${failedIds.length} failed`, {
+          type: 'error',
+        })
+        return
+      }
+      toast(`Archived ${count} session${plural(count)}`, { type: 'success' })
+      exit()
+    } finally {
+      setArchiving(false)
+    }
   }
 
   async function runDelete() {
@@ -208,7 +252,10 @@ export function SidebarBulkActionsV2({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <BarButton disabled={count === 0} onClick={archive}>
+          <BarButton
+            disabled={count === 0 || archiving}
+            onClick={() => void runArchive()}
+          >
             ARCHIVE
           </BarButton>
         </div>

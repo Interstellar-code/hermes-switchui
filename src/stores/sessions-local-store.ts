@@ -22,6 +22,9 @@ export type LocalState = {
   lastSeenUpdate: Record<string, number>
   /** Avoid lighting up every pre-existing session when this feature first loads. */
   seenUpdatesInitialized: boolean
+  /** One-time overlay→backend migration of `chat:` archived/pinned ids has
+   * finished (failures keep it false so the next load retries). */
+  backendFlagsMigrated: boolean
 }
 
 type LocalActions = {
@@ -46,6 +49,7 @@ const initialState: LocalState = {
   archived: [],
   lastSeenUpdate: {},
   seenUpdatesInitialized: false,
+  backendFlagsMigrated: false,
 }
 
 export function isSessionUpdateUnseen(
@@ -177,6 +181,7 @@ export const useSessionsLocalStore = create<LocalState & LocalActions>()(
               : {},
           seenUpdatesInitialized:
             stored.version === 2 && stored.seenUpdatesInitialized === true,
+          backendFlagsMigrated: stored.backendFlagsMigrated === true,
         }
       },
       onRehydrateStorage: () => (state, error) => {

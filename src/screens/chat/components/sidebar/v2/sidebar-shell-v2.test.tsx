@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarShellV2 } from './sidebar-shell-v2'
 import type * as SessionsFeedModule from '@/screens/chat/sessions-feed'
+
+afterEach(() => cleanup())
 
 const {
   useSessionsFeed,
@@ -10,20 +12,22 @@ const {
   useSessionProjectMap,
   useSessionSourceTotals,
   useSessionWindowPages,
+  useArchivedSessionPages,
   filterState,
   captured,
   folderLoad,
 } = vi.hoisted(() => {
   const rec = (): Record<string, any> => ({})
   return {
-  useSessionsFeed: vi.fn(),
-  applyFiltersAndDecorate: vi.fn(),
-  useSessionProjectMap: vi.fn(),
-  useSessionSourceTotals: vi.fn(),
-  useSessionWindowPages: vi.fn(),
-  filterState: rec(),
-  captured: { chips: rec(), list: rec() },
-  folderLoad: vi.fn(),
+    useSessionsFeed: vi.fn(),
+    applyFiltersAndDecorate: vi.fn(),
+    useSessionProjectMap: vi.fn(),
+    useSessionSourceTotals: vi.fn(),
+    useSessionWindowPages: vi.fn(),
+    useArchivedSessionPages: vi.fn(),
+    filterState: rec(),
+    captured: { chips: rec(), list: rec() },
+    folderLoad: vi.fn(),
   }
 })
 const folderMap = { version: 'v', projects: [], sessions: {} }
@@ -44,6 +48,7 @@ vi.mock('@/screens/chat/sessions-feed', async (importOriginal) => {
     useSessionsFeed,
     useSessionSourceTotals,
     useSessionWindowPages,
+    useArchivedSessionPages,
     useFolderPages: () => ({
       items: [],
       loading: new Set(),
@@ -65,8 +70,7 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('@/stores/sessions-filter-store', () => ({
   useSessionsFilterStore: (
     selector: (state: Record<string, unknown>) => unknown,
-  ) =>
-    selector(filterState),
+  ) => selector(filterState),
 }))
 vi.mock('@/stores/sessions-local-store', () => ({
   useSessionsLocalStore: (
@@ -83,6 +87,9 @@ vi.mock('@/stores/sessions-local-store', () => ({
       markSessionsSeen: vi.fn(),
     }),
   isSessionUpdateUnseen: vi.fn(() => false),
+}))
+vi.mock('@/stores/session-flags-migration', () => ({
+  useBackendFlagsMigration: vi.fn(),
 }))
 vi.mock('./sidebar-header-v2', () => ({ SidebarHeaderV2: () => null }))
 vi.mock('./sidebar-list-v2', () => ({
@@ -123,6 +130,12 @@ beforeEach(() => {
     hasMore: true,
     loading: false,
     loadMore: loadMoreFn,
+  })
+  useArchivedSessionPages.mockReturnValue({
+    items: [],
+    hasMore: false,
+    loading: false,
+    loadMore: vi.fn(),
   })
   useSessionProjectMap.mockReturnValue({ data: folderMap })
   useSessionsFeed.mockReturnValue({
@@ -227,11 +240,7 @@ describe('server source totals', () => {
   it('a narrowed selection with unloaded rows auto-loads its window', () => {
     filterState.sources = ['tg']
     render(<SidebarShellV2 />)
-    expect(useSessionWindowPages).toHaveBeenLastCalledWith(
-      'work',
-      ['tg'],
-      true,
-    )
+    expect(useSessionWindowPages).toHaveBeenLastCalledWith('work', ['tg'], true)
   })
 
   it('does not auto-load when nothing is hidden', () => {
@@ -264,11 +273,7 @@ describe('server source totals', () => {
       const { rerender } = render(<SidebarShellV2 />)
       filterState.sources = ['tg']
       rerender(<SidebarShellV2 />)
-      expect(useSessionWindowPages).toHaveBeenLastCalledWith(
-        'work',
-        [],
-        false,
-      )
+      expect(useSessionWindowPages).toHaveBeenLastCalledWith('work', [], false)
       act(() => {
         vi.advanceTimersByTime(300)
       })
@@ -331,4 +336,47 @@ it('per-folder load asks for listable ids of that folder not yet loaded', () => 
   act(() => folders.onLoad('p1'))
   // `a` is loaded (feed item chat:a); `seg` is not listable; `other` is another folder.
   expect(folderLoad).toHaveBeenCalledWith('p1', ['tip'])
+})
+
+it('toggles the archived view state', () => {
+  filterState.setState = vi.fn()
+  const { getByTestId } = render(<SidebarShellV2 />)
+  const toggle = getByTestId('archived-view-toggle')
+  expect(toggle).toBeTruthy()
+  fireEvent.click(toggle)
+  expect(filterState.setState).toHaveBeenCalledWith('archived')
+})
+
+describe('Archived view', () => {
+  beforeEach(() => {
+    filterState.state = 'all'
+  })
+
+  it('pages archived=only rows in only while the view is on', () => {
+    render(<SidebarShellV2 />)
+    expect(useArchivedSessionPages).toHaveBeenLastCalledWith('work', false)
+  })
+
+  it('feeds the archived pages to the filter with state archived and pages them on Load more', () => {
+    const archivedLoadMore = vi.fn()
+    filterState.state = 'archived'
+    useArchivedSessionPages.mockReturnValue({
+      items: [{ id: 'chat:arch-1', state: 'archived' }],
+      hasMore: true,
+      loading: false,
+      loadMore: archivedLoadMore,
+    })
+
+    render(<SidebarShellV2 />)
+
+    expect(useArchivedSessionPages).toHaveBeenLastCalledWith('work', true)
+    const [items, filter] = applyFiltersAndDecorate.mock.calls.at(-1) ?? []
+    expect(items).toEqual(
+      expect.arrayContaining([{ id: 'chat:arch-1', state: 'archived' }]),
+    )
+    expect(filter).toMatchObject({ state: 'archived' })
+    expect(captured.list.loadMore).toMatchObject({
+      onLoadMore: archivedLoadMore,
+    })
+  })
 })
