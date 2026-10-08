@@ -190,7 +190,8 @@ export function useDisplayMessages(params: {
       }
       if (msg.role === 'assistant') {
         if (msg.__streamingStatus === 'streaming') return true
-        if ((msg as any).__optimisticId && msg.content.length === 0) return true
+        if ((msg as any).__optimisticId && msg.content?.length === 0)
+          return true
         if (hasVisibleText(textFromMessage(msg))) return true
         const content = Array.isArray(msg.content) ? msg.content : []
         const hasToolCalls = content.some((part) => part.type === 'toolCall')

@@ -15,6 +15,9 @@ const { deleteSessions, navigate, toast } = vi.hoisted(() => ({
   toast: vi.fn(),
 }))
 
+vi.mock('@tanstack/react-query', () => ({
+  useQueryClient: () => ({}),
+}))
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   useRouterState: () => '/',

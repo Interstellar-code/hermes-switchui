@@ -29,7 +29,10 @@ import {
   updateSession as updateDashboardSession,
 } from './claude-dashboard-api'
 import { assertProfileResponseOk, scopedPath } from './profile-scope'
-import type { SessionSourceFilter } from './claude-dashboard-api'
+import type {
+  SessionArchivedFilter,
+  SessionSourceFilter,
+} from './claude-dashboard-api'
 
 const _authHeaders = (): Record<string, string> =>
   BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}
@@ -73,6 +76,11 @@ export type ClaudeSession = {
   profile?: string
   profile_name?: string
   is_default_profile?: boolean
+  /** `sessions` table flags; 0/1 from raw SQLite rows, booleans from JSON
+   * layers — normalized in `toSessionSummary`. `hidden` is read-only. */
+  archived?: boolean | number
+  pinned?: boolean | number
+  hidden?: boolean | number
 }
 
 export type ClaudeMessage = {
@@ -327,6 +335,7 @@ export async function listSessions(
   limit = 50,
   offset = 0,
   filter?: SessionSourceFilter,
+  archived?: SessionArchivedFilter,
 ): Promise<Array<ClaudeSession>> {
   if (getCapabilities().dashboard.available) {
     // hermes-agent 0.21.3 caps dashboard /api/sessions at limit<=100 (422
@@ -341,16 +350,22 @@ export async function listSessions(
         pageSize,
         offset + sessions.length,
         filter,
+        archived,
       )
       sessions.push(...(resp.sessions as Array<ClaudeSession>))
       if (resp.sessions.length < pageSize) break
     }
     return sessions
   }
-  const resp = await claudeGet<{ items: Array<ClaudeSession>; total: number }>(
-    `/api/sessions?limit=${limit}&offset=${offset}`,
-  )
-  return resp.items
+  // The gateway list always excludes archived rows and has no `archived=`
+  // param, so `archived: 'only'|'include'` cannot be honored here — callers
+  // get the gateway's unarchived window either way.
+  const resp = await claudeGet<{
+    items?: Array<ClaudeSession>
+    data?: Array<ClaudeSession>
+    total?: number
+  }>(`/api/sessions?limit=${limit}&offset=${offset}`)
+  return resp.data ?? resp.items ?? []
 }
 
 // The dashboard branches below are UNSCOPED — they hit :9119, which resolves
@@ -400,7 +415,7 @@ export async function createSession(
 
 export async function updateSession(
   sessionId: string,
-  updates: { title?: string },
+  updates: { title?: string; archived?: boolean; pinned?: boolean },
   profile?: string | null,
 ): Promise<ClaudeSession> {
   // The dashboard shortcut has no `?profile=` scoping — for an explicit
@@ -723,6 +738,8 @@ export function toSessionSummary(
       completionTokens: session.output_tokens ?? 0,
       totalTokens: (session.input_tokens ?? 0) + (session.output_tokens ?? 0),
     },
+    archived: session.archived === true || session.archived === 1,
+    pinned: session.pinned === true || session.pinned === 1,
   }
 }
 

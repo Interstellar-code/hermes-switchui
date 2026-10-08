@@ -80,7 +80,7 @@ function decorateItem(
 ): SessionFeedItem {
   return {
     ...item,
-    pinned: pinnedSet.has(item.id),
+    pinned: pinnedSet.has(item.id) || item.pinned,
     starred: starredSet.has(item.id),
     archived: archivedSet.has(item.id) || item.state === 'archived',
     hasUnseenUpdate:

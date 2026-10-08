@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   FolderPickerList,
   useDismiss,
@@ -22,6 +23,7 @@ import { useBulkMoveSessions, useSessionProjectMap } from '@/lib/projects-api'
 import { useBulkDeleteSessions } from '@/screens/chat/hooks/use-delete-session'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
+import { invalidateSessionLists } from '@/screens/chat/sessions-feed'
 
 const rawIdOf = (id: string) => id.split(':').slice(1).join(':')
 const plural = (n: number) => (n === 1 ? '' : 's')
@@ -50,6 +52,7 @@ export function SidebarBulkActionsV2({
   const setDialogOpen = useSessionsSelectionStore((s) => s.setDialogOpen)
   const profile = useResolvedProfile() ?? undefined
   const { data: map } = useSessionProjectMap(profile)
+  const queryClient = useQueryClient()
   const move = useBulkMoveSessions(profile)
   const { deleteSessions, progress } = useBulkDeleteSessions()
   const navigate = useNavigate()
@@ -101,12 +104,51 @@ export function SidebarBulkActionsV2({
     }
   }
 
-  function archive() {
-    useSessionsLocalStore.setState((s) => ({
-      archived: [...new Set([...s.archived, ...selectedIds])],
-    }))
-    toast(`Archived ${count} session${plural(count)}`, { type: 'success' })
-    exit()
+  const [archiving, setArchiving] = useState(false)
+
+  async function runArchive() {
+    setArchiving(true)
+    const localIds = picked
+      .filter(
+        (i) => !isChatSource(i.src) || i.sourceMeta.serverSource === 'local',
+      )
+      .map((i) => i.id)
+    const backendChatKeys = picked
+      .filter(
+        (i) => isChatSource(i.src) && i.sourceMeta.serverSource !== 'local',
+      )
+      .map((i) => rawIdOf(i.id))
+
+    try {
+      if (localIds.length > 0) {
+        useSessionsLocalStore.setState((s) => ({
+          archived: [...new Set([...s.archived, ...localIds])],
+        }))
+      }
+
+      if (backendChatKeys.length > 0) {
+        const results = await Promise.allSettled(
+          backendChatKeys.map((sessionKey) =>
+            fetch('/api/sessions', {
+              method: 'PATCH',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ sessionKey, archived: true }),
+            }).then((res) => {
+              if (!res.ok) throw new Error('Failed to archive')
+              return res
+            }),
+          ),
+        )
+        const failed = results.filter((r) => r.status === 'rejected').length
+        const ok = backendChatKeys.length - failed
+
+        invalidateSessionLists(queryClient)
+      }
+      toast(`Archived ${count} session${plural(count)}`, { type: 'success' })
+      exit()
+    } finally {
+      setArchiving(false)
+    }
   }
 
   async function runDelete() {
@@ -208,7 +250,10 @@ export function SidebarBulkActionsV2({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <BarButton disabled={count === 0} onClick={archive}>
+          <BarButton
+            disabled={count === 0 || archiving}
+            onClick={() => void runArchive()}
+          >
             ARCHIVE
           </BarButton>
         </div>

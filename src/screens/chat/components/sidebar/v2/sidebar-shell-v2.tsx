@@ -31,6 +31,7 @@ import {
   isSessionUpdateUnseen,
   useSessionsLocalStore,
 } from '@/stores/sessions-local-store'
+import { useBackendFlagsMigration } from '@/stores/session-flags-migration'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import {
   addUnloadedSourceCounts,
@@ -44,6 +45,39 @@ import {
 } from '@/screens/chat/sessions-feed'
 import { applyFiltersAndDecorate } from '@/screens/chat/apply-filters-and-decorate'
 import { DEFAULT_SESSION_LIST_LIMIT } from '@/screens/chat/chat-queries'
+
+/**
+ * Archived-view toggle: flips the filter store's `state` between `'all'` and
+ * `'archived'`, which `applyFiltersAndDecorate` turns into "list only
+ * backend-archived (and locally archived) sessions".
+ */
+export function ArchivedViewToggleV2({
+  active,
+  onToggle,
+}: {
+  active: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="flex shrink-0 px-3 py-1">
+      <button
+        type="button"
+        data-testid="archived-view-toggle"
+        aria-pressed={active}
+        aria-label="Show archived sessions"
+        onClick={onToggle}
+        className="m-chip m-label w-full rounded px-2 py-1 text-left whitespace-nowrap"
+        style={{
+          background: 'var(--theme-card)',
+          border: `1px solid ${active ? 'var(--theme-accent)' : 'var(--theme-border)'}`,
+          color: active ? 'var(--theme-accent)' : 'var(--theme-text)',
+        }}
+      >
+        {active ? '◧ ' : '▢ '}ARCHIVED
+      </button>
+    </div>
+  )
+}
 
 export function SidebarShellV2() {
   const collapsed = useSessionsFilterStore((s) => s.collapsed)
@@ -59,7 +93,13 @@ export function SidebarShellV2() {
   const fSort = useSessionsFilterStore((s) => s.sort)
   const fUpdatesOnly = useSessionsFilterStore((s) => s.updatesOnly)
   const toggleUpdatesOnly = useSessionsFilterStore((s) => s.toggleUpdatesOnly)
+  const fState = useSessionsFilterStore((s) => s.state)
+  const setFilterState = useSessionsFilterStore((s) => s.setState)
   const groupBy = useSessionsFilterStore((s) => s.groupBy)
+  const archivedView = fState === 'archived'
+
+  // One-time overlay→backend migration of locally archived/pinned chats.
+  useBackendFlagsMigration()
 
   // Folders = the browsed profile's projects; map only fetched in project mode.
   const profile = useResolvedProfile() ?? undefined
@@ -202,7 +242,7 @@ export function SidebarShellV2() {
         items,
         {
           sources: fSources,
-          state: 'all',
+          state: archivedView ? 'archived' : 'all',
           query: fQuery,
           dateRange: fDateRange,
           sort: fSort,
@@ -337,6 +377,10 @@ export function SidebarShellV2() {
               sourceResults={sources}
               sourceCounts={sourceCounts}
               attention={attention}
+            />
+            <ArchivedViewToggleV2
+              active={archivedView}
+              onToggle={() => setFilterState(archivedView ? 'all' : 'archived')}
             />
             <SidebarGroupToggleV2 profile={profile} map={folderMap} />
             <SidebarListV2

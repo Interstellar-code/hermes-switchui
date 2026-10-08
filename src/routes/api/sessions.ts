@@ -26,16 +26,32 @@ import {
   listLocalSessions,
   updateLocalSessionTitle,
 } from '../../server/local-session-store'
+import type { SessionArchivedFilter } from '../../server/claude-dashboard-api'
 import type { ClaudeSession } from '../../server/hermes-api'
 import { createCapabilityUnavailablePayload } from '@/lib/feature-gates'
+
+const ARCHIVED_FILTER_VALUES: ReadonlyArray<SessionArchivedFilter> = [
+  'exclude',
+  'only',
+  'include',
+]
+
+function readArchivedFilter(
+  raw: string | null,
+): SessionArchivedFilter | undefined {
+  return raw && ARCHIVED_FILTER_VALUES.includes(raw as SessionArchivedFilter)
+    ? (raw as SessionArchivedFilter)
+    : undefined
+}
 
 async function listAllSessions(
   pageSize = 1000,
   filter?: Parameters<typeof listSessions>[2],
+  archived?: SessionArchivedFilter,
 ) {
   const sessions = [] as Array<Awaited<ReturnType<typeof listSessions>>[number]>
   for (let offset = 0; ; offset += pageSize) {
-    const page = await listSessions(pageSize, offset, filter)
+    const page = await listSessions(pageSize, offset, filter, archived)
     sessions.push(...page)
     if (page.length < pageSize) break
   }
@@ -206,6 +222,9 @@ export const Route = createFileRoute('/api/sessions')({
             source || excludeSources
               ? { source, exclude_sources: excludeSources }
               : undefined
+          // Backend archived scoping (`archived=only` powers the Archived
+          // view). Absent = the backend default (`exclude`), today's list.
+          const archived = readArchivedFilter(url.searchParams.get('archived'))
 
           if (requestedProfile) {
             const profileLimit = Number(url.searchParams.get('limit'))
@@ -219,6 +238,7 @@ export const Route = createFileRoute('/api/sessions')({
                 ? profileOffset
                 : 0,
               sourceFilter,
+              archived,
             )
             return Response.json({
               ok: true,
@@ -250,7 +270,7 @@ export const Route = createFileRoute('/api/sessions')({
             Number.isFinite(requestedOffset) && requestedOffset > 0
               ? requestedOffset
               : 0
-          const localSessions = listLocalSessions()
+          const localSessions = archived === 'only' ? [] : listLocalSessions()
           const gatewayOffset = hasPagination
             ? Math.max(0, offset - localSessions.length)
             : 0
@@ -259,8 +279,9 @@ export const Route = createFileRoute('/api/sessions')({
                 limit + localSessions.length,
                 gatewayOffset,
                 sourceFilter,
+                archived,
               )
-            : await listAllSessions(limit, sourceFilter)
+            : await listAllSessions(limit, sourceFilter, archived)
           const gatewaySessions = sessions.map(toSessionSummary)
 
           // Merge local portable sessions (Ollama, Atomic Chat, etc.)
@@ -428,6 +449,22 @@ export const Route = createFileRoute('/api/sessions')({
           const rawFriendlyId =
             typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
           const sessionKey = rawSessionKey || rawFriendlyId || randomUUID()
+          // A title rename degrades gracefully without a backend, but a flag
+          // change (archived/pinned) has nothing to land on — silently
+          // reporting `updated: false` would tell the client its archive
+          // move was noted when it was dropped.
+          if (
+            typeof body.archived === 'boolean' ||
+            typeof body.pinned === 'boolean'
+          ) {
+            return Response.json(
+              {
+                ok: false,
+                error: SESSIONS_API_UNAVAILABLE_MESSAGE,
+              },
+              { status: 503 },
+            )
+          }
 
           return Response.json({
             ...createCapabilityUnavailablePayload('sessions'),
@@ -449,6 +486,11 @@ export const Route = createFileRoute('/api/sessions')({
             typeof body.friendlyId === 'string' ? body.friendlyId.trim() : ''
           const label =
             typeof body.label === 'string' ? body.label.trim() : undefined
+          const archived =
+            typeof body.archived === 'boolean' ? body.archived : undefined
+          const pinned =
+            typeof body.pinned === 'boolean' ? body.pinned : undefined
+          const hasFlagChange = archived !== undefined || pinned !== undefined
           const sessionKey = rawSessionKey || rawFriendlyId
 
           if (!sessionKey) {
@@ -498,7 +540,12 @@ export const Route = createFileRoute('/api/sessions')({
             })
           }
 
+          // The unscoped dashboard shortcut returns a synthetic un-persisted
+          // entry — fine for a rename, but it would swallow a flag change
+          // (`updated: false` while the backend row is never touched). Flag
+          // PATCHes fall through to the real backend call.
           if (
+            !hasFlagChange &&
             !profile &&
             capabilities.dashboard.available &&
             !capabilities.enhancedChat
@@ -520,7 +567,7 @@ export const Route = createFileRoute('/api/sessions')({
 
           const session = await updateSession(
             sessionKey,
-            { title: label },
+            { title: label, archived, pinned },
             profile,
           )
 

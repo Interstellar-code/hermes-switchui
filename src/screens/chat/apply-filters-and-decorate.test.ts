@@ -676,3 +676,20 @@ describe('applyFiltersAndDecorate — grouping', () => {
     expect(beta.items[0].inheritedFolder).toBeUndefined()
   })
 })
+
+describe('Archived view', () => {
+  it('lists only archived rows when filter state is archived', () => {
+    const items = [
+      makeItem({ id: 'chat:1', state: 'idle' }),
+      makeItem({ id: 'chat:2', state: 'archived' }),
+    ]
+    const result = applyFiltersAndDecorate(
+      items,
+      makeFilter({ state: 'archived' }),
+      makeLocal(),
+    )
+    expect(result.groups.flatMap((g) => g.items).map((i) => i.id)).toEqual([
+      'chat:2',
+    ])
+  })
+})

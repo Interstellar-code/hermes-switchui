@@ -170,6 +170,8 @@ export type SessionMeta = {
   /** Gateway origin: 'telegram' | 'cron' | 'cli' | 'api_server' | 'a2a_fleet' | 'local' | '' */
   source?: string
   isActive?: boolean
+  pinned?: boolean
+  archived?: boolean
   /** Present only on rows from a profile-scoped `?profile=` fetch (P2). */
   profile?: string
 }

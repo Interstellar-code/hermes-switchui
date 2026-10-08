@@ -14,6 +14,7 @@
 
 import {
   useInfiniteQuery,
+  useMutation,
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query'
@@ -22,14 +23,14 @@ import {
   DEFAULT_SESSION_LIST_LIMIT,
   chatQueryKeys,
   fetchListableSessions,
-  fetchProfileSessions,
   fetchSessionWindow,
-  fetchSessions,
   searchSessions,
+  updateSessionWindowPages,
 } from './chat-queries'
+import { normalizeSessions, readError } from './utils'
 import { filterSessionsWithTombstones } from './session-tombstones'
 import { matchesSessionSearch } from './session-search'
-import type { SessionMeta } from './types'
+import type { SessionListResponse, SessionMeta, SessionSummary } from './types'
 import type { InfiniteData, QueryClient } from '@tanstack/react-query'
 import type { ClaudeJob } from '@/lib/jobs-api'
 import type {
@@ -41,6 +42,7 @@ import type {
   SessionsFeedOptions,
   SessionsFeedResult,
 } from './sessions-feed-types'
+import { toast } from '@/components/ui/toast'
 import { fetchJobs, findJobById } from '@/lib/jobs-api'
 import { useChatStore } from '@/stores/chat-store'
 import { useResolvedProfile } from '@/hooks/use-resolved-profile'
@@ -48,6 +50,9 @@ import {
   UNSCOPED_PROFILE,
   activeScopeKey,
   activeScopeSegments,
+  getSessionProfile,
+  profileBody,
+  readSendFailure,
 } from '@/lib/session-scope'
 
 /**
@@ -292,6 +297,186 @@ export function findSessionSource(
 
 // ── State normalization ────────────────────────────────────────────────────────
 
+// ── Backend flag-preserving list fetch ─────────────────────────────────────────
+
+/** `SessionSummary` wire rows widened with the backend flag fields the
+ * `archived=include` list carries (`normalizeSessions` drops unknown fields,
+ * so flags are re-attached from the raw rows after normalizing). */
+type FlagSummaryRow = SessionSummary & {
+  archived?: boolean | number
+  pinned?: boolean | number
+}
+
+export type FeedSessionMeta = SessionMeta & {
+  archived?: boolean
+  pinned?: boolean
+}
+
+function attachSessionFlags(
+  rows: Array<SessionMeta>,
+  raw: Array<SessionSummary> | undefined,
+): Array<FeedSessionMeta> {
+  if (!Array.isArray(raw)) return rows
+  const flagsByKey = new Map<string, { archived?: boolean; pinned?: boolean }>()
+  for (const row of raw as Array<FlagSummaryRow>) {
+    if (typeof row.key !== 'string' || row.key === '') continue
+    flagsByKey.set(row.key, {
+      archived: row.archived === true || row.archived === 1,
+      pinned: row.pinned === true || row.pinned === 1,
+    })
+  }
+  return rows.map((row) => ({ ...row, ...flagsByKey.get(row.key) }))
+}
+
+async function fetchSessionWindowWithFlags(
+  filter: Record<string, string>,
+  profile: string | null | undefined,
+  offset = 0,
+): Promise<Array<FeedSessionMeta>> {
+  const query = new URLSearchParams({
+    limit: String(DEFAULT_SESSION_LIST_LIMIT),
+    offset: String(offset),
+    // Backend-archived rows ride along; the default view filters them out
+    // client-side (item.state === 'archived') and the Archived view shows them.
+    archived: 'include',
+    ...filter,
+  })
+  if (profile) query.set('profile', profile)
+  const res = await fetch(`/api/sessions?${query.toString()}`)
+  if (!res.ok) {
+    const error = new Error(await readError(res)) as Error & {
+      status?: number
+    }
+    error.status = res.status
+    throw error
+  }
+  const data = (await res.json()) as SessionListResponse
+  return attachSessionFlags(normalizeSessions(data.sessions), data.sessions)
+}
+
+async function fetchSessionWindowsWithFlags(
+  profile: string | null | undefined,
+): Promise<Array<FeedSessionMeta>> {
+  const [recents, cron] = await Promise.all([
+    fetchSessionWindowWithFlags({ exclude_sources: 'cron' }, profile),
+    fetchSessionWindowWithFlags({ source: 'cron' }, profile),
+  ])
+  const seen = new Set<string>()
+  return [...recents, ...cron]
+    .filter((session) => {
+      if (seen.has(session.key)) return false
+      seen.add(session.key)
+      return true
+    })
+    .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+}
+
+/** `fetchSessions`, but the rows keep the backend `archived`/`pinned` flags.
+ * Same cache key and wire shape — a superset of `fetchSessions`' rows. */
+export async function fetchSessionsWithFlags(): Promise<
+  Array<FeedSessionMeta>
+> {
+  return fetchSessionWindowsWithFlags(getSessionProfile())
+}
+
+/** `fetchProfileSessions`, likewise keeping the backend flags. */
+export async function fetchProfileSessionsWithFlags(
+  profile: string,
+): Promise<Array<FeedSessionMeta>> {
+  return fetchSessionWindowsWithFlags(profile)
+}
+
+// ── Backend flag mutation (archive / pin) ──────────────────────────────────────
+
+export type SessionFlagsPayload = {
+  sessionKey: string
+  friendlyId?: string | null
+} & Partial<{ archived: boolean; pinned: boolean }>
+
+/**
+ * PATCH `archived` / `pinned` onto a backend session row, with the same
+ * optimistic-cache contract as `useRenameSession`: the shared
+ * `chatQueryKeys.sessions` rows flip immediately, roll back on failure, and
+ * every session list refetches on success.
+ */
+export function useUpdateSessionFlags() {
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    mutationFn: async function patchSessionFlags(payload: SessionFlagsPayload) {
+      const res = await fetch('/api/sessions', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          sessionKey: payload.sessionKey,
+          friendlyId: payload.friendlyId ?? undefined,
+          ...('archived' in payload ? { archived: payload.archived } : {}),
+          ...('pinned' in payload ? { pinned: payload.pinned } : {}),
+          ...profileBody(),
+        }),
+      })
+      if (!res.ok) throw new Error(await readSendFailure(res))
+      return payload
+    },
+    onMutate: async function optimisticFlags(payload) {
+      await queryClient.cancelQueries({ queryKey: chatQueryKeys.sessions })
+      const previousSessions = queryClient.getQueryData(chatQueryKeys.sessions)
+      const previousScoped = queryClient.getQueryData(
+        chatQueryKeys.scopedSessions(getSessionProfile() ?? UNSCOPED_PROFILE),
+      )
+
+      const targetId = payload.friendlyId || payload.sessionKey
+      const update = function update(sessions: unknown) {
+        if (!Array.isArray(sessions)) return sessions
+        return (sessions as Array<Record<string, unknown>>).map((session) => {
+          const key = typeof session.key === 'string' ? session.key : ''
+          const friendlyId =
+            typeof session.friendlyId === 'string' ? session.friendlyId : ''
+          if (key !== payload.sessionKey && friendlyId !== targetId)
+            return session
+          return {
+            ...session,
+            ...('archived' in payload ? { archived: payload.archived } : {}),
+            ...('pinned' in payload ? { pinned: payload.pinned } : {}),
+          }
+        })
+      }
+      queryClient.setQueryData(chatQueryKeys.sessions, update)
+      const profile = getSessionProfile()
+      if (profile) {
+        queryClient.setQueryData(chatQueryKeys.scopedSessions(profile), update)
+      }
+      updateSessionWindowPages(queryClient, update)
+
+      return { previousSessions, previousScoped }
+    },
+    onError: function rollbackFlags(err, _payload, context) {
+      if (context?.previousSessions) {
+        queryClient.setQueryData(
+          chatQueryKeys.sessions,
+          context.previousSessions,
+        )
+      }
+      if (context?.previousScoped) {
+        queryClient.setQueryData(
+          chatQueryKeys.scopedSessions(getSessionProfile() ?? UNSCOPED_PROFILE),
+          context.previousScoped,
+        )
+      }
+      const msg = err instanceof Error ? err.message : String(err)
+      toast(`Couldn't update session: ${msg}`, { type: 'error' })
+    },
+    onSuccess: function refreshLists() {
+      invalidateSessionLists(queryClient)
+    },
+  })
+
+  return {
+    updateSessionFlags: mutation.mutateAsync,
+    flagsPending: mutation.isPending,
+  }
+}
+
 // ── Chat source hook ───────────────────────────────────────────────────────────
 
 /** Hook for chat sessions.
@@ -324,7 +509,7 @@ export function useChatSessionsFeed(enabled = true): SessionSourceResult {
   // fetched /api/sessions independently — that duplicate is eliminated.
   const sessionsQuery = useQuery({
     queryKey: chatQueryKeys.sessions,
-    queryFn: fetchSessions,
+    queryFn: fetchSessionsWithFlags,
     staleTime: 60_000,
     refetchInterval: enabled ? 120_000 : false,
     enabled,
@@ -396,7 +581,7 @@ export function useScopedChatSessionsFeed(
 
   const scopedQuery = useQuery({
     queryKey: chatQueryKeys.scopedSessions(profile),
-    queryFn: () => fetchProfileSessions(profile),
+    queryFn: () => fetchProfileSessionsWithFlags(profile),
     enabled: scoped,
     staleTime: 60_000,
     refetchInterval: scoped ? 120_000 : false,
@@ -425,8 +610,8 @@ export function useScopedChatSessionsFeed(
   }
 }
 
-function sessionsToFeedItems(
-  rawSessions: Array<SessionMeta>,
+export function sessionsToFeedItems(
+  rawSessions: Array<FeedSessionMeta>,
   jobs: Array<ClaudeJob>,
   waitingSessionKeys: Set<string>,
 ): Array<SessionFeedItem> {
@@ -450,10 +635,12 @@ function sessionsToFeedItems(
       titleLower.startsWith('work kanban task ') ||
       previewLower.startsWith('work kanban task ')
     const kind = classifySessionSource(s.source, s.key, isTaskTriggered, s.kind)
+    const backendArchived = s.archived === true
     const live =
-      Boolean(s.isActive) ||
-      waitingSessionKeys.has(activeScopeKey(s.key)) ||
-      waitingSessionKeys.has(activeScopeKey(s.friendlyId))
+      !backendArchived &&
+      (Boolean(s.isActive) ||
+        waitingSessionKeys.has(activeScopeKey(s.key)) ||
+        waitingSessionKeys.has(activeScopeKey(s.friendlyId)))
     return {
       id: makeId('chat', s.key),
       src: kind,
@@ -463,11 +650,11 @@ function sessionsToFeedItems(
       when,
       day: getDayBucket(when, nowMs),
       live,
-      state: live ? 'live' : 'idle',
+      state: backendArchived ? 'archived' : live ? 'live' : 'idle',
       badges: [],
-      pinned: false,
+      pinned: s.pinned === true,
       starred: false,
-      archived: false,
+      archived: backendArchived,
       sourceMeta: {
         key: s.key,
         friendlyId: s.friendlyId,
@@ -611,7 +798,10 @@ export function addUnloadedSourceCounts(
       total - (loaded.get(source) ?? 0),
     )
   }
-  add(OTHER_SOURCE_CHIPS[0], totals.total - known - (items.length - loadedKnown))
+  add(
+    OTHER_SOURCE_CHIPS[0],
+    totals.total - known - (items.length - loadedKnown),
+  )
   return next
 }
 
