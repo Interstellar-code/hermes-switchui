@@ -3,14 +3,17 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.13.2] - 2026-10-09
+## [2.13.2] — 2026-10-09
+
+Agents move into the chat header as a tab with their list in the sidebar, and the Skills and MCP pills count the whole session instead of only the loaded messages.
 
 ### Added
-- **chat:** agents tab in the header with its list in the sidebar (329630aa)
+
+- **Agents tab**: the floating "agents N" button is now an `agents` tab next to Skills in the chat header, showing the agent count (with "N live" for running agents) and pulsing while agents run. Its list opens in the sidebar like Files, Tools, Todos, MCP and Skills (Esc or ← closes it; a sheet on mobile), with the same expandable cards and activity. The old right-side overlay is removed.
 
 ### Fixed
-- **chat:** keep skill names and stop paging repeats in session tool usage (7ef17433)
-- **chat:** count skills and MCP over the whole session in the header pills (93d080ae)
+
+- **Skills and MCP pills on long chats**: the header pills and their panels counted only the newest 150 loaded messages, so skills and MCP servers used earlier undercounted or the pill vanished. A new `GET /api/sessions/{id}/tool-usage` route pages the whole transcript (the gateway caps a call at 500 messages) and returns only skill and MCP calls; the chat queries it only when the history is truncated and merges it with the loaded calls, deduped by call id. Plain `skill` calls keep their skill name.
 
 ## [2.13.1] — 2026-10-08
 
