@@ -95,7 +95,9 @@ vi.mock('./sidebar-header-v2', () => ({ SidebarHeaderV2: () => null }))
 vi.mock('./sidebar-list-v2', () => ({
   SidebarListV2: (props: Record<string, unknown>) => {
     captured.list = props
-    return null
+    return (
+      <div data-testid="list-host">{props.bottomSlot as React.ReactNode}</div>
+    )
   },
 }))
 vi.mock('./sidebar-rail-v2', () => ({ SidebarRailV2: () => null }))
@@ -338,45 +340,46 @@ it('per-folder load asks for listable ids of that folder not yet loaded', () => 
   expect(folderLoad).toHaveBeenCalledWith('p1', ['tip'])
 })
 
-it('toggles the archived view state', () => {
-  filterState.setState = vi.fn()
-  const { getByTestId } = render(<SidebarShellV2 />)
-  const toggle = getByTestId('archived-view-toggle')
-  expect(toggle).toBeTruthy()
-  fireEvent.click(toggle)
-  expect(filterState.setState).toHaveBeenCalledWith('archived')
-})
-
-describe('Archived view', () => {
+describe('Archived folder', () => {
   beforeEach(() => {
     filterState.state = 'all'
+    filterState.query = ''
   })
 
-  it('pages archived=only rows in only while the view is on', () => {
-    render(<SidebarShellV2 />)
+  it('has no archived-view toggle and mounts the folder under the list', () => {
+    const { queryByTestId, getByTestId } = render(<SidebarShellV2 />)
+    expect(queryByTestId('archived-view-toggle')).toBeNull()
+    const folder = getByTestId('archived-folder')
+    expect(getByTestId('list-host').contains(folder)).toBe(true)
+    // Collapsed: the folder's own pages must not run.
     expect(useArchivedSessionPages).toHaveBeenLastCalledWith('work', false)
   })
 
-  it('feeds the archived pages to the filter with state archived and pages them on Load more', () => {
-    const archivedLoadMore = vi.fn()
+  it('stands aside while the sidebar search is active', () => {
+    const { queryByTestId } = render(<SidebarShellV2 />)
+    expect(queryByTestId('archived-folder')).toBeTruthy()
+
+    cleanup()
+    filterState.query = 'needle'
+    const searched = render(<SidebarShellV2 />)
+    expect(searched.queryByTestId('archived-folder')).toBeNull()
+  })
+
+  it('keeps archived rows out of the list, even from a stale persisted state', () => {
     filterState.state = 'archived'
     useArchivedSessionPages.mockReturnValue({
       items: [{ id: 'chat:arch-1', state: 'archived' }],
       hasMore: true,
       loading: false,
-      loadMore: archivedLoadMore,
+      loadMore: vi.fn(),
     })
 
     render(<SidebarShellV2 />)
 
-    expect(useArchivedSessionPages).toHaveBeenLastCalledWith('work', true)
     const [items, filter] = applyFiltersAndDecorate.mock.calls.at(-1) ?? []
-    expect(items).toEqual(
-      expect.arrayContaining([{ id: 'chat:arch-1', state: 'archived' }]),
+    expect(items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'chat:arch-1' })]),
     )
-    expect(filter).toMatchObject({ state: 'archived' })
-    expect(captured.list.loadMore).toMatchObject({
-      onLoadMore: archivedLoadMore,
-    })
+    expect(filter).toMatchObject({ state: 'all' })
   })
 })

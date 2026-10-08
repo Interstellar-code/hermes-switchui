@@ -29,6 +29,7 @@ import {
   FolderRenameInput,
   folderColor,
 } from './sidebar-folders-v2'
+import type { ReactNode } from 'react'
 import type { Range } from '@tanstack/react-virtual'
 import type { SessionGroup } from '@/screens/chat/apply-filters-and-decorate'
 import { isChatSource } from '@/screens/chat/sessions-feed-types'
@@ -118,6 +119,10 @@ interface SidebarListV2Props {
   loadMore?: LoadMoreState
   /** Project mode: per-folder metadata and the per-folder loader. */
   folders?: FolderSupport
+  /**
+   * Rendered last INSIDE the scroll container, below every group.
+   */
+  bottomSlot?: ReactNode
 }
 
 /** What the sidebar knows about one folder's backing project. */
@@ -153,6 +158,7 @@ export function SidebarListV2({
   onMarkAllRead,
   loadMore,
   folders,
+  bottomSlot,
 }: SidebarListV2Props) {
   const [collapsedMap, setCollapsedMap] =
     useState<Record<string, boolean>>(readCollapsedMap)
@@ -319,6 +325,7 @@ export function SidebarListV2({
           </div>
         </div>
         {loadMore && <LoadMoreRow {...loadMore} />}
+        {bottomSlot}
         {footer}
         <NewChatFooter />
       </div>
@@ -435,6 +442,7 @@ export function SidebarListV2({
           })}
         </div>
         {loadMore && <LoadMoreRow {...loadMore} />}
+        {bottomSlot}
       </div>
 
       {footer}
