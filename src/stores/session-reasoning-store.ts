@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useChatSettingsStore } from '@/hooks/use-chat-settings'
@@ -80,4 +81,31 @@ export function useEffectiveShowReasoning(sessionKey?: string): boolean {
     (state) => state.settings.showReasoningBlocks,
   )
   return override ?? globalShowReasoningBlocks
+}
+
+/**
+ * The composer's per-session reasoning toggle, bound for BOTH surfaces it
+ * appears on: the desktop Brain button and the mobile collapsed menu item.
+ * Extracted so the two cannot drift — one effective value, one label, one
+ * write. `toggle` is a no-op without a session key (a new unsaved chat has
+ * nothing to scope an override to, which is why neither surface renders there).
+ */
+export function useReasoningToggle(sessionKey?: string): {
+  effective: boolean
+  label: string
+  toggle: () => void
+} {
+  const effective = useEffectiveShowReasoning(sessionKey)
+  const setOverride = useSessionReasoningStore((s) => s.setOverride)
+  const toggle = useCallback(() => {
+    if (!sessionKey) return
+    setOverride(sessionKey, !effective)
+  }, [effective, sessionKey, setOverride])
+  return {
+    effective,
+    label: effective
+      ? 'Hide reasoning (this chat)'
+      : 'Show reasoning (this chat)',
+    toggle,
+  }
 }

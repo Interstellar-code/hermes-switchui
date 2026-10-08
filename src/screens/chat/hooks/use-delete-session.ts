@@ -10,6 +10,7 @@ import { clearSessionDeleted, markSessionDeleted } from '../session-tombstones'
 import { invalidateSessionLists, sessionsFeedKey } from '../sessions-feed'
 import { clearSessionTitleState } from '../session-title-store'
 import { useSessionModelStore } from '@/stores/session-model-store'
+import { useSessionReasoningStore } from '@/stores/session-reasoning-store'
 import { profileBody, readSendFailure } from '@/lib/session-scope'
 import { runPool } from '@/lib/run-pool'
 
@@ -48,7 +49,7 @@ async function deleteSessionRequest(
   if (!res.ok && res.status !== 404) throw new Error(await readSendFailure(res))
 }
 
-/** Local cleanup after a confirmed delete (caches, titles, models). */
+/** Local cleanup after a confirmed delete (caches, titles, models, overrides). */
 function forgetSession(
   queryClient: ReturnType<typeof useQueryClient>,
   sessionKey: string,
@@ -59,6 +60,13 @@ function forgetSession(
   const clearModel = useSessionModelStore.getState().clearModel
   if (sessionKey) clearModel(sessionKey)
   if (friendlyId && friendlyId !== sessionKey) clearModel(friendlyId)
+  // Drop the per-session reasoning override too, or `switchui:session-reasoning`
+  // grows one dead key per deleted chat forever.
+  const clearReasoningOverride =
+    useSessionReasoningStore.getState().clearOverride
+  if (sessionKey) clearReasoningOverride(sessionKey)
+  if (friendlyId && friendlyId !== sessionKey)
+    clearReasoningOverride(friendlyId)
 }
 
 export function useDeleteSession(): DeleteSessionResult {
