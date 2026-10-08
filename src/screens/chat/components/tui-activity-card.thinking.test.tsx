@@ -125,20 +125,25 @@ describe('ChatMessageList wiring — live streaming turns', () => {
   })
 })
 
-describe('showReasoningBlocks gating', () => {
+describe('showReasoning gating', () => {
   const item = readSource('message-item.tsx')
   const list = readSource('chat-message-list.tsx')
 
-  it('message-item nulls the derived reasoning when the setting is off', () => {
+  it('message-item nulls the derived reasoning when showReasoning is off', () => {
     expect(item).toContain('const thinking =')
-    expect(item).toContain('!showReasoningBlocks')
-    expect(item).toContain('(s) => s.settings.showReasoningBlocks')
+    expect(item).toContain('const thinking = !showReasoning')
+    // The direct settings-store read is gone: the list computes the effective
+    // value (global default + per-session composer override) once and passes
+    // it down as the showReasoning prop.
+    expect(item).not.toContain('(s) => s.settings.showReasoningBlocks')
   })
 
-  it('chat-message-list gates every streaming reasoning surface on the setting', () => {
+  it('chat-message-list gates every streaming reasoning surface on the effective value', () => {
     expect(list).toContain(
       'const visibleStreamingThinking = showReasoningBlocks',
     )
+    expect(list).toContain('useEffectiveShowReasoning(sessionKey)')
+    expect(list).toContain('showReasoning={showReasoningBlocks}')
     // No un-gated streaming reasoning may reach a render surface.
     expect(list).not.toContain('thinking={streamingThinking ?? null}')
     expect(list).not.toContain('streamingThinking={streamingThinking}')
