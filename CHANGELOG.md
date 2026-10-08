@@ -3,6 +3,24 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.13.1] — 2026-10-08
+
+Model reasoning blocks in chat, with a global setting and a per-chat toggle, and session archive/pin stored in the hermes backend with an Archived folder in the sidebar.
+
+### Added
+
+- **Reasoning blocks in chat**: the model's persisted reasoning (`reasoning` / `reasoning_content`) now renders as a thinking block on history and after reload, and arrives at the end of each turn from `run.completed`. Shown only when Settings → "Show reasoning blocks" is on (off by default).
+- **Per-chat reasoning toggle**: a brain icon in the composer (and the mobile composer menu) shows or hides reasoning for the current chat only; the Settings switch stays the default for every other chat. Deleting a chat clears its override.
+- **Archive and pin stored in the backend**: archive, unarchive, pin and unpin (context menu, chat header, bulk) write `archived` / `pinned` to the hermes session via `PATCH /api/sessions/{id}` with optimistic UI and rollback. A one-time migration moves chats archived or pinned in the browser-only overlay to the backend (profile-scoped; only a real "session not found" drops a local mark; local portable sessions keep theirs).
+- **Archived folder**: archived chats live in a collapsible "Archived" folder at the bottom of the sidebar (loads `archived=only` on open, paged, open state remembered), with Unarchive from the row menu.
+
+### Fixed
+
+- `_thinking` progress events (the assistant's visible text) were shown as reasoning.
+- `isSafeHref` control-character strip regex had been mangled into a printable range, letting `javascript:` / `data:` links through the check (defence in depth: react-markdown's URL transform still blanked them, so it was not exploitable).
+- Gateway fallback for the session list read `items` but the gateway returns `data`.
+- The flag PATCH route now rejects non-boolean `archived` / `pinned` with 400 and no longer reports a flag as applied for local portable sessions.
+
 ## [2.13.0] — 2026-10-07
 
 Workflows v2: manage and create workflow DAGs — library, table, detail page, graph editor, a new create-workflow wizard and bulk delete. Requires hermes-agent workflow-engine with the `validate`, `definition_versions` and `create_only` features (older engines degrade gracefully).
