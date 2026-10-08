@@ -11,14 +11,17 @@ import type { TuiToolSection } from './tui-activity-card'
  * Reasoning text had exactly one paint site in the app — `ThinkingRow` inside
  * `TuiActivityCard` — and both of that component's callers passed `null` or
  * omitted the prop, so it was dead code. The agent was delivering reasoning
- * (`tool.progress` / `_thinking`), `send-stream.ts` was translating it, and
- * the store was keeping it as a `{type:'thinking'}` content part; none of that
- * was ever shown.
+ * (persisted `reasoning`/`reasoning_content`, mapped by `toChatMessage` and
+ * emitted end-of-turn from `run.completed`), and the store was keeping it as
+ * a `{type:'thinking'}` content part; none of that was ever shown. The
+ * `tool.progress`/`_thinking` frame is the assistant's visible answer text,
+ * not reasoning, and is no longer forwarded.
  *
  * The transport half already had tests (-send-stream-reasoning.test.ts). They
  * passed the whole time the view was dead, because nothing asserted that
  * anything rendered. Hence both halves here: the renderer works, AND the
- * caller actually hands it the value.
+ * caller actually hands it the value — now gated by the "Show reasoning
+ * blocks" setting.
  */
 
 const tool = (key: string, type: string): TuiToolSection => ({
@@ -73,7 +76,7 @@ describe('TuiActivityCard — reasoning', () => {
 
   it('treats whitespace-only reasoning as absent', () => {
     // `hasThinking` trims; an empty card would otherwise appear on every turn
-    // where the agent emitted a blank _thinking frame.
+    // where the persisted reasoning came back blank.
     const { container } = renderCard({ thinking: '   \n  ' })
     expect(container.firstChild).toBeNull()
   })
@@ -109,14 +112,35 @@ describe('ChatMessageList wiring — live streaming turns', () => {
   // reasoning invisible for the entire streaming phase — the one stretch where
   // the user is staring at a bubble that says "Thinking…" and nothing else.
   // Both call sites are asserted here so a future fix cannot be half-applied.
+  // The value handed over is the setting-gated `visibleStreamingThinking`.
   const source = readSource('chat-message-list.tsx')
 
   it('passes live reasoning into the streaming TuiActivityCard', () => {
-    expect(source).toContain('thinking={streamingThinking ?? null}')
-    expect(source).not.toContain('thinking={null}')
+    expect(source).toContain('thinking={visibleStreamingThinking ?? null}')
+    expect(source).not.toContain('thinking={streamingThinking ?? null}')
   })
 
   it('branches on reasoning even when no tool has been called yet', () => {
-    expect(source).toContain('!!streamingThinking?.trim()')
+    expect(source).toContain('!!visibleStreamingThinking?.trim()')
+  })
+})
+
+describe('showReasoningBlocks gating', () => {
+  const item = readSource('message-item.tsx')
+  const list = readSource('chat-message-list.tsx')
+
+  it('message-item nulls the derived reasoning when the setting is off', () => {
+    expect(item).toContain('const thinking =')
+    expect(item).toContain('!showReasoningBlocks')
+    expect(item).toContain('(s) => s.settings.showReasoningBlocks')
+  })
+
+  it('chat-message-list gates every streaming reasoning surface on the setting', () => {
+    expect(list).toContain(
+      'const visibleStreamingThinking = showReasoningBlocks',
+    )
+    // No un-gated streaming reasoning may reach a render surface.
+    expect(list).not.toContain('thinking={streamingThinking ?? null}')
+    expect(list).not.toContain('streamingThinking={streamingThinking}')
   })
 })

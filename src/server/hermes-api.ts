@@ -88,6 +88,12 @@ export type ClaudeMessage = {
   finish_reason?: string | null
   display_kind?: string | null
   display_metadata?: unknown
+  /** Persisted model reasoning (state.db `messages.reasoning`), present on
+   * assistant rows from both history endpoints. Rendered as a thinking part,
+   * gated client-side by the "Show reasoning blocks" setting. */
+  reasoning?: string | null
+  /** Alias some providers write instead of `reasoning`; same handling. */
+  reasoning_content?: string | null
 }
 
 export type ClaudeConfig = {
@@ -563,6 +569,16 @@ export function toChatMessage(
 
   // Build content array
   const content: Array<Record<string, unknown>> = []
+
+  // Persisted reasoning leads the content: the backend stores it on the
+  // assistant row (`reasoning`, or the `reasoning_content` alias) and the
+  // chat renders it as the thinking block of the TUI activity card.
+  if (msg.role === 'assistant') {
+    const reasoning = msg.reasoning || msg.reasoning_content
+    if (typeof reasoning === 'string' && reasoning) {
+      content.push({ type: 'thinking', thinking: reasoning })
+    }
+  }
 
   // Build streamToolCalls array for separate pill rendering and content blocks
   const streamToolCallsArr: Array<Record<string, unknown>> = []

@@ -313,6 +313,25 @@ function normalizeClaudeErrorMessage(error: unknown): string {
   return message.replace(/\bserver\b/gi, 'Claude')
 }
 
+/** Collect the end-of-turn reasoning carried by a `run.completed` payload.
+ * The enhanced stream has no reasoning deltas; the assistant entries of
+ * `data.messages` persist `reasoning` (or the `reasoning_content` alias)
+ * in state.db. Non-empty entries are joined with a blank line, `reasoning`
+ * winning over the alias on the same entry. */
+export function collectRunReasoning(data: Record<string, unknown>): string {
+  const messages = data.messages
+  if (!Array.isArray(messages)) return ''
+  const parts: Array<string> = []
+  for (const raw of messages) {
+    const entry = readRecord(raw)
+    if (!entry || entry.role !== 'assistant') continue
+    const reasoning =
+      readString(entry.reasoning) || readString(entry.reasoning_content)
+    if (reasoning) parts.push(reasoning)
+  }
+  return parts.join('\n\n')
+}
+
 function getToolName(data: Record<string, unknown>): string {
   const toolCall = readRecord(data.tool_call)
   const tool = readRecord(data.tool)
@@ -1516,7 +1535,13 @@ export const Route = createFileRoute('/api/send-stream')({
                       if (event === 'tool.progress') {
                         const delta = readString(data.delta)
                         const toolName = getToolName(data)
-                        if (toolName === '_thinking' || toolName === 'tool') {
+                        // `_thinking` progress is the assistant's visible
+                        // answer text truncated to 500 chars, NOT reasoning.
+                        // Forwarding it as a `thinking` event duplicated the
+                        // answer into the reasoning pane; reasoning arrives
+                        // end-of-turn on `run.completed`.
+                        if (toolName === '_thinking') return
+                        if (toolName === 'tool') {
                           if (!delta) return
                           persistActiveRun((runSessionKey, activeId) =>
                             setRunThinking(runSessionKey, activeId, delta),
@@ -1873,6 +1898,27 @@ export const Route = createFileRoute('/api/send-stream')({
                             '[send-stream] tool backfill failed:',
                             err,
                           )
+                        }
+
+                        // End-of-turn reasoning: the enhanced stream carries no
+                        // reasoning deltas, so the persisted reasoning only
+                        // becomes available here, on run.completed. One full
+                        // send — the client `thinking` handler replaces the
+                        // text rather than appending.
+                        const runReasoning = collectRunReasoning(data)
+                        if (runReasoning) {
+                          persistActiveRun((runSessionKey, activeId) =>
+                            setRunThinking(
+                              runSessionKey,
+                              activeId,
+                              runReasoning,
+                            ),
+                          )
+                          sendEvent('thinking', {
+                            text: runReasoning,
+                            sessionKey: sessionKeyFromEvent,
+                            runId,
+                          })
                         }
 
                         const translated = {

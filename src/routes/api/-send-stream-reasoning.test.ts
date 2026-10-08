@@ -2,10 +2,13 @@ import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  collectRunReasoning,
   parseModelErrorEnvelope,
   parseReasoningErrorEnvelope,
 } from './send-stream'
-import { streamChat } from '@/server/hermes-api'
+import type * as GatewayCapabilities from '../../server/gateway-capabilities'
+import type * as ProfileScope from '../../server/profile-scope'
+import type * as HermesApi from '@/server/hermes-api'
 import {
   GATEWAY_REASONING_EFFORTS,
   THINKING_LEVELS,
@@ -13,6 +16,134 @@ import {
   normalizeThinkingLevel,
   toReasoningEffort,
 } from '@/lib/reasoning-effort'
+import { streamChat } from '@/server/hermes-api'
+
+/**
+ * The handler-driven tests below drive the REAL /api/send-stream POST
+ * handler (see -send-stream-portable-fallback.test.ts for the pattern) with
+ * every dependency module mocked EXCEPT send-stream.ts itself. Only the
+ * gateway edge is faked: `streamChat` is swapped for a scripted async
+ * generator of gateway SSE frames, so the assertions run against events the
+ * handler actually emitted on its response stream.
+ *
+ * The wire tests ('streamChat puts the level on the wire') need the REAL
+ * streamChat with a spied fetch, so the hermes-api mock delegates to the
+ * actual module unless a test installs a script in `gateway.streamChatImpl`.
+ * All mocks here are plain functions, not vi.fn()s: the file's other suites
+ * call vi.restoreAllMocks(), which must not strip these implementations.
+ */
+
+vi.mock('@tanstack/react-router', () => ({
+  createFileRoute: (_path: string) => (opts: unknown) => ({
+    options: opts,
+    ...(opts as object),
+  }),
+}))
+
+vi.mock('../../server/auth-middleware', () => ({
+  isAuthenticated: () => true,
+}))
+
+vi.mock('../../server/rate-limit', () => ({
+  requireJsonContentType: () => undefined,
+}))
+
+vi.mock('../../server/session-utils', () => ({
+  resolveSessionKey: () => Promise.resolve({ sessionKey: 'sess-reasoning-1' }),
+}))
+
+vi.mock('../../server/gateway-capabilities', async (importOriginal) => {
+  const actual = await importOriginal<typeof GatewayCapabilities>()
+  return { ...actual, getChatMode: () => 'enhanced' }
+})
+
+vi.mock('../../server/local-session-store', () => ({
+  appendLocalMessage: () => undefined,
+  ensureLocalSession: () => undefined,
+  getLocalMessages: () => [],
+  touchLocalSession: () => undefined,
+}))
+
+vi.mock('../../server/local-provider-discovery', () => ({
+  getDiscoveredModels: () => [],
+  getLocalProviderDef: () => undefined,
+}))
+
+vi.mock('../../server/main-session-resolver', () => ({
+  resolveMainSessionId: () => Promise.resolve(null),
+}))
+
+vi.mock('../../server/chat-event-bus', () => ({
+  publishChatEvent: () => undefined,
+}))
+
+vi.mock('../../server/send-run-tracker', () => ({
+  registerActiveSendRun: () => undefined,
+  unregisterActiveSendRun: () => undefined,
+}))
+
+vi.mock('../../server/run-store', () => ({
+  appendRunText: () => Promise.resolve(undefined),
+  createPersistedRun: () => Promise.resolve(null),
+  markRunStatus: () => Promise.resolve(undefined),
+  setRunThinking: () => Promise.resolve(undefined),
+  upsertRunToolCall: () => Promise.resolve(undefined),
+}))
+
+vi.mock('./-send-stream-orphan-tools', () => ({
+  resolveOrphanedToolCards: () => [],
+}))
+
+vi.mock('./-send-stream-live-tools', () => ({
+  collectSyntheticLiveToolEvents: () => [],
+  createSyntheticLiveToolTracker: () => ({}),
+}))
+
+vi.mock('../../server/openai-compat-api', () => ({
+  openaiChat: async function* () {},
+}))
+
+vi.mock('../../server/responses-api', () => ({
+  streamResponses: async function* () {},
+}))
+
+vi.mock('../../server/profile-scope', async (importOriginal) => {
+  const actual = await importOriginal<typeof ProfileScope>()
+  return {
+    ...actual,
+    readProfile: (v: unknown) =>
+      typeof v === 'string' && v.trim() ? v.trim() : null,
+    assertProfileServed: () => Promise.resolve(undefined),
+    isProfileScopeError: () => false,
+    profileErrorStatus: () => 500,
+  }
+})
+
+type GatewayFrame = {
+  event: string
+  data: Record<string, unknown>
+}
+type StreamChatArgs = Parameters<typeof streamChat>
+
+const gateway = vi.hoisted(() => ({
+  streamChatImpl: null as null | ((...args: StreamChatArgs) => Promise<void>),
+}))
+
+vi.mock('@/server/hermes-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof HermesApi>()
+  return {
+    ...actual,
+    createSession: () => Promise.resolve({ id: 'sess-created' }),
+    ensureGatewayProbed: () => Promise.resolve({ sessions: true }),
+    getGatewayCapabilities: () => ({ sessions: true }),
+    getMessages: () => Promise.resolve([]),
+    listSessions: () => Promise.resolve([]),
+    streamChat: (...args: StreamChatArgs) =>
+      gateway.streamChatImpl
+        ? gateway.streamChatImpl(...args)
+        : actual.streamChat(...args),
+  }
+})
 
 /**
  * The composer sends two per-request agent parameters. Exactly one of them has
@@ -164,6 +295,59 @@ describe('streamChat puts the level on the wire', () => {
   })
 })
 
+describe('collectRunReasoning — end-of-turn reasoning from run.completed', () => {
+  it('collects assistant reasoning and joins multiple entries with a blank line', () => {
+    const text = collectRunReasoning({
+      messages: [
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', reasoning: 'first stretch of thought' },
+        { role: 'assistant', reasoning: 'second stretch' },
+      ],
+    })
+    expect(text).toBe('first stretch of thought\n\nsecond stretch')
+  })
+
+  it('falls back to reasoning_content when reasoning is absent', () => {
+    expect(
+      collectRunReasoning({
+        messages: [{ role: 'assistant', reasoning_content: 'alias only' }],
+      }),
+    ).toBe('alias only')
+  })
+
+  it('prefers reasoning over reasoning_content on the same entry', () => {
+    expect(
+      collectRunReasoning({
+        messages: [
+          {
+            role: 'assistant',
+            reasoning: 'canonical',
+            reasoning_content: 'alias',
+          },
+        ],
+      }),
+    ).toBe('canonical')
+  })
+
+  it('returns an empty string when nothing carries reasoning', () => {
+    expect(collectRunReasoning({ messages: [] })).toBe('')
+    expect(
+      collectRunReasoning({
+        messages: [
+          { role: 'user', reasoning: 'not assistant' },
+          { role: 'tool', reasoning_content: 'not assistant either' },
+          { role: 'assistant', reasoning: '' },
+          { role: 'assistant', reasoning: '   ' },
+          { role: 'assistant' },
+          'garbage entry',
+        ],
+      }),
+    ).toBe('')
+    expect(collectRunReasoning({})).toBe('')
+    expect(collectRunReasoning({ messages: 'nope' })).toBe('')
+  })
+})
+
 describe('parseReasoningErrorEnvelope', () => {
   // Verbatim from the live gateway (v0.19.16) for reasoning_effort='turbo'.
   const LIVE_400 =
@@ -192,5 +376,132 @@ describe('parseReasoningErrorEnvelope', () => {
       ),
     ).toBe(null)
     expect(parseReasoningErrorEnvelope('<html>502</html>')).toBe(null)
+  })
+})
+
+type Handler = (ctx: { request: Request }) => Promise<Response>
+
+async function getPostHandler(): Promise<Handler> {
+  vi.resetModules()
+  const mod = await import('./send-stream')
+  return (
+    mod.Route as unknown as {
+      options: { server: { handlers: Record<string, Handler> } }
+    }
+  ).options.server.handlers.POST
+}
+
+function postRequest(body: Record<string, unknown>): Request {
+  return new Request('http://localhost/api/send-stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+function parseSse(text: string): Array<{ event: string; data: unknown }> {
+  const frames: Array<{ event: string; data: unknown }> = []
+  for (const block of text.split('\n\n')) {
+    const eventLine = block
+      .split('\n')
+      .find((line) => line.startsWith('event: '))
+    const dataLine = block.split('\n').find((line) => line.startsWith('data: '))
+    if (!eventLine || !dataLine) continue
+    frames.push({
+      event: eventLine.slice('event: '.length),
+      data: JSON.parse(dataLine.slice('data: '.length)),
+    })
+  }
+  return frames
+}
+
+describe('send-stream handler — reasoning events on the enhanced stream', () => {
+  const SESSION = 'sess-reasoning-1'
+  const RUN = 'run-reasoning-1'
+
+  afterEach(() => {
+    gateway.streamChatImpl = null
+  })
+
+  async function postStreamScripted(
+    frames: Array<GatewayFrame>,
+  ): Promise<Array<{ event: string; data: unknown }>> {
+    gateway.streamChatImpl = async (...args: StreamChatArgs) => {
+      const opts = args[2]
+      for (const frame of frames) {
+        await opts.onEvent({ event: frame.event, data: frame.data })
+      }
+    }
+    const handler = await getPostHandler()
+    const res = await handler({ request: postRequest({ message: 'hi' }) })
+    return parseSse(await res.text())
+  }
+
+  it('emits no thinking event for a _thinking tool.progress frame', async () => {
+    const events = await postStreamScripted([
+      {
+        event: 'tool.progress',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          tool_name: '_thinking',
+          delta: 'the visible answer text, truncated',
+        },
+      },
+      {
+        event: 'run.completed',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          messages: [{ role: 'assistant', content: 'final answer' }],
+        },
+      },
+    ])
+
+    // `_thinking` is the answer text, not reasoning — the only possible
+    // thinking source in this stream is the mis-forward, and it must not fire.
+    expect(events.filter((e) => e.event === 'thinking')).toEqual([])
+    expect(events.some((e) => e.event === 'done')).toBe(true)
+  })
+
+  it('emits exactly one thinking event with joined run.completed reasoning, before done', async () => {
+    const events = await postStreamScripted([
+      {
+        event: 'run.completed',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          messages: [
+            { role: 'user', content: 'hi' },
+            { role: 'assistant', reasoning: 'r1' },
+            { role: 'assistant', reasoning_content: 'r2' },
+          ],
+        },
+      },
+    ])
+
+    const thinking = events.filter((e) => e.event === 'thinking')
+    expect(thinking).toHaveLength(1)
+    expect((thinking[0]?.data as { text?: string }).text).toBe('r1\n\nr2')
+    const thinkingIndex = events.findIndex((e) => e.event === 'thinking')
+    const doneIndex = events.findIndex((e) => e.event === 'done')
+    expect(doneIndex).toBeGreaterThan(-1)
+    expect(thinkingIndex).toBeLessThan(doneIndex)
+  })
+
+  it('emits no thinking event when run.completed carries no reasoning', async () => {
+    const events = await postStreamScripted([
+      {
+        event: 'run.completed',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          messages: [{ role: 'assistant', content: 'answer', reasoning: '' }],
+        },
+      },
+    ])
+
+    expect(events.filter((e) => e.event === 'thinking')).toEqual([])
+    expect(events.some((e) => e.event === 'done')).toBe(true)
   })
 })

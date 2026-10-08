@@ -66,6 +66,84 @@ describe('getMessages', () => {
   })
 })
 
+describe('toChatMessage persisted reasoning', () => {
+  const assistantRow = {
+    id: 1,
+    session_id: 's',
+    role: 'assistant',
+    content: 'the answer',
+    timestamp: 10,
+  }
+
+  const contentOf = (msg: Record<string, unknown>) =>
+    msg.content as Array<Record<string, unknown>>
+
+  it('maps reasoning to a leading thinking part', () => {
+    const out = toChatMessage({ ...assistantRow, reasoning: 'x' })
+    expect(contentOf(out)[0]).toEqual({ type: 'thinking', thinking: 'x' })
+    expect(contentOf(out)[1]).toEqual({ type: 'text', text: 'the answer' })
+  })
+
+  it('maps the reasoning_content alias the same way', () => {
+    const out = toChatMessage({ ...assistantRow, reasoning_content: 'x' })
+    expect(contentOf(out)[0]).toEqual({ type: 'thinking', thinking: 'x' })
+  })
+
+  it('prefers reasoning over reasoning_content', () => {
+    const out = toChatMessage({
+      ...assistantRow,
+      reasoning: 'canonical',
+      reasoning_content: 'alias',
+    })
+    expect(contentOf(out)[0]).toEqual({
+      type: 'thinking',
+      thinking: 'canonical',
+    })
+  })
+
+  it('adds no thinking part without usable reasoning', () => {
+    for (const row of [
+      assistantRow,
+      { ...assistantRow, reasoning: null, reasoning_content: null },
+      { ...assistantRow, reasoning: '' },
+      { ...assistantRow, reasoning_content: '' },
+    ]) {
+      const out = toChatMessage(row)
+      expect(contentOf(out).some((part) => part.type === 'thinking')).toBe(
+        false,
+      )
+    }
+  })
+
+  it('places the thinking part ahead of tool calls and text', () => {
+    const out = toChatMessage({
+      ...assistantRow,
+      reasoning: 'thought it through',
+      tool_calls: [
+        {
+          id: 'toolu_1',
+          function: { name: 'read_file', arguments: '{"path":"/tmp"}' },
+        },
+      ],
+    })
+    expect(contentOf(out)[0]).toEqual({
+      type: 'thinking',
+      thinking: 'thought it through',
+    })
+    expect(String(contentOf(out)[1]?.type)).toBe('toolCall')
+    expect(String(contentOf(out)[2]?.type)).toBe('text')
+  })
+
+  it('ignores reasoning on non-assistant rows', () => {
+    const out = toChatMessage({
+      ...assistantRow,
+      role: 'user',
+      reasoning: 'users do not reason',
+    })
+    expect(contentOf(out).some((part) => part.type === 'thinking')).toBe(false)
+  })
+})
+
 describe('toChatMessage display_kind passthrough', () => {
   const row = {
     id: 156236,
