@@ -70,6 +70,19 @@ const TABS: Array<TabDef> = [
       </svg>
     ),
   },
+  {
+    id: 'agents',
+    label: 'agents',
+    aria: 'Agents',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+        <rect x="4" y="8" width="16" height="11" rx="2" />
+        <path d="M12 4v4" />
+        <path d="M2 13v3M22 13v3" />
+        <path d="M9.5 13h.01M14.5 13h.01" />
+      </svg>
+    ),
+  },
 ]
 
 type ChatSourceTabsV2Props = {
@@ -113,6 +126,7 @@ export function ChatSourceTabsV2({ activePanel, onTogglePanel, counts, hideFiles
               isActive
                 ? 'text-[var(--m-green,#4ade80)]'
                 : 'text-[var(--m-muted,var(--theme-muted,#6b7280))] hover:text-[var(--m-text,var(--theme-text))]',
+              !isActive && shown?.pulse && 'attention-pulse',
             )}
             style={
               isActive

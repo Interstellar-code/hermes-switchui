@@ -1,15 +1,10 @@
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useDelegationMessages, useDelegations } from '../../hooks/use-delegations'
 import { ToolTabView } from './chat-tab-views-v2'
 import type { Delegation, DelegationStatus } from '../../../../server/delegations'
 import type { ChatMessage } from '../../types'
 import { BUILTIN_AGENTS } from '@/lib/builtin-agents'
-
-type DelegationSidebarOverlayProps = {
-  sessionKey: string
-  onClose: () => void
-}
 
 const tabStyle: React.CSSProperties = {
   color: 'var(--m-muted, var(--theme-muted))',
@@ -20,7 +15,6 @@ const cardStyle: React.CSSProperties = {
   borderColor: 'var(--m-border, var(--theme-border))',
 }
 
-const greenStyle: React.CSSProperties = { color: 'var(--m-green, #4ade80)' }
 const BUILTIN_AGENT_BY_ID = new Map(BUILTIN_AGENTS.map((agent) => [agent.id, agent]))
 
 function fmtTs(ts: number | null): string {
@@ -200,94 +194,73 @@ function DelegationCard({
   )
 }
 
-export function DelegationSidebarOverlay({ sessionKey, onClose }: DelegationSidebarOverlayProps) {
+/**
+ * Body of the `agents` sidebar panel: the running badge, the subline and the
+ * delegation list. The host owns the frame — title, back button and Esc — so
+ * this renders no backdrop, no fixed positioning and no close affordance.
+ */
+export function DelegationPanelV2({ sessionKey }: { sessionKey: string }) {
   const { delegations, isLoading, error } = useDelegations(sessionKey)
   const [openChildSessionId, setOpenChildSessionId] = useState<string | null>(null)
   const runningCount = delegations.filter((delegation) => delegation.status === 'running').length
 
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [onClose])
-
   return (
-    <>
-      <button
-        type="button"
-        aria-label="Close agents"
-        className="fixed inset-0 z-40 cursor-default bg-black/30"
-        onClick={onClose}
-      />
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label="Agents"
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-[720px] flex-col border-l shadow-[-12px_0_32px_rgba(0,0,0,0.35)]"
-        style={{ background: 'var(--theme-sidebar)', borderColor: 'var(--m-border, var(--theme-border))' }}
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col font-mono text-xs" style={tabStyle}>
+      <div
+        className="flex shrink-0 flex-col gap-1 border-b px-3 py-2"
+        style={{ borderColor: 'var(--m-border, var(--theme-border))' }}
       >
-        <div className="flex h-12 shrink-0 items-center justify-between border-b px-4" style={{ borderColor: 'var(--m-border, var(--theme-border))' }}>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h2 className="font-mono text-sm font-semibold" style={greenStyle}>Agents</h2>
-              {runningCount > 0 ? (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold"
-                  style={{
-                    color: 'var(--m-green-400, #3aff77)',
-                    background: 'color-mix(in srgb, var(--m-green-500, #00ff41) 12%, transparent)',
-                  }}
-                >
-                  <span className="size-1.5 rounded-full session-attention-pulse" style={{ background: 'currentColor' }} />
-                  {runningCount} live
-                </span>
-              ) : null}
-            </div>
-            <p className="font-mono text-[10px] opacity-50">
-              {delegations.length === 0 ? 'Sub-agent work for this session' : `${delegations.length} delegated task${delegations.length === 1 ? '' : 's'} · select one for activity`}
+        <div className="flex flex-wrap items-center gap-2">
+          {runningCount > 0 ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-semibold"
+              style={{
+                color: 'var(--m-green-400, #3aff77)',
+                background: 'color-mix(in srgb, var(--m-green-500, #00ff41) 12%, transparent)',
+              }}
+            >
+              <span
+                className="size-1.5 rounded-full session-attention-pulse"
+                style={{ background: 'currentColor' }}
+              />
+              {runningCount} live
+            </span>
+          ) : null}
+          <p className="min-w-0 text-[10px] opacity-50">
+            {delegations.length === 0
+              ? 'Sub-agent work for this session'
+              : `${delegations.length} delegated task${delegations.length === 1 ? '' : 's'} · select one for activity`}
+          </p>
+        </div>
+      </div>
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        {isLoading && delegations.length === 0 ? (
+          <div className="flex items-start justify-center p-4 pt-6">
+            <p className="text-center opacity-40">Loading agents…</p>
+          </div>
+        ) : error ? (
+          <div className="flex items-start justify-center p-4 pt-6">
+            <p className="text-center" style={{ color: 'var(--theme-danger, #ef4444)' }}>
+              {error}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close agents"
-            className="rounded border px-2 py-1 font-mono text-xs opacity-70 hover:opacity-100"
-            style={{ borderColor: 'var(--m-border, var(--theme-border))' }}
-          >
-            ✕
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 overflow-y-auto font-mono text-xs" style={tabStyle}>
-          {isLoading && delegations.length === 0 ? (
-            <div className="flex items-start justify-center p-4 pt-8">
-              <p className="opacity-40 text-center">Loading agents…</p>
-            </div>
-          ) : error ? (
-            <div className="flex items-start justify-center p-4 pt-8">
-              <p className="text-center" style={{ color: 'var(--theme-danger, #ef4444)' }}>
-                {error}
-              </p>
-            </div>
-          ) : delegations.length === 0 ? (
-            <div className="flex items-start justify-center p-4 pt-8">
-              <p className="opacity-40 text-center">∅ No agents in this session</p>
-            </div>
-          ) : (
-            <div className="space-y-2 p-4 pt-3">
-              {delegations.map((delegation) => (
-                <DelegationCard
-                  key={delegation.childSessionId}
-                  delegation={delegation}
-                  open={openChildSessionId === delegation.childSessionId}
-                  onToggle={() => setOpenChildSessionId((current) => current === delegation.childSessionId ? null : delegation.childSessionId)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </aside>
-    </>
+        ) : delegations.length === 0 ? (
+          <div className="flex items-start justify-center p-4 pt-6">
+            <p className="text-center opacity-40">∅ No agents in this session</p>
+          </div>
+        ) : (
+          <div className="space-y-2 p-3">
+            {delegations.map((delegation) => (
+              <DelegationCard
+                key={delegation.childSessionId}
+                delegation={delegation}
+                open={openChildSessionId === delegation.childSessionId}
+                onToggle={() => setOpenChildSessionId((current) => current === delegation.childSessionId ? null : delegation.childSessionId)}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

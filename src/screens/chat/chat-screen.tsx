@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Bot } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -84,7 +83,7 @@ import { rekeySessionModel } from './components/chat-composer-services'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { SidebarPanelHostV2 } from './components/v2/sidebar-panel-host-v2'
-import { DelegationSidebarOverlay } from './components/v2/delegation-tab-view'
+import type { PanelCount } from './components/v2/sidebar-panel-v2'
 import type { QuoteRef } from './quote-markers'
 import type {
   ChatComposerAttachment,
@@ -184,7 +183,6 @@ export function ChatScreen({
   usePendingApprovalQueue()
   const [creatingSession, setCreatingSession] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
-  const [agentsOpen, setAgentsOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isRedirecting, setIsRedirecting] = useState(false)
   const { headerRef, composerRef, mainRef, pinGroupMinHeight, headerHeight } =
@@ -653,6 +651,26 @@ export function ChatScreen({
     () => hasActiveSessionAgents(delegations, streamingDelegations),
     [delegations, streamingDelegations],
   )
+  // The agents header tab. `live` counts the children the panel lists as
+  // running; `pulse` also covers stream-only agents not persisted yet.
+  const runningAgentCount = useMemo(
+    () =>
+      delegations.filter((delegation) => delegation.status === 'running')
+        .length,
+    [delegations],
+  )
+  const panelCountsWithAgents = useMemo(() => {
+    if (agentCount === 0) return panelCounts
+    const agentsCount: PanelCount = {
+      value: agentCount,
+      label:
+        runningAgentCount > 0
+          ? `${agentCount} agent${agentCount === 1 ? '' : 's'}, ${runningAgentCount} live`
+          : `${agentCount} agent${agentCount === 1 ? '' : 's'}`,
+      pulse: hasActiveAgents,
+    }
+    return { ...panelCounts, agents: agentsCount }
+  }, [panelCounts, agentCount, runningAgentCount, hasActiveAgents])
 
   useEffect(() => {
     if (!waitingForResponse) return
@@ -1667,7 +1685,7 @@ export function ChatScreen({
           mcpToolServers={mcpToolServers}
           historyCapped={historyCapped}
           sessionToolEntries={sessionToolEntries}
-          counts={panelCounts}
+          counts={panelCountsWithAgents}
           fileExplorer={
             <FileExplorerSidebar
               collapsed={false}
@@ -1701,7 +1719,7 @@ export function ChatScreen({
                 sourceKind={activeSourceKind}
                 activePanel={activePanel}
                 onTogglePanel={togglePanel}
-                panelCounts={panelCounts}
+                panelCounts={panelCountsWithAgents}
                 hideFiles={isMobile || isFocusMode}
               />
               <ChatMetaBarV2
@@ -1814,43 +1832,10 @@ export function ChatScreen({
                 onCycleToolDisplayMode={cycleToolDisplayMode}
                 onNewSession={handleNewSession}
               />
-              {!compact && !hideUi && !isMobile && !isFocusMode ? (
-                <button
-                  type="button"
-                  aria-label={
-                    agentsOpen ? 'Close agents' : `Show ${agentCount} agents`
-                  }
-                  aria-pressed={agentsOpen}
-                  title={
-                    agentsOpen ? 'Close agents' : `Show ${agentCount} agents`
-                  }
-                  onClick={() => setAgentsOpen((open) => !open)}
-                  className={cn(
-                    'absolute right-4 sm:right-6 z-30 flex h-8 items-center gap-1.5 rounded-full border px-3 font-mono text-[11px] shadow-md backdrop-blur-md transition-colors',
-                    agentsOpen
-                      ? 'border-primary bg-primary text-primary-foreground'
-                      : 'border-primary/60 bg-card/90 text-primary hover:bg-primary/10',
-                    hasActiveAgents && !agentsOpen && 'attention-pulse',
-                  )}
-                  style={{
-                    bottom: `calc(${terminalPanelInset}px + var(--chat-composer-height, 90px) + 12px)`,
-                  }}
-                >
-                  <Bot className="size-4" aria-hidden="true" />
-                  <span className="hidden sm:inline">agents</span>
-                  <span className="tabular-nums opacity-80">{agentCount}</span>
-                </button>
-              ) : null}
             </>
           ) : null}
         </main>
       </div>
-      {!compact && agentsOpen ? (
-        <DelegationSidebarOverlay
-          sessionKey={activeSessionKey || activeFriendlyId}
-          onClose={() => setAgentsOpen(false)}
-        />
-      ) : null}
 
       {isMobile && (
         <MobileSessionsPanel
