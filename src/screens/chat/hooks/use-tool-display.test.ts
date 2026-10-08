@@ -3,7 +3,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 
 import * as toolEntries from '../components/v2/tool-entries'
+import { groupSkills } from '../components/v2/skills-panel-v2'
 import { useToolDisplay } from './use-tool-display'
+import type { SessionToolUsageEntry } from './use-session-tool-usage'
 import type { ChatMessage, StreamingToolCall } from '../types'
 
 const STORAGE_KEY = 'switchui:tool-display-mode'
@@ -227,6 +229,218 @@ describe('useToolDisplay', () => {
         activeToolCalls: [{ id: 'tc1', name: 'Bash', phase: 'streaming' }],
       })
       expect(result.current.panelCounts.tool?.value).toBe(1)
+    })
+  })
+
+  describe('whole-session entries (capped history)', () => {
+    const session = (
+      sessionToolEntries: Array<SessionToolUsageEntry>,
+      activeToolCalls: Array<StreamingToolCall> = EMPTY_TOOL_CALLS,
+      extra: {
+        mcpToolNames?: ReadonlySet<string>
+        mcpServerNames?: Array<string>
+        mcpToolServers?: ReadonlyMap<string, string>
+      } = {},
+    ) =>
+      renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls,
+          sessionToolEntries,
+          ...extra,
+        }),
+      ).result.current
+
+    it('counts a skill that only exists outside the loaded window', () => {
+      const r = session([
+        {
+          callId: 'old-1',
+          name: 'skill_view',
+          args: { name: 'dataviz' },
+          isError: false,
+        },
+      ])
+      expect(r.panelCounts.skills).toEqual({ value: 1, label: '1 used' })
+    })
+
+    it('counts an MCP server that only exists outside the loaded window', () => {
+      const r = session(
+        [
+          {
+            callId: 'old-2',
+            name: 'mcp__github__search',
+            args: {},
+            isError: false,
+          },
+        ],
+        EMPTY_TOOL_CALLS,
+        { mcpServerNames: ['github'] },
+      )
+      expect(r.panelCounts.mcp).toEqual({ value: 1, label: '1 server' })
+    })
+
+    it('counts a call present in both lists once', () => {
+      const r = session(
+        [
+          {
+            callId: 'dup-1',
+            name: 'skill_view',
+            args: { name: 'a' },
+            isError: false,
+          },
+        ],
+        [
+          {
+            id: 'dup-1',
+            name: 'skill_view',
+            phase: 'complete',
+            args: { name: 'a' },
+          },
+          {
+            id: 'dup-2',
+            name: 'skill_view',
+            phase: 'complete',
+            args: { name: 'b' },
+          },
+        ],
+      )
+      expect(r.panelCounts.skills).toEqual({ value: 2, label: '2 used' })
+      expect(
+        r.sessionToolEntries.filter((e) => e.callId === 'dup-1'),
+      ).toHaveLength(1)
+    })
+
+    it('keeps the loaded entry when both lists carry the same call id', () => {
+      const r = session(
+        [
+          {
+            callId: 'dup-1',
+            name: 'skill_view',
+            args: { name: 'stale' },
+            isError: false,
+          },
+        ],
+        [
+          {
+            id: 'dup-1',
+            name: 'skill_view',
+            phase: 'complete',
+            args: { name: 'fresh' },
+            result: 'loaded output',
+          },
+        ],
+      )
+      const kept = r.sessionToolEntries.find((e) => e.callId === 'dup-1')
+      expect(kept?.output).toBe('loaded output')
+    })
+
+    it('leaves the Tools and Todos pills on the loaded window', () => {
+      const r = session(
+        [
+          {
+            callId: 'old-3',
+            name: 'skill_view',
+            args: { name: 'a' },
+            isError: false,
+          },
+          {
+            callId: 'old-4',
+            name: 'mcp__github__search',
+            args: {},
+            isError: true,
+          },
+        ],
+        [{ id: 'tc1', name: 'Bash', phase: 'complete', result: 'ok' }],
+      )
+      expect(r.panelCounts.tool).toEqual({
+        value: 1,
+        label: '1 call',
+        errors: 0,
+      })
+      expect(r.panelCounts.todos).toBeUndefined()
+      expect(r.toolEntries).toHaveLength(1)
+      expect(r.sessionToolEntries).toHaveLength(3)
+    })
+
+    it('names pre-window skill calls from the carried result text', () => {
+      // The `skill` tool answers with the skill name, so the route ships it.
+      const r = session([
+        {
+          callId: 'sk-a',
+          name: 'skill',
+          args: {},
+          output: '"dataviz"',
+          isError: false,
+        },
+        {
+          callId: 'sk-b',
+          name: 'skill',
+          args: {},
+          output: '"pdf"',
+          isError: false,
+        },
+      ])
+      expect(r.panelCounts.skills).toEqual({ value: 2, label: '2 used' })
+      // The panel trims + lowercases but never strips the JSON quotes, so the
+      // label carries them — identical to what an in-window call already shows.
+      expect(
+        groupSkills(r.sessionToolEntries).groups.map((g) => g.name),
+      ).toEqual(['"dataviz"', '"pdf"'])
+    })
+
+    it('joins a pre-window skill with the same skill invoked in-window', () => {
+      const r = session(
+        [
+          {
+            callId: 'old-skill',
+            name: 'skill',
+            args: {},
+            output: '"dataviz"',
+            isError: false,
+          },
+        ],
+        [
+          {
+            id: 'loaded-skill',
+            name: 'skill',
+            phase: 'complete',
+            args: {},
+            result: '"dataviz"',
+          },
+        ],
+      )
+      const { groups } = groupSkills(r.sessionToolEntries)
+      expect(r.panelCounts.skills).toEqual({ value: 1, label: '1 used' })
+      // One group, not two: both sides resolve to the same raw result text.
+      expect(groups.map((g) => g.name)).toEqual(['"dataviz"'])
+      expect(groups.some((g) => g.name === 'unknown skill')).toBe(false)
+    })
+
+    it('falls back to unknown for a pre-window skill call with no result', () => {
+      const r = session([
+        { callId: 'sk-none', name: 'skill', args: {}, isError: false },
+      ])
+      const { groups } = groupSkills(r.sessionToolEntries)
+      expect(r.panelCounts.skills?.value).toBe(1)
+      expect(groups[0].name).toBe('unknown skill')
+    })
+
+    it('behaves as before when no session entries are supplied', () => {
+      const r = renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls: [
+            {
+              id: 's1',
+              name: 'skill_view',
+              phase: 'complete',
+              args: { name: 'a' },
+            },
+          ],
+        }),
+      ).result.current
+      expect(r.panelCounts.skills).toEqual({ value: 1, label: '1 used' })
+      expect(r.sessionToolEntries).toHaveLength(1)
     })
   })
 

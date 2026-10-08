@@ -48,6 +48,7 @@ import {
   useSessionsFeed,
 } from './sessions-feed'
 import { useToolDisplay } from './hooks/use-tool-display'
+import { useSessionToolUsage } from './hooks/use-session-tool-usage'
 import {
   countSessionAgents,
   hasActiveSessionAgents,
@@ -590,14 +591,6 @@ export function ChatScreen({
     [mcpServers],
   )
 
-  const { toolDisplayMode, cycleToolDisplayMode, toolEntries, panelCounts } =
-    useToolDisplay({
-      realtimeMessages,
-      activeToolCalls,
-      mcpToolNames,
-      mcpServerNames,
-      mcpToolServers,
-    })
   // History is fetched with a fixed limit; a full first page means older
   // messages (and their tool calls) are not loaded. Captured once per session
   // from the first fetch, before live messages get appended to the cache.
@@ -618,6 +611,28 @@ export function ChatScreen({
   const historyCapped =
     historyPage?.key === sessionKeyForHistory &&
     historyPage.length >= DEFAULT_CHAT_HISTORY_LIMIT
+
+  // Skill and MCP calls older than the loaded window. Queried only once the
+  // window is known to be truncated.
+  const { entries: sessionToolUsageEntries } = useSessionToolUsage({
+    sessionKey: activeSessionKey || activeFriendlyId,
+    enabled: historyCapped,
+  })
+
+  const {
+    toolDisplayMode,
+    cycleToolDisplayMode,
+    toolEntries,
+    sessionToolEntries,
+    panelCounts,
+  } = useToolDisplay({
+    realtimeMessages,
+    activeToolCalls,
+    mcpToolNames,
+    mcpServerNames,
+    mcpToolServers,
+    sessionToolEntries: sessionToolUsageEntries,
+  })
 
   const { delegations } = useDelegations(activeSessionKey || activeFriendlyId)
   const streamingDelegations = useChatStore(
@@ -1651,6 +1666,7 @@ export function ChatScreen({
           mcpServers={mcpServers}
           mcpToolServers={mcpToolServers}
           historyCapped={historyCapped}
+          sessionToolEntries={sessionToolEntries}
           counts={panelCounts}
           fileExplorer={
             <FileExplorerSidebar
