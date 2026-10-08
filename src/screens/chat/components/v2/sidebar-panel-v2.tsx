@@ -37,6 +37,11 @@ export type SidebarPanelV2Props = {
   /** Bare MCP tool name (lower-case) → server name. */
   mcpToolServers?: ReadonlyMap<string, string>
   historyCapped?: boolean
+  /**
+   * Loaded window + whole-session skill/MCP calls. Read by the Skills and MCP
+   * panels only; the Tools and Todos panels stay on the loaded `entries`.
+   */
+  sessionToolEntries?: Array<FlatToolEntry>
   counts?: Partial<Record<SidebarPanel, PanelCount>>
   onClose: () => void
 }
@@ -57,6 +62,7 @@ export function SidebarPanelV2({
   mcpServers,
   mcpToolServers,
   historyCapped,
+  sessionToolEntries,
   counts,
   onClose,
 }: SidebarPanelV2Props) {
@@ -123,12 +129,12 @@ export function SidebarPanelV2({
           <TodosPanelV2 entries={entries} />
         ) : panel === 'mcp' ? (
           <McpPanelV2
-            entries={entries}
+            entries={sessionToolEntries ?? entries}
             servers={mcpServers}
             toolServers={mcpToolServers}
           />
         ) : (
-          <SkillsPanelV2 entries={entries} />
+          <SkillsPanelV2 entries={sessionToolEntries ?? entries} />
         )}
       </div>
     </div>

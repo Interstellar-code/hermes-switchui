@@ -218,6 +218,7 @@ import { Route as ApiWorkflowDefinitionsIdVersionsRouteImport } from './routes/a
 import { Route as ApiWorkflowDefinitionsIdResetFactoryRouteImport } from './routes/api/workflow-definitions.$id.reset-factory'
 import { Route as ApiWorkflowDefinitionsIdParsedRouteImport } from './routes/api/workflow-definitions.$id.parsed'
 import { Route as ApiSessionsSessionKeyYoloRouteImport } from './routes/api/sessions/$sessionKey.yolo'
+import { Route as ApiSessionsSessionKeyToolUsageRouteImport } from './routes/api/sessions/$sessionKey.tool-usage'
 import { Route as ApiSessionsSessionKeyStatusRouteImport } from './routes/api/sessions/$sessionKey.status'
 import { Route as ApiSessionsSessionKeyForkRouteImport } from './routes/api/sessions/$sessionKey.fork'
 import { Route as ApiSessionsSessionKeyDelegationsRouteImport } from './routes/api/sessions/$sessionKey.delegations'
@@ -1332,6 +1333,12 @@ const ApiSessionsSessionKeyYoloRoute =
     path: '/$sessionKey/yolo',
     getParentRoute: () => ApiSessionsRoute,
   } as any)
+const ApiSessionsSessionKeyToolUsageRoute =
+  ApiSessionsSessionKeyToolUsageRouteImport.update({
+    id: '/$sessionKey/tool-usage',
+    path: '/$sessionKey/tool-usage',
+    getParentRoute: () => ApiSessionsRoute,
+  } as any)
 const ApiSessionsSessionKeyStatusRoute =
   ApiSessionsSessionKeyStatusRouteImport.update({
     id: '/$sessionKey/status',
@@ -1849,6 +1856,7 @@ export interface FileRoutesByFullPath {
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/sessions/$sessionKey/tool-usage': typeof ApiSessionsSessionKeyToolUsageRoute
   '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -2107,6 +2115,7 @@ export interface FileRoutesByTo {
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/sessions/$sessionKey/tool-usage': typeof ApiSessionsSessionKeyToolUsageRoute
   '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -2368,6 +2377,7 @@ export interface FileRoutesById {
   '/api/sessions/$sessionKey/delegations': typeof ApiSessionsSessionKeyDelegationsRoute
   '/api/sessions/$sessionKey/fork': typeof ApiSessionsSessionKeyForkRoute
   '/api/sessions/$sessionKey/status': typeof ApiSessionsSessionKeyStatusRoute
+  '/api/sessions/$sessionKey/tool-usage': typeof ApiSessionsSessionKeyToolUsageRoute
   '/api/sessions/$sessionKey/yolo': typeof ApiSessionsSessionKeyYoloRoute
   '/api/workflow-definitions/$id/parsed': typeof ApiWorkflowDefinitionsIdParsedRoute
   '/api/workflow-definitions/$id/reset-factory': typeof ApiWorkflowDefinitionsIdResetFactoryRoute
@@ -2630,6 +2640,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
+    | '/api/sessions/$sessionKey/tool-usage'
     | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -2888,6 +2899,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
+    | '/api/sessions/$sessionKey/tool-usage'
     | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -3148,6 +3160,7 @@ export interface FileRouteTypes {
     | '/api/sessions/$sessionKey/delegations'
     | '/api/sessions/$sessionKey/fork'
     | '/api/sessions/$sessionKey/status'
+    | '/api/sessions/$sessionKey/tool-usage'
     | '/api/sessions/$sessionKey/yolo'
     | '/api/workflow-definitions/$id/parsed'
     | '/api/workflow-definitions/$id/reset-factory'
@@ -4810,6 +4823,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSessionsSessionKeyYoloRouteImport
       parentRoute: typeof ApiSessionsRoute
     }
+    '/api/sessions/$sessionKey/tool-usage': {
+      id: '/api/sessions/$sessionKey/tool-usage'
+      path: '/$sessionKey/tool-usage'
+      fullPath: '/api/sessions/$sessionKey/tool-usage'
+      preLoaderRoute: typeof ApiSessionsSessionKeyToolUsageRouteImport
+      parentRoute: typeof ApiSessionsRoute
+    }
     '/api/sessions/$sessionKey/status': {
       id: '/api/sessions/$sessionKey/status'
       path: '/$sessionKey/status'
@@ -5362,6 +5382,7 @@ interface ApiSessionsRouteChildren {
   ApiSessionsSessionKeyDelegationsRoute: typeof ApiSessionsSessionKeyDelegationsRoute
   ApiSessionsSessionKeyForkRoute: typeof ApiSessionsSessionKeyForkRoute
   ApiSessionsSessionKeyStatusRoute: typeof ApiSessionsSessionKeyStatusRoute
+  ApiSessionsSessionKeyToolUsageRoute: typeof ApiSessionsSessionKeyToolUsageRoute
   ApiSessionsSessionKeyYoloRoute: typeof ApiSessionsSessionKeyYoloRoute
   ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute: typeof ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute
 }
@@ -5377,6 +5398,7 @@ const ApiSessionsRouteChildren: ApiSessionsRouteChildren = {
   ApiSessionsSessionKeyDelegationsRoute: ApiSessionsSessionKeyDelegationsRoute,
   ApiSessionsSessionKeyForkRoute: ApiSessionsSessionKeyForkRoute,
   ApiSessionsSessionKeyStatusRoute: ApiSessionsSessionKeyStatusRoute,
+  ApiSessionsSessionKeyToolUsageRoute: ApiSessionsSessionKeyToolUsageRoute,
   ApiSessionsSessionKeyYoloRoute: ApiSessionsSessionKeyYoloRoute,
   ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute:
     ApiSessionsSessionKeyChatInteractionsInteractionIdRespondRoute,

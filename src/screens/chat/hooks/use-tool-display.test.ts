@@ -4,6 +4,7 @@ import { act, renderHook } from '@testing-library/react'
 
 import * as toolEntries from '../components/v2/tool-entries'
 import { useToolDisplay } from './use-tool-display'
+import type { SessionToolUsageEntry } from './use-session-tool-usage'
 import type { ChatMessage, StreamingToolCall } from '../types'
 
 const STORAGE_KEY = 'switchui:tool-display-mode'
@@ -227,6 +228,155 @@ describe('useToolDisplay', () => {
         activeToolCalls: [{ id: 'tc1', name: 'Bash', phase: 'streaming' }],
       })
       expect(result.current.panelCounts.tool?.value).toBe(1)
+    })
+  })
+
+  describe('whole-session entries (capped history)', () => {
+    const session = (
+      sessionToolEntries: Array<SessionToolUsageEntry>,
+      activeToolCalls: Array<StreamingToolCall> = EMPTY_TOOL_CALLS,
+      extra: {
+        mcpToolNames?: ReadonlySet<string>
+        mcpServerNames?: Array<string>
+        mcpToolServers?: ReadonlyMap<string, string>
+      } = {},
+    ) =>
+      renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls,
+          sessionToolEntries,
+          ...extra,
+        }),
+      ).result.current
+
+    it('counts a skill that only exists outside the loaded window', () => {
+      const r = session([
+        {
+          callId: 'old-1',
+          name: 'skill_view',
+          args: { name: 'dataviz' },
+          isError: false,
+        },
+      ])
+      expect(r.panelCounts.skills).toEqual({ value: 1, label: '1 used' })
+    })
+
+    it('counts an MCP server that only exists outside the loaded window', () => {
+      const r = session(
+        [
+          {
+            callId: 'old-2',
+            name: 'mcp__github__search',
+            args: {},
+            isError: false,
+          },
+        ],
+        EMPTY_TOOL_CALLS,
+        { mcpServerNames: ['github'] },
+      )
+      expect(r.panelCounts.mcp).toEqual({ value: 1, label: '1 server' })
+    })
+
+    it('counts a call present in both lists once', () => {
+      const r = session(
+        [
+          {
+            callId: 'dup-1',
+            name: 'skill_view',
+            args: { name: 'a' },
+            isError: false,
+          },
+        ],
+        [
+          {
+            id: 'dup-1',
+            name: 'skill_view',
+            phase: 'complete',
+            args: { name: 'a' },
+          },
+          {
+            id: 'dup-2',
+            name: 'skill_view',
+            phase: 'complete',
+            args: { name: 'b' },
+          },
+        ],
+      )
+      expect(r.panelCounts.skills).toEqual({ value: 2, label: '2 used' })
+      expect(
+        r.sessionToolEntries.filter((e) => e.callId === 'dup-1'),
+      ).toHaveLength(1)
+    })
+
+    it('keeps the loaded entry when both lists carry the same call id', () => {
+      const r = session(
+        [
+          {
+            callId: 'dup-1',
+            name: 'skill_view',
+            args: { name: 'stale' },
+            isError: false,
+          },
+        ],
+        [
+          {
+            id: 'dup-1',
+            name: 'skill_view',
+            phase: 'complete',
+            args: { name: 'fresh' },
+            result: 'loaded output',
+          },
+        ],
+      )
+      const kept = r.sessionToolEntries.find((e) => e.callId === 'dup-1')
+      expect(kept?.output).toBe('loaded output')
+    })
+
+    it('leaves the Tools and Todos pills on the loaded window', () => {
+      const r = session(
+        [
+          {
+            callId: 'old-3',
+            name: 'skill_view',
+            args: { name: 'a' },
+            isError: false,
+          },
+          {
+            callId: 'old-4',
+            name: 'mcp__github__search',
+            args: {},
+            isError: true,
+          },
+        ],
+        [{ id: 'tc1', name: 'Bash', phase: 'complete', result: 'ok' }],
+      )
+      expect(r.panelCounts.tool).toEqual({
+        value: 1,
+        label: '1 call',
+        errors: 0,
+      })
+      expect(r.panelCounts.todos).toBeUndefined()
+      expect(r.toolEntries).toHaveLength(1)
+      expect(r.sessionToolEntries).toHaveLength(3)
+    })
+
+    it('behaves as before when no session entries are supplied', () => {
+      const r = renderHook(() =>
+        useToolDisplay({
+          realtimeMessages: EMPTY_MESSAGES,
+          activeToolCalls: [
+            {
+              id: 's1',
+              name: 'skill_view',
+              phase: 'complete',
+              args: { name: 'a' },
+            },
+          ],
+        }),
+      ).result.current
+      expect(r.panelCounts.skills).toEqual({ value: 1, label: '1 used' })
+      expect(r.sessionToolEntries).toHaveLength(1)
     })
   })
 
