@@ -23,9 +23,7 @@ import {
   DEFAULT_SESSION_LIST_LIMIT,
   chatQueryKeys,
   fetchListableSessions,
-  fetchSessionWindow,
   searchSessions,
-  updateSessionWindowPages,
 } from './chat-queries'
 import { normalizeSessions, readError } from './utils'
 import { filterSessionsWithTombstones } from './session-tombstones'
@@ -45,6 +43,7 @@ import type {
 import { toast } from '@/components/ui/toast'
 import { fetchJobs, findJobById } from '@/lib/jobs-api'
 import { useChatStore } from '@/stores/chat-store'
+import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useResolvedProfile } from '@/hooks/use-resolved-profile'
 import {
   UNSCOPED_PROFILE,
@@ -132,10 +131,18 @@ export function sessionsFeedKey(): Array<unknown> {
 }
 
 /**
+ * The unscoped sidebar's flagged list (`useChatSessionsFeed`). Not
+ * `chatQueryKeys.sessions`: `useChatSessions` fills that key with
+ * flag-stripped rows, so sharing it made pins/archives flap on every refetch.
+ */
+export function chatFeedListKey(): Array<unknown> {
+  return ['sessions-feed', 'chat-list', ...activeScopeSegments()]
+}
+
+/**
  * Invalidate every session list the sidebar can render.
  *
- * Unscoped, the V2 feed reads `chatQueryKeys.sessions` (shared with
- * `useChatSessions`). With a profile resolved it reads
+ * Unscoped, the V2 feed reads `chatFeedListKey()`. With a profile resolved it reads
  * `chatQueryKeys.scopedSessions(profile)` instead — invalidating only the
  * former left the scoped sidebar stale until its next 120s poll.
  */
@@ -144,6 +151,17 @@ export function invalidateSessionLists(
   { refetchTotals = true }: { refetchTotals?: boolean } = {},
 ): void {
   void queryClient.invalidateQueries({ queryKey: chatQueryKeys.sessions })
+  // The sidebar's own flagged lists: unscoped feed, Archived pages, header
+  // row. Inactive ones are only marked stale.
+  void queryClient.invalidateQueries({
+    queryKey: ['sessions-feed', 'chat-list'],
+  })
+  void queryClient.invalidateQueries({
+    queryKey: ['sessions-feed', 'archived'],
+  })
+  void queryClient.invalidateQueries({
+    queryKey: ['sessions-feed', 'session-flags'],
+  })
   // The sidebar's scoped-profile list (chatQueryKeys.scopedSessions) has its
   // own key; invalidate every profile's copy by prefix.
   void queryClient.invalidateQueries({
@@ -299,9 +317,9 @@ export function findSessionSource(
 
 // ── Backend flag-preserving list fetch ─────────────────────────────────────────
 
-/** `SessionSummary` wire rows widened with the backend flag fields the
- * `archived=include` list carries (`normalizeSessions` drops unknown fields,
- * so flags are re-attached from the raw rows after normalizing). */
+/** `SessionSummary` wire rows widened with the backend flag fields the list
+ * carries (`normalizeSessions` drops unknown fields, so flags are re-attached
+ * from the raw rows after normalizing). */
 type FlagSummaryRow = SessionSummary & {
   archived?: boolean | number
   pinned?: boolean | number
@@ -328,20 +346,9 @@ function attachSessionFlags(
   return rows.map((row) => ({ ...row, ...flagsByKey.get(row.key) }))
 }
 
-async function fetchSessionWindowWithFlags(
-  filter: Record<string, string>,
-  profile: string | null | undefined,
-  offset = 0,
+async function fetchFlaggedSessions(
+  query: URLSearchParams,
 ): Promise<Array<FeedSessionMeta>> {
-  const query = new URLSearchParams({
-    limit: String(DEFAULT_SESSION_LIST_LIMIT),
-    offset: String(offset),
-    // Backend-archived rows ride along; the default view filters them out
-    // client-side (item.state === 'archived') and the Archived view shows them.
-    archived: 'include',
-    ...filter,
-  })
-  if (profile) query.set('profile', profile)
   const res = await fetch(`/api/sessions?${query.toString()}`)
   if (!res.ok) {
     const error = new Error(await readError(res)) as Error & {
@@ -352,6 +359,22 @@ async function fetchSessionWindowWithFlags(
   }
   const data = (await res.json()) as SessionListResponse
   return attachSessionFlags(normalizeSessions(data.sessions), data.sessions)
+}
+
+async function fetchSessionWindowWithFlags(
+  filter: Record<string, string>,
+  profile: string | null | undefined,
+  offset = 0,
+): Promise<Array<FeedSessionMeta>> {
+  // No `archived=` = the backend default (exclude): archived rows come only
+  // from the Archived view's own `archived=only` pages.
+  const query = new URLSearchParams({
+    limit: String(DEFAULT_SESSION_LIST_LIMIT),
+    offset: String(offset),
+    ...filter,
+  })
+  if (profile) query.set('profile', profile)
+  return fetchFlaggedSessions(query)
 }
 
 async function fetchSessionWindowsWithFlags(
@@ -372,7 +395,8 @@ async function fetchSessionWindowsWithFlags(
 }
 
 /** `fetchSessions`, but the rows keep the backend `archived`/`pinned` flags.
- * Same cache key and wire shape — a superset of `fetchSessions`' rows. */
+ * Never cached under `chatQueryKeys.sessions`: `useChatSessions` fills that
+ * key with flag-stripped rows, and two fetchers on one key flap. */
 export async function fetchSessionsWithFlags(): Promise<
   Array<FeedSessionMeta>
 > {
@@ -386,18 +410,65 @@ export async function fetchProfileSessionsWithFlags(
   return fetchSessionWindowsWithFlags(profile)
 }
 
+/** One session row with its backend flags (`[]` when unknown), in the active
+ * profile — the chat header's source for pin/archive state. */
+export function sessionFlagsKey(sessionKey: string): Array<unknown> {
+  return [
+    'sessions-feed',
+    'session-flags',
+    ...activeScopeSegments(),
+    activeScopeKey(sessionKey),
+  ]
+}
+
+export function useSessionWithFlags(sessionKey: string, enabled = true) {
+  return useQuery({
+    queryKey: sessionFlagsKey(sessionKey),
+    queryFn: () => {
+      const query = new URLSearchParams({ sessionKey })
+      const profile = getSessionProfile()
+      if (profile) query.set('profile', profile)
+      return fetchFlaggedSessions(query)
+    },
+    enabled: enabled && Boolean(sessionKey),
+    staleTime: 30_000,
+  })
+}
+
 // ── Backend flag mutation (archive / pin) ──────────────────────────────────────
 
 export type SessionFlagsPayload = {
   sessionKey: string
   friendlyId?: string | null
+  /** Skip the per-call error toast (bulk actions report one summary). */
+  silent?: boolean
 } & Partial<{ archived: boolean; pinned: boolean }>
 
+/** Apply `update` to a cached session list, plain or infinite (`pages`). */
+function mapCachedRows(
+  data: unknown,
+  update: (rows: Array<Record<string, unknown>>) => unknown,
+): unknown {
+  if (Array.isArray(data)) return update(data)
+  const pages = (data as { pages?: unknown } | undefined)?.pages
+  if (Array.isArray(pages)) {
+    return {
+      ...(data as object),
+      pages: pages.map((page) => (Array.isArray(page) ? update(page) : page)),
+    }
+  }
+  return data
+}
+
 /**
- * PATCH `archived` / `pinned` onto a backend session row, with the same
- * optimistic-cache contract as `useRenameSession`: the shared
- * `chatQueryKeys.sessions` rows flip immediately, roll back on failure, and
- * every session list refetches on success.
+ * PATCH `archived` / `pinned` onto a backend session row. Every sidebar
+ * session cache (`['sessions-feed', …]`: feed, scoped feed, extra pages,
+ * Archived pages, header row) flips immediately and rolls back on failure;
+ * all lists refetch once the call settles.
+ *
+ * The flag also leaves the local overlay (`hermes.sessions.local`): the
+ * backend is now the truth for this id, and a leftover overlay mark would
+ * both override it in the UI and be re-PATCHed by an unfinished migration.
  */
 export function useUpdateSessionFlags() {
   const queryClient = useQueryClient()
@@ -419,20 +490,18 @@ export function useUpdateSessionFlags() {
       return payload
     },
     onMutate: async function optimisticFlags(payload) {
-      await queryClient.cancelQueries({ queryKey: chatQueryKeys.sessions })
-      const previousSessions = queryClient.getQueryData(chatQueryKeys.sessions)
-      const previousScoped = queryClient.getQueryData(
-        chatQueryKeys.scopedSessions(getSessionProfile() ?? UNSCOPED_PROFILE),
-      )
+      await queryClient.cancelQueries({ queryKey: ['sessions-feed'] })
+      const previous = queryClient.getQueriesData({
+        queryKey: ['sessions-feed'],
+      })
 
       const targetId = payload.friendlyId || payload.sessionKey
-      const update = function update(sessions: unknown) {
-        if (!Array.isArray(sessions)) return sessions
-        return (sessions as Array<Record<string, unknown>>).map((session) => {
-          const key = typeof session.key === 'string' ? session.key : ''
-          const friendlyId =
-            typeof session.friendlyId === 'string' ? session.friendlyId : ''
-          if (key !== payload.sessionKey && friendlyId !== targetId)
+      const update = (rows: Array<Record<string, unknown>>) =>
+        rows.map((session) => {
+          if (
+            session.key !== payload.sessionKey &&
+            session.friendlyId !== targetId
+          )
             return session
           return {
             ...session,
@@ -440,40 +509,106 @@ export function useUpdateSessionFlags() {
             ...('pinned' in payload ? { pinned: payload.pinned } : {}),
           }
         })
-      }
-      queryClient.setQueryData(chatQueryKeys.sessions, update)
-      const profile = getSessionProfile()
-      if (profile) {
-        queryClient.setQueryData(chatQueryKeys.scopedSessions(profile), update)
-      }
-      updateSessionWindowPages(queryClient, update)
+      queryClient.setQueriesData({ queryKey: ['sessions-feed'] }, (data) =>
+        mapCachedRows(data, update),
+      )
 
-      return { previousSessions, previousScoped }
+      const overlayId = `chat:${payload.sessionKey}`
+      const local = useSessionsLocalStore.getState()
+      const overlay = {
+        archived: 'archived' in payload && local.archived.includes(overlayId),
+        pinned: 'pinned' in payload && local.pinned.includes(overlayId),
+      }
+      if (overlay.archived || overlay.pinned) {
+        useSessionsLocalStore.setState((s) => ({
+          archived: overlay.archived
+            ? s.archived.filter((id) => id !== overlayId)
+            : s.archived,
+          pinned: overlay.pinned
+            ? s.pinned.filter((id) => id !== overlayId)
+            : s.pinned,
+        }))
+      }
+
+      return { previous, overlay, overlayId }
     },
-    onError: function rollbackFlags(err, _payload, context) {
-      if (context?.previousSessions) {
-        queryClient.setQueryData(
-          chatQueryKeys.sessions,
-          context.previousSessions,
-        )
+    onError: function rollbackFlags(err, payload, context) {
+      if (context) {
+        for (const [key, data] of context.previous) {
+          queryClient.setQueryData(key, data)
+        }
+        const { overlay, overlayId } = context
+        if (overlay.archived || overlay.pinned) {
+          const restore = (ids: Array<string>, was: boolean) =>
+            was && !ids.includes(overlayId) ? [...ids, overlayId] : ids
+          useSessionsLocalStore.setState((s) => ({
+            archived: restore(s.archived, overlay.archived),
+            pinned: restore(s.pinned, overlay.pinned),
+          }))
+        }
       }
-      if (context?.previousScoped) {
-        queryClient.setQueryData(
-          chatQueryKeys.scopedSessions(getSessionProfile() ?? UNSCOPED_PROFILE),
-          context.previousScoped,
-        )
-      }
+      if (payload.silent) return
       const msg = err instanceof Error ? err.message : String(err)
       toast(`Couldn't update session: ${msg}`, { type: 'error' })
     },
-    onSuccess: function refreshLists() {
-      invalidateSessionLists(queryClient)
+    onSettled: function refreshLists() {
+      invalidateSessionLists(queryClient, { refetchTotals: false })
     },
   })
 
   return {
-    updateSessionFlags: mutation.mutateAsync,
+    /** Fire-and-forget; failures roll back and toast. */
+    updateSessionFlags: mutation.mutate,
+    /** Awaitable variant (rejects on failure) for bulk actions. */
+    updateSessionFlagsAsync: mutation.mutateAsync,
     flagsPending: mutation.isPending,
+  }
+}
+
+/** The Archived view's rows: backend `archived=only`, paged on demand. */
+export function archivedSessionsKey(profile: string | null): Array<string> {
+  return ['sessions-feed', 'archived', profile ?? ACTIVE_PROFILE]
+}
+
+export function useArchivedSessionPages(
+  profile: string | null,
+  enabled: boolean,
+): {
+  items: Array<SessionFeedItem>
+  hasMore: boolean
+  loading: boolean
+  loadMore: () => void
+} {
+  const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
+  const pageSize = DEFAULT_SESSION_LIST_LIMIT
+  const query = useInfiniteQuery({
+    queryKey: archivedSessionsKey(profile),
+    queryFn: ({ pageParam }) =>
+      fetchSessionWindowWithFlags({ archived: 'only' }, profile, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (last, _all, lastOffset) =>
+      last.length < pageSize ? undefined : lastOffset + pageSize,
+    enabled,
+    staleTime: 60_000,
+  })
+  const items = useMemo(
+    () =>
+      enabled
+        ? sessionsToFeedItems(
+            query.data?.pages.flat() ?? [],
+            [],
+            waitingSessionKeys,
+          )
+        : [],
+    [enabled, query.data, waitingSessionKeys],
+  )
+  return {
+    items,
+    hasMore: query.hasNextPage,
+    loading: query.isFetching,
+    loadMore: () => {
+      if (!query.isFetching) void query.fetchNextPage()
+    },
   }
 }
 
@@ -501,14 +636,15 @@ export function useChatSessionsFeed(enabled = true): SessionSourceResult {
   const available = capsQuery.data?.sessions ?? false
   const waitingSessionKeys = useChatStore((s) => s.waitingSessionKeys)
 
-  // S4 perf: share the raw sessions fetch with the legacy chatQueryKeys.sessions
-  // cache so only ONE /api/sessions network request is made. All mutation
-  // optimistic-update helpers (rename, auto-title, upsert, reconcile, remove)
-  // write to chatQueryKeys.sessions via setQueryData and now flow through here
-  // automatically. The previous ['sessions-feed','chat','v3-task-split'] query
-  // fetched /api/sessions independently — that duplicate is eliminated.
+  // Own key, not chatQueryKeys.sessions: these rows keep the backend
+  // archived/pinned flags and useChatSessions' fetcher strips them, so a
+  // shared key flapped pins on every refetch (see chatFeedListKey).
+  // ponytail: the chatQueryKeys.sessions optimistic helpers (rename,
+  // auto-title, reconcile, remove) no longer reach this list instantly — they
+  // invalidate it, as with the scoped feed. Re-share the key once
+  // normalizeSessions keeps the flags.
   const sessionsQuery = useQuery({
-    queryKey: chatQueryKeys.sessions,
+    queryKey: chatFeedListKey(),
     queryFn: fetchSessionsWithFlags,
     staleTime: 60_000,
     refetchInterval: enabled ? 120_000 : false,
@@ -869,7 +1005,8 @@ export function useSessionWindowPages(
   // Switch to a keyset cursor (updatedAt, id) if those gaps start to matter.
   const query = useInfiniteQuery({
     queryKey,
-    queryFn: ({ pageParam }) => fetchSessionWindow(filter, profile, pageParam),
+    queryFn: ({ pageParam }) =>
+      fetchSessionWindowWithFlags(filter, profile, pageParam),
     initialPageParam: startOffset,
     getNextPageParam: (last, _all, lastOffset) =>
       last.length < pageSize ? undefined : lastOffset + pageSize,

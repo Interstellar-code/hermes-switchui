@@ -58,23 +58,16 @@ export function SidebarCardContextMenuV2({
   position,
   onClose,
 }: SidebarCardContextMenuV2Props) {
-  const {
-    isPinned,
-    isStarred,
-    isArchived,
-    togglePinned,
-    toggleStarred,
-    toggleArchived,
-  } = useSessionsLocalStore(
-    useShallow((s) => ({
-      isPinned: s.pinned.includes(item.id),
-      isStarred: s.starred.includes(item.id),
-      isArchived: s.archived.includes(item.id),
-      togglePinned: s.togglePinned,
-      toggleStarred: s.toggleStarred,
-      toggleArchived: s.toggleArchived,
-    })),
-  )
+  const { isPinned, isStarred, togglePinned, toggleStarred, toggleArchived } =
+    useSessionsLocalStore(
+      useShallow((s) => ({
+        isPinned: s.pinned.includes(item.id),
+        isStarred: s.starred.includes(item.id),
+        togglePinned: s.togglePinned,
+        toggleStarred: s.toggleStarred,
+        toggleArchived: s.toggleArchived,
+      })),
+    )
 
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)

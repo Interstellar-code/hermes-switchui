@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
 import { useShallow } from 'zustand/react/shallow'
 import { cn } from '@/lib/utils'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionStatus } from '@/hooks/use-session-status'
-import { chatQueryKeys, fetchSessions } from '@/screens/chat/chat-queries'
-import { useUpdateSessionFlags } from '@/screens/chat/sessions-feed'
-import { isChatSource } from '@/screens/chat/sessions-feed-types'
+import {
+  useSessionWithFlags,
+  useUpdateSessionFlags,
+} from '@/screens/chat/sessions-feed'
 
 type ChatHeaderActionsV2Props = {
   sessionId: string
@@ -33,28 +33,29 @@ export function ChatHeaderActionsV2({
     })),
   )
 
-  // Pull live session metadata for the copy payload
+  // Live session metadata for the copy payload, and the backend pin/archive
+  // flags (this row keeps them; the shared session lists strip them).
   const status = useSessionStatus(sessionKey)
-  const sessionsQuery = useQuery({
-    queryKey: chatQueryKeys.sessionsRaw,
-    queryFn: fetchSessions,
-    staleTime: 30_000,
-  })
-  const meta = (sessionsQuery.data ?? []).find((s) => s.key === sessionKey)
   const isChat = sessionId.startsWith('chat:')
-  const backendBacked = isChat && meta?.source !== 'local'
-  const isPinned = backendBacked ? meta?.pinned === true : localPinned
-  const isArchived = backendBacked ? meta?.archived === true : localArchived
+  const rowQuery = useSessionWithFlags(sessionKey, isChat)
+  const meta = rowQuery.data?.[0]
+  // Unknown row (still loading) is not backend-backed; a failed or empty
+  // lookup falls back to the local overlay, as before the backend flags.
+  const backendBacked = isChat && meta !== undefined && meta.source !== 'local'
+  const isPinned = (backendBacked && meta.pinned === true) || localPinned
+  const isArchived = (backendBacked && meta.archived === true) || localArchived
 
   const { updateSessionFlags } = useUpdateSessionFlags()
 
   const togglePinned = () => {
+    if (isChat && rowQuery.isPending) return
     if (!backendBacked) return togglePinnedLocal(sessionId)
-    void updateSessionFlags({ sessionKey, pinned: !isPinned })
+    updateSessionFlags({ sessionKey, pinned: !isPinned })
   }
   const toggleArchived = () => {
+    if (isChat && rowQuery.isPending) return
     if (!backendBacked) return toggleArchivedLocal(sessionId)
-    void updateSessionFlags({ sessionKey, archived: !isArchived })
+    updateSessionFlags({ sessionKey, archived: !isArchived })
   }
   const [copied, setCopied] = useState(false)
 

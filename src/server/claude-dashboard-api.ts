@@ -158,7 +158,10 @@ async function dashboardJson<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await dashboardFetch(path, init)
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(`Hermes Agent dashboard ${path}: ${res.status} ${text}`)
+    throw Object.assign(
+      new Error(`Hermes Agent dashboard ${path}: ${res.status} ${text}`),
+      { status: res.status },
+    )
   }
   if (res.status === 204) return undefined as T
   return res.json() as Promise<T>

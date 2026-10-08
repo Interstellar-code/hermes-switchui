@@ -36,6 +36,7 @@ import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import {
   addUnloadedSourceCounts,
   mergeSessionFeedItems,
+  useArchivedSessionPages,
   useFolderPages,
   useProfileSessionTotals,
   useSessionSourceTotals,
@@ -175,12 +176,19 @@ export function SidebarShellV2() {
     ].join('|')
   }, [folderMap, profile])
   const folderPages = useFolderPages(profile ?? null, folderSignal)
+  // Backend-archived rows are not in the base windows (`archived=exclude`);
+  // the Archived view pages them in from `archived=only`.
+  const archivedPages = useArchivedSessionPages(profile ?? null, archivedView)
   const items = useMemo(() => {
-    const extra = [...folderPages.items, ...windowPages.items]
+    const extra = [
+      ...folderPages.items,
+      ...windowPages.items,
+      ...archivedPages.items,
+    ]
     return extra.length > 0
       ? mergeSessionFeedItems(extra, baseItems)
       : baseItems
-  }, [baseItems, windowPages.items, folderPages.items])
+  }, [baseItems, windowPages.items, folderPages.items, archivedPages.items])
 
   const folders = useMemo((): FolderSupport | undefined => {
     if (!projectMode || !folderMap) return undefined
@@ -306,11 +314,19 @@ export function SidebarShellV2() {
   // but drop the "of M": the server total ignores those filters. Without a
   // total, offer it only once a full first window came back.
   const showTotal = progress !== null && !countFiltered
-  const loadMore =
-    windowPages.hasMore &&
-    (progress
-      ? progress.loaded < progress.total
-      : items.length >= DEFAULT_SESSION_LIST_LIMIT)
+  const loadMore = archivedView
+    ? archivedPages.hasMore
+      ? {
+          loaded: loadedVisible,
+          total: null,
+          loading: archivedPages.loading,
+          onLoadMore: archivedPages.loadMore,
+        }
+      : undefined
+    : windowPages.hasMore &&
+        (progress
+          ? progress.loaded < progress.total
+          : items.length >= DEFAULT_SESSION_LIST_LIMIT)
       ? {
           loaded: showTotal ? progress.loaded : loadedVisible,
           total: showTotal ? progress.total : null,

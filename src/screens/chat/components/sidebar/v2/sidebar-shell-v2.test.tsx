@@ -12,6 +12,7 @@ const {
   useSessionProjectMap,
   useSessionSourceTotals,
   useSessionWindowPages,
+  useArchivedSessionPages,
   filterState,
   captured,
   folderLoad,
@@ -23,6 +24,7 @@ const {
     useSessionProjectMap: vi.fn(),
     useSessionSourceTotals: vi.fn(),
     useSessionWindowPages: vi.fn(),
+    useArchivedSessionPages: vi.fn(),
     filterState: rec(),
     captured: { chips: rec(), list: rec() },
     folderLoad: vi.fn(),
@@ -46,6 +48,7 @@ vi.mock('@/screens/chat/sessions-feed', async (importOriginal) => {
     useSessionsFeed,
     useSessionSourceTotals,
     useSessionWindowPages,
+    useArchivedSessionPages,
     useFolderPages: () => ({
       items: [],
       loading: new Set(),
@@ -127,6 +130,12 @@ beforeEach(() => {
     hasMore: true,
     loading: false,
     loadMore: loadMoreFn,
+  })
+  useArchivedSessionPages.mockReturnValue({
+    items: [],
+    hasMore: false,
+    loading: false,
+    loadMore: vi.fn(),
   })
   useSessionProjectMap.mockReturnValue({ data: folderMap })
   useSessionsFeed.mockReturnValue({
@@ -336,4 +345,38 @@ it('toggles the archived view state', () => {
   expect(toggle).toBeTruthy()
   fireEvent.click(toggle)
   expect(filterState.setState).toHaveBeenCalledWith('archived')
+})
+
+describe('Archived view', () => {
+  beforeEach(() => {
+    filterState.state = 'all'
+  })
+
+  it('pages archived=only rows in only while the view is on', () => {
+    render(<SidebarShellV2 />)
+    expect(useArchivedSessionPages).toHaveBeenLastCalledWith('work', false)
+  })
+
+  it('feeds the archived pages to the filter with state archived and pages them on Load more', () => {
+    const archivedLoadMore = vi.fn()
+    filterState.state = 'archived'
+    useArchivedSessionPages.mockReturnValue({
+      items: [{ id: 'chat:arch-1', state: 'archived' }],
+      hasMore: true,
+      loading: false,
+      loadMore: archivedLoadMore,
+    })
+
+    render(<SidebarShellV2 />)
+
+    expect(useArchivedSessionPages).toHaveBeenLastCalledWith('work', true)
+    const [items, filter] = applyFiltersAndDecorate.mock.calls.at(-1) ?? []
+    expect(items).toEqual(
+      expect.arrayContaining([{ id: 'chat:arch-1', state: 'archived' }]),
+    )
+    expect(filter).toMatchObject({ state: 'archived' })
+    expect(captured.list.loadMore).toMatchObject({
+      onLoadMore: archivedLoadMore,
+    })
+  })
 })

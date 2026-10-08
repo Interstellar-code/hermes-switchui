@@ -4,38 +4,33 @@
  * When backend-backed archive/pin ships, the localStorage overlay
  * (`hermes.sessions.local`) may still hold `chat:` ids the user archived or
  * pinned locally. On first load each `chat:` id in `archived[]`/`pinned[]` is
- * PATCHed to the backend; ids that succeed or hit 404 (session gone) are
- * dropped from the overlay, failures stay for the next load, and
- * `backendFlagsMigrated` in the persisted store marks completion so this runs
- * once. `task:`/`cron:` ids and all `starred[]` stay local — the backend has
- * no row for them.
+ * PATCHed to the backend (in the active profile, like every other write);
+ * ids that succeed or get a 404 (the route's "session gone") are dropped from
+ * the overlay, failures stay for the next load, and `backendFlagsMigrated` in
+ * the persisted store marks completion so this runs once. Local portable
+ * sessions answer 409 (no backend row) and keep their overlay mark without
+ * blocking completion. `task:`/`cron:` ids and all `starred[]` stay local —
+ * the backend has no row for them.
  *
- * Multi-tab safe without a lock: the PATCHes are idempotent, id removal is
- * set-like, and a stale overlay id resurrected by another tab's write either
- * matches the backend state already or re-migrates harmlessly on a later load.
+ * Multi-tab safe without a lock: the PATCHes are idempotent and id removal is
+ * set-like. A stale overlay id can't re-archive a session the user unarchived:
+ * every backend toggle drops its id from the overlay (`useUpdateSessionFlags`)
+ * before the next run could read it. Ponytail ceiling: a tab still running a
+ * pre-migration bundle can write an overlay mark back; it is ORed into the UI
+ * until the user toggles that session once.
  */
 
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSessionsLocalStore } from './sessions-local-store'
 import { invalidateSessionLists } from '@/screens/chat/sessions-feed'
+import { profileBody } from '@/lib/session-scope'
 
-type MigrationOutcome = 'ok' | 'gone' | 'failed'
+type MigrationOutcome = 'ok' | 'gone' | 'local' | 'failed'
 
 type MigrationResult = { migrated: number; gone: number; failed: number }
 
 const rawIdOf = (id: string) => id.split(':').slice(1).join(':')
-
-async function readFailure(res: Response): Promise<string> {
-  try {
-    const data = (await res.json()) as { error?: unknown; message?: unknown }
-    if (data.error) return String(data.error)
-    if (data.message) return String(data.message)
-  } catch {
-    /* fall through */
-  }
-  return res.statusText || 'request failed'
-}
 
 async function patchSessionFlag(
   sessionKey: string,
@@ -45,13 +40,15 @@ async function patchSessionFlag(
     const res = await fetch('/api/sessions', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ sessionKey, ...flag }),
+      body: JSON.stringify({ sessionKey, ...flag, ...profileBody() }),
     })
     if (res.ok) return 'ok'
-    // The route maps a backend 404 to a 500 whose message embeds ": 404" —
-    // either spelling means the session is gone, i.e. nothing left to migrate.
-    const message = await readFailure(res)
-    if (res.status === 404 || message.includes('404')) return 'gone'
+    // Status + the route's `code`, never message text: ids embed dates like
+    // 20260404, so a 500 naming one must not read as "gone". A bare 404/409
+    // can also be a profile-scope refusal, which is a failure, not "gone".
+    const { code } = (await res.json().catch(() => ({}))) as { code?: unknown }
+    if (res.status === 404 && code === 'session_not_found') return 'gone'
+    if (res.status === 409 && code === 'local_session') return 'local'
     return 'failed'
   } catch {
     return 'failed'

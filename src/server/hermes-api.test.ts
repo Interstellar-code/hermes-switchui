@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { listSessions, toSessionSummary } from './hermes-api'
+import { listSessions, toSessionSummary, updateSession } from './hermes-api'
 
 vi.mock('@/lib/feature-gates', () => ({
   getCapabilities: () => ({ dashboard: { available: false } }),
@@ -68,5 +68,43 @@ describe('listSessions fallback', () => {
     )
     const sessions = await listSessions()
     expect(sessions).toEqual([{ uuid: '456' }])
+  })
+})
+
+describe('flag writes and archived reads (review r2)', () => {
+  const originalFetch = global.fetch
+  beforeEach(() => {
+    global.fetch = vi.fn()
+  })
+  afterEach(() => {
+    global.fetch = originalFetch
+  })
+
+  it('a gateway PATCH failure carries the HTTP status, not only message text', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response('{"error":{"message":"Session not found: x"}}', {
+        status: 404,
+      }),
+    )
+    const err = await updateSession('x', { archived: true }).catch(
+      (e: unknown) => e,
+    )
+    expect(err).toBeInstanceOf(Error)
+    expect((err as { status?: number }).status).toBe(404)
+  })
+
+  it('archived=only on the gateway fallback returns archived rows, never the unarchived window', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: 'live', archived: 0 },
+            { id: 'old', archived: 1 },
+          ],
+        }),
+      ),
+    )
+    const sessions = await listSessions(50, 0, undefined, 'only')
+    expect(sessions.map((s) => s.id)).toEqual(['old'])
   })
 })

@@ -8,7 +8,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useRouterState } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
 import {
   FolderPickerList,
   useDismiss,
@@ -23,7 +22,7 @@ import { useBulkMoveSessions, useSessionProjectMap } from '@/lib/projects-api'
 import { useBulkDeleteSessions } from '@/screens/chat/hooks/use-delete-session'
 import { useSessionsLocalStore } from '@/stores/sessions-local-store'
 import { useSessionsSelectionStore } from '@/stores/sessions-selection-store'
-import { invalidateSessionLists } from '@/screens/chat/sessions-feed'
+import { useUpdateSessionFlags } from '@/screens/chat/sessions-feed'
 
 const rawIdOf = (id: string) => id.split(':').slice(1).join(':')
 const plural = (n: number) => (n === 1 ? '' : 's')
@@ -52,7 +51,8 @@ export function SidebarBulkActionsV2({
   const setDialogOpen = useSessionsSelectionStore((s) => s.setDialogOpen)
   const profile = useResolvedProfile() ?? undefined
   const { data: map } = useSessionProjectMap(profile)
-  const queryClient = useQueryClient()
+  const setMany = useSessionsSelectionStore((s) => s.setMany)
+  const { updateSessionFlagsAsync } = useUpdateSessionFlags()
   const move = useBulkMoveSessions(profile)
   const { deleteSessions, progress } = useBulkDeleteSessions()
   const navigate = useNavigate()
@@ -108,16 +108,13 @@ export function SidebarBulkActionsV2({
 
   async function runArchive() {
     setArchiving(true)
-    const localIds = picked
-      .filter(
-        (i) => !isChatSource(i.src) || i.sourceMeta.serverSource === 'local',
-      )
-      .map((i) => i.id)
-    const backendChatKeys = picked
-      .filter(
-        (i) => isChatSource(i.src) && i.sourceMeta.serverSource !== 'local',
-      )
-      .map((i) => rawIdOf(i.id))
+    // Backend-backed chats go through the shared flag mutation (profile,
+    // optimistic flip, rollback, overlay clear); local portable sessions and
+    // non-chat items have no backend row and keep the local overlay.
+    const backend = picked.filter(
+      (i) => isChatSource(i.src) && i.sourceMeta.serverSource !== 'local',
+    )
+    const localIds = picked.filter((i) => !backend.includes(i)).map((i) => i.id)
 
     try {
       if (localIds.length > 0) {
@@ -125,24 +122,29 @@ export function SidebarBulkActionsV2({
           archived: [...new Set([...s.archived, ...localIds])],
         }))
       }
-
-      if (backendChatKeys.length > 0) {
-        const results = await Promise.allSettled(
-          backendChatKeys.map((sessionKey) =>
-            fetch('/api/sessions', {
-              method: 'PATCH',
-              headers: { 'content-type': 'application/json' },
-              body: JSON.stringify({ sessionKey, archived: true }),
-            }).then((res) => {
-              if (!res.ok) throw new Error('Failed to archive')
-              return res
-            }),
-          ),
+      const results = await Promise.allSettled(
+        backend.map((i) =>
+          updateSessionFlagsAsync({
+            sessionKey: rawIdOf(i.id),
+            archived: true,
+            silent: true,
+          }),
+        ),
+      )
+      const failedIds = backend
+        .filter((_, n) => results[n].status === 'rejected')
+        .map((i) => i.id)
+      if (failedIds.length > 0) {
+        const done = count - failedIds.length
+        // Keep only the failures selected so a retry is one click.
+        setMany(
+          selectedIds.filter((id) => !failedIds.includes(id)),
+          false,
         )
-        const failed = results.filter((r) => r.status === 'rejected').length
-        const ok = backendChatKeys.length - failed
-
-        invalidateSessionLists(queryClient)
+        toast(`Archived ${done} of ${count}; ${failedIds.length} failed`, {
+          type: 'error',
+        })
+        return
       }
       toast(`Archived ${count} session${plural(count)}`, { type: 'success' })
       exit()

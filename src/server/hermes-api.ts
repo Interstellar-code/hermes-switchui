@@ -215,7 +215,12 @@ async function claudePatch<T>(
   await assertProfileResponseOk(res, profile)
   if (!res.ok) {
     const text = (await res.text().catch(() => '')).slice(0, ERROR_BODY_CAP)
-    throw new Error(`Hermes Agent API PATCH ${path}: ${res.status} ${text}`)
+    // `status` lets a route tell a backend 404 apart from a message that
+    // merely contains "404" (session ids embed dates like 20260404).
+    throw Object.assign(
+      new Error(`Hermes Agent API PATCH ${path}: ${res.status} ${text}`),
+      { status: res.status },
+    )
   }
   return res.json() as Promise<T>
 }
@@ -358,14 +363,17 @@ export async function listSessions(
     return sessions
   }
   // The gateway list always excludes archived rows and has no `archived=`
-  // param, so `archived: 'only'|'include'` cannot be honored here — callers
-  // get the gateway's unarchived window either way.
+  // param, so `archived: 'include'` gets the unarchived window and
+  // `archived: 'only'` gets nothing (rather than unarchived rows).
   const resp = await claudeGet<{
     items?: Array<ClaudeSession>
     data?: Array<ClaudeSession>
     total?: number
   }>(`/api/sessions?limit=${limit}&offset=${offset}`)
-  return resp.data ?? resp.items ?? []
+  const rows = resp.data ?? resp.items ?? []
+  return archived === 'only'
+    ? rows.filter((row) => row.archived === true || row.archived === 1)
+    : rows
 }
 
 // The dashboard branches below are UNSCOPED — they hit :9119, which resolves
@@ -417,7 +425,7 @@ export async function updateSession(
   sessionId: string,
   updates: { title?: string; archived?: boolean; pinned?: boolean },
   profile?: string | null,
-): Promise<ClaudeSession> {
+): Promise<ClaudeSession | undefined> {
   // The dashboard shortcut has no `?profile=` scoping — for an explicit
   // profile it would silently rename in whatever profile the dashboard
   // considers active, dropping the scope (same guard as createSession()).
@@ -426,8 +434,9 @@ export async function updateSession(
     getCapabilities().dashboard.available &&
     !getCapabilities().enhancedChat
   ) {
+    // The dashboard PATCH answers `{ok, title, <flags>}` — no session row.
     const resp = await updateDashboardSession(sessionId, updates)
-    return resp.session as ClaudeSession
+    return resp.session as ClaudeSession | undefined
   }
   const resp = await claudePatch<{ session: ClaudeSession }>(
     `/api/sessions/${sessionId}`,

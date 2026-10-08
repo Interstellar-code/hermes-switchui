@@ -20,7 +20,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SidebarHeaderV2 } from './sidebar-header-v2'
 import { SidebarProfileDropdownV2 } from './sidebar-profile-dropdown-v2'
 import { chatQueryKeys } from '@/screens/chat/chat-queries'
-import { ACTIVE_PROFILE, useSessionsFeed } from '@/screens/chat/sessions-feed'
+import {
+  ACTIVE_PROFILE,
+  chatFeedListKey,
+  useSessionsFeed,
+} from '@/screens/chat/sessions-feed'
 import { useSessionsFilterStore } from '@/stores/sessions-filter-store'
 import {
   UNSCOPED_PROFILE,
@@ -248,7 +252,9 @@ describe('profile-scoped sessions feed', () => {
     await waitFor(() => expect(result.current.items.length).toBe(1))
     expect(result.current.items[0].id).toBe('chat:active-s1')
     expect(urls.some((u) => u.includes('profile='))).toBe(false)
-    expect(queryClient.getQueryData(chatQueryKeys.sessions)).not.toBeUndefined()
+    // The unscoped sidebar list has its own flagged key (not the shared,
+    // flag-stripped chatQueryKeys.sessions).
+    expect(queryClient.getQueryData(chatFeedListKey())).not.toBeUndefined()
   })
 
   it('reads a foreign profile through its own key, leaving the shared mutation cache untouched', async () => {
