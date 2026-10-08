@@ -36,6 +36,7 @@ import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { CHAT_OPEN_MESSAGE_SEARCH_EVENT } from '@/screens/chat/chat-events'
 import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
+import { useChatSettingsStore } from '@/hooks/use-chat-settings'
 
 /** Duration (ms) the thinking indicator stays visible after waitingForResponse
  *  clears, giving the first response message time to render before the
@@ -273,9 +274,12 @@ function ThinkingBubble({
         className="relative max-w-[36rem] overflow-hidden rounded-2xl rounded-bl-sm thinking-shimmer-bubble"
         style={{
           background: 'var(--theme-card, rgba(0,255,65,0.04))',
-          border: '1px solid color-mix(in srgb, var(--m-green-500, var(--theme-accent, #4ade80)) 35%, var(--theme-border))',
-          boxShadow: '0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #4ade80)) 18%, transparent)',
-        }}>
+          border:
+            '1px solid color-mix(in srgb, var(--m-green-500, var(--theme-accent, #4ade80)) 35%, var(--theme-border))',
+          boxShadow:
+            '0 0 12px color-mix(in srgb, var(--m-green-500, var(--theme-accent, #4ade80)) 18%, transparent)',
+        }}
+      >
         {/* Shimmer overlay */}
         <div
           className="thinking-shimmer-sweep pointer-events-none absolute inset-0"
@@ -322,7 +326,10 @@ function ThinkingBubble({
           </div>
 
           {isStale ? (
-            <span className="text-[11px] font-mono animate-pulse" style={{ color: 'var(--m-yellow, #d6ff5f)' }}>
+            <span
+              className="text-[11px] font-mono animate-pulse"
+              style={{ color: 'var(--m-yellow, #d6ff5f)' }}
+            >
               {isVeryStale
                 ? 'Still thinking… this is taking a while'
                 : 'Taking longer than usual…'}
@@ -473,8 +480,7 @@ function ShowEarlierMessagesButton({
         aria-label={`Show ${hiddenCount} earlier messages`}
       >
         <HugeiconsIcon icon={ArrowUp01Icon} size={14} strokeWidth={1.8} />
-        Show {hiddenCount} earlier{' '}
-        {hiddenCount === 1 ? 'message' : 'messages'}
+        Show {hiddenCount} earlier {hiddenCount === 1 ? 'message' : 'messages'}
       </button>
     </div>
   )
@@ -502,7 +508,9 @@ function shouldHideSystemInjectedUserMessage(text: string): boolean {
   // Only hide messages that begin with known system-injected prompts. User
   // context summaries may quote these phrases later in the message and must
   // remain visible/persistent in the chat UI.
-  return HIDDEN_SYSTEM_USER_PREFIXES.some((prefix) => trimmed.startsWith(prefix))
+  return HIDDEN_SYSTEM_USER_PREFIXES.some((prefix) =>
+    trimmed.startsWith(prefix),
+  )
 }
 
 function getChronologyRank(message: ChatMessage): number {
@@ -622,7 +630,10 @@ export function buildDisplayEntries(
       attachedToolMessages: [],
     }
 
-    if (message.role === 'assistant' && pendingAssistantToolMessages.length > 0) {
+    if (
+      message.role === 'assistant' &&
+      pendingAssistantToolMessages.length > 0
+    ) {
       entry.attachedToolMessages.push(...pendingAssistantToolMessages)
       pendingAssistantToolMessages = []
     }
@@ -822,6 +833,15 @@ function ChatMessageListComponent({
   toolDisplayMode = 'collapsed',
   compactionEvents = EMPTY_COMPACTION_EVENTS,
 }: ChatMessageListProps) {
+  const showReasoningBlocks = useChatSettingsStore(
+    (s) => s.settings.showReasoningBlocks,
+  )
+  // Reasoning reaches a render surface only while the setting is on. With it
+  // off, a reasoning-only stream counts as "no activity" so the typing
+  // indicator stays up instead of an invisible streaming placeholder.
+  const visibleStreamingThinking = showReasoningBlocks
+    ? streamingThinking
+    : undefined
   const anchorRef = useRef<HTMLDivElement | null>(null)
   const lastUserRef = useRef<HTMLDivElement | null>(null)
   const searchInputRef = useRef<HTMLInputElement | null>(null)
@@ -912,7 +932,10 @@ function ChatMessageListComponent({
     const anchor = anchorRef.current
     if (!anchor) return
     const viewport = anchor.closest('[data-chat-scroll-viewport]')
-    if (viewport instanceof HTMLElement && typeof viewport.scrollTo === 'function') {
+    if (
+      viewport instanceof HTMLElement &&
+      typeof viewport.scrollTo === 'function'
+    ) {
       viewport.scrollTo({ top: viewport.scrollHeight, behavior })
     }
   }, [])
@@ -1288,8 +1311,7 @@ function ChatMessageListComponent({
     .map(({ message, sourceIndex }, index) => ({ message, sourceIndex, index }))
     // A delegation card is gateway-written, not a user turn to pin.
     .filter(
-      ({ message }) =>
-        message.role === 'user' && !message.__delegationComplete,
+      ({ message }) => message.role === 'user' && !message.__delegationComplete,
     )
     .map(({ index }) => index)
     .pop()
@@ -1311,13 +1333,14 @@ function ChatMessageListComponent({
       (activeToolCalls.length > 0 ||
         liveToolActivity.length > 0 ||
         lifecycleEvents.length > 0 ||
-        Boolean(streamingThinking && streamingThinking.trim().length > 0))
+        Boolean(
+          visibleStreamingThinking &&
+          visibleStreamingThinking.trim().length > 0,
+        ))
     // Streaming-but-empty only needs the detached thinking bubble when the
     // in-thread streaming row has nothing to show yet.
     const streamingButEmpty =
-      isStreaming &&
-      !hasStreamingText &&
-      !hasInThreadStreamingActivity
+      isStreaming && !hasStreamingText && !hasInThreadStreamingActivity
     if (isCompacting) return true
     if (streamingButEmpty) return true
     if (!effectivelyWaiting) return false
@@ -1391,19 +1414,13 @@ function ChatMessageListComponent({
                 ? 'calling'
                 : toolCall.phase === 'failed' || toolCall.phase === 'error'
                   ? 'error'
-                  : toolCall.phase === 'calling' ||
-                      toolCall.phase === 'running'
+                  : toolCall.phase === 'calling' || toolCall.phase === 'running'
                     ? toolCall.phase
                     : 'calling',
           args: tcAny.args,
           preview:
-            typeof tcAny.preview === 'string'
-              ? (tcAny.preview)
-              : undefined,
-          result:
-            typeof tcAny.result === 'string'
-              ? (tcAny.result)
-              : undefined,
+            typeof tcAny.preview === 'string' ? tcAny.preview : undefined,
+          result: typeof tcAny.result === 'string' ? tcAny.result : undefined,
         }
       })
     }
@@ -1542,10 +1559,11 @@ function ChatMessageListComponent({
         normalizedStreamingToolCalls.length > 0 ||
         liveToolActivity.length > 0 ||
         lifecycleEvents.length > 0 ||
-        Boolean(streamingThinking && streamingThinking.trim().length > 0)
-      const isEmptyPlaceholder =
-        !hasStreamingText &&
-        !hasStreamingActivity
+        Boolean(
+          visibleStreamingThinking &&
+          visibleStreamingThinking.trim().length > 0,
+        )
+      const isEmptyPlaceholder = !hasStreamingText && !hasStreamingActivity
       return (
         <div
           key={LIVE_STREAM_KEY}
@@ -1576,9 +1594,11 @@ function ChatMessageListComponent({
             }
             toolCalls={normalizedStreamingToolCalls}
             isStreaming={messageIsStreaming}
-            streamingThinking={streamingThinking}
+            streamingThinking={visibleStreamingThinking}
             lifecycleEvents={lifecycleEvents}
-            clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
+            clarifyCard={
+              realIndex === lastAssistantIndex ? clarifyCard : undefined
+            }
             toolDisplayMode={toolDisplayMode}
           />
         </div>
@@ -2054,7 +2074,7 @@ function ChatMessageListComponent({
                         wrapperScrollMarginTop: wrapperScrollMarginTop,
                         isStreaming: messageIsStreaming,
                         streamingThinking: messageIsStreaming
-                          ? streamingThinking
+                          ? visibleStreamingThinking
                           : undefined,
                         lifecycleEvents: messageIsStreaming
                           ? lifecycleEvents
@@ -2125,7 +2145,7 @@ function ChatMessageListComponent({
                     reasoning is worth showing — waiting for a tool call or for
                     the answer text to land defeats the point. */}
                 {clarifyToolCalls.length > 0 ||
-                !!streamingThinking?.trim() ? (
+                !!visibleStreamingThinking?.trim() ? (
                   <div className="flex max-w-[var(--chat-content-max-width)]">
                     <div
                       className="ml-[14px] mr-2 w-px shrink-0"
@@ -2140,7 +2160,9 @@ function ChatMessageListComponent({
                         toolSections={attachClarifyCard(
                           clarifyToolCalls.map((tc) => {
                             const phase = tc.phase
-                            const isClarifyTool = tc.name.toLowerCase().includes('clarify')
+                            const isClarifyTool = tc.name
+                              .toLowerCase()
+                              .includes('clarify')
                             const state =
                               phase === 'error'
                                 ? ('output-error' as const)
@@ -2175,7 +2197,7 @@ function ChatMessageListComponent({
                           clarifyReceiptCard,
                           'input-streaming',
                         )}
-                        thinking={streamingThinking ?? null}
+                        thinking={visibleStreamingThinking ?? null}
                         isStreaming={true}
                         formatLabel={(name) => name.replace(/_/g, ' ')}
                         formatArg={(_name, args) => {
@@ -2183,9 +2205,7 @@ function ChatMessageListComponent({
                           const first = Object.values(args).find(
                             (v) => typeof v === 'string' && v.trim(),
                           )
-                          return typeof first === 'string'
-                            ? first.trim()
-                            : null
+                          return typeof first === 'string' ? first.trim() : null
                         }}
                       />
                     </div>
@@ -2203,10 +2223,7 @@ function ChatMessageListComponent({
   )
 }
 
-function getMessageSpacingClass(
-  messages: Array<any>,
-  index: number,
-): string {
+function getMessageSpacingClass(messages: Array<any>, index: number): string {
   if (index === 0) return 'mt-0'
   const currentRole = messages[index]?.role ?? 'assistant'
   const previousRole = messages[index - 1]?.role ?? 'assistant'
@@ -2219,10 +2236,7 @@ function getMessageSpacingClass(
   return 'mt-2 md:mt-2.5'
 }
 
-function getToolGroupClass(
-  messages: Array<any>,
-  index: number,
-): string {
+function getToolGroupClass(messages: Array<any>, index: number): string {
   const message = messages[index]
   if (!message || message.role !== 'assistant') return ''
   const hasToolCalls = getToolCallsFromMessage(message).length > 0

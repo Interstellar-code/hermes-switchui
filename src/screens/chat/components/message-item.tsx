@@ -2232,6 +2232,9 @@ function MessageItemComponent({
   const profileAvatarDataUrl = useChatSettingsStore(
     selectChatProfileAvatarDataUrl,
   )
+  const showReasoningBlocks = useChatSettingsStore(
+    (s) => s.settings.showReasoningBlocks,
+  )
   const [messageContextMenu, setMessageContextMenu] = useState<
     (MessageContextMenuPosition & { selectedText?: string }) | null
   >(null)
@@ -2420,8 +2423,9 @@ function MessageItemComponent({
     )
   }, [displayText, effectiveIsStreaming, revealedWordCount])
 
-  const thinking =
-    remoteStreamingActive && remoteStreamingThinking !== undefined
+  const thinking = !showReasoningBlocks
+    ? null
+    : remoteStreamingActive && remoteStreamingThinking !== undefined
       ? remoteStreamingThinking
       : thinkingFromMessage(message)
   const isUser = role === 'user'

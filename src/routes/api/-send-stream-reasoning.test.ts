@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  collectRunReasoning,
   parseModelErrorEnvelope,
   parseReasoningErrorEnvelope,
 } from './send-stream'
@@ -67,6 +68,30 @@ describe('send-stream reasoning/effort wiring', () => {
 
   it('does not forward a fast-mode flag', () => {
     expect(source).not.toMatch(/model_options|service_tier|fastMode/)
+  })
+
+  it('does not forward _thinking tool.progress as a thinking event', () => {
+    // `_thinking` progress is the assistant's visible answer text (≤500
+    // chars), not reasoning. The old branch forwarded it as `thinking`,
+    // duplicating the answer into the reasoning pane.
+    expect(source).not.toContain(
+      "toolName === '_thinking' || toolName === 'tool'",
+    )
+    expect(source).toContain("if (toolName === '_thinking') return")
+    // The plain 'tool' progress forward must survive unchanged.
+    expect(source).toContain("if (toolName === 'tool') {")
+  })
+
+  it('emits end-of-turn reasoning from run.completed before done', () => {
+    // The enhanced stream has no reasoning deltas; run.completed's
+    // data.messages carries the persisted reasoning. One `thinking` event
+    // must land before the closing `done`.
+    expect(source).toContain('const runReasoning = collectRunReasoning(data)')
+    expect(source).toContain('text: runReasoning,')
+    const reasoningSend = source.indexOf('text: runReasoning,')
+    const doneSend = source.indexOf("sendEvent('done', translated)")
+    expect(reasoningSend).toBeGreaterThan(-1)
+    expect(doneSend).toBeGreaterThan(reasoningSend)
   })
 })
 
@@ -161,6 +186,59 @@ describe('streamChat puts the level on the wire', () => {
     expect(await wireBody(toReasoningEffort('adaptive'))).not.toHaveProperty(
       'reasoning_effort',
     )
+  })
+})
+
+describe('collectRunReasoning — end-of-turn reasoning from run.completed', () => {
+  it('collects assistant reasoning and joins multiple entries with a blank line', () => {
+    const text = collectRunReasoning({
+      messages: [
+        { role: 'user', content: 'hi' },
+        { role: 'assistant', reasoning: 'first stretch of thought' },
+        { role: 'assistant', reasoning: 'second stretch' },
+      ],
+    })
+    expect(text).toBe('first stretch of thought\n\nsecond stretch')
+  })
+
+  it('falls back to reasoning_content when reasoning is absent', () => {
+    expect(
+      collectRunReasoning({
+        messages: [{ role: 'assistant', reasoning_content: 'alias only' }],
+      }),
+    ).toBe('alias only')
+  })
+
+  it('prefers reasoning over reasoning_content on the same entry', () => {
+    expect(
+      collectRunReasoning({
+        messages: [
+          {
+            role: 'assistant',
+            reasoning: 'canonical',
+            reasoning_content: 'alias',
+          },
+        ],
+      }),
+    ).toBe('canonical')
+  })
+
+  it('returns an empty string when nothing carries reasoning', () => {
+    expect(collectRunReasoning({ messages: [] })).toBe('')
+    expect(
+      collectRunReasoning({
+        messages: [
+          { role: 'user', reasoning: 'not assistant' },
+          { role: 'tool', reasoning_content: 'not assistant either' },
+          { role: 'assistant', reasoning: '' },
+          { role: 'assistant', reasoning: '   ' },
+          { role: 'assistant' },
+          'garbage entry',
+        ],
+      }),
+    ).toBe('')
+    expect(collectRunReasoning({})).toBe('')
+    expect(collectRunReasoning({ messages: 'nope' })).toBe('')
   })
 })
 
