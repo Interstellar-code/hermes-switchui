@@ -160,8 +160,8 @@ export function isSafeHref(href: string | null | undefined): boolean {
   // Strip C0/C1 control characters and Unicode whitespace that browsers ignore
   // before parsing the URL scheme (prevents java\x09script: bypasses).
   // Control chars in the class are intentional — that's the bypass we defend against.
-
-  const cleaned = href.replace(/[ -  -Ÿ\s]/g, '')
+  // eslint-disable-next-line no-control-regex
+  const cleaned = href.replace(/[\x00-\x1f\x7f-\x9f\s]/g, '')
   const lower = cleaned.toLowerCase()
   // Relative links — safe by construction.
   if (
