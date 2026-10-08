@@ -7,6 +7,7 @@
  *
  * Run:  pnpm vitest run src/components/prompt-kit/markdown-safe-href.test.ts
  */
+import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 import { isSafeHref } from './markdown'
 
@@ -44,7 +45,9 @@ describe('isSafeHref — blocked schemes', () => {
   })
 
   it('blocks data:text/html;base64,...', () => {
-    expect(isSafeHref('data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==')).toBe(false)
+    expect(
+      isSafeHref('data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=='),
+    ).toBe(false)
   })
 
   it('blocks vbscript: scheme', () => {
@@ -98,5 +101,28 @@ describe('isSafeHref — edge cases', () => {
   it('allows empty string (treated as relative)', () => {
     // An empty href is safe — renders as a no-op anchor.
     expect(isSafeHref('')).toBe(true)
+  })
+})
+
+describe('isSafeHref — source hygiene', () => {
+  it('strip regex uses escape sequences only (no raw control/C1 bytes)', async () => {
+    // Regression guard: commit 4ee28578 replaced the raw control characters
+    // in the character class with printable look-alikes, which broke the strip
+    // and let javascript:/data: links through. If an editor or formatter ever
+    // mangles the escapes back into raw bytes, this test fails.
+    const source = await readFile(
+      new URL('./markdown.tsx', import.meta.url),
+      'utf8',
+    )
+    const start = source.indexOf('export function isSafeHref')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const end = source.indexOf('\n}', start)
+    expect(end).toBeGreaterThan(start)
+    const body = source.slice(start, end)
+    // Raw C0 controls (minus benign \t \n \r), DEL, or C1 bytes anywhere in
+    // the function body mean the escapes were re-mangled.
+    // eslint-disable-next-line no-control-regex
+    const rawControl = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/
+    expect(body).not.toMatch(rawControl)
   })
 })
