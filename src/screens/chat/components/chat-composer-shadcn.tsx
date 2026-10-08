@@ -28,6 +28,7 @@
 import * as React from 'react'
 import {
   ArrowUp,
+  Brain,
   Check,
   Clock,
   Eye,
@@ -101,6 +102,10 @@ import {
   useChatStore,
 } from '@/stores/chat-store'
 import { useWorkspaceStore } from '@/stores/workspace-store'
+import {
+  useEffectiveShowReasoning,
+  useSessionReasoningStore,
+} from '@/stores/session-reasoning-store'
 import { useVoiceInput } from '@/hooks/use-voice-input'
 
 // Mirror of the shared ChatComposerProps contract. Imported types keep the
@@ -225,6 +230,42 @@ function getQueuedMessagePreview(item: QueuedChatMessage): string {
   const attachmentCount = item.attachments.length
   if (attachmentCount === 1) return '1 attachment'
   return `${attachmentCount} attachments`
+}
+
+/**
+ * Per-session "Show reasoning" toggle. Overrides the global
+ * `showReasoningBlocks` setting for the current chat only; hidden on a new
+ * unsaved chat where there is no session key to scope the override to.
+ * Exported for direct testing — the composer test suite renders this instead
+ * of mounting the whole composer.
+ */
+export function ReasoningToggle({ sessionKey }: { sessionKey?: string }) {
+  const effectiveShowReasoning = useEffectiveShowReasoning(sessionKey)
+  const setOverride = useSessionReasoningStore((s) => s.setOverride)
+  if (!sessionKey) return null
+  const label = effectiveShowReasoning
+    ? 'Hide reasoning (this chat)'
+    : 'Show reasoning (this chat)'
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          onClick={() => setOverride(sessionKey, !effectiveShowReasoning)}
+          aria-label={label}
+          aria-pressed={effectiveShowReasoning}
+          className={cn(
+            effectiveShowReasoning ? 'text-primary' : 'text-muted-foreground',
+          )}
+        >
+          <Brain className="size-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{label}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 function ChatComposerShadcn({
@@ -1138,6 +1179,10 @@ function ChatComposerShadcn({
                     </TooltipContent>
                   </Tooltip>
                 )}
+
+                {/* per-session reasoning toggle — overrides the global
+                    "Show reasoning blocks" setting for this chat only */}
+                <ReasoningToggle sessionKey={sessionKey} />
 
                 {/* new-chat button */}
                 {onNewSession && (

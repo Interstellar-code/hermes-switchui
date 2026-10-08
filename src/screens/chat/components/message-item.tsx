@@ -342,6 +342,14 @@ export type MessageItemProps = {
   simulateStreaming?: boolean
   streamingKey?: string | null
   toolDisplayMode?: ToolDisplayMode
+  /**
+   * Effective "show reasoning" for this chat: the global `showReasoningBlocks`
+   * setting with the composer's per-session override applied. Computed once
+   * by the message list and passed down so items don't each subscribe to
+   * settings state. Defaults to false (the global default) for standalone
+   * renders outside the list.
+   */
+  showReasoning?: boolean
   isLastAssistant?: boolean
   /** Continue / auto-continue controls for the last delegation card. */
   delegationActions?: ReactNode
@@ -2225,15 +2233,13 @@ function MessageItemComponent({
   simulateStreaming: _simulateStreaming = false,
   streamingKey: _streamingKey,
   toolDisplayMode = 'collapsed',
+  showReasoning = false,
   isLastAssistant = false,
 }: MessageItemProps) {
   const role = message.role || 'assistant'
   const profileDisplayName = useChatSettingsStore(selectChatProfileDisplayName)
   const profileAvatarDataUrl = useChatSettingsStore(
     selectChatProfileAvatarDataUrl,
-  )
-  const showReasoningBlocks = useChatSettingsStore(
-    (s) => s.settings.showReasoningBlocks,
   )
   const [messageContextMenu, setMessageContextMenu] = useState<
     (MessageContextMenuPosition & { selectedText?: string }) | null
@@ -2423,7 +2429,7 @@ function MessageItemComponent({
     )
   }, [displayText, effectiveIsStreaming, revealedWordCount])
 
-  const thinking = !showReasoningBlocks
+  const thinking = !showReasoning
     ? null
     : remoteStreamingActive && remoteStreamingThinking !== undefined
       ? remoteStreamingThinking
@@ -3300,6 +3306,12 @@ export function areMessagesEqual(
     return false
   }
   if (prevProps.toolDisplayMode !== nextProps.toolDisplayMode) {
+    return false
+  }
+  // showReasoning arrives as a prop (per-session override of the global
+  // setting), so unlike store-backed fields it must be compared here or a
+  // toggle flip would leave memoized items showing stale reasoning state.
+  if (prevProps.showReasoning !== nextProps.showReasoning) {
     return false
   }
   if (prevProps.message !== nextProps.message) {

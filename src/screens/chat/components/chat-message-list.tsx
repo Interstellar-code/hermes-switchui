@@ -36,7 +36,7 @@ import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { CHAT_OPEN_MESSAGE_SEARCH_EVENT } from '@/screens/chat/chat-events'
 import { useSharedTicker } from '@/screens/chat/hooks/use-shared-ticker'
-import { useChatSettingsStore } from '@/hooks/use-chat-settings'
+import { useEffectiveShowReasoning } from '@/stores/session-reasoning-store'
 
 /** Duration (ms) the thinking indicator stays visible after waitingForResponse
  *  clears, giving the first response message time to render before the
@@ -833,9 +833,10 @@ function ChatMessageListComponent({
   toolDisplayMode = 'collapsed',
   compactionEvents = EMPTY_COMPACTION_EVENTS,
 }: ChatMessageListProps) {
-  const showReasoningBlocks = useChatSettingsStore(
-    (s) => s.settings.showReasoningBlocks,
-  )
+  // Global "Show reasoning blocks" default with the composer's per-session
+  // override applied — one subscription for the whole list, threaded into
+  // each MessageItem as a prop.
+  const showReasoningBlocks = useEffectiveShowReasoning(sessionKey)
   // Reasoning reaches a render surface only while the setting is on. With it
   // off, a reasoning-only stream counts as "no activity" so the typing
   // indicator stays up instead of an invisible streaming placeholder.
@@ -1595,6 +1596,7 @@ function ChatMessageListComponent({
             toolCalls={normalizedStreamingToolCalls}
             isStreaming={messageIsStreaming}
             streamingThinking={visibleStreamingThinking}
+            showReasoning={showReasoningBlocks}
             lifecycleEvents={lifecycleEvents}
             clarifyCard={
               realIndex === lastAssistantIndex ? clarifyCard : undefined
@@ -1627,6 +1629,7 @@ function ChatMessageListComponent({
         toolCalls={undefined}
         isStreaming={false}
         streamingThinking={undefined}
+        showReasoning={showReasoningBlocks}
         lifecycleEvents={undefined}
         clarifyCard={realIndex === lastAssistantIndex ? clarifyCard : undefined}
         toolDisplayMode={toolDisplayMode}
@@ -2076,6 +2079,7 @@ function ChatMessageListComponent({
                         streamingThinking: messageIsStreaming
                           ? visibleStreamingThinking
                           : undefined,
+                        showReasoning: showReasoningBlocks,
                         lifecycleEvents: messageIsStreaming
                           ? lifecycleEvents
                           : undefined,
