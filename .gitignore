@@ -156,3 +156,6 @@ skills-bundle/
 .omo/
 docs/Design Assets/Hermes-Switchui/matrix-landing/.astro/
 docs/Design Assets/Hermes-Switchui/matrix-landing/node_modules/
+
+# MatrixKoder project data
+/.matrixkoder/
