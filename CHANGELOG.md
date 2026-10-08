@@ -3,6 +3,15 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.13.2] - 2026-10-09
+
+### Added
+- **chat:** agents tab in the header with its list in the sidebar (329630aa)
+
+### Fixed
+- **chat:** keep skill names and stop paging repeats in session tool usage (7ef17433)
+- **chat:** count skills and MCP over the whole session in the header pills (93d080ae)
+
 ## [2.13.1] — 2026-10-08
 
 Model reasoning blocks in chat, with a global setting and a per-chat toggle, and session archive/pin stored in the hermes backend with an Archived folder in the sidebar.
