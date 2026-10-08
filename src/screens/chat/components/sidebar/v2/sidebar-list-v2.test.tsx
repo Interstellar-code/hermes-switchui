@@ -2,6 +2,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { SidebarListV2 } from './sidebar-list-v2'
+import type { SessionGroup } from '@/screens/chat/apply-filters-and-decorate'
 
 vi.mock('@tanstack/react-query', () => ({
   useQueryClient: () => ({}),
@@ -66,5 +67,45 @@ describe('SidebarListV2 load more', () => {
 
     rerender(<SidebarListV2 groups={[]} />)
     expect(screen.queryByTestId('sessions-load-more')).toBeNull()
+  })
+})
+
+describe('SidebarListV2 bottom slot', () => {
+  const group: SessionGroup = {
+    key: 'day:Today',
+    label: 'Today',
+    kind: 'day',
+    items: [
+      {
+        id: 'chat:a',
+        src: 'chat',
+        title: 'A',
+        sub: null,
+        tokens: null,
+        when: 1,
+        day: 'today',
+        live: false,
+        state: 'idle',
+        badges: [],
+        pinned: false,
+        starred: false,
+        archived: false,
+        sourceMeta: {},
+      },
+    ],
+  }
+
+  it('renders the slot inside the scroll container', () => {
+    render(
+      <SidebarListV2
+        groups={[group]}
+        bottomSlot={<div data-testid="archived-folder" />}
+      />,
+    )
+    expect(
+      screen
+        .getByTestId('sessions-list-v2')
+        .querySelector('[data-testid="archived-folder"]'),
+    ).toBeTruthy()
   })
 })
