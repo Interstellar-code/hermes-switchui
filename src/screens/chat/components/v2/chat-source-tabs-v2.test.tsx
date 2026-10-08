@@ -27,14 +27,14 @@ function btn(container: HTMLElement, labelStart: string): HTMLButtonElement | nu
 }
 
 describe('ChatSourceTabsV2', () => {
-  it('is a labelled group of five panel buttons with no chat button', () => {
+  it('is a labelled group of six panel buttons with no chat button', () => {
     const c = renderInto(<ChatSourceTabsV2 activePanel={null} onTogglePanel={() => {}} />)
     const group = c.querySelector('[role="group"]')
     expect(group?.getAttribute('aria-label')).toBe('Sidebar panels')
     expect(c.querySelector('[role="tablist"]')).toBeNull()
     expect(
       Array.from(c.querySelectorAll('button')).map((b) => b.getAttribute('aria-label')),
-    ).toEqual(['Files', 'Tools', 'Todos', 'MCP', 'Skills'])
+    ).toEqual(['Files', 'Tools', 'Todos', 'MCP', 'Skills', 'Agents'])
     expect(btn(c, 'Chat')).toBeNull()
   })
 
@@ -92,7 +92,59 @@ describe('ChatSourceTabsV2', () => {
   it('hideFiles omits the files button', () => {
     const c = renderInto(<ChatSourceTabsV2 activePanel={null} onTogglePanel={() => {}} hideFiles />)
     expect(btn(c, 'Files')).toBeNull()
-    expect(c.querySelectorAll('button')).toHaveLength(4)
+    expect(c.querySelectorAll('button')).toHaveLength(5)
+  })
+
+  it('places the agents tab after skills', () => {
+    const c = renderInto(<ChatSourceTabsV2 activePanel={null} onTogglePanel={() => {}} />)
+    expect(
+      Array.from(c.querySelectorAll('button')).map((b) => b.getAttribute('data-panel')),
+    ).toEqual(['files', 'tool', 'todos', 'mcp', 'skills', 'agents'])
+  })
+
+  it('badges the agents count and folds its label into the accessible name', () => {
+    const c = renderInto(
+      <ChatSourceTabsV2
+        activePanel={null}
+        onTogglePanel={() => {}}
+        counts={{ agents: { value: 25, label: '25 agents' } }}
+      />,
+    )
+    expect(btn(c, 'Agents')?.getAttribute('aria-label')).toBe('Agents, 25 agents')
+    expect(c.querySelector('[data-testid="tab-count-agents"]')?.textContent).toBe('25')
+  })
+
+  it('pulses an inactive agents tab with live work, never the active one', () => {
+    const counts = { agents: { value: 2, label: '2 agents, 1 live', pulse: true } }
+    const inactive = renderInto(
+      <ChatSourceTabsV2 activePanel={null} onTogglePanel={() => {}} counts={counts} />,
+    )
+    expect(btn(inactive, 'Agents')?.className).toContain('attention-pulse')
+
+    document.body.innerHTML = ''
+    const active = renderInto(
+      <ChatSourceTabsV2 activePanel="agents" onTogglePanel={() => {}} counts={counts} />,
+    )
+    expect(btn(active, 'Agents')?.className).not.toContain('attention-pulse')
+  })
+
+  it('does not pulse without a live count', () => {
+    const c = renderInto(
+      <ChatSourceTabsV2
+        activePanel={null}
+        onTogglePanel={() => {}}
+        counts={{ agents: { value: 2, label: '2 agents' } }}
+      />,
+    )
+    expect(btn(c, 'Agents')?.className).not.toContain('attention-pulse')
+    expect(c.querySelector('[data-testid="tab-count-agents"]')?.textContent).toBe('2')
+  })
+
+  it('toggles the agents panel', () => {
+    const onTogglePanel = vi.fn((_p: SidebarPanel) => {})
+    const c = renderInto(<ChatSourceTabsV2 activePanel={null} onTogglePanel={onTogglePanel} />)
+    act(() => btn(c, 'Agents')?.click())
+    expect(onTogglePanel.mock.calls.map((a) => a[0])).toEqual(['agents'])
   })
 
   it('only the active button points aria-controls at the panel', () => {

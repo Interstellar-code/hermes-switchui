@@ -3,10 +3,17 @@ import { ToolPanelV2 } from './tool-panel-v2'
 import { TodosPanelV2 } from './todos-panel-v2'
 import { McpPanelV2 } from './mcp-panel-v2'
 import { SkillsPanelV2 } from './skills-panel-v2'
+import { DelegationPanelV2 } from './delegation-tab-view'
 import type { McpPanelServer } from './mcp-panel-v2'
 import type { FlatToolEntry } from './tool-entries'
 
-export type SidebarPanel = 'files' | 'tool' | 'todos' | 'mcp' | 'skills'
+export type SidebarPanel =
+  | 'files'
+  | 'tool'
+  | 'todos'
+  | 'mcp'
+  | 'skills'
+  | 'agents'
 /** Panels rendered by this frame; `files` stays the FileExplorerSidebar. */
 export type ContentPanel = Exclude<SidebarPanel, 'files'>
 
@@ -18,6 +25,8 @@ export type PanelCount = {
   label: string
   /** Shown as a small red number after the value. */
   errors?: number
+  /** Animate the toggle while the panel has live work and is not open. */
+  pulse?: boolean
 }
 
 type LifecycleEvent = {
@@ -51,6 +60,7 @@ export const PANEL_TITLES: Record<ContentPanel, string> = {
   todos: 'Todos',
   mcp: 'MCP',
   skills: 'Skills',
+  agents: 'Agents',
 }
 
 export function SidebarPanelV2({
@@ -133,6 +143,8 @@ export function SidebarPanelV2({
             servers={mcpServers}
             toolServers={mcpToolServers}
           />
+        ) : panel === 'agents' ? (
+          <DelegationPanelV2 sessionKey={sessionKey} />
         ) : (
           <SkillsPanelV2 entries={sessionToolEntries ?? entries} />
         )}

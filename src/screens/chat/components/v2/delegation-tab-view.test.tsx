@@ -2,8 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
-import { fireEvent } from '@testing-library/dom'
-import { DelegationSidebarOverlay } from './delegation-tab-view'
+import { DelegationPanelV2 } from './delegation-tab-view'
 
 const useDelegationsMock = vi.fn()
 const useDelegationMessagesMock = vi.fn()
@@ -32,11 +31,21 @@ function renderInto(ui: React.ReactElement): HTMLElement {
   return container
 }
 
-describe('DelegationSidebarOverlay', () => {
+describe('DelegationPanelV2', () => {
   it('shows the empty state when there are no agents', () => {
     useDelegationsMock.mockReturnValue({ delegations: [], isLoading: false, error: null })
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     expect(container.textContent).toMatch(/No agents in this session/)
+  })
+
+  // The host owns the frame (title, back button, Esc), so the body must not
+  // bring its own backdrop, dialog role or close button.
+  it('leaves the frame to the panel host: no backdrop, no close button', () => {
+    useDelegationsMock.mockReturnValue({ delegations: [], isLoading: false, error: null })
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
+    expect(container.querySelector('button[aria-label="Close agents"]')).toBeNull()
+    expect(container.querySelector('[role="dialog"]')).toBeNull()
+    expect(container.textContent).not.toContain('✕')
   })
 
   it('shows an error state', () => {
@@ -45,7 +54,7 @@ describe('DelegationSidebarOverlay', () => {
       isLoading: false,
       error: 'boom',
     })
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     expect(container.textContent).toMatch(/boom/)
   })
 
@@ -68,11 +77,12 @@ describe('DelegationSidebarOverlay', () => {
     })
     useDelegationMessagesMock.mockReturnValue({ messages: [], isLoading: false, error: null })
 
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     expect(container.textContent).toMatch(/Untitled agent task/)
     expect(container.textContent).toMatch(/unknown/)
     expect(container.textContent).toMatch(/Working/)
     expect(container.textContent).toMatch(/1 live/)
+    expect(container.textContent).toMatch(/1 delegated task · select one for activity/)
     expect(container.querySelector('[aria-label="Delegated subagent"]')?.textContent).toBe('SUB')
   })
 
@@ -86,7 +96,7 @@ describe('DelegationSidebarOverlay', () => {
       error: null,
     })
 
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     expect(container.querySelector('[aria-label="Assigned agent: Neo"]')?.textContent).toBe('NE')
   })
 
@@ -109,7 +119,7 @@ describe('DelegationSidebarOverlay', () => {
     })
     useDelegationMessagesMock.mockReturnValue({ messages: [], isLoading: false, error: null })
 
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     expect(container.textContent).not.toContain('No activity recorded.')
 
     const delegationButton = Array.from(container.querySelectorAll('button')).find(
@@ -140,7 +150,7 @@ describe('DelegationSidebarOverlay', () => {
       error: null,
     })
 
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     expect(container.textContent).toContain('Completed')
     expect(container.textContent).not.toContain('live')
     expect(container.textContent).toContain('3.5k tok')
@@ -164,7 +174,7 @@ describe('DelegationSidebarOverlay', () => {
       error: null,
     })
 
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={() => {}} />)
+    const container = renderInto(<DelegationPanelV2 sessionKey="s1" />)
     const delegationButton = Array.from(container.querySelectorAll('button')).find(
       (button) => button.textContent.includes('Assess it'),
     )
@@ -173,18 +183,5 @@ describe('DelegationSidebarOverlay', () => {
     expect(container.textContent).toContain('No tool activity recorded.')
     expect(container.textContent).toContain('Agent response')
     expect(container.textContent).toContain('This task needs no tool calls.')
-  })
-
-  it('closes from the backdrop or Escape key', () => {
-    useDelegationsMock.mockReturnValue({ delegations: [], isLoading: false, error: null })
-    const onClose = vi.fn()
-    const container = renderInto(<DelegationSidebarOverlay sessionKey="s1" onClose={onClose} />)
-
-    act(() => { fireEvent.keyDown(window, { key: 'Escape' }) })
-    expect(onClose).toHaveBeenCalledTimes(1)
-
-    const backdrop = container.querySelector<HTMLButtonElement>('button[aria-label="Close agents"]')
-    act(() => { backdrop?.click() })
-    expect(onClose).toHaveBeenCalledTimes(2)
   })
 })

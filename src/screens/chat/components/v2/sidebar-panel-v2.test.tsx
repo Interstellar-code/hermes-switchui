@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import React, { act } from 'react'
 import { createRoot } from 'react-dom/client'
 import { fireEvent } from '@testing-library/dom'
@@ -18,6 +18,14 @@ vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => (
     <a href={to}>{children}</a>
   ),
+}))
+
+const useDelegationsMock = vi.hoisted(() => vi.fn())
+const useDelegationMessagesMock = vi.hoisted(() => vi.fn())
+vi.mock('../../hooks/use-delegations', () => ({
+  useDelegations: (...args: Array<unknown>) => useDelegationsMock(...args),
+  useDelegationMessages: (...args: Array<unknown>) =>
+    useDelegationMessagesMock(...args),
 }))
 
 const ENTRIES: Array<FlatToolEntry> = [
@@ -44,6 +52,19 @@ afterEach(() => {
   act(() => root?.unmount())
   root = null
   document.body.innerHTML = ''
+})
+
+beforeEach(() => {
+  useDelegationsMock.mockReturnValue({
+    delegations: [],
+    isLoading: false,
+    error: null,
+  })
+  useDelegationMessagesMock.mockReturnValue({
+    messages: [],
+    isLoading: false,
+    error: null,
+  })
 })
 
 function render(props: Partial<SidebarPanelV2Props> = {}) {
@@ -109,6 +130,40 @@ describe('SidebarPanelV2', () => {
     expect(container.textContent).toContain('No skills used in this session')
   })
 
+  it('renders the agents title and the delegation list for the agents panel', () => {
+    useDelegationsMock.mockReturnValue({
+      delegations: [
+        {
+          childSessionId: 'child-1',
+          goal: 'Ship the agents tab',
+          model: 'auto',
+          status: 'running',
+          inputTokens: 1,
+          outputTokens: 2,
+          startedAt: 1_000,
+          endedAt: null,
+        },
+      ],
+      isLoading: false,
+      error: null,
+    })
+    const { container } = render({
+      panel: 'agents',
+      counts: { agents: { value: 1, label: '1 agent, 1 live' } },
+    })
+    const region = container.querySelector('[role="region"]')!
+    const title = document.getElementById(
+      region.getAttribute('aria-labelledby')!,
+    )
+    expect(title?.textContent).toBe('Agents')
+    expect(
+      container.querySelector('[data-testid="sidebar-panel-count"]')
+        ?.textContent,
+    ).toBe('1 agent, 1 live')
+    expect(container.textContent).toContain('Ship the agents tab')
+    expect(container.textContent).toContain('1 live')
+  })
+
   it('passes MCP server status through to the MCP panel', () => {
     const { container } = render({
       panel: 'mcp',
@@ -126,7 +181,7 @@ describe('SidebarPanelV2', () => {
 
   it('fits a 258px sidebar: no fixed min-width anywhere in any panel', () => {
     const { container, rerender } = render()
-    for (const panel of ['tool', 'todos', 'mcp', 'skills'] as const) {
+    for (const panel of ['tool', 'todos', 'mcp', 'skills', 'agents'] as const) {
       rerender({ panel })
       const fixed = [...container.querySelectorAll('[class]')].filter((el) =>
         /(^|\s)min-w-\[/.test(el.getAttribute('class') ?? ''),
