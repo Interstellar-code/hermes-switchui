@@ -118,6 +118,7 @@ type Body = {
     callId: string
     name: string
     args?: Record<string, unknown>
+    output?: string
     isError: boolean
   }>
 }
@@ -251,6 +252,62 @@ describe('GET /api/sessions/$sessionKey/tool-usage', () => {
     const body = (await res.json()) as Body
     expect(hermes.getMessages).toHaveBeenCalledTimes(2)
     expect(body.entries.map((e) => e.callId)).toEqual(['call-tail'])
+  })
+
+  it('carries the result text for a plain skill call, and only for that tool', async () => {
+    hermes.getMessages.mockResolvedValue([
+      assistant([{ id: 'c-skill', name: 'skill', args: {} }]),
+      toolResult('c-skill', 'skill', '"dataviz"'),
+      assistant([
+        { id: 'c-view', name: 'skill_view', args: { name: 'dataviz' } },
+      ]),
+      toolResult('c-view', 'skill_view', '{"ok":true}'),
+      assistant([
+        { id: 'c-mcp', name: 'mcp__github__search', args: { q: 'x' } },
+      ]),
+      toolResult('c-mcp', 'mcp__github__search', 'a very long result body'),
+    ])
+    const res = await get('s1')
+    const body = (await res.json()) as Body
+    const byId = new Map(body.entries.map((e) => [e.callId, e]))
+    expect(byId.get('c-skill')?.output).toBe('"dataviz"')
+    expect(byId.get('c-view')?.output).toBeUndefined()
+    expect(byId.get('c-mcp')?.output).toBeUndefined()
+  })
+
+  it('caps the skill result text at 200 chars', async () => {
+    const long = `"${'n'.repeat(400)}"`
+    hermes.getMessages.mockResolvedValue([
+      assistant([{ id: 'c-long', name: 'skill', args: {} }]),
+      toolResult('c-long', 'skill', long),
+    ])
+    const res = await get('s1')
+    const body = (await res.json()) as Body
+    expect(body.entries[0].output).toHaveLength(200)
+  })
+
+  it('omits output when a skill call has no result row', async () => {
+    hermes.getMessages.mockResolvedValue([
+      assistant([{ id: 'c-none', name: 'skill', args: {} }]),
+    ])
+    const res = await get('s1')
+    const body = (await res.json()) as Body
+    expect(body.entries[0].output).toBeUndefined()
+  })
+
+  it('stops paging when a backend ignores offset', async () => {
+    const stuck = [
+      assistant([{ id: 'c-stuck', name: 'skill_view', args: { name: 'a' } }]),
+      toolResult('c-stuck', 'skill_view', '{"ok":true}'),
+      ...Array.from({ length: 498 }, (_, i) => user(`stuck row ${i}`)),
+    ]
+    // Every offset returns the identical full page — 40 calls, same window.
+    hermes.getMessages.mockResolvedValue(stuck)
+
+    const res = await get('s1')
+    const body = (await res.json()) as Body
+    expect(hermes.getMessages.mock.calls.length).toBeLessThanOrEqual(2)
+    expect(body.entries.map((e) => e.callId)).toEqual(['c-stuck'])
   })
 
   it('passes the profile through and maps a profile-scope error', async () => {

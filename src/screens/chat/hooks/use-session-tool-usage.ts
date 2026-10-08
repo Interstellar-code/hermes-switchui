@@ -17,6 +17,8 @@ export type SessionToolUsageEntry = {
   callId: string
   name: string
   args?: Record<string, unknown>
+  /** `skill` calls only: the result text is the skill name. */
+  output?: string
   isError: boolean
 }
 
@@ -81,6 +83,10 @@ export function useSessionToolUsage(params: {
     // The loaded window covers calls made after the page was loaded, so a
     // minute of staleness costs at most one undercount on a very old session.
     staleTime: 60_000,
+    // Calls older than the loaded window never change, and the loaded window
+    // covers new ones — so a focus refetch re-walks the whole transcript to
+    // learn nothing. One fetch per open is enough.
+    refetchOnWindowFocus: false,
   })
 
   return {

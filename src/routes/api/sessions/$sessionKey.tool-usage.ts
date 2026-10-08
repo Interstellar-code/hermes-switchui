@@ -36,6 +36,12 @@ import type { ChatMessage } from '../../../screens/chat/types'
 const PAGE_LIMIT = 500
 /** Hard stop so a pathological session cannot spin forever. */
 const MAX_PAGES = 40
+/**
+ * The plain `skill` tool answers with the skill name, so its result text is the
+ * only way to name the invocation. The name is an identifier a few chars long;
+ * the cap is there so a verbose result can never ride along.
+ */
+const SKILL_OUTPUT_LIMIT = 200
 
 /**
  * Strict Hermes Agent skill system tools, plus the catalog listing.
@@ -61,6 +67,12 @@ export type SessionToolUsageEntry = {
   /** Parsed arguments (`unwrapToolInput`, so `{ value: "{...}" }` is unwrapped). */
   args?: Record<string, unknown>
   /**
+   * Set for `skill` calls only, whose result text IS the skill name — the panel
+   * resolves those names from the output, never from the args. Every other tool
+   * omits it: a whole result body must never leave the server for a count.
+   */
+  output?: string
+  /**
    * Failure read from the matching tool-result message. `extractToolEntries`
    * already folds the result's explicit flag and `detectToolError` into this,
    * so the route never re-parses the output itself.
@@ -68,23 +80,50 @@ export type SessionToolUsageEntry = {
   isError: boolean
 }
 
+/** The `skill` tool's name is its result, so it is the one tool we ship output for. */
+function skillResultOutput(entry: FlatToolEntry): string | undefined {
+  if (entry.name !== 'skill') return undefined
+  const text = entry.output?.trim()
+  return text ? text.slice(0, SKILL_OUTPUT_LIMIT) : undefined
+}
+
+/** Gateway row id, used to stop a backend that ignores `offset`. */
+function rowKey(message: ClaudeMessage): string | null {
+  return typeof message.id === 'number' || typeof message.id === 'string'
+    ? String(message.id)
+    : null
+}
+
 /**
  * Every page of the session, newest first. The gateway clamps a single call to
  * 500 messages no matter what `limit` says, so one unbounded call silently
  * loses everything older than that window — page until a short page instead.
+ * A page that adds no new row id stops the walk: that is a backend ignoring
+ * `offset`, which would otherwise replay the same window 40 times.
  */
 async function getAllMessages(
   sessionKey: string,
   profile: string | null,
 ): Promise<Array<ClaudeMessage>> {
   const messages: Array<ClaudeMessage> = []
+  const seen = new Set<string>()
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const batch = await getMessages(
       sessionKey,
       { limit: PAGE_LIMIT, offset: page * PAGE_LIMIT, order: 'latest' },
       profile,
     )
-    messages.push(...batch)
+    let added = 0
+    for (const message of batch) {
+      const key = rowKey(message)
+      if (key) {
+        if (seen.has(key)) continue
+        seen.add(key)
+      }
+      messages.push(message)
+      added += 1
+    }
+    if (added === 0) break
     if (batch.length < PAGE_LIMIT) break
   }
   return messages
@@ -132,6 +171,7 @@ export const Route = createFileRoute('/api/sessions/$sessionKey/tool-usage')({
               callId: entry.callId,
               name: entry.name,
               args: unwrapToolInput(entry.input),
+              output: skillResultOutput(entry),
               isError: entry.isError === true,
             })
           }

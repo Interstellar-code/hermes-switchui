@@ -27,7 +27,7 @@ function plural(n: number, unit: string): string {
   return `${n} ${unit}${n === 1 ? '' : 's'}`
 }
 
-/** A whole-session entry has no output text and no reliable timestamp. */
+/** A whole-session entry has no timestamp, and output only for `skill` calls. */
 function toFlatEntry(entry: SessionToolUsageEntry): FlatToolEntry {
   return {
     key: entry.callId || `session:${entry.name}`,
@@ -35,6 +35,7 @@ function toFlatEntry(entry: SessionToolUsageEntry): FlatToolEntry {
     name: entry.name,
     callId: entry.callId,
     input: entry.args,
+    output: entry.output,
     isError: entry.isError,
   }
 }

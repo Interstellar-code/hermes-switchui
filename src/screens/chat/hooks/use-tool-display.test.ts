@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 
 import * as toolEntries from '../components/v2/tool-entries'
+import { groupSkills } from '../components/v2/skills-panel-v2'
 import { useToolDisplay } from './use-tool-display'
 import type { SessionToolUsageEntry } from './use-session-tool-usage'
 import type { ChatMessage, StreamingToolCall } from '../types'
@@ -359,6 +360,69 @@ describe('useToolDisplay', () => {
       expect(r.panelCounts.todos).toBeUndefined()
       expect(r.toolEntries).toHaveLength(1)
       expect(r.sessionToolEntries).toHaveLength(3)
+    })
+
+    it('names pre-window skill calls from the carried result text', () => {
+      // The `skill` tool answers with the skill name, so the route ships it.
+      const r = session([
+        {
+          callId: 'sk-a',
+          name: 'skill',
+          args: {},
+          output: '"dataviz"',
+          isError: false,
+        },
+        {
+          callId: 'sk-b',
+          name: 'skill',
+          args: {},
+          output: '"pdf"',
+          isError: false,
+        },
+      ])
+      expect(r.panelCounts.skills).toEqual({ value: 2, label: '2 used' })
+      // The panel trims + lowercases but never strips the JSON quotes, so the
+      // label carries them — identical to what an in-window call already shows.
+      expect(
+        groupSkills(r.sessionToolEntries).groups.map((g) => g.name),
+      ).toEqual(['"dataviz"', '"pdf"'])
+    })
+
+    it('joins a pre-window skill with the same skill invoked in-window', () => {
+      const r = session(
+        [
+          {
+            callId: 'old-skill',
+            name: 'skill',
+            args: {},
+            output: '"dataviz"',
+            isError: false,
+          },
+        ],
+        [
+          {
+            id: 'loaded-skill',
+            name: 'skill',
+            phase: 'complete',
+            args: {},
+            result: '"dataviz"',
+          },
+        ],
+      )
+      const { groups } = groupSkills(r.sessionToolEntries)
+      expect(r.panelCounts.skills).toEqual({ value: 1, label: '1 used' })
+      // One group, not two: both sides resolve to the same raw result text.
+      expect(groups.map((g) => g.name)).toEqual(['"dataviz"'])
+      expect(groups.some((g) => g.name === 'unknown skill')).toBe(false)
+    })
+
+    it('falls back to unknown for a pre-window skill call with no result', () => {
+      const r = session([
+        { callId: 'sk-none', name: 'skill', args: {}, isError: false },
+      ])
+      const { groups } = groupSkills(r.sessionToolEntries)
+      expect(r.panelCounts.skills?.value).toBe(1)
+      expect(groups[0].name).toBe('unknown skill')
     })
 
     it('behaves as before when no session entries are supplied', () => {
