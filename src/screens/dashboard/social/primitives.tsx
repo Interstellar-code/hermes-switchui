@@ -1,4 +1,4 @@
-import type { CSSProperties, ElementType, ReactNode } from 'react'
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react'
 import './social.css'
 
 function cx(...parts: Array<string | undefined | false>): string {
@@ -20,22 +20,20 @@ const AGENT_COLORS = [
 
 /** Same colour for the same agent index in every column. */
 export function agentColor(index: number): string {
-  const n = AGENT_COLORS.length
-  return AGENT_COLORS[((Math.trunc(index) % n) + n) % n]
+  if (!Number.isFinite(index) || index < 0) return AGENT_COLORS[0]
+  return AGENT_COLORS[Math.trunc(index) % AGENT_COLORS.length]
 }
 
-type PanelProps = {
+type PanelProps = HTMLAttributes<HTMLElement> & {
   as?: 'section' | 'div' | 'aside'
   tone?: 'default' | 'warning'
-  className?: string
-  children?: ReactNode
-  'aria-labelledby'?: string
 }
 
 export function Panel({
   as: Tag = 'div',
   tone = 'default',
   className,
+  style,
   children,
   ...rest
 }: PanelProps) {
@@ -47,6 +45,7 @@ export function Panel({
       style={{
         borderColor: warning ? 'var(--dash-cat-needs)' : 'var(--theme-border)',
         background: 'var(--theme-panel)',
+        ...style,
       }}
     >
       {children}
@@ -185,6 +184,8 @@ type AgentAvatarProps = {
   color: string
   size?: number
   working?: boolean
+  /** Accessible name; when set the avatar is exposed as an image. */
+  label?: string
   className?: string
 }
 
@@ -193,6 +194,7 @@ export function AgentAvatar({
   color,
   size = 22,
   working,
+  label,
   className,
 }: AgentAvatarProps) {
   const style: CSSProperties = {
@@ -209,6 +211,7 @@ export function AgentAvatar({
         className,
       )}
       style={style}
+      {...(label ? { role: 'img', 'aria-label': label } : {})}
     >
       <span aria-hidden="true">{initials}</span>
       {working ? (

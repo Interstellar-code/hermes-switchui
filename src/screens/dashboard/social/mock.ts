@@ -1,7 +1,5 @@
 import type { DashboardSocial } from '@/types/dashboard-social'
 
-const EARNED = '2026-09-18T09:00:00.000Z'
-
 export const mockDashboardSocial: DashboardSocial = {
   profile: null,
   generatedAt: '2026-10-09T10:00:00.000Z',
@@ -133,12 +131,12 @@ export const mockDashboardSocial: DashboardSocial = {
       href: '/workflows',
     },
     {
-      at: '2026-10-09T08:05:00.000Z',
+      at: '2026-10-09T03:00:00.000Z',
       kind: 'cron',
       title: 'nightly-digest failed',
       sub: 'gateway timeout after 30s',
       who: 'morpheus',
-      href: '/cron',
+      href: '/jobs',
     },
     {
       at: '2026-10-08T21:30:00.000Z',
@@ -164,7 +162,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: 'day one',
       have: 1,
       need: 1,
-      earnedAt: EARNED,
+      earnedAt: '2026-07-02T09:00:00.000Z',
     },
     {
       id: 'streak-7',
@@ -172,7 +170,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '7 days in a row',
       have: 12,
       need: 7,
-      earnedAt: EARNED,
+      earnedAt: '2026-08-14T09:00:00.000Z',
     },
     {
       id: 'conductor',
@@ -180,7 +178,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '50 workflow runs',
       have: 106,
       need: 50,
-      earnedAt: EARNED,
+      earnedAt: '2026-10-08T18:00:00.000Z',
     },
     {
       id: 'gatekeeper',
@@ -188,7 +186,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '10 approvals',
       have: 14,
       need: 10,
-      earnedAt: EARNED,
+      earnedAt: '2026-08-30T09:00:00.000Z',
     },
     {
       id: 'memory-keeper',
@@ -196,7 +194,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '100 facts saved',
       have: 131,
       need: 100,
-      earnedAt: EARNED,
+      earnedAt: '2026-09-05T09:00:00.000Z',
     },
     {
       id: 'fleet',
@@ -204,7 +202,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '5 agent profiles',
       have: 5,
       need: 5,
-      earnedAt: EARNED,
+      earnedAt: '2026-09-12T09:00:00.000Z',
     },
     {
       id: 'shipper',
@@ -212,7 +210,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '10 releases',
       have: 23,
       need: 10,
-      earnedAt: EARNED,
+      earnedAt: '2026-09-18T09:00:00.000Z',
     },
     {
       id: 'self-made',
@@ -220,7 +218,7 @@ export const mockDashboardSocial: DashboardSocial = {
       how: '10 self-improve wins',
       have: 11,
       need: 10,
-      earnedAt: EARNED,
+      earnedAt: '2026-09-27T09:00:00.000Z',
     },
     {
       id: 'night-owl',

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { mockDashboardSocial, mockDashboardSocialEmpty } from './mock'
@@ -16,6 +17,9 @@ import {
 import type { DashboardSocial } from '@/types/dashboard-social'
 
 afterEach(cleanup)
+
+const read = (rel: string) =>
+  readFileSync(fileURLToPath(new URL(rel, import.meta.url)), 'utf8')
 
 describe('primitives', () => {
   it('LevelRing exposes the level', () => {
@@ -75,6 +79,20 @@ describe('primitives', () => {
     expect(screen.getByRole('heading').id).toBe('h')
   })
 
+  it('Panel spreads html attributes', () => {
+    render(
+      <Panel data-testid="x" id="y">
+        z
+      </Panel>,
+    )
+    expect(screen.getByTestId('x').id).toBe('y')
+  })
+
+  it('AgentAvatar exposes label as an image name', () => {
+    render(<AgentAvatar initials="HS" color="red" label="hermes-switch" />)
+    expect(screen.getByRole('img', { name: 'hermes-switch' })).toBeTruthy()
+  })
+
   it('Panel renders the requested element', () => {
     const { container } = render(<Panel as="aside">x</Panel>)
     expect(container.querySelector('aside')).not.toBeNull()
@@ -84,7 +102,8 @@ describe('primitives', () => {
     render(<Chip color="red">TAG</Chip>)
     expect(screen.getByText('TAG')).toBeTruthy()
     expect(agentColor(0)).toBe(agentColor(6))
-    expect(agentColor(-1)).toBe(agentColor(5))
+    expect(agentColor(-1)).toBe(agentColor(0))
+    expect(agentColor(Number.NaN)).toBe(agentColor(0))
   })
 })
 
@@ -104,6 +123,19 @@ describe('mock data', () => {
     }
   })
 
+  it('every href points at a route that exists', () => {
+    const m = mockDashboardSocial
+    const hrefs = [
+      ...(m.recent ?? []).map((r) => r.href),
+      ...(m.hotTopics ?? []).map((h) => h.href),
+    ]
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const h of hrefs)
+      expect(h).toMatch(
+        /^\/(jobs|tasks|workflows|dashboard|memory|conductor)$|^\/chat\//,
+      )
+  })
+
   it('operator xp sits inside its level bounds (C2)', () => {
     const o = mockDashboardSocial.operator!
     expect(o.levelStartXp).toBe(500 * o.level * (o.level - 1))
@@ -115,10 +147,15 @@ describe('mock data', () => {
 
 describe('guard', () => {
   it('primitives.tsx holds no hex colour literal', () => {
-    const src = readFileSync(
-      'src/screens/dashboard/social/primitives.tsx',
-      'utf8',
-    )
-    expect(src).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(read('./primitives.tsx')).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+  })
+
+  it('every --dash-* var used in primitives.tsx is defined in social.css', () => {
+    const css = read('./social.css')
+    const used = new Set(read('./primitives.tsx').match(/--dash-[a-z0-9-]+/g))
+    expect(used.size).toBeGreaterThan(0)
+    for (const v of used) expect(css).toContain(`${v}:`)
+    expect(css).toContain("[data-theme='matrix']")
+    expect(css).toContain("[data-theme$='-light']")
   })
 })
