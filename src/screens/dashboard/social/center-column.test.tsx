@@ -208,10 +208,9 @@ describe('CenterColumn review fixes', () => {
     fireEvent.click(screen.getByRole('button', { name: 'APPROVE…' }))
     fireEvent.click(screen.getByRole('button', { name: 'CONFIRM APPROVE' }))
     await waitFor(() =>
-      expect(
-        (screen.getByRole('button', { name: 'APPROVE…' }))
-          .disabled,
-      ).toBe(true),
+      expect(screen.getByRole('button', { name: 'APPROVE…' }).disabled).toBe(
+        true,
+      ),
     )
     expect(
       screen.getByRole('button', { name: 'REJECT…' }).hasAttribute('disabled'),
