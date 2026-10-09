@@ -598,7 +598,7 @@ function normalizeAnalytics(
       } => entry !== null,
     )
     .sort((a, b) => b.tokens - a.tokens)
-    .slice(0, 5)
+    .slice(0, 6)
 
   const dailyRaw = Array.isArray(r.daily) ? r.daily : []
   const daily = dailyRaw
