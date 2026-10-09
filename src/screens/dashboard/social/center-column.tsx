@@ -13,6 +13,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { ApproveDialog, RejectDialog } from './approval-dialogs'
 import { Chip, CountRing, Panel, SectionHeading } from './primitives'
+import { useFitRows } from './use-fit-rows'
 import type { ReactNode } from 'react'
 import type { ApprovalItem } from './approval-dialogs'
 import type {
@@ -25,6 +26,8 @@ type CenterColumnProps = {
   data: Pick<DashboardSocial, 'counts' | 'needsYou' | 'recent'>
   /** Called after any successful action so the caller can refetch. */
   onChanged?: () => void
+  /** Pins how many Recent rows render; the screen leaves it unset (measured). */
+  recentMaxRows?: number
   className?: string
 }
 
@@ -455,9 +458,29 @@ function NeedsYou({
   )
 }
 
-function Recent({ items }: { items: DashboardSocial['recent'] }) {
+function Recent({
+  items,
+  maxRows,
+}: {
+  items: DashboardSocial['recent']
+  maxRows?: number
+}) {
+  const total = items?.length ?? 0
+  const { ref, measured, count, minHeight } = useFitRows(total, {
+    min: 3,
+    fallback: 5,
+    override: maxRows,
+    contentKey: items
+      ?.map((r) => `${r.at}|${r.href}|${r.title}|${r.sub}|${r.who}`)
+      .join('\n'),
+  })
+  const shown = items && !measured ? items.slice(0, count) : items
   return (
-    <Panel as="section" aria-labelledby="recent-h">
+    <Panel
+      as="section"
+      aria-labelledby="recent-h"
+      className="flex flex-1 flex-col"
+    >
       <SectionHeading
         id="recent-h"
         action={
@@ -476,32 +499,55 @@ function Recent({ items }: { items: DashboardSocial['recent'] }) {
           Nothing yet.
         </p>
       ) : (
-        <ul className="mt-2 list-none p-0">
-          {items.slice(0, 5).map((r) => (
-            <li key={`${r.at}:${r.href}`}>
-              <a
-                href={r.href}
-                className="grid grid-cols-[40px_22px_minmax(0,1fr)_auto] items-center gap-2 py-1 text-[12px] no-underline"
-                style={{ color: 'var(--theme-text)' }}
+        <div ref={ref} className="relative mt-2 flex-1" style={{ minHeight }}>
+          <ul
+            className={[
+              'list-none p-0',
+              measured ? 'absolute inset-0 m-0 overflow-hidden' : '',
+            ].join(' ')}
+          >
+            {(shown ?? []).map((r, i) => (
+              <li
+                key={`${r.at}:${r.href}`}
+                data-fit-row=""
+                style={i >= count ? { visibility: 'hidden' } : undefined}
               >
-                <time dateTime={r.at} style={{ color: 'var(--theme-muted)' }}>
-                  {hhmm(r.at)}
-                </time>
-                <span
-                  data-testid="recent-dot"
-                  aria-hidden="true"
-                  className="h-2 w-2 justify-self-center rounded-full"
-                  style={{ background: KIND_COLOR[r.kind] }}
-                />
-                <span className="min-w-0 truncate">
-                  <span className="font-bold">{r.title}</span>{' '}
-                  <span style={{ color: 'var(--theme-muted)' }}>{r.sub}</span>
-                </span>
-                <span style={{ color: 'var(--theme-muted)' }}>{r.who}</span>
-              </a>
-            </li>
-          ))}
-        </ul>
+                <a
+                  href={r.href}
+                  className="grid grid-cols-[40px_22px_minmax(0,1fr)_auto] items-center gap-2 py-1 text-[12px] no-underline"
+                  style={{ color: 'var(--theme-text)' }}
+                >
+                  <time dateTime={r.at} style={{ color: 'var(--theme-muted)' }}>
+                    {hhmm(r.at)}
+                  </time>
+                  <span
+                    data-testid="recent-dot"
+                    aria-hidden="true"
+                    className="h-2 w-2 justify-self-center rounded-full"
+                    style={{ background: KIND_COLOR[r.kind] }}
+                  />
+                  <span className="min-w-0 truncate">
+                    <span className="font-bold">{r.title}</span>{' '}
+                    <span style={{ color: 'var(--theme-muted)' }}>{r.sub}</span>
+                  </span>
+                  <span style={{ color: 'var(--theme-muted)' }}>{r.who}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          {count < total ? (
+            // TODO(feed): link to /feed once the route exists.
+            <p
+              className={[
+                'text-[10px]',
+                measured ? 'absolute inset-x-0 bottom-0' : 'mt-1',
+              ].join(' ')}
+              style={{ color: 'var(--theme-muted)' }}
+            >
+              +{total - count} more · see all in Feed
+            </p>
+          ) : null}
+        </div>
       )}
     </Panel>
   )
@@ -510,17 +556,20 @@ function Recent({ items }: { items: DashboardSocial['recent'] }) {
 export function CenterColumn({
   data,
   onChanged,
+  recentMaxRows,
   className,
 }: CenterColumnProps) {
   return (
     <main
       aria-label="Act now"
-      className={['flex flex-col gap-4', className].filter(Boolean).join(' ')}
+      className={['flex flex-col gap-4 self-stretch', className]
+        .filter(Boolean)
+        .join(' ')}
     >
       <Rings counts={data.counts} />
       <AskBox />
       <NeedsYou items={data.needsYou} onChanged={onChanged} />
-      <Recent items={data.recent} />
+      <Recent items={data.recent} maxRows={recentMaxRows} />
     </main>
   )
 }

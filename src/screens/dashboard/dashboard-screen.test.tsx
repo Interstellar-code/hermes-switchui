@@ -127,6 +127,21 @@ describe('DashboardScreen', () => {
     ).toBe(true)
   })
 
+  it('lays the social columns out as an equal-height grid with a wrapping right column', async () => {
+    stubFetch()
+    renderScreen()
+    await screen.findByText('Rohit')
+    const left = screen.getByRole('complementary', {
+      name: 'You and your agents',
+    })
+    const right = screen.getByRole('complementary', {
+      name: 'Leaderboard, streak and badges',
+    })
+    expect(left.parentElement?.className).toContain('items-stretch')
+    expect(right.parentElement).toBe(left.parentElement)
+    expect(right.className).toContain('min-[761px]:max-[1180px]:flex-wrap')
+  })
+
   it('header Edit layout pencil opens the Ops edit panel; outside-field Escape is ignored', async () => {
     stubFetch()
     renderScreen()

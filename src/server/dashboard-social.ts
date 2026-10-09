@@ -1368,7 +1368,7 @@ export async function buildDashboardSocial(
   const recent = recentCandidates
     .filter((item) => !isCronSessionDuplicate(item))
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
-    .slice(0, 5)
+    .slice(0, 10)
 
   // ── Counts (null only when every contributing source failed) ─────────
   const gatewayOk =
