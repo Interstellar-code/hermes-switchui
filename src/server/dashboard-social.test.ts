@@ -667,8 +667,8 @@ describe('buildDashboardSocial', () => {
       title: 'Review agents tab sidebar list',
     })
 
-    // Recent: newest 5, descending, real page hrefs only.
-    expect(data.recent).toHaveLength(5)
+    // Recent: newest 10 (the UI shows as many as fit), descending, real page hrefs only.
+    expect(data.recent).toHaveLength(10)
     const times = data.recent?.map((r) => Date.parse(r.at)) ?? []
     expect([...times].sort((a, b) => b - a)).toEqual(times)
     expect(
@@ -959,13 +959,13 @@ describe('buildDashboardSocial', () => {
       now: NOW,
     })
     // One row for the pair: the cron row survives, the session row is
-    // dropped, and the cut to 5 happens after the dedupe.
+    // dropped, and the cut to 10 happens after the dedupe.
     const pairRows = (data.recent ?? []).filter((r) =>
       r.title.includes('Email Check Combined'),
     )
     expect(pairRows).toHaveLength(1)
     expect(pairRows[0]).toMatchObject({ kind: 'cron', who: 'cron' })
-    expect(data.recent?.length).toBeLessThanOrEqual(5)
+    expect(data.recent?.length).toBeLessThanOrEqual(10)
   })
 
   it('excludes workflow-run rows from recent when a profile is set (QA #3)', async () => {
