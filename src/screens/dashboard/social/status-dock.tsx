@@ -33,18 +33,26 @@ function isConnected(state: string): boolean {
   return CONNECTED_STATES.has(state.toLowerCase())
 }
 
-function formatUptimeMs(iso: string | null): string {
+/**
+ * "beat Nm ago" / "beat Nh ago" — age of the last gateway heartbeat,
+ * not uptime. The dashboard aggregator reports `lastHeartbeatAt` as
+ * an ISO string from `/api/status.gateway_updated_at`. We do NOT
+ * have an uptime field anywhere, so calling it "uptime" would be a
+ * false label. `< 1m ago` collapses the freshest beats to a
+ * single, screen-friendly chip.
+ */
+function formatHeartbeatAge(iso: string | null): string {
   if (!iso) return '—'
   const ms = Date.parse(iso)
   if (!Number.isFinite(ms)) return '—'
   const diffSec = Math.max(0, Math.floor((Date.now() - ms) / 1000))
-  if (diffSec < 60) return '< 1m'
-  const days = Math.floor(diffSec / 86400)
-  const hours = Math.floor((diffSec % 86400) / 3600)
-  const minutes = Math.floor((diffSec % 3600) / 60)
-  if (days > 0) return `${days}d ${hours}h`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
+  if (diffSec < 60) return '< 1m ago'
+  const minutes = Math.floor(diffSec / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
 }
 
 function formatCompact(n: number): string {
@@ -64,6 +72,14 @@ function formatCompact(n: number): string {
  * Each item is a real `<a href>` so the dock is keyboard-navigable
  * and screen-reader friendly. Warning items flip to
  * `--theme-warning` per the spec.
+ *
+ * Number policy: every label reflects a real field. When a slice is
+ * null or unavailable (e.g. `analytics.source === 'unavailable'`,
+ * `logs === null`, `modelInfo === null`, no `platforms` reported),
+ * the dock renders "—" rather than 0 / "0/0" / a fake uptime. The
+ * "7d" / "14d" / "30d" chip reports the analytics window the
+ * totals actually came from (`analytics.windowDays`), not the
+ * `period` prop, so the two never disagree.
  */
 export function StatusDock({
   overview,
@@ -103,19 +119,24 @@ export function StatusDock({
   // Gateway
   const status = overview.status
   const gatewayOk = status ? isConnected(status.gatewayState) : false
-  const uptime = status ? formatUptimeMs(status.lastHeartbeatAt) : '—'
+  // Unknown state: render "—" rather than a fake uptime number, and
+  // do not paint the dot green (a gateway we haven't heard from is
+  // not "ok").
+  const beat = status ? formatHeartbeatAge(status.lastHeartbeatAt) : '—'
   const gatewayLabel = status
     ? gatewayOk
-      ? `ok · ${uptime}`
+      ? `ok · beat ${beat}`
       : status.gatewayState
     : '—'
 
-  // Platforms
+  // Platforms — empty list is "—" (we don't know the total), not "0/0"
+  // which would falsely imply a 0-of-0 connectivity readout.
   const platforms = overview.platforms
   const connectedPlatforms = platforms.filter((p) =>
     isConnected(p.state),
   ).length
-  const platformsLabel = `${connectedPlatforms}/${platforms.length}`
+  const platformsLabel =
+    platforms.length === 0 ? '—' : `${connectedPlatforms}/${platforms.length}`
 
   // Cron
   const cron = overview.cron
@@ -137,18 +158,38 @@ export function StatusDock({
   const configLabel = drift > 0 ? `${drift} drift` : 'in sync'
   const configWarn = drift > 0
 
-  // Logs
+  // Logs — error count is over the log TAIL, not a time window.
+  // Drop the "1h" claim from the label.
   const logs = overview.logs
   const logErrorCount = logs ? logs.errorCount : 0
   const logsLabel =
-    logErrorCount > 0 ? `${logErrorCount} errors / 1h` : 'no errors / 1h'
+    logs === null
+      ? '—'
+      : logErrorCount > 0
+        ? `${logErrorCount} errors in tail`
+        : 'no errors in tail'
   const logsWarn = logErrorCount > 0
 
-  // Right side: period totals + model
+  // Right side: period totals + model. Distinguish "no analytics" from
+  // "analytics is the unavailable stub" — the latter returns a real
+  // section with source !== 'analytics' and zeroed totals; we must
+  // not display those as real numbers.
   const analytics = overview.analytics
-  const tokensLabel = analytics ? formatTokens(analytics.totalTokens) : '—'
-  const sessionsLabel = analytics ? formatCompact(analytics.totalSessions) : '—'
-  const callsLabel = analytics ? formatCompact(analytics.totalApiCalls) : '—'
+  const analyticsHasData = !!analytics && analytics.source === 'analytics'
+  const tokensLabel = analyticsHasData
+    ? formatTokens(analytics.totalTokens)
+    : '—'
+  const sessionsLabel = analyticsHasData
+    ? formatCompact(analytics.totalSessions)
+    : '—'
+  const callsLabel = analyticsHasData
+    ? formatCompact(analytics.totalApiCalls)
+    : '—'
+  // The window chip reports the window the totals actually came
+  // from. If analytics is null/unavailable, the period prop is the
+  // user's selection but doesn't describe any data — show "—".
+  const windowLabel = analyticsHasData ? `${analytics.windowDays}d` : '—'
+
   const modelInfo = overview.modelInfo
   const modelLabel = modelInfo
     ? `${modelInfo.provider} · ${formatModelName(modelInfo.model)}`
@@ -202,9 +243,11 @@ export function StatusDock({
           aria-hidden
           style={{
             ...dotBase,
-            background: gatewayOk
-              ? 'var(--theme-success)'
-              : 'var(--theme-warning)',
+            background: status
+              ? gatewayOk
+                ? 'var(--theme-success)'
+                : 'var(--theme-warning)'
+              : 'var(--theme-muted)',
           }}
         />
         gateway <b style={{ fontWeight: 400, ...textStyle }}>{gatewayLabel}</b>
@@ -322,9 +365,11 @@ export function StatusDock({
           ...(logsWarn ? warnStyle : mutedStyle),
         }}
         title={
-          logErrorCount > 0
-            ? `${logErrorCount} errors in the last hour`
-            : 'no log errors in the last hour'
+          logs === null
+            ? 'log tail not loaded yet'
+            : logErrorCount > 0
+              ? `${logErrorCount} errors in the log tail`
+              : 'no log errors in the tail'
         }
       >
         <span
@@ -353,7 +398,11 @@ export function StatusDock({
           gap: 5,
           whiteSpace: 'nowrap',
         }}
-        title={`${period}-day window`}
+        title={
+          analyticsHasData
+            ? `${analytics.windowDays}-day window`
+            : 'analytics not loaded yet'
+        }
       >
         sessions{' '}
         <b style={{ fontWeight: 400, ...textStyle }}>{sessionsLabel}</b>
@@ -367,7 +416,11 @@ export function StatusDock({
           gap: 5,
           whiteSpace: 'nowrap',
         }}
-        title={`${period}-day window`}
+        title={
+          analyticsHasData
+            ? `${analytics.windowDays}-day window`
+            : 'analytics not loaded yet'
+        }
       >
         tokens <b style={{ fontWeight: 400, ...textStyle }}>{tokensLabel}</b>
       </span>
@@ -380,7 +433,11 @@ export function StatusDock({
           gap: 5,
           whiteSpace: 'nowrap',
         }}
-        title={`${period}-day window`}
+        title={
+          analyticsHasData
+            ? `${analytics.windowDays}-day window`
+            : 'analytics not loaded yet'
+        }
       >
         api calls <b style={{ fontWeight: 400, ...textStyle }}>{callsLabel}</b>
       </span>
@@ -393,8 +450,11 @@ export function StatusDock({
           gap: 5,
           whiteSpace: 'nowrap',
         }}
+        title={
+          analyticsHasData ? 'analytics window' : 'analytics not loaded yet'
+        }
       >
-        {period}d
+        {windowLabel}
       </span>
       <span
         className="st"

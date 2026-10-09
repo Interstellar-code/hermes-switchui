@@ -18,8 +18,6 @@ export type OpsPeriod = 7 | 14 | 30
 
 const OPS_OPEN_KEY = 'dashboard.ops.open'
 
-const OPS_PERIODS: Array<OpsPeriod> = [7, 14, 30]
-
 /**
  * The 10 widget ids the ops grid knows about. We pull from the
  * shared `WidgetId` union so the EDIT LAYOUT button can reuse the
@@ -79,11 +77,33 @@ export function OpsSection({
   overview,
   period,
   onPeriodChange,
+  installedCount,
+  hourHistogram,
   className,
 }: {
   overview: DashboardOverview | null
   period: OpsPeriod
   onPeriodChange: (p: OpsPeriod) => void
+  /**
+   * Number of installed skills, used by `SkillsUsageCard` for the
+   * "N of M used" denominator. P2 passes the same value today's
+   * `dashboard-screen.tsx:361` derives from the
+   * `['dashboard','skills-count']` query
+   * (`/api/skills?tab=installed&limit=200&summary=search`). `null`
+   * means "we don't know yet" and the card renders "—".
+   */
+  installedCount?: number | null
+  /**
+   * Pre-computed 24-bucket session count per hour-of-day for the
+   * "Tokens by hour" card. P2 derives this from the same session
+   * rows the legacy screen feeds `TokenMixHourCard`. `null` /
+   * `undefined` means we don't have session data yet — the
+   * "Tokens by hour" tile renders an Unavailable state with the
+   * correct title rather than mounting the legacy card with an
+   * empty hour strip (which would render as "Mix & rhythm" and
+   * disagree with the catalog description).
+   */
+  hourHistogram?: ReadonlyArray<{ hour: number; count: number }> | null
   className?: string
 }) {
   // Open/close state. Persists per the spec: `dashboard.ops.open`,
@@ -138,40 +158,9 @@ export function OpsSection({
           className="font-mono text-[10px] uppercase tracking-[0.1em]"
           style={{ color: 'var(--theme-muted)' }}
         >
-          all profiles
+          all profiles · {period}D
         </span>
         <span className="grow" />
-        <div
-          className="inline-flex items-center overflow-hidden rounded border"
-          style={{ borderColor: 'var(--theme-border)' }}
-          role="group"
-          aria-label="Analytics period"
-        >
-          {OPS_PERIODS.map((p) => {
-            const active = p === period
-            return (
-              <button
-                key={p}
-                type="button"
-                aria-pressed={active}
-                onClick={() => onPeriodChange(p)}
-                className="px-2 py-1 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors"
-                style={{
-                  background: active
-                    ? 'color-mix(in srgb, var(--theme-accent) 18%, transparent)'
-                    : 'transparent',
-                  color: active ? 'var(--theme-accent)' : 'var(--theme-muted)',
-                  borderRight:
-                    p !== OPS_PERIODS[OPS_PERIODS.length - 1]
-                      ? '1px solid var(--theme-border)'
-                      : 'none',
-                }}
-              >
-                {p}D
-              </button>
-            )
-          })}
-        </div>
         <button
           type="button"
           onClick={layout.toggleEdit}
@@ -235,17 +224,24 @@ export function OpsSection({
             <div className="lg:col-span-4">
               <SkillsUsageCard
                 usage={overview?.skillsUsage ?? null}
-                installedCount={0}
+                installedCount={installedCount}
                 onOpen={() => undefined}
               />
             </div>
           ) : null}
           {layout.isVisible('token_mix_hour') ? (
             <div className="lg:col-span-4">
-              <TokenMixHourCard
-                analytics={overview?.analytics ?? null}
-                sessions={[]}
-              />
+              {hourHistogram && hourHistogram.length === 24 ? (
+                <TokenMixHourCard
+                  analytics={overview?.analytics ?? null}
+                  sessions={sessionsFromHistogram(hourHistogram)}
+                />
+              ) : (
+                <UnavailableTile
+                  title="Tokens by hour"
+                  message="Hour-of-day session data not loaded yet."
+                />
+              )}
             </div>
           ) : null}
 
@@ -289,6 +285,7 @@ export function OpsSection({
           <button
             type="button"
             onClick={layout.toggleEdit}
+            aria-pressed={layout.editMode}
             className="rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-card)_85%,transparent)]"
             style={{
               borderColor: 'var(--theme-border)',
@@ -300,5 +297,68 @@ export function OpsSection({
         </p>
       ) : null}
     </section>
+  )
+}
+
+/**
+ * Map the 24-bucket hour histogram P2 supplies back into the
+ * session rows the legacy `TokenMixHourCard` expects. We pin each
+ * session to a fixed "now" so the card's hour-of-day bucketing is
+ * deterministic — the histogram is already aggregated, so any
+ * timestamp inside the bucket's hour would round-trip to the same
+ * bucket the histogram was built from. We pick the canonical
+ * 2026-01-01 date so test fixtures stay reproducible.
+ */
+function sessionsFromHistogram(
+  histogram: ReadonlyArray<{ hour: number; count: number }>,
+): Array<{ startedAt: number; updatedAt: number }> {
+  const out: Array<{ startedAt: number; updatedAt: number }> = []
+  for (const bucket of histogram) {
+    if (bucket.count <= 0) continue
+    if (bucket.hour < 0 || bucket.hour > 23) continue
+    const ts = new Date(2026, 0, 1, bucket.hour, 0, 0, 0).getTime()
+    for (let i = 0; i < bucket.count; i += 1) {
+      out.push({ startedAt: ts, updatedAt: ts })
+    }
+  }
+  return out
+}
+
+/**
+ * Inline "data not loaded yet" tile for grid cells whose required
+ * data hasn't been fetched. Mirrors the chrome of the existing
+ * cards (rounded border, subtle gradient, muted text) so an empty
+ * grid cell still looks like part of the dashboard rather than a
+ * layout hole.
+ */
+function UnavailableTile({
+  title,
+  message,
+}: {
+  title: string
+  message: string
+}) {
+  return (
+    <div
+      className="flex h-full min-h-[180px] flex-col gap-2 overflow-hidden rounded-xl border p-3"
+      style={{
+        background:
+          'linear-gradient(150deg, color-mix(in srgb, var(--theme-card) 96%, transparent), color-mix(in srgb, var(--theme-card) 92%, transparent))',
+        borderColor: 'var(--theme-border)',
+      }}
+    >
+      <h3
+        className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+        style={{ color: 'var(--theme-text)' }}
+      >
+        {title}
+      </h3>
+      <div
+        className="font-mono text-[11px] uppercase tracking-[0.15em]"
+        style={{ color: 'var(--theme-muted)' }}
+      >
+        {message}
+      </div>
+    </div>
   )
 }

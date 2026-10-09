@@ -15,6 +15,14 @@ import type {
 } from '@/server/dashboard-aggregator'
 import { buildDashboardOverview } from '@/server/dashboard-aggregator'
 
+// `SkillsUsageCard` (mounted inside the ops grid) calls
+// `useNavigate` from `@tanstack/react-router` at render time. The
+// tests never click the card, so the mock just needs to return a
+// callable to keep the hook from throwing outside a RouterProvider.
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => () => undefined,
+}))
+
 afterEach(() => {
   cleanup()
   window.localStorage.clear()
@@ -244,7 +252,7 @@ describe('OpsSection', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('the period toggle calls onPeriodChange with the new window', async () => {
+  it('the chart card period toggle calls onPeriodChange with the new window', async () => {
     const overview = await fixtureOverview()
     const onPeriodChange = vi.fn()
     render(
@@ -254,14 +262,21 @@ describe('OpsSection', () => {
         onPeriodChange={onPeriodChange}
       />,
     )
-    fireEvent.click(screen.getByRole('button', { name: '14D' }))
+    // The period switch lives inside the chart card now (the
+    // section header reads the active window as plain text instead
+    // of duplicating the chart's own switch). The chart's tabs are
+    // exposed as `role="tab"`, not `button`, so we query the tablist
+    // and pick the matching tab. Tab labels are "7d" / "14d" / "30d"
+    // (lowercase).
+    const tablist = screen.getByRole('tablist', { name: 'Analytics period' })
+    fireEvent.click(within(tablist).getByText('14d'))
     expect(onPeriodChange).toHaveBeenCalledWith(14)
-    fireEvent.click(screen.getByRole('button', { name: '30D' }))
+    fireEvent.click(within(tablist).getByText('30d'))
     expect(onPeriodChange).toHaveBeenCalledWith(30)
     expect(onPeriodChange).toHaveBeenCalledTimes(2)
   })
 
-  it('renders the 14D / 30D buttons with aria-pressed reflecting the current period', async () => {
+  it('the section header reflects the current period in plain text', async () => {
     const overview = await fixtureOverview()
     render(
       <OpsSection
@@ -270,15 +285,9 @@ describe('OpsSection', () => {
         onPeriodChange={() => undefined}
       />,
     )
-    expect(
-      screen.getByRole('button', { name: '7D' }).getAttribute('aria-pressed'),
-    ).toBe('false')
-    expect(
-      screen.getByRole('button', { name: '14D' }).getAttribute('aria-pressed'),
-    ).toBe('true')
-    expect(
-      screen.getByRole('button', { name: '30D' }).getAttribute('aria-pressed'),
-    ).toBe('false')
+    // The header now reads "all profiles · 14D" instead of
+    // duplicating the chart's period switch.
+    expect(screen.getByText(/all profiles · 14D/)).toBeTruthy()
   })
 
   it('renders the EDIT LAYOUT button and toggles editMode when clicked', async () => {
@@ -315,6 +324,105 @@ describe('OpsSection', () => {
     // returns null in AnalyticsChartCard). The section still
     // renders — the other cards degrade individually.
   })
+
+  it('passes installedCount through to SkillsUsageCard and renders "—" when null', async () => {
+    // r1 review HIGH: the section used to pass `installedCount={0}`
+    // and the card rendered "0 of 0 used" / "no skills installed"
+    // as if the install list had been confirmed empty. The fix:
+    // accept `installedCount?: number | null` on the section, pass
+    // through unchanged, and have the card render "—" for the
+    // denominator when the prop is null.
+    const overview = await fixtureOverview()
+    const { container, rerender } = render(
+      <OpsSection
+        overview={overview}
+        period={7}
+        onPeriodChange={() => undefined}
+        installedCount={null}
+      />,
+    )
+    // Usage is present (the fixture has 2 top skills, with
+    // `distinctSkills: 4`), so the header reads
+    // "4 of — used · manage →" — the denominator is the unknown
+    // marker, not an invented 0. The text is broken across
+    // adjacent text nodes in the DOM (template literal + separate
+    // ` · manage →` text), so we look at the parent span's
+    // textContent rather than a single text node.
+    expect(container.textContent).toMatch(/4 of — used/)
+
+    // Real number: header reads "2 of 60 used" (or whatever
+    // installedCount the parent passes).
+    rerender(
+      <OpsSection
+        overview={overview}
+        period={7}
+        onPeriodChange={() => undefined}
+        installedCount={60}
+      />,
+    )
+    expect(container.textContent).toMatch(/4 of 60 used/)
+
+    // No usage data: the card's body switches to the "installed
+    // list not loaded yet" line, distinct from the existing "no
+    // skills installed" copy that means a real 0.
+    const emptyUsage: DashboardOverview = {
+      ...overview,
+      skillsUsage: null,
+    }
+    rerender(
+      <OpsSection
+        overview={emptyUsage}
+        period={7}
+        onPeriodChange={() => undefined}
+        installedCount={null}
+      />,
+    )
+    expect(screen.getByText('installed list not loaded yet')).toBeTruthy()
+  })
+
+  it('renders an Unavailable tile for "Tokens by hour" when no hour histogram is supplied', async () => {
+    // r1 review HIGH: mounting TokenMixHourCard with
+    // `sessions={[]}` shows the token-mix half under the wrong
+    // heading ("Mix & rhythm"), disagreeing with the catalog
+    // description ("Hour-of-day token-usage strip"). The fix:
+    // when `hourHistogram` is missing, render an Unavailable tile
+    // with the correct title; when it is supplied, mount the
+    // legacy card and feed it synthetic session rows so its
+    // bucket counts match.
+    const overview = await fixtureOverview()
+    const { rerender } = render(
+      <OpsSection
+        overview={overview}
+        period={7}
+        onPeriodChange={() => undefined}
+      />,
+    )
+    expect(
+      screen.getByText('Hour-of-day session data not loaded yet.'),
+    ).toBeTruthy()
+    expect(screen.getByText('Tokens by hour')).toBeTruthy()
+
+    // With a populated histogram the legacy card mounts. The
+    // fixture's analytics has `totalTokens: 19.1K` (12345+6789)
+    // and the histogram drives the hour strip; the card's
+    // heading "Mix & rhythm" still comes from the legacy chrome
+    // (intentional — the catalog name change is P2's call).
+    const histogram = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      count: hour === 20 ? 5 : hour === 21 ? 4 : 0,
+    }))
+    rerender(
+      <OpsSection
+        overview={overview}
+        period={7}
+        onPeriodChange={() => undefined}
+        hourHistogram={histogram}
+      />,
+    )
+    expect(
+      screen.queryByText('Hour-of-day session data not loaded yet.'),
+    ).toBeNull()
+  })
 })
 
 describe('StatusDock', () => {
@@ -346,7 +454,15 @@ describe('StatusDock', () => {
     expect(within(dock).getByText('42')).toBeTruthy() // sessions
     expect(within(dock).getByText('19.1K')).toBeTruthy() // tokens
     expect(within(dock).getByText('130')).toBeTruthy() // api calls
+    // The window chip reports the analytics.windowDays, not the
+    // `period` prop. The fixture exposes windowDays=7, so the chip
+    // is "7d" — and a 14d `period` prop would still render "7d" so
+    // the chip and the totals can never disagree.
     expect(within(dock).getByText('7d')).toBeTruthy()
+    // The "1 errors in tail" label no longer claims a 1h time window.
+    expect(within(dock).getByText(/1 errors in tail/)).toBeTruthy()
+    // Gateway label is heartbeat age, not uptime.
+    expect(within(dock).getByText(/ok · beat /)).toBeTruthy()
   })
 
   it('shows config drift when latest_config_version > config_version', async () => {
@@ -365,6 +481,121 @@ describe('StatusDock', () => {
     }
     render(<StatusDock overview={drifted} period={7} />)
     expect(screen.getByText('2 drift')).toBeTruthy()
+  })
+
+  it('renders "—" for every right-side total when analytics is unavailable', async () => {
+    // Build an overview where the analytics payload is empty —
+    // the aggregator normalises that to
+    // `analytics: { source: 'unavailable', ... }`. The dock must
+    // not invent 0/0/0 totals.
+    const fetcher = makeFetcher({
+      '/api/status': {
+        gateway_state: 'running',
+        active_agents: 0,
+        updated_at: '2026-10-08T19:00:00Z',
+        version: '0.21.8',
+        config_version: 17,
+        latest_config_version: 17,
+        platforms: { api_server: { state: 'connected' } },
+      },
+      '/api/cron/jobs': { jobs: [{ id: 'a', status: 'running' }] },
+      '/api/model/info': null,
+      '/api/analytics/usage': {
+        // Aggregator returns `source: 'unavailable'` when the
+        // payload is empty (no totals / no daily rows / no models).
+        window_days: 7,
+      },
+      '/api/logs': { file: 'agent', lines: [] },
+      '/api/plugins/hermes-achievements/recent-unlocks?limit=3': {
+        unlocks: [],
+      },
+      '/api/plugins/hermes-achievements/achievements': { achievements: [] },
+    })
+    const overview = await buildDashboardOverview({
+      fetcher,
+      analyticsWindowDays: 14,
+    })
+    expect(overview.analytics?.source).toBe('unavailable')
+    const { container } = render(<StatusDock overview={overview} period={14} />)
+    // Every right-side field is "—"; the window chip is "—" (no
+    // analytics) so it can't lie about which window the totals
+    // came from.
+    const dock = container.querySelector('footer') as HTMLElement
+    const right = dock.querySelectorAll('b')
+    // We expect at least three "—" labels for the totals + window.
+    let dashCount = 0
+    right.forEach((node) => {
+      if (node.textContent === '—') dashCount += 1
+    })
+    expect(dashCount).toBeGreaterThanOrEqual(4)
+  })
+
+  it('shows "—" for platforms when the platform list is empty', async () => {
+    const fetcher = makeFetcher({
+      '/api/status': {
+        gateway_state: 'running',
+        active_agents: 0,
+        updated_at: '2026-10-08T19:00:00Z',
+        version: '0.21.8',
+        config_version: 17,
+        latest_config_version: 17,
+        platforms: {},
+      },
+      '/api/cron/jobs': { jobs: [{ id: 'a', status: 'running' }] },
+      '/api/model/info': null,
+      '/api/analytics/usage': { window_days: 7 },
+      '/api/logs': { file: 'agent', lines: [] },
+      '/api/plugins/hermes-achievements/recent-unlocks?limit=3': {
+        unlocks: [],
+      },
+      '/api/plugins/hermes-achievements/achievements': { achievements: [] },
+    })
+    const overview = await buildDashboardOverview({
+      fetcher,
+      analyticsWindowDays: 7,
+    })
+    expect(overview.platforms.length).toBe(0)
+    const { container } = render(<StatusDock overview={overview} period={7} />)
+    const dock = container.querySelector('footer') as HTMLElement
+    // The platform `<a>` label is "platforms" + the count `<b>`.
+    // Multiple "—" labels exist in the dock (model, gateway,
+    // analytics totals), so we assert that the platform cell
+    // specifically has "—" rather than "0/0" or "0".
+    const platformLink = within(dock).getByRole('link', { name: /platforms/ })
+    expect(platformLink.textContent).toMatch(/platforms\s*—/)
+    expect(platformLink.textContent).not.toMatch(/0\/0/)
+  })
+
+  it('shows "—" for logs when the log tail is null', async () => {
+    const fetcher = makeFetcher({
+      '/api/status': {
+        gateway_state: 'running',
+        active_agents: 0,
+        updated_at: '2026-10-08T19:00:00Z',
+        version: '0.21.8',
+        config_version: 17,
+        latest_config_version: 17,
+        platforms: { api_server: { state: 'connected' } },
+      },
+      '/api/cron/jobs': { jobs: [{ id: 'a', status: 'running' }] },
+      '/api/model/info': null,
+      '/api/analytics/usage': new Response('boom', { status: 500 }),
+      '/api/logs': new Response('boom', { status: 500 }),
+      '/api/plugins/hermes-achievements/recent-unlocks?limit=3': {
+        unlocks: [],
+      },
+      '/api/plugins/hermes-achievements/achievements': { achievements: [] },
+    })
+    const overview = await buildDashboardOverview({
+      fetcher,
+      analyticsWindowDays: 7,
+    })
+    expect(overview.logs).toBeNull()
+    render(<StatusDock overview={overview} period={7} />)
+    // The `<b>` for the logs label is "—", not "0 errors in tail" or
+    // a synthetic zero count.
+    const dock = screen.getByRole('contentinfo')
+    expect(dock.textContent).toContain('—')
   })
 
   it('falls back to the success tone when no failures are present', async () => {
@@ -393,16 +624,36 @@ describe('StatusDock', () => {
       '/api/analytics/usage': {
         window_days: 7,
         totals: {
-          total_input: 0,
-          total_output: 0,
-          total_cache_read: 0,
+          total_input: 1234,
+          total_output: 567,
+          total_cache_read: 100,
           total_reasoning: 0,
-          total_sessions: 0,
-          total_api_calls: 0,
-          total_estimated_cost: 0,
+          total_sessions: 5,
+          total_api_calls: 12,
+          total_estimated_cost: 0.01,
         },
-        by_model: [],
-        daily: [],
+        by_model: [
+          {
+            model: 'anthropic/claude-sonnet-4-5',
+            input_tokens: 1234,
+            output_tokens: 567,
+            api_calls: 12,
+            sessions: 5,
+            estimated_cost: 0.01,
+          },
+        ],
+        daily: [
+          {
+            day: '2026-10-08',
+            input_tokens: 1234,
+            output_tokens: 567,
+            cache_read_tokens: 100,
+            reasoning_tokens: 0,
+            sessions: 5,
+            api_calls: 12,
+            estimated_cost: 0.01,
+          },
+        ],
         skills: { summary: {}, top_skills: [] },
       },
       '/api/logs': { file: 'agent', lines: [] },
@@ -415,16 +666,20 @@ describe('StatusDock', () => {
       fetcher,
       analyticsWindowDays: 7,
     })
+    expect(overview.analytics?.source).toBe('analytics')
     render(<StatusDock overview={overview} period={7} />)
     expect(screen.getByText('1 ok')).toBeTruthy()
     expect(screen.getByText('in sync')).toBeTruthy()
-    expect(screen.getByText('no errors / 1h')).toBeTruthy()
+    // Label no longer claims a 1h window.
+    expect(screen.getByText('no errors in tail')).toBeTruthy()
   })
 
-  it('uses the period prop in the title attribute for the totals', async () => {
+  it('uses the analytics windowDays in the totals title, not the period prop', async () => {
     const overview = await fixtureOverview()
+    // Fixture has windowDays=7; a 14d period prop does not change
+    // the title — the title tracks the data, not the user's toggle.
     render(<StatusDock overview={overview} period={14} />)
-    const titleEls = document.querySelectorAll('[title="14-day window"]')
+    const titleEls = document.querySelectorAll('[title="7-day window"]')
     expect(titleEls.length).toBeGreaterThan(0)
   })
 })
