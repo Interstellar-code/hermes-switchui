@@ -192,6 +192,7 @@ import { Route as ApiHermesKanbanBoardsRouteImport } from './routes/api/hermes-k
 import { Route as ApiHermesKanbanBoardRouteImport } from './routes/api/hermes-kanban/board'
 import { Route as ApiHermesKanbanAssigneesRouteImport } from './routes/api/hermes-kanban/assignees'
 import { Route as ApiHermesCommandsExecRouteImport } from './routes/api/hermes-commands.exec'
+import { Route as ApiDashboardSocialRouteImport } from './routes/api/dashboard/social'
 import { Route as ApiDashboardOverviewRouteImport } from './routes/api/dashboard/overview'
 import { Route as ApiDashboardProxySplatRouteImport } from './routes/api/dashboard-proxy/$'
 import { Route as ApiConductorWorkersRouteImport } from './routes/api/conductor/workers'
@@ -1195,6 +1196,11 @@ const ApiHermesCommandsExecRoute = ApiHermesCommandsExecRouteImport.update({
   path: '/exec',
   getParentRoute: () => ApiHermesCommandsRoute,
 } as any)
+const ApiDashboardSocialRoute = ApiDashboardSocialRouteImport.update({
+  id: '/api/dashboard/social',
+  path: '/api/dashboard/social',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDashboardOverviewRoute = ApiDashboardOverviewRouteImport.update({
   id: '/api/dashboard/overview',
   path: '/api/dashboard/overview',
@@ -1738,6 +1744,7 @@ export interface FileRoutesByFullPath {
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
+  '/api/dashboard/social': typeof ApiDashboardSocialRoute
   '/api/hermes-commands/exec': typeof ApiHermesCommandsExecRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
@@ -1997,6 +2004,7 @@ export interface FileRoutesByTo {
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
+  '/api/dashboard/social': typeof ApiDashboardSocialRoute
   '/api/hermes-commands/exec': typeof ApiHermesCommandsExecRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
@@ -2259,6 +2267,7 @@ export interface FileRoutesById {
   '/api/conductor/workers': typeof ApiConductorWorkersRoute
   '/api/dashboard-proxy/$': typeof ApiDashboardProxySplatRoute
   '/api/dashboard/overview': typeof ApiDashboardOverviewRoute
+  '/api/dashboard/social': typeof ApiDashboardSocialRoute
   '/api/hermes-commands/exec': typeof ApiHermesCommandsExecRoute
   '/api/hermes-kanban/assignees': typeof ApiHermesKanbanAssigneesRoute
   '/api/hermes-kanban/board': typeof ApiHermesKanbanBoardRoute
@@ -2522,6 +2531,7 @@ export interface FileRouteTypes {
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
+    | '/api/dashboard/social'
     | '/api/hermes-commands/exec'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
@@ -2781,6 +2791,7 @@ export interface FileRouteTypes {
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
+    | '/api/dashboard/social'
     | '/api/hermes-commands/exec'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
@@ -3042,6 +3053,7 @@ export interface FileRouteTypes {
     | '/api/conductor/workers'
     | '/api/dashboard-proxy/$'
     | '/api/dashboard/overview'
+    | '/api/dashboard/social'
     | '/api/hermes-commands/exec'
     | '/api/hermes-kanban/assignees'
     | '/api/hermes-kanban/board'
@@ -3296,6 +3308,7 @@ export interface RootRouteChildren {
   ApiConductorWorkersRoute: typeof ApiConductorWorkersRoute
   ApiDashboardProxySplatRoute: typeof ApiDashboardProxySplatRoute
   ApiDashboardOverviewRoute: typeof ApiDashboardOverviewRoute
+  ApiDashboardSocialRoute: typeof ApiDashboardSocialRoute
   ApiHermesKanbanAssigneesRoute: typeof ApiHermesKanbanAssigneesRoute
   ApiHermesKanbanBoardRoute: typeof ApiHermesKanbanBoardRoute
   ApiHermesKanbanBoardsRoute: typeof ApiHermesKanbanBoardsRouteWithChildren
@@ -4641,6 +4654,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiHermesCommandsExecRouteImport
       parentRoute: typeof ApiHermesCommandsRoute
     }
+    '/api/dashboard/social': {
+      id: '/api/dashboard/social'
+      path: '/api/dashboard/social'
+      fullPath: '/api/dashboard/social'
+      preLoaderRoute: typeof ApiDashboardSocialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/dashboard/overview': {
       id: '/api/dashboard/overview'
       path: '/api/dashboard/overview'
@@ -5912,6 +5932,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiConductorWorkersRoute: ApiConductorWorkersRoute,
   ApiDashboardProxySplatRoute: ApiDashboardProxySplatRoute,
   ApiDashboardOverviewRoute: ApiDashboardOverviewRoute,
+  ApiDashboardSocialRoute: ApiDashboardSocialRoute,
   ApiHermesKanbanAssigneesRoute: ApiHermesKanbanAssigneesRoute,
   ApiHermesKanbanBoardRoute: ApiHermesKanbanBoardRoute,
   ApiHermesKanbanBoardsRoute: ApiHermesKanbanBoardsRouteWithChildren,
