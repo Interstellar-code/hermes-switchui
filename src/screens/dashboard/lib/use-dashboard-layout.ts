@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 
 /**
  * Storage key. Exported so the layout hook's tests can read/write
@@ -176,6 +182,25 @@ export const DEFAULT_HIDDEN: ReadonlyArray<WidgetId> = [
  */
 const subscribers = new Set<() => void>()
 
+// Edit mode is shared the same way, so the header pencil and the Ops section
+// drive one panel. Transient: it resets once no instance is mounted.
+let sharedEditMode = false
+const editSubscribers = new Set<() => void>()
+
+function setSharedEditMode(next: boolean): void {
+  if (next === sharedEditMode) return
+  sharedEditMode = next
+  for (const fn of editSubscribers) fn()
+}
+
+function subscribeEditMode(cb: () => void): () => void {
+  editSubscribers.add(cb)
+  return () => {
+    editSubscribers.delete(cb)
+    if (editSubscribers.size === 0) sharedEditMode = false
+  }
+}
+
 function notifySubscribers(): void {
   for (const fn of subscribers) fn()
 }
@@ -293,7 +318,12 @@ function writeLayout(layout: StoredLayout) {
  * persisted set.
  */
 export function useDashboardLayout() {
-  const [editMode, setEditMode] = useState(false)
+  const editMode = useSyncExternalStore(
+    subscribeEditMode,
+    () => sharedEditMode,
+    () => false,
+  )
+  const setEditMode = setSharedEditMode
   const [hidden, setHidden] = useState<Set<WidgetId>>(
     () => new Set(readLayout().hidden),
   )
@@ -336,7 +366,7 @@ export function useDashboardLayout() {
     notifySubscribers()
   }, [hidden])
 
-  const toggleEdit = useCallback(() => setEditMode((v) => !v), [])
+  const toggleEdit = useCallback(() => setSharedEditMode(!sharedEditMode), [])
 
   const hide = useCallback((id: WidgetId) => {
     setHidden((prev) => {

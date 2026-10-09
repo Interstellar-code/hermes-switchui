@@ -11,12 +11,13 @@ import {
   YAxis,
 } from 'recharts'
 import { HugeiconsIcon } from '@hugeicons/react'
-import {
-  CancelIcon,
-  ChartLineData01Icon,
-} from '@hugeicons/core-free-icons'
+import { CancelIcon, ChartLineData01Icon } from '@hugeicons/core-free-icons'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import { formatModelName } from '@/screens/dashboard/lib/formatters'
+import {
+  ANALYTICS_UNAVAILABLE,
+  CardPlaceholder,
+} from '@/screens/dashboard/components/widget-shell'
 
 export type AnalyticsPeriod = 7 | 14 | 30
 
@@ -96,7 +97,15 @@ export function AnalyticsChartCard({
     }))
   }, [analytics])
 
-  if (!analytics) return null
+  if (!analytics) {
+    return (
+      <CardPlaceholder
+        title={`Usage trend · ${period}d`}
+        state={loading ? 'loading' : 'unavailable'}
+        message={loading ? undefined : ANALYTICS_UNAVAILABLE}
+      />
+    )
+  }
   const hasData = analytics.source === 'analytics' && data.length > 0
 
   return (
@@ -142,10 +151,7 @@ export function AnalyticsChartCard({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <PeriodSwitch
-              value={period}
-              onChange={onPeriodChange}
-            />
+            <PeriodSwitch value={period} onChange={onPeriodChange} />
             {hasData ? (
               <button
                 type="button"
@@ -163,7 +169,8 @@ export function AnalyticsChartCard({
         </div>
 
         {insights.length > 0 ? (
-          <ul className="flex flex-col gap-1 rounded-md border p-2 text-[11px]"
+          <ul
+            className="flex flex-col gap-1 rounded-md border p-2 text-[11px]"
             style={{
               borderColor: 'var(--theme-border)',
               background:
@@ -197,7 +204,11 @@ export function AnalyticsChartCard({
 
         {hasData ? (
           <div className="h-[200px] w-full">
-            <ResponsiveContainer width="100%" height="100%" initialDimension={{ width: 1, height: 1 }}>
+            <ResponsiveContainer
+              width="100%"
+              height="100%"
+              initialDimension={{ width: 1, height: 1 }}
+            >
               <AreaChart
                 data={data}
                 margin={{ top: 4, right: 4, left: -22, bottom: 0 }}
@@ -300,10 +311,7 @@ export function AnalyticsChartCard({
         {hasData ? (
           <div className="flex items-center gap-4 text-[10px]">
             <Legend tone="var(--theme-accent)" label="tokens (in+out)" />
-            <Legend
-              tone="var(--theme-accent-secondary)"
-              label="cache reads"
-            />
+            <Legend tone="var(--theme-accent-secondary)" label="cache reads" />
           </div>
         ) : null}
       </div>
