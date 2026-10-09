@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
-import { CardPlaceholder } from '@/screens/dashboard/components/widget-shell'
+import {
+  ANALYTICS_UNAVAILABLE,
+  CardPlaceholder,
+} from '@/screens/dashboard/components/widget-shell'
 
 function formatTokens(n: number): string {
   if (!n || n <= 0) return '0'
@@ -45,6 +48,7 @@ export function CacheEfficiencyCard({
       <CardPlaceholder
         title="Cache efficiency"
         state={loading ? 'loading' : 'unavailable'}
+        message={loading ? undefined : ANALYTICS_UNAVAILABLE}
       />
     )
   }

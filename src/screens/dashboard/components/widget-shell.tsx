@@ -80,9 +80,13 @@ export function WidgetShell({
   )
 }
 
+/** Text for cards that depend on the analytics upstream. */
+export const ANALYTICS_UNAVAILABLE =
+  'Unavailable — analytics did not load. Retrying…'
+
 const PLACEHOLDER_MESSAGE = {
   loading: 'Loading…',
-  unavailable: 'Unavailable — analytics did not load. Retrying…',
+  unavailable: 'Data did not load. Retrying…',
   empty: 'No data in this window',
 } as const
 

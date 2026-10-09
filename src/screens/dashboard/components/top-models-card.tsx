@@ -2,7 +2,10 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { ChartBarLineIcon } from '@hugeicons/core-free-icons'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import { formatModelName } from '@/screens/dashboard/lib/formatters'
-import { CardPlaceholder } from '@/screens/dashboard/components/widget-shell'
+import {
+  ANALYTICS_UNAVAILABLE,
+  CardPlaceholder,
+} from '@/screens/dashboard/components/widget-shell'
 
 function formatTokens(n: number): string {
   if (!n || n <= 0) return '0'
@@ -38,6 +41,7 @@ export function TopModelsCard({
       <CardPlaceholder
         title="Top models"
         state={loading ? 'loading' : 'unavailable'}
+        message={loading ? undefined : ANALYTICS_UNAVAILABLE}
       />
     )
   }

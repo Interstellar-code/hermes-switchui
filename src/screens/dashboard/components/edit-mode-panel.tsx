@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import type { RefObject } from 'react'
 import type {
   DashboardLayout,
@@ -28,11 +28,22 @@ export function EditModePanel({
   className?: string
 }) {
   const { editMode, setEditMode } = layout
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!editMode) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return
+      // Typing in a field outside the panel's section: Escape is theirs.
+      const target = e.target
+      const host = panelRef.current?.closest('section') ?? panelRef.current
+      if (
+        target instanceof HTMLElement &&
+        (target.matches('input, textarea, select') ||
+          target.isContentEditable) &&
+        !host?.contains(target)
+      )
+        return
       setEditMode(false)
       returnFocusTo?.current?.focus()
     }
@@ -49,6 +60,7 @@ export function EditModePanel({
 
   return (
     <div
+      ref={panelRef}
       role="region"
       aria-label="Edit layout"
       className={`relative flex flex-col gap-3 overflow-hidden rounded-xl border p-3 ${className ?? ''}`}

@@ -121,9 +121,22 @@ export function OpsSection({
   }, [open])
 
   const editRef = useRef<HTMLButtonElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+
+  // Opened from anywhere (header pencil too): bring the panel into view.
+  useEffect(() => {
+    const el = sectionRef.current
+    // jsdom has no scrollIntoView.
+    if (layout.editMode && typeof el?.scrollIntoView === 'function')
+      el.scrollIntoView({ block: 'nearest' })
+  }, [layout.editMode])
 
   return (
-    <section className={className} aria-labelledby="ops-heading">
+    <section
+      ref={sectionRef}
+      className={className}
+      aria-labelledby="ops-heading"
+    >
       <div
         className="opsh flex flex-wrap items-center gap-2.5 border-t pt-3.5"
         style={{ borderColor: 'var(--theme-border)' }}

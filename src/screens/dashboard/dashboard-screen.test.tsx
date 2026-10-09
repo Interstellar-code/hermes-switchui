@@ -127,6 +127,25 @@ describe('DashboardScreen', () => {
     ).toBe(true)
   })
 
+  it('header Edit layout pencil opens the Ops edit panel; outside-field Escape is ignored', async () => {
+    stubFetch()
+    renderScreen()
+    await screen.findByText('Rohit')
+    expect(screen.queryByRole('region', { name: 'Edit layout' })).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit layout' }))
+    expect(screen.getByRole('region', { name: 'Edit layout' })).toBeTruthy()
+
+    const outside = document.createElement('input')
+    document.body.appendChild(outside)
+    fireEvent.keyDown(outside, { key: 'Escape' })
+    expect(screen.getByRole('region', { name: 'Edit layout' })).toBeTruthy()
+    outside.remove()
+
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Edit layout' })).toBeNull()
+  })
+
   it('opens one agent dialog when a left-column agent row is clicked', async () => {
     stubFetch()
     renderScreen()

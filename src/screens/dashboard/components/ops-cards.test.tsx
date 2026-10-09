@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AnalyticsChartCard } from './analytics-chart-card'
 import { CacheEfficiencyCard } from './cache-efficiency-card'
 import { TopModelsCard } from './top-models-card'
+import { CardPlaceholder } from './widget-shell'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import { buildDashboardOverview } from '@/server/dashboard-aggregator'
 
@@ -162,5 +163,16 @@ describe('overview aggregator timeout', () => {
     expect(settled).toBe(true)
     expect(overview.analytics).toBeNull()
     expect(overview.status).toBeNull()
+  })
+})
+
+describe('CardPlaceholder', () => {
+  it('unavailable text is generic unless a message is passed', () => {
+    const { rerender } = render(
+      <CardPlaceholder title="X" state="unavailable" />,
+    )
+    expect(screen.getByText('Data did not load. Retrying…')).toBeTruthy()
+    rerender(<CardPlaceholder title="X" state="unavailable" message="Custom" />)
+    expect(screen.getByText('Custom')).toBeTruthy()
   })
 })

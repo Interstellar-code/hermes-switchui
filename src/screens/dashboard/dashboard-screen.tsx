@@ -21,7 +21,11 @@ import { LeftColumn } from './social/left-column'
 import { OpsSection } from './social/ops-section'
 import { RightColumn, agentRank } from './social/right-column'
 import { StatusDock } from './social/status-dock'
-import { useDashboardSocial } from './social/use-dashboard-social'
+import {
+  partialRetryInterval,
+  trackPartial,
+  useDashboardSocial,
+} from './social/use-dashboard-social'
 import type { AnalyticsPeriod } from './components/analytics-chart-card'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import type { DashboardSocial } from '@/types/dashboard-social'
@@ -162,10 +166,6 @@ function SecondaryAction({
 
 // ── Main Dashboard ───────────────────────────────────────────────
 
-const OVERVIEW_POLL_MS = 30_000
-const OVERVIEW_RETRY_MS = 5_000
-const MAX_OVERVIEW_RETRIES = 3
-
 /** Analytics or status missing/degraded = an upstream was slow or down. */
 export function isPartialOverview(
   data: DashboardOverview | undefined,
@@ -175,8 +175,7 @@ export function isPartialOverview(
 
 /**
  * Overview query (`GET /api/dashboard/overview`). A partial response (or a
- * failed request) refetches after 5 s, at most 3 times in a row, then falls
- * back to the normal 30 s poll. Same pattern as `useDashboardSocial`.
+ * failed request) uses the shared retry cadence of `useDashboardSocial`.
  */
 export function useDashboardOverview(period: AnalyticsPeriod) {
   // Consecutive partial/failed responses; reset by the first complete one.
@@ -190,24 +189,21 @@ export function useDashboardOverview(period: AnalyticsPeriod) {
         `/api/dashboard/overview?days=${period}&achievements=5`,
       )
       if (!res.ok) {
-        partialStreak.current += 1
+        trackPartial(partialStreak, true)
         throw new Error(`overview ${res.status}`)
       }
       const data = (await res.json()) as DashboardOverview
-      partialStreak.current = isPartialOverview(data)
-        ? partialStreak.current + 1
-        : 0
+      trackPartial(partialStreak, isPartialOverview(data))
       return data
     },
     staleTime: 5_000,
-    // The streak counts the first partial response too, hence `<=`.
     refetchInterval: (query) =>
-      (query.state.status === 'error' ||
-        (query.state.data !== undefined &&
-          isPartialOverview(query.state.data))) &&
-      partialStreak.current <= MAX_OVERVIEW_RETRIES
-        ? OVERVIEW_RETRY_MS
-        : OVERVIEW_POLL_MS,
+      partialRetryInterval(
+        query.state.status === 'error' ||
+          (query.state.data !== undefined &&
+            isPartialOverview(query.state.data)),
+        partialStreak,
+      ),
   })
 }
 
