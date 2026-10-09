@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   Alert02Icon,
@@ -42,6 +43,16 @@ function hhmm(iso: string): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+/** "6m ago" style age; empty when the timestamp does not parse. */
+function ago(iso: string): string {
+  const ms = Date.now() - new Date(iso).getTime()
+  if (!Number.isFinite(ms)) return ''
+  const m = Math.max(0, Math.floor(ms / 60000))
+  if (m < 60) return `${m}m ago`
+  if (m < 1440) return `${Math.floor(m / 60)}h ago`
+  return `${Math.floor(m / 1440)}d ago`
+}
+
 function Unavailable() {
   return (
     <p className="mt-2 text-[11px]" style={{ color: 'var(--theme-muted)' }}>
@@ -56,7 +67,7 @@ function Icon({ icon }: { icon: typeof BrainIcon }) {
 
 function Rings({ counts }: { counts: DashboardSocial['counts'] }) {
   return (
-    <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
+    <nav aria-label="Jump to" className="grid grid-cols-4 gap-3 sm:grid-cols-8">
       <CountRing
         href="/chat"
         label="Chats"
@@ -113,18 +124,20 @@ function Rings({ counts }: { counts: DashboardSocial['counts'] }) {
         icon={<Icon icon={ServerStack01Icon} />}
         ok={counts?.gatewayOk}
       />
-    </div>
+    </nav>
   )
 }
 
 function AskBox() {
   const [text, setText] = useState('')
+  const navigate = useNavigate()
 
   function submit(e: { preventDefault: () => void }) {
     e.preventDefault()
-    // No draft hand-off exists on /chat/new (the route only reads `?profile=`),
-    // so the text is not carried over; inventing one is out of scope.
-    window.location.assign('/chat/new')
+    if (!text.trim()) return
+    // TODO(draft-handoff): /chat/new has no draft hand-off (the route only
+    // reads `?profile=`), so the typed text is not carried over.
+    navigate({ to: '/chat/$sessionKey', params: { sessionKey: 'new' } })
   }
 
   const btn =
@@ -184,7 +197,14 @@ function ApprovalRow({
 }) {
   const [open, setOpen] = useState<null | 'approve' | 'reject'>(null)
   const [result, setResult] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const statusRef = useRef<HTMLSpanElement>(null)
+  // The opener button is gone once the decision lands; park focus on the status.
+  useEffect(() => {
+    if (result) statusRef.current?.focus()
+  }, [result])
   const done = (decision: 'approved' | 'rejected') => {
+    setBusy(false)
     setOpen(null)
     setResult(decision === 'approved' ? 'Approved — resuming' : 'Rejected')
     onChanged?.()
@@ -193,10 +213,22 @@ function ApprovalRow({
     <NeedRow
       title={`${item.workflow} is waiting for you`}
       chip={<Chip color="var(--dash-cat-needs)">APPROVAL</Chip>}
-      sub={`paused at ${item.pausedAt} · ${item.progress}`}
+      sub={[
+        `paused at ${item.pausedAt}`,
+        item.progress,
+        ago(item.at),
+        item.agent,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
     >
       {result ? (
-        <span className="text-[11px]" role="status">
+        <span
+          ref={statusRef}
+          tabIndex={-1}
+          className="text-[11px]"
+          role="status"
+        >
           {result}
         </span>
       ) : (
@@ -204,6 +236,7 @@ function ApprovalRow({
           <button
             type="button"
             className={actionBtn}
+            disabled={busy}
             style={{
               borderColor: 'var(--theme-success)',
               color: 'var(--theme-success)',
@@ -215,6 +248,7 @@ function ApprovalRow({
           <button
             type="button"
             className={actionBtn}
+            disabled={busy}
             style={{
               borderColor: 'var(--theme-danger)',
               color: 'var(--theme-danger)',
@@ -237,10 +271,16 @@ function ApprovalRow({
           item={item}
           onClose={() => setOpen(null)}
           onDone={done}
+          onPending={setBusy}
         />
       ) : null}
       {open === 'reject' ? (
-        <RejectDialog item={item} onClose={() => setOpen(null)} onDone={done} />
+        <RejectDialog
+          item={item}
+          onClose={() => setOpen(null)}
+          onDone={done}
+          onPending={setBusy}
+        />
       ) : null}
     </NeedRow>
   )
@@ -340,7 +380,7 @@ function NeedRow({
       className="flex flex-col gap-1.5 border-t py-2 first:border-t-0"
       style={{ borderColor: 'var(--theme-border)' }}
     >
-      <div className="flex items-center gap-2 text-[12px] font-bold">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-[12px] font-bold">
         {title}
         {chip}
       </div>
@@ -441,7 +481,7 @@ function Recent({ items }: { items: DashboardSocial['recent'] }) {
             <li key={`${r.at}:${r.href}`}>
               <a
                 href={r.href}
-                className="flex items-center gap-2 py-1 text-[12px] no-underline"
+                className="grid grid-cols-[40px_22px_minmax(0,1fr)_auto] items-center gap-2 py-1 text-[12px] no-underline"
                 style={{ color: 'var(--theme-text)' }}
               >
                 <time dateTime={r.at} style={{ color: 'var(--theme-muted)' }}>
@@ -450,17 +490,14 @@ function Recent({ items }: { items: DashboardSocial['recent'] }) {
                 <span
                   data-testid="recent-dot"
                   aria-hidden="true"
-                  className="h-2 w-2 shrink-0 rounded-full"
+                  className="h-2 w-2 justify-self-center rounded-full"
                   style={{ background: KIND_COLOR[r.kind] }}
                 />
-                <span className="font-bold">{r.title}</span>
-                <span style={{ color: 'var(--theme-muted)' }}>{r.sub}</span>
-                <span
-                  className="ml-auto"
-                  style={{ color: 'var(--theme-muted)' }}
-                >
-                  {r.who}
+                <span className="min-w-0 truncate">
+                  <span className="font-bold">{r.title}</span>{' '}
+                  <span style={{ color: 'var(--theme-muted)' }}>{r.sub}</span>
                 </span>
+                <span style={{ color: 'var(--theme-muted)' }}>{r.who}</span>
               </a>
             </li>
           ))}

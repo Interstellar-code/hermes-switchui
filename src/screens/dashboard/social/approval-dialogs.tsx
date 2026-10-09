@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import type { KeyboardEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import type { NeedsYouItem } from '@/types/dashboard-social'
 
 export type ApprovalItem = Extract<NeedsYouItem, { kind: 'approval' }>
@@ -9,6 +9,8 @@ type DialogProps = {
   onClose: () => void
   /** Called after the server accepted the decision. */
   onDone: (decision: 'approved' | 'rejected') => void
+  /** Reports an in-flight request so the opener row can lock its buttons. */
+  onPending?: (pending: boolean) => void
 }
 
 const FOCUSABLE =
@@ -27,10 +29,13 @@ async function errorMessage(res: Response): Promise<string> {
 function Shell({
   title,
   onClose,
+  locked,
   children,
 }: {
   title: string
   onClose: () => void
+  /** A request is in flight: Escape does nothing. */
+  locked: boolean
   children: ReactNode
 }) {
   const titleId = useId()
@@ -43,30 +48,55 @@ function Shell({
     return () => opener?.focus()
   }, [])
 
-  function onKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (e.key === 'Escape') {
-      e.stopPropagation()
-      onClose()
-      return
+  // Escape and the Tab trap hold on `document`, so they also work when focus
+  // has slipped outside the dialog (backdrop click, body focus).
+  useEffect(() => {
+    function onKeyDown(e: globalThis.KeyboardEvent) {
+      const root = ref.current
+      if (!root) return
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        if (!locked) onClose()
+        return
+      }
+      if (e.key !== 'Tab') return
+      const nodes = root.querySelectorAll<HTMLElement>(FOCUSABLE)
+      if (!nodes.length) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const active = document.activeElement
+      if (!active || !root.contains(active)) {
+        e.preventDefault()
+        first.focus()
+      } else if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
+      }
     }
-    if (e.key !== 'Tab') return
-    const nodes = ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE)
-    if (!nodes?.length) return
-    const first = nodes[0]
-    const last = nodes[nodes.length - 1]
-    const active = document.activeElement
-    if (e.shiftKey && active === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && active === last) {
-      e.preventDefault()
-      first.focus()
+    function onFocusIn(e: FocusEvent) {
+      const root = ref.current
+      if (root && e.target instanceof Node && !root.contains(e.target)) {
+        root.focus()
+      }
     }
-  }
+    document.addEventListener('keydown', onKeyDown)
+    document.addEventListener('focusin', onFocusIn)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+      document.removeEventListener('focusin', onFocusIn)
+    }
+  }, [locked, onClose])
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onMouseDown={(e) => {
+        // A click on the backdrop must not move focus out of the dialog.
+        if (e.target === e.currentTarget) e.preventDefault()
+      }}
       style={{
         background: 'color-mix(in srgb, var(--theme-bg) 70%, transparent)',
       }}
@@ -76,7 +106,7 @@ function Shell({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        onKeyDown={onKeyDown}
+        tabIndex={-1}
         className="w-full max-w-md rounded-lg border p-4"
         style={{
           background: 'var(--theme-panel)',
@@ -101,6 +131,7 @@ function DecisionDialog({
   item,
   onClose,
   onDone,
+  onPending,
   decision,
 }: DialogProps & { decision: 'approved' | 'rejected' }) {
   const approving = decision === 'approved'
@@ -114,6 +145,7 @@ function DecisionDialog({
     e.preventDefault()
     if (blocked) return
     setPending(true)
+    onPending?.(true)
     setError(null)
     try {
       const res = await fetch(
@@ -131,17 +163,23 @@ function DecisionDialog({
       if (!res.ok) {
         setError(await errorMessage(res))
         setPending(false)
+        onPending?.(false)
         return
       }
       onDone(decision)
     } catch {
       setError('Network error. Try again.')
       setPending(false)
+      onPending?.(false)
     }
   }
 
   return (
-    <Shell title={approving ? 'APPROVE RUN' : 'REJECT RUN'} onClose={onClose}>
+    <Shell
+      title={approving ? 'APPROVE RUN' : 'REJECT RUN'}
+      onClose={onClose}
+      locked={pending}
+    >
       <form onSubmit={submit} className="flex flex-col gap-3 text-[12px]">
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
           <dt style={{ color: 'var(--theme-muted)' }}>Workflow</dt>
@@ -193,7 +231,8 @@ function DecisionDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded border px-3 py-1 text-[11px] font-bold"
+            disabled={pending}
+            className="rounded border px-3 py-1 text-[11px] font-bold disabled:opacity-50"
             style={{ borderColor: 'var(--theme-border)' }}
           >
             CANCEL

@@ -136,3 +136,90 @@ describe('RejectDialog', () => {
     })
   })
 })
+
+describe('dialog review fixes', () => {
+  it('Escape closes even when focus is on document.body', () => {
+    const onClose = vi.fn()
+    render(<ApproveDialog item={item} onClose={onClose} onDone={vi.fn()} />)
+    ;(document.activeElement as HTMLElement).blur()
+    expect(document.activeElement).toBe(document.body)
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Tab from outside the dialog lands on its first control', () => {
+    render(<ApproveDialog item={item} onClose={vi.fn()} onDone={vi.fn()} />)
+    ;(document.activeElement as HTMLElement).blur()
+    fireEvent.keyDown(document.body, { key: 'Tab' })
+    expect(document.activeElement).toBe(
+      screen.getByLabelText('Note (optional)'),
+    )
+  })
+
+  it('pulls focus back when it moves outside', () => {
+    const outside = document.createElement('button')
+    document.body.append(outside)
+    render(<ApproveDialog item={item} onClose={vi.fn()} onDone={vi.fn()} />)
+    outside.focus()
+    expect(document.activeElement).toBe(screen.getByRole('dialog'))
+    outside.remove()
+  })
+
+  it('while pending: CANCEL disabled, Escape ignored, one POST', async () => {
+    const fetchMock = vi.fn().mockReturnValue(new Promise(() => {}))
+    vi.stubGlobal('fetch', fetchMock)
+    const onClose = vi.fn()
+    const onPending = vi.fn()
+    render(
+      <ApproveDialog
+        item={item}
+        onClose={onClose}
+        onDone={vi.fn()}
+        onPending={onPending}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM APPROVE' }))
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', { name: 'CANCEL' }).hasAttribute('disabled'),
+      ).toBe(true),
+    )
+    expect(onPending).toHaveBeenCalledWith(true)
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM APPROVE' }))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('reject 400 shows the server error and stays open', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response('{"error":"Run not found"}', { status: 400 }),
+        ),
+    )
+    const onDone = vi.fn()
+    render(<RejectDialog item={item} onClose={vi.fn()} onDone={onDone} />)
+    fireEvent.change(screen.getByLabelText('Reason (required)'), {
+      target: { value: 'nope' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM REJECT' }))
+    expect((await screen.findByRole('alert')).textContent).toBe('Run not found')
+    expect(onDone).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog')).toBeTruthy()
+  })
+
+  it('network failure shows an error and re-enables the form', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')))
+    render(<ApproveDialog item={item} onClose={vi.fn()} onDone={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM APPROVE' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Network error. Try again.',
+    )
+    expect(
+      screen.getByRole('button', { name: 'CANCEL' }).hasAttribute('disabled'),
+    ).toBe(false)
+  })
+})

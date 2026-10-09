@@ -11,9 +11,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CenterColumn } from './center-column'
 import { mockDashboardSocial } from './mock'
 
+const navigate = vi.fn()
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => navigate,
+}))
+
 const data = mockDashboardSocial
 
 afterEach(() => {
+  navigate.mockClear()
   cleanup()
   vi.unstubAllGlobals()
 })
@@ -148,5 +154,110 @@ describe('CenterColumn', () => {
     render(<CenterColumn data={data} />)
     fireEvent.click(screen.getByRole('button', { name: 'RETRY NOW' }))
     expect((await screen.findByRole('alert')).textContent).toBe('not supported')
+  })
+})
+
+const approval = {
+  kind: 'approval' as const,
+  runId: 'run_1',
+  nodeRunId: 'node_1',
+  workflow: 'deploy',
+  version: 'v1',
+  pausedAt: 'approval-gate',
+  progress: '4 of 7 nodes done',
+  next: 'Ship',
+  agent: 'morpheus',
+  at: new Date(Date.now() - 6 * 60000).toISOString(),
+}
+const approvalData = { ...data, needsYou: [approval] }
+
+describe('CenterColumn review fixes', () => {
+  it('wraps the rings in a labelled nav', () => {
+    render(<CenterColumn data={data} />)
+    expect(screen.getByRole('navigation', { name: 'Jump to' })).toBeTruthy()
+  })
+
+  it('shows node name, age and agent for an approval', () => {
+    render(<CenterColumn data={approvalData} />)
+    expect(
+      screen.getByText(
+        'paused at approval-gate · 4 of 7 nodes done · 6m ago · morpheus',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('moves focus to the status text after a decision', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(new Response('{"ok":true}')),
+    )
+    render(<CenterColumn data={approvalData} />)
+    fireEvent.click(screen.getByRole('button', { name: 'REJECT…' }))
+    fireEvent.change(screen.getByLabelText('Reason (required)'), {
+      target: { value: 'no' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM REJECT' }))
+    const status = await screen.findByText('Rejected')
+    await waitFor(() => expect(document.activeElement).toBe(status))
+  })
+
+  it('locks row buttons and sends one POST while a request is in flight', async () => {
+    const fetchMock = vi.fn().mockReturnValue(new Promise(() => {}))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<CenterColumn data={approvalData} />)
+    fireEvent.click(screen.getByRole('button', { name: 'APPROVE…' }))
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM APPROVE' }))
+    await waitFor(() =>
+      expect(
+        (screen.getByRole('button', { name: 'APPROVE…' }))
+          .disabled,
+      ).toBe(true),
+    )
+    expect(
+      screen.getByRole('button', { name: 'REJECT…' }).hasAttribute('disabled'),
+    ).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'CONFIRM APPROVE' }))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('ask box ignores empty input and navigates with the router', () => {
+    render(<CenterColumn data={data} />)
+    const input = screen.getByLabelText('Ask hermes-switch something…')
+    fireEvent.submit(input)
+    fireEvent.change(input, { target: { value: '   ' } })
+    fireEvent.submit(input)
+    expect(navigate).not.toHaveBeenCalled()
+    fireEvent.change(input, { target: { value: 'hello' } })
+    fireEvent.submit(input)
+    expect(navigate).toHaveBeenCalledWith({
+      to: '/chat/$sessionKey',
+      params: { sessionKey: 'new' },
+    })
+  })
+
+  it('retry sends a JSON content type and disables the button while pending', async () => {
+    const fetchMock = vi.fn().mockReturnValue(new Promise(() => {}))
+    vi.stubGlobal('fetch', fetchMock)
+    render(<CenterColumn data={data} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RETRY NOW' }))
+    await waitFor(() =>
+      expect(
+        screen
+          .getByRole('button', { name: 'RETRY NOW' })
+          .hasAttribute('disabled'),
+      ).toBe(true),
+    )
+    expect(fetchMock.mock.calls[0][1].headers).toEqual({
+      'Content-Type': 'application/json',
+    })
+  })
+
+  it('retry shows an error on network failure', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')))
+    render(<CenterColumn data={data} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RETRY NOW' }))
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'Network error. Try again.',
+    )
   })
 })
