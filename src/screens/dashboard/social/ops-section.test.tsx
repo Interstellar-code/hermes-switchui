@@ -201,7 +201,7 @@ describe('OpsSection', () => {
 
   it('renders the 5 default cards with a fixture overview', async () => {
     const overview = await fixtureOverview()
-    const { container } = render(
+    render(
       <OpsSection
         overview={overview}
         period={7}
@@ -209,16 +209,19 @@ describe('OpsSection', () => {
       />,
     )
     expect(screen.getByText('OPS & ANALYTICS')).toBeTruthy()
-    // Footer "N cards hidden" line lists the 5 default-off cards.
-    // Use container.textContent because the line wraps the joined
-    // label string and a separate <button> child.
-    const text = container.textContent
-    expect(text).toMatch(/5 cards hidden:/)
-    expect(text).toContain('provider mix')
-    expect(text).toContain('velocity')
-    expect(text).toContain('cost ledger')
-    expect(text).toContain('operator tips')
-    expect(text).toContain('logs tail')
+    // The 5 default cards render; the 5 default-off cards are not in the DOM
+    // and there is no separate "N cards hidden" footer any more.
+    for (const title of [
+      /Usage trend/,
+      /Top models/,
+      /Cache efficiency/,
+      /Skills usage/,
+      /Tokens by hour/,
+    ]) {
+      expect(screen.getByText(title)).toBeTruthy()
+    }
+    expect(screen.queryByText(/Provider mix/i)).toBeNull()
+    expect(screen.queryByText(/cards hidden/)).toBeNull()
   })
 
   it('HIDE collapses the grid and persists the new state', async () => {
@@ -299,15 +302,11 @@ describe('OpsSection', () => {
         onPeriodChange={() => undefined}
       />,
     )
-    // Two EDIT LAYOUT buttons (header + footer) toggle the same
-    // editMode state. Pick the header one.
-    const editButtons = screen.getAllByRole('button', { name: /EDIT LAYOUT/ })
-    expect(editButtons.length).toBe(2)
-    const edit = editButtons[0]
+    const edit = screen.getByRole('button', { name: /EDIT LAYOUT/ })
     expect(edit.getAttribute('aria-pressed')).toBe('false')
     fireEvent.click(edit)
     expect(edit.getAttribute('aria-pressed')).toBe('true')
-    // Edit mode renders the existing EditModePanel.
+    // Edit mode opens the inline panel.
     expect(screen.getByText('Edit mode')).toBeTruthy()
   })
 
@@ -422,6 +421,98 @@ describe('OpsSection', () => {
     expect(
       screen.queryByText('Hour-of-day session data not loaded yet.'),
     ).toBeNull()
+  })
+})
+
+describe('OpsSection auto-adjusting grid + inline edit panel', () => {
+  function mount(overview: DashboardOverview | null = null, loading = false) {
+    return render(
+      <OpsSection
+        overview={overview}
+        period={7}
+        onPeriodChange={() => undefined}
+        loading={loading}
+      />,
+    )
+  }
+
+  it('hidden cards are not in the DOM; grid is auto-fill + dense', async () => {
+    mount(await fixtureOverview())
+    expect(screen.queryByText(/Provider mix/i)).toBeNull()
+    expect(screen.queryByText('Velocity')).toBeNull()
+    const grid = document.getElementById('ops-grid')!
+    expect(grid.className).toContain('auto-fill')
+    expect(grid.className).toContain('grid-flow-dense')
+    expect(grid.className).toContain('items-stretch')
+    // 5 default-visible cards = 5 cells
+    expect(grid.children.length).toBe(5)
+  })
+
+  it('the usage-trend chart cell spans 2 columns only in a wide container', async () => {
+    mount(await fixtureOverview())
+    const grid = document.getElementById('ops-grid')!
+    expect(grid.parentElement!.className).toContain('@container')
+    const [chart, ...rest] = Array.from(grid.children)
+    expect(chart.className).toContain('@min-[640px]:col-span-2')
+    for (const cell of rest) expect(cell.className).not.toContain('col-span')
+  })
+
+  it('cards stay in the grid while the overview is pending or missing', () => {
+    mount(null, true)
+    expect(screen.getAllByText('Loading…').length).toBe(3)
+    cleanup()
+    mount(null, false)
+    expect(
+      screen.getAllByText(/Unavailable — analytics did not load/).length,
+    ).toBe(3)
+  })
+
+  it('chips toggle cards live and expose aria-pressed', async () => {
+    mount(await fixtureOverview())
+    fireEvent.click(screen.getByRole('button', { name: /EDIT LAYOUT/ }))
+    const panel = screen.getByRole('region', { name: 'Edit layout' })
+    const chip = within(panel).getByRole('button', { name: /^Velocity/ })
+    expect(chip.getAttribute('aria-pressed')).toBe('false')
+    expect(chip.textContent).toContain('hidden')
+    fireEvent.click(chip)
+    expect(chip.getAttribute('aria-pressed')).toBe('true')
+    expect(chip.textContent).toContain('shown')
+    expect(document.getElementById('ops-grid')!.children.length).toBe(6)
+    fireEvent.click(chip)
+    expect(document.getElementById('ops-grid')!.children.length).toBe(5)
+  })
+
+  it('panel sits right under the header, before the grid', async () => {
+    mount(await fixtureOverview())
+    fireEvent.click(screen.getByRole('button', { name: /EDIT LAYOUT/ }))
+    const panel = screen.getByRole('region', { name: 'Edit layout' })
+    expect(
+      panel.nextElementSibling?.contains(document.getElementById('ops-grid')),
+    ).toBe(true)
+    expect(panel.textContent).toContain('5 of 10 cards shown')
+  })
+
+  it('Show all reveals every card; Reset to default restores the defaults', async () => {
+    mount(await fixtureOverview())
+    fireEvent.click(screen.getByRole('button', { name: /EDIT LAYOUT/ }))
+    const panel = screen.getByRole('region', { name: 'Edit layout' })
+    fireEvent.click(within(panel).getByRole('button', { name: 'Show all' }))
+    expect(document.getElementById('ops-grid')!.children.length).toBe(10)
+    expect(panel.textContent).toContain('10 of 10 cards shown')
+    fireEvent.click(
+      within(panel).getByRole('button', { name: 'Reset to default' }),
+    )
+    expect(document.getElementById('ops-grid')!.children.length).toBe(5)
+  })
+
+  it('Escape closes the panel and returns focus to EDIT LAYOUT', async () => {
+    mount(await fixtureOverview())
+    const edit = screen.getByRole('button', { name: /EDIT LAYOUT/ })
+    fireEvent.click(edit)
+    expect(screen.getByRole('region', { name: 'Edit layout' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Edit layout' })).toBeNull()
+    expect(document.activeElement).toBe(edit)
   })
 })
 

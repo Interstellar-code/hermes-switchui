@@ -200,7 +200,7 @@ export type DashboardFetcher = (path: string) => Promise<Response>
 // Optional overview cards must not hold the whole dashboard hostage when an
 // upstream plugin is slow or unavailable. The card simply renders its normal
 // unavailable state when this deadline is exceeded.
-const OVERVIEW_FETCH_TIMEOUT_MS = 4_000
+const OVERVIEW_FETCH_TIMEOUT_MS = 8_000
 
 export type BuildOverviewOptions = {
   /**

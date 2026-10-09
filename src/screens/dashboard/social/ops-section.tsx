@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import type { WidgetId } from '@/screens/dashboard/lib/use-dashboard-layout'
 import { AnalyticsChartCard } from '@/screens/dashboard/components/analytics-chart-card'
@@ -11,6 +11,7 @@ import { VelocityCard } from '@/screens/dashboard/components/velocity-card'
 import { CostLedgerCard } from '@/screens/dashboard/components/cost-ledger-card'
 import { OperatorTipCard } from '@/screens/dashboard/components/operator-tip-card'
 import { LogsTailCard } from '@/screens/dashboard/components/logs-tail-card'
+import { CardPlaceholder } from '@/screens/dashboard/components/widget-shell'
 import { EditModePanel } from '@/screens/dashboard/components/edit-mode-panel'
 import { useDashboardLayout } from '@/screens/dashboard/lib/use-dashboard-layout'
 
@@ -36,21 +37,8 @@ const OPS_WIDGET_IDS: ReadonlyArray<WidgetId> = [
   'logs_tail',
 ]
 
-type OpsWidgetId = (typeof OPS_WIDGET_IDS)[number]
-
-/** Human label per widget id for the "N cards hidden" footer. */
-const LABEL_BY_ID: Partial<Record<OpsWidgetId, string>> = {
-  analytics_chart: 'analytics chart',
-  top_models: 'top models',
-  cache_efficiency: 'cache efficiency',
-  skills_usage: 'skills usage',
-  token_mix_hour: 'tokens by hour',
-  provider_mix: 'provider mix',
-  velocity: 'velocity',
-  cost_ledger: 'cost ledger',
-  operator_tip: 'operator tips',
-  logs_tail: 'logs tail',
-}
+/** Grid cell: the card fills the cell's full height and width. */
+const CELL = 'flex *:min-w-0 *:flex-1'
 
 function readBool(key: string, fallback: boolean): boolean {
   if (typeof window === 'undefined') return fallback
@@ -79,6 +67,7 @@ export function OpsSection({
   onPeriodChange,
   installedCount,
   hourHistogram,
+  loading,
   className,
 }: {
   overview: DashboardOverview | null
@@ -104,6 +93,8 @@ export function OpsSection({
    * disagree with the catalog description).
    */
   hourHistogram?: ReadonlyArray<{ hour: number; count: number }> | null
+  /** Overview query still pending — analytics cards show "Loading…". */
+  loading?: boolean
   className?: string
 }) {
   // Open/close state. Persists per the spec: `dashboard.ops.open`,
@@ -129,20 +120,23 @@ export function OpsSection({
     }
   }, [open])
 
-  // Pull the count of currently-hidden ops cards so the footer can
-  // name them by their friendly label. Sorted by the catalog order
-  // so the listing is stable across re-renders.
-  const hiddenIds = useMemo<Array<OpsWidgetId>>(() => {
-    return OPS_WIDGET_IDS.filter((id) => !layout.isVisible(id))
-  }, [layout])
+  const editRef = useRef<HTMLButtonElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
 
-  const hiddenLabel = useMemo(
-    () => hiddenIds.map((id) => LABEL_BY_ID[id] ?? id).join(', '),
-    [hiddenIds],
-  )
+  // Opened from anywhere (header pencil too): bring the panel into view.
+  useEffect(() => {
+    const el = sectionRef.current
+    // jsdom has no scrollIntoView.
+    if (layout.editMode && typeof el?.scrollIntoView === 'function')
+      el.scrollIntoView({ block: 'nearest' })
+  }, [layout.editMode])
 
   return (
-    <section className={className} aria-labelledby="ops-heading">
+    <section
+      ref={sectionRef}
+      className={className}
+      aria-labelledby="ops-heading"
+    >
       <div
         className="opsh flex flex-wrap items-center gap-2.5 border-t pt-3.5"
         style={{ borderColor: 'var(--theme-border)' }}
@@ -162,6 +156,7 @@ export function OpsSection({
         </span>
         <span className="grow" />
         <button
+          ref={editRef}
           type="button"
           onClick={layout.toggleEdit}
           aria-pressed={layout.editMode}
@@ -192,109 +187,100 @@ export function OpsSection({
         </button>
       </div>
 
-      {layout.editMode ? <EditModePanel layout={layout} /> : null}
-
-      {open ? (
-        <div
-          id="ops-grid"
-          className="ops mt-3 grid grid-cols-1 gap-3 min-[390px]:grid-cols-1 lg:grid-cols-12"
-        >
-          {layout.isVisible('analytics_chart') ? (
-            <div className="lg:col-span-8">
-              <AnalyticsChartCard
-                analytics={overview?.analytics ?? null}
-                insights={overview?.insights ?? []}
-                period={period}
-                onPeriodChange={onPeriodChange}
-                loading={false}
-              />
-            </div>
-          ) : null}
-          {layout.isVisible('top_models') ? (
-            <div className="lg:col-span-4">
-              <TopModelsCard analytics={overview?.analytics ?? null} />
-            </div>
-          ) : null}
-          {layout.isVisible('cache_efficiency') ? (
-            <div className="lg:col-span-4">
-              <CacheEfficiencyCard analytics={overview?.analytics ?? null} />
-            </div>
-          ) : null}
-          {layout.isVisible('skills_usage') ? (
-            <div className="lg:col-span-4">
-              <SkillsUsageCard
-                usage={overview?.skillsUsage ?? null}
-                installedCount={installedCount}
-                onOpen={() => undefined}
-              />
-            </div>
-          ) : null}
-          {layout.isVisible('token_mix_hour') ? (
-            <div className="lg:col-span-4">
-              {hourHistogram && hourHistogram.length === 24 ? (
-                <TokenMixHourCard
-                  analytics={overview?.analytics ?? null}
-                  sessions={sessionsFromHistogram(hourHistogram)}
-                />
-              ) : (
-                <UnavailableTile
-                  title="Tokens by hour"
-                  message="Hour-of-day session data not loaded yet."
-                />
-              )}
-            </div>
-          ) : null}
-
-          {layout.isVisible('provider_mix') ? (
-            <div className="lg:col-span-4">
-              <ProviderMixCard analytics={overview?.analytics ?? null} />
-            </div>
-          ) : null}
-          {layout.isVisible('velocity') ? (
-            <div className="lg:col-span-4">
-              <VelocityCard analytics={overview?.analytics ?? null} />
-            </div>
-          ) : null}
-          {layout.isVisible('cost_ledger') ? (
-            <div className="lg:col-span-4">
-              <CostLedgerCard analytics={overview?.analytics ?? null} />
-            </div>
-          ) : null}
-          {layout.isVisible('operator_tip') ? (
-            <div className="lg:col-span-4">
-              <OperatorTipCard overview={overview ?? null} />
-            </div>
-          ) : null}
-          {layout.isVisible('logs_tail') ? (
-            <div className="lg:col-span-4">
-              <LogsTailCard logs={overview?.logs ?? null} />
-            </div>
-          ) : null}
-        </div>
+      {layout.editMode ? (
+        <EditModePanel
+          layout={layout}
+          widgetIds={OPS_WIDGET_IDS}
+          returnFocusTo={editRef}
+          className="mt-3"
+        />
       ) : null}
 
-      {open && hiddenIds.length > 0 ? (
-        <p
-          className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]"
-          style={{ color: 'var(--theme-muted)' }}
-        >
-          <span>
-            {hiddenIds.length} card{hiddenIds.length === 1 ? '' : 's'} hidden:{' '}
-            {hiddenLabel}.
-          </span>
-          <button
-            type="button"
-            onClick={layout.toggleEdit}
-            aria-pressed={layout.editMode}
-            className="rounded border px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] transition-colors hover:bg-[color-mix(in_srgb,var(--theme-card)_85%,transparent)]"
-            style={{
-              borderColor: 'var(--theme-border)',
-              color: 'var(--theme-muted)',
-            }}
+      {open ? (
+        <div className="@container mt-3">
+          <div
+            id="ops-grid"
+            className="ops grid grid-flow-dense grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] items-stretch gap-3"
           >
-            EDIT LAYOUT
-          </button>
-        </p>
+            {layout.isVisible('analytics_chart') ? (
+              <div className={`${CELL} @min-[640px]:col-span-2`}>
+                <AnalyticsChartCard
+                  analytics={overview?.analytics ?? null}
+                  insights={overview?.insights ?? []}
+                  period={period}
+                  onPeriodChange={onPeriodChange}
+                  loading={loading}
+                />
+              </div>
+            ) : null}
+            {layout.isVisible('top_models') ? (
+              <div className={CELL}>
+                <TopModelsCard
+                  analytics={overview?.analytics ?? null}
+                  loading={loading}
+                />
+              </div>
+            ) : null}
+            {layout.isVisible('cache_efficiency') ? (
+              <div className={CELL}>
+                <CacheEfficiencyCard
+                  analytics={overview?.analytics ?? null}
+                  loading={loading}
+                />
+              </div>
+            ) : null}
+            {layout.isVisible('skills_usage') ? (
+              <div className={CELL}>
+                <SkillsUsageCard
+                  usage={overview?.skillsUsage ?? null}
+                  installedCount={installedCount}
+                  onOpen={() => undefined}
+                />
+              </div>
+            ) : null}
+            {layout.isVisible('token_mix_hour') ? (
+              <div className={CELL}>
+                {hourHistogram && hourHistogram.length === 24 ? (
+                  <TokenMixHourCard
+                    analytics={overview?.analytics ?? null}
+                    sessions={sessionsFromHistogram(hourHistogram)}
+                  />
+                ) : (
+                  <CardPlaceholder
+                    title="Tokens by hour"
+                    state="unavailable"
+                    message="Hour-of-day session data not loaded yet."
+                  />
+                )}
+              </div>
+            ) : null}
+            {layout.isVisible('provider_mix') ? (
+              <div className={CELL}>
+                <ProviderMixCard analytics={overview?.analytics ?? null} />
+              </div>
+            ) : null}
+            {layout.isVisible('velocity') ? (
+              <div className={CELL}>
+                <VelocityCard analytics={overview?.analytics ?? null} />
+              </div>
+            ) : null}
+            {layout.isVisible('cost_ledger') ? (
+              <div className={CELL}>
+                <CostLedgerCard analytics={overview?.analytics ?? null} />
+              </div>
+            ) : null}
+            {layout.isVisible('operator_tip') ? (
+              <div className={CELL}>
+                <OperatorTipCard overview={overview ?? null} />
+              </div>
+            ) : null}
+            {layout.isVisible('logs_tail') ? (
+              <div className={CELL}>
+                <LogsTailCard logs={overview?.logs ?? null} />
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </section>
   )
@@ -322,43 +308,4 @@ function sessionsFromHistogram(
     }
   }
   return out
-}
-
-/**
- * Inline "data not loaded yet" tile for grid cells whose required
- * data hasn't been fetched. Mirrors the chrome of the existing
- * cards (rounded border, subtle gradient, muted text) so an empty
- * grid cell still looks like part of the dashboard rather than a
- * layout hole.
- */
-function UnavailableTile({
-  title,
-  message,
-}: {
-  title: string
-  message: string
-}) {
-  return (
-    <div
-      className="flex h-full min-h-[180px] flex-col gap-2 overflow-hidden rounded-xl border p-3"
-      style={{
-        background:
-          'linear-gradient(150deg, color-mix(in srgb, var(--theme-card) 96%, transparent), color-mix(in srgb, var(--theme-card) 92%, transparent))',
-        borderColor: 'var(--theme-border)',
-      }}
-    >
-      <h3
-        className="text-[10px] font-semibold uppercase tracking-[0.18em]"
-        style={{ color: 'var(--theme-text)' }}
-      >
-        {title}
-      </h3>
-      <div
-        className="font-mono text-[11px] uppercase tracking-[0.15em]"
-        style={{ color: 'var(--theme-muted)' }}
-      >
-        {message}
-      </div>
-    </div>
-  )
 }
