@@ -1,0 +1,41 @@
+/* Category + podium tokens for the social dashboard. The only file in the revamp that may hold hex colours. */
+:root {
+  --dash-cat-chat: var(--theme-accent);
+  --dash-cat-needs: var(--theme-warning);
+  --dash-cat-workflow: #a678f0;
+  --dash-cat-cron: #2aa7d6;
+  --dash-cat-task: #d4a514;
+  --dash-cat-memory: #e0509f;
+  --dash-cat-improve: #20b890;
+  --dash-cat-gateway: var(--theme-muted);
+  --dash-podium-1: #e0b400;
+  --dash-podium-2: #9aa3a0;
+  --dash-podium-3: #c27a38;
+}
+
+[data-theme='matrix'] {
+  --dash-cat-chat: #00ff41;
+  --dash-cat-needs: #ffb454;
+  --dash-cat-workflow: #bf97ff;
+  --dash-cat-cron: #5ad3ff;
+  --dash-cat-task: #ffd700;
+  --dash-cat-memory: #ff7ac6;
+  --dash-cat-improve: #7cf5d5;
+  --dash-cat-gateway: #8fae9a;
+  --dash-podium-1: #ffd700;
+  --dash-podium-2: #c0c8c4;
+  --dash-podium-3: #d08a4f;
+}
+
+/* Darker variants so coloured text on a white panel stays >= 4.5:1. */
+[data-theme$='-light'] {
+  --dash-cat-needs: #8a5200;
+  --dash-cat-workflow: #6b3fc4;
+  --dash-cat-cron: #0b6f96;
+  --dash-cat-task: #7a5d00;
+  --dash-cat-memory: #b0286f;
+  --dash-cat-improve: #0b7a5e;
+  --dash-podium-1: #7a5d00;
+  --dash-podium-2: #5c6663;
+  --dash-podium-3: #8a4a14;
+}

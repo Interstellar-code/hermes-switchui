@@ -12,34 +12,20 @@ import {
   Settings02Icon,
   Sun02Icon,
 } from '@hugeicons/core-free-icons'
-import { OpsStrip } from './components/ops-strip'
 import { SetupChecklistCard } from './components/setup-checklist-card'
-import { AchievementsCard } from './components/achievements-card'
-import { HeroMetrics } from './components/hero-metrics'
-import { AnalyticsChartCard } from './components/analytics-chart-card'
-import { TopModelsCard } from './components/top-models-card'
-import { LogsTailCard } from './components/logs-tail-card'
-import { SessionsIntelligenceCard } from './components/sessions-intelligence-card'
-import { SkillsUsageCard } from './components/skills-usage-card'
-import { TokenMixHourCard } from './components/token-mix-hour-card'
-import { ActiveModelKpi } from './components/active-model-kpi'
-import { AttentionMarquee } from './components/attention-marquee'
-import { CacheEfficiencyCard } from './components/cache-efficiency-card'
-import { ProviderMixCard } from './components/provider-mix-card'
-import { VelocityCard } from './components/velocity-card'
-import { CostLedgerCard } from './components/cost-ledger-card'
-import { OperatorTipCard } from './components/operator-tip-card'
-import { WidgetShell } from './components/widget-shell'
-import { EditModePanel } from './components/edit-mode-panel'
 import { useDashboardLayout } from './lib/use-dashboard-layout'
-import type { ReactNode } from 'react'
+import { AgentDialog } from './social/agent-dialog'
+import { BadgeDialog } from './social/badge-dialog'
+import { CenterColumn } from './social/center-column'
+import { LeftColumn } from './social/left-column'
+import { OpsSection } from './social/ops-section'
+import { RightColumn } from './social/right-column'
+import { StatusDock } from './social/status-dock'
+import { useDashboardSocial } from './social/use-dashboard-social'
 import type { AnalyticsPeriod } from './components/analytics-chart-card'
-import type { SessionRowData } from './components/sessions-intelligence-card'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
-import type { ClaudeSession } from '@/lib/hermes-client'
-import { getUnavailableReason } from '@/lib/feature-gates'
+import type { DashboardSocial } from '@/types/dashboard-social'
 import { useFeatureAvailable } from '@/hooks/use-feature-available'
-import { cn } from '@/lib/utils'
 import { openHamburgerMenu } from '@/components/mobile-hamburger-menu'
 import { applyTheme, useStudioSettingsStore } from '@/hooks/use-settings'
 
@@ -89,92 +75,17 @@ function useDashboardPalette() {
   return palette
 }
 
-// ── Glass Card ───────────────────────────────────────────────────
-
-function GlassCard({
-  title,
-  titleRight,
-  accentColor,
-  noPadding,
-  className,
-  children,
-}: {
-  title?: string
-  titleRight?: ReactNode
-  accentColor?: string
-  noPadding?: boolean
-  className?: string
-  children: ReactNode
-}) {
-  return (
-    <div
-      className={cn(
-        'relative flex flex-col overflow-hidden rounded-xl border transition-colors',
-        className,
-      )}
-      style={{
-        background: 'var(--theme-card)',
-        borderColor: 'var(--theme-border)',
-      }}
-    >
-      {accentColor && (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 top-0 h-[2px]"
-          style={{
-            background: `linear-gradient(90deg, ${accentColor}, ${accentColor}50, transparent)`,
-          }}
-        />
-      )}
-      {title && (
-        <div className="flex items-center justify-between px-5 pt-4 pb-0">
-          <h3 className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted">
-            {title}
-          </h3>
-          {titleRight}
-        </div>
-      )}
-      <div className={cn('flex-1', noPadding ? '' : 'px-5 pb-4 pt-3')}>
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function EnhancedBadge({ label = 'Enhanced API' }: { label?: string }) {
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em]"
-      style={{
-        border: `1px solid ${themeColor('--theme-accent-border', 'rgba(245, 158, 11, 0.28)')}`,
-        background: themeColor('--theme-accent-subtle', 'rgba(245, 158, 11, 0.12)'),
-        color: themeColor('--theme-accent', '#f59e0b'),
-      }}
-    >
-      {label}
-    </span>
-  )
-}
-
-function UnavailableWidget({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
-  return (
-    <GlassCard
-      title={title}
-      titleRight={<EnhancedBadge />}
-      accentColor={themeColor('--theme-warning', '#f59e0b')}
-      className="h-full"
-    >
-      <div className="flex h-full min-h-[180px] items-center justify-center rounded-lg border border-dashed border-[var(--theme-border)] bg-[var(--theme-card2)] px-4 text-center">
-        <p className="text-sm text-muted">{description}</p>
-      </div>
-    </GlassCard>
-  )
+// Every slice null: the columns render "Unavailable" instead of numbers.
+const UNAVAILABLE_SOCIAL: DashboardSocial = {
+  profile: null,
+  generatedAt: '',
+  operator: null,
+  agents: null,
+  hotTopics: null,
+  counts: null,
+  needsYou: null,
+  recent: null,
+  badges: null,
 }
 
 // ── Secondary action (smaller, monochrome) ─────────────────────
@@ -241,105 +152,17 @@ export function DashboardScreen() {
     enabled: sessionsAvailable,
   })
 
-  // Raw rows from the sessions endpoint. Used both for hero stats
-  // (count/tokens) and for the SessionsIntelligenceCard below.
-  const rawSessions = (sessionsQuery.data ?? []) as Array<
-    Record<string, unknown>
-  >
-
-  // Adapter shape kept for the legacy fallbacks that still reference
-  // ClaudeSession (HeroMetrics fallback path, etc.).
-  const sessions = useMemo(
-    () =>
-      rawSessions.map((s) => ({
-        id: (s.key ?? s.id) as string,
-        started_at: s.startedAt ? (s.startedAt as number) / 1000 : undefined,
-        message_count: (s.message_count as number | undefined) ?? 0,
-        tool_call_count: (s.tool_call_count as number | undefined) ?? 0,
-        input_tokens: (s.tokenCount as number | undefined) ?? 0,
-        output_tokens: 0,
-      })) as Array<ClaudeSession>,
-    [rawSessions],
-  )
-
-  // Enriched rows for the Sessions Intelligence card. Keeps the rich
-  // fields (`derivedTitle`, `kind`, `status`, `source`, `updatedAt`,
-  // etc.) the legacy adapter dropped.
-  const sessionRows: Array<SessionRowData> = useMemo(
-    () =>
-      [...rawSessions]
-        .sort(
-          (a, b) =>
-            ((b.updatedAt as number | undefined) ??
-              (b.startedAt as number | undefined) ??
-              0) -
-            ((a.updatedAt as number | undefined) ??
-              (a.startedAt as number | undefined) ??
-              0),
-        )
-        .slice(0, 12)
-        .map((s) => ({
-          key: String(s.key ?? s.id ?? ''),
-          title:
-            (s.derivedTitle as string | undefined) ||
-            (s.title as string | undefined) ||
-            (s.preview as string | undefined) ||
-            String(s.key ?? ''),
-          kind: String(s.kind ?? 'chat'),
-          status: String(s.status ?? ''),
-          source: (s.source as string | undefined) ?? null,
-          model: (s.model as string | undefined) ?? null,
-          messageCount:
-            ((s.messageCount as number | undefined) ??
-              (s.message_count as number | undefined) ??
-              0),
-          toolCallCount:
-            ((s.toolCallCount as number | undefined) ??
-              (s.tool_call_count as number | undefined) ??
-              0),
-          tokenCount:
-            ((s.tokenCount as number | undefined) ??
-              (s.totalTokens as number | undefined) ??
-              0),
-          startedAt: (s.startedAt as number | undefined) ?? null,
-          updatedAt: (s.updatedAt as number | undefined) ?? null,
-        })),
-    [rawSessions],
-  )
-
-  const stats = useMemo(() => {
-    let totalMessages = 0,
-      totalToolCalls = 0,
-      totalTokens = 0
-    for (const s of sessions) {
-      totalMessages += s.message_count ?? 0
-      totalToolCalls += s.tool_call_count ?? 0
-      totalTokens += (s.input_tokens ?? 0) + (s.output_tokens ?? 0)
+  // Sessions per local hour-of-day for the Ops "Tokens by hour" card. Same
+  // bucketing as TokenMixHourCard (start time, else updated time).
+  const hourHistogram = useMemo(() => {
+    const counts = Array.from({ length: 24 }, () => 0)
+    for (const s of sessionsQuery.data ?? []) {
+      const ts = (s.startedAt ?? s.updatedAt) as number | undefined
+      if (!ts) continue
+      counts[new Date(ts).getHours()] += 1
     }
-    return {
-      totalSessions: sessions.length,
-      totalMessages,
-      totalToolCalls,
-      totalTokens,
-    }
-  }, [sessions])
-
-  const recentSessions = useMemo(
-    () =>
-      [...sessions]
-        .sort((a, b) => (b.started_at ?? 0) - (a.started_at ?? 0))
-        .slice(0, 6),
-    [sessions],
-  )
-
-  const maxTokens = useMemo(() => {
-    let max = 0
-    for (const s of recentSessions) {
-      const t = (s.input_tokens ?? 0) + (s.output_tokens ?? 0)
-      if (t > max) max = t
-    }
-    return max
-  }, [recentSessions])
+    return counts.map((count, hour) => ({ hour, count }))
+  }, [sessionsQuery.data])
 
   // Skills count for the SkillsUsageCard sub-text. Cheap query, used
   // only for the "X of Y used" microcopy.
@@ -374,10 +197,7 @@ export function DashboardScreen() {
   })
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(
-        'dashboard.analyticsPeriod',
-        String(period),
-      )
+      window.localStorage.setItem('dashboard.analyticsPeriod', String(period))
     }
   }, [period])
 
@@ -410,18 +230,45 @@ export function DashboardScreen() {
     return !dt.endsWith('-light')
   })
 
+  const socialQuery = useDashboardSocial()
+  const social = socialQuery.data ?? UNAVAILABLE_SOCIAL
+  const [agentId, setAgentId] = useState<string | null>(null)
+  const [badgesOpen, setBadgesOpen] = useState(false)
+  const openAgent = social.agents?.find((a) => a.id === agentId) ?? null
+  // The leaderboard metric lives inside RightColumn, so rank by weekly tokens.
+  const openAgentRank = openAgent
+    ? [...(social.agents ?? [])]
+        .sort((a, b) => b.tokensWeek - a.tokensWeek)
+        .findIndex((a) => a.id === openAgent.id) + 1
+    : 0
+
   return (
-    <div className="min-h-full">
+    <div className="flex min-h-full flex-col">
       {/* Floating mobile nav: hamburger left, theme toggle right */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-2 h-12" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+      <div
+        className="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-2 h-12"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <button
           type="button"
           aria-label="Open navigation menu"
           onClick={openHamburgerMenu}
           className="flex items-center justify-center w-11 h-11 rounded-xl active:bg-white/10 transition-colors touch-manipulation"
         >
-          <svg width="20" height="16" viewBox="0 0 20 16" fill="none" className="opacity-70" style={{ color: 'var(--color-ink, #111)' }}>
-            <path d="M1 1.5H19M1 8H19M1 14.5H13" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          <svg
+            width="20"
+            height="16"
+            viewBox="0 0 20 16"
+            fill="none"
+            className="opacity-70"
+            style={{ color: 'var(--color-ink, #111)' }}
+          >
+            <path
+              d="M1 1.5H19M1 8H19M1 14.5H13"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
           </svg>
         </button>
         <button
@@ -438,9 +285,15 @@ export function DashboardScreen() {
               'claude-slate': 'claude-slate-light',
               'claude-slate-light': 'claude-slate',
             }
-            const cur = document.documentElement.getAttribute('data-theme') || 'claude-official'
-            const nextDataTheme = LIGHT_DARK_PAIRS[cur] || (isDark ? 'claude-official-light' : 'claude-official')
-            import('@/lib/theme').then(({ setTheme }) => { setTheme(nextDataTheme as any) })
+            const cur =
+              document.documentElement.getAttribute('data-theme') ||
+              'claude-official'
+            const nextDataTheme =
+              LIGHT_DARK_PAIRS[cur] ||
+              (isDark ? 'claude-official-light' : 'claude-official')
+            import('@/lib/theme').then(({ setTheme }) => {
+              setTheme(nextDataTheme as any)
+            })
             const nextMode = nextDataTheme.endsWith('-light') ? 'light' : 'dark'
             applyTheme(nextMode)
             updateSettings({ theme: nextMode })
@@ -449,11 +302,15 @@ export function DashboardScreen() {
           className="flex items-center justify-center w-11 h-11 rounded-xl active:bg-white/10 transition-colors touch-manipulation"
           style={{ color: 'var(--theme-muted)' }}
         >
-          <HugeiconsIcon icon={isDark ? Sun02Icon : Moon02Icon} size={20} strokeWidth={1.5} />
+          <HugeiconsIcon
+            icon={isDark ? Sun02Icon : Moon02Icon}
+            size={20}
+            strokeWidth={1.5}
+          />
         </button>
       </div>
-      <div className="px-4 pt-14 md:pt-4 py-4 md:px-8 md:py-6 lg:px-10 space-y-5 pb-28">
-      {/* ── Header: brand lockup left, action cluster right.
+      <div className="flex min-h-full flex-1 flex-col gap-5 px-4 py-4 pt-14 pb-4 md:px-8 md:py-6 md:pt-4 lg:px-10">
+        {/* ── Header: brand lockup left, action cluster right.
            Iteration 010: dropped redundant "Dashboard" eyebrow (the
            page IS the dashboard); promoted "Hermes Switch UI" to
            the primary heading at a larger weight. Logo bumped from
@@ -463,339 +320,195 @@ export function DashboardScreen() {
            (not centered) on purpose: ops dashboards put brand left
            + actions right because that's the spatial hierarchy
            operators expect (Linear, Vercel, Datadog all do this). */}
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-3">
-          <span
-            className="relative inline-flex shrink-0 items-center justify-center rounded-xl border"
-            style={{
-              width: 44,
-              height: 44,
-              borderColor:
-                'color-mix(in srgb, var(--theme-accent) 35%, var(--theme-border))',
-              background:
-                'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 14%, var(--theme-card)), var(--theme-card))',
-              boxShadow:
-                '0 0 0 4px color-mix(in srgb, var(--theme-accent) 6%, transparent)',
-            }}
-          >
-            <img
-              src="/claude-avatar.webp"
-              alt="Hermes Switch UI logo"
-              className="size-8 rounded-md"
-              style={{ background: 'transparent' }}
-            />
-          </span>
-          {/* Iter 011: dropped the 'Operator console · vX.Y.Z'
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-center gap-3">
+            <span
+              className="relative inline-flex shrink-0 items-center justify-center rounded-xl border"
+              style={{
+                width: 44,
+                height: 44,
+                borderColor:
+                  'color-mix(in srgb, var(--theme-accent) 35%, var(--theme-border))',
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--theme-accent) 14%, var(--theme-card)), var(--theme-card))',
+                boxShadow:
+                  '0 0 0 4px color-mix(in srgb, var(--theme-accent) 6%, transparent)',
+              }}
+            >
+              <img
+                src="/claude-avatar.webp"
+                alt="Hermes Switch UI logo"
+                className="size-8 rounded-md"
+                style={{ background: 'transparent' }}
+              />
+            </span>
+            {/* Iter 011: dropped the 'Operator console · vX.Y.Z'
               eyebrow. The gateway version is already on the OpsStrip
               (♦ GATEWAY V0.12.0), so the eyebrow was duplicating it.
               Single bold lockup feels cleaner; vertical centering on
               the lockup matches the height of the action cluster on
               the right so they don't visually drift. */}
-          <div className="flex flex-col justify-center">
-            <h1
-              className="text-2xl font-bold tracking-tight"
-              style={{
-                color: 'var(--theme-text)',
-                letterSpacing: '-0.015em',
-                lineHeight: 1.1,
-              }}
-            >
-              Hermes Switch UI
-            </h1>
+            <div className="flex flex-col justify-center">
+              <h1
+                className="text-2xl font-bold tracking-tight"
+                style={{
+                  color: 'var(--theme-text)',
+                  letterSpacing: '-0.015em',
+                  lineHeight: 1.1,
+                }}
+              >
+                Hermes Switch UI
+              </h1>
+            </div>
           </div>
-        </div>
-        {/* Action row: hierarchy per Hermes Agent review.
+          {/* Action row: hierarchy per Hermes Agent review.
            New Chat is primary (full button + accent), Terminal +
            Skills are secondary, Settings collapses to icon-only. */}
-        <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:max-w-xl">
-          <button
-            type="button"
-            onClick={() =>
-              navigate({
-                to: '/chat/$sessionKey',
-                params: { sessionKey: 'new' },
-              })
-            }
-            className="group relative inline-flex items-center gap-2 overflow-hidden rounded-lg px-3.5 py-2 text-sm font-semibold uppercase tracking-[0.05em] transition-all hover:scale-[1.02] active:scale-[0.99]"
-            style={{
-              background: `linear-gradient(135deg, ${palette.accent}, ${palette.accentSecondary})`,
-              color: 'var(--theme-on-accent, white)',
-              boxShadow: `0 6px 18px -8px ${palette.accent}aa, inset 0 1px 0 0 rgba(255,255,255,0.18)`,
-            }}
-          >
-            <span
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 lg:max-w-xl">
+            <button
+              type="button"
+              onClick={() =>
+                navigate({
+                  to: '/chat/$sessionKey',
+                  params: { sessionKey: 'new' },
+                })
+              }
+              className="group relative inline-flex items-center gap-2 overflow-hidden rounded-lg px-3.5 py-2 text-sm font-semibold uppercase tracking-[0.05em] transition-all hover:scale-[1.02] active:scale-[0.99]"
               style={{
-                background:
-                  'linear-gradient(135deg, rgba(255,255,255,0.15), transparent 60%)',
+                background: `linear-gradient(135deg, ${palette.accent}, ${palette.accentSecondary})`,
+                color: 'var(--theme-on-accent, white)',
+                boxShadow: `0 6px 18px -8px ${palette.accent}aa, inset 0 1px 0 0 rgba(255,255,255,0.18)`,
               }}
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 opacity-0 transition-opacity group-hover:opacity-100"
+                style={{
+                  background:
+                    'linear-gradient(135deg, rgba(255,255,255,0.15), transparent 60%)',
+                }}
+              />
+              <HugeiconsIcon
+                icon={BubbleChatAddIcon}
+                size={16}
+                strokeWidth={1.8}
+              />
+              <span>New Chat</span>
+            </button>
+            <SecondaryAction
+              label="Terminal"
+              icon={ConsoleIcon}
+              onClick={() => navigate({ to: '/terminal' })}
             />
-            <HugeiconsIcon
-              icon={BubbleChatAddIcon}
-              size={16}
-              strokeWidth={1.8}
+            <SecondaryAction
+              label="Skills"
+              icon={PuzzleIcon}
+              onClick={() => navigate({ to: '/skills' })}
+              disabled={!skillsAvailable}
             />
-            <span>New Chat</span>
-          </button>
-          <SecondaryAction
-            label="Terminal"
-            icon={ConsoleIcon}
-            onClick={() => navigate({ to: '/terminal' })}
-          />
-          <SecondaryAction
-            label="Skills"
-            icon={PuzzleIcon}
-            onClick={() => navigate({ to: '/skills' })}
-            disabled={!skillsAvailable}
-          />
-          {/* Edit toggle: enters "layout edit mode" where each widget
+            {/* Edit toggle: enters "layout edit mode" where each widget
               shows an X button and a banner appears for re-adding
               hidden widgets. Persisted to localStorage. */}
-          <button
-            type="button"
-            aria-label={layout.editMode ? 'Done editing layout' : 'Edit layout'}
-            title={layout.editMode ? 'Done editing layout' : 'Edit layout'}
-            onClick={layout.toggleEdit}
-            className="inline-flex size-9 items-center justify-center rounded-lg border transition-all hover:scale-[1.05] hover:bg-[var(--theme-card)]/70"
-            style={{
-              borderColor: layout.editMode
-                ? 'var(--theme-accent)'
-                : 'var(--theme-border)',
-              background: layout.editMode
-                ? 'color-mix(in srgb, var(--theme-accent) 14%, transparent)'
-                : 'linear-gradient(135deg, color-mix(in srgb, var(--theme-card) 80%, transparent), transparent)',
-              color: layout.editMode
-                ? 'var(--theme-accent)'
-                : 'var(--theme-muted)',
-            }}
-          >
-            <HugeiconsIcon
-              icon={layout.editMode ? CheckmarkCircle02Icon : Edit02Icon}
-              size={15}
-              strokeWidth={1.7}
-            />
-          </button>
-          <button
-            type="button"
-            aria-label="Settings"
-            title="Settings"
-            onClick={() => navigate({ to: '/settings', search: {} })}
-            className="inline-flex size-9 items-center justify-center rounded-lg border transition-all hover:scale-[1.05] hover:bg-[var(--theme-card)]/70 hover:text-[var(--theme-text)]"
-            style={{
-              borderColor: 'var(--theme-border)',
-              color: 'var(--theme-muted)',
-              background:
-                'linear-gradient(135deg, color-mix(in srgb, var(--theme-card) 80%, transparent), transparent)',
-            }}
-          >
-            <HugeiconsIcon
-              icon={Settings02Icon}
-              size={15}
-              strokeWidth={1.7}
-            />
-          </button>
+            <button
+              type="button"
+              aria-label={
+                layout.editMode ? 'Done editing layout' : 'Edit layout'
+              }
+              title={layout.editMode ? 'Done editing layout' : 'Edit layout'}
+              onClick={layout.toggleEdit}
+              className="inline-flex size-9 items-center justify-center rounded-lg border transition-all hover:scale-[1.05] hover:bg-[var(--theme-card)]/70"
+              style={{
+                borderColor: layout.editMode
+                  ? 'var(--theme-accent)'
+                  : 'var(--theme-border)',
+                background: layout.editMode
+                  ? 'color-mix(in srgb, var(--theme-accent) 14%, transparent)'
+                  : 'linear-gradient(135deg, color-mix(in srgb, var(--theme-card) 80%, transparent), transparent)',
+                color: layout.editMode
+                  ? 'var(--theme-accent)'
+                  : 'var(--theme-muted)',
+              }}
+            >
+              <HugeiconsIcon
+                icon={layout.editMode ? CheckmarkCircle02Icon : Edit02Icon}
+                size={15}
+                strokeWidth={1.7}
+              />
+            </button>
+            <button
+              type="button"
+              aria-label="Settings"
+              title="Settings"
+              onClick={() => navigate({ to: '/settings', search: {} })}
+              className="inline-flex size-9 items-center justify-center rounded-lg border transition-all hover:scale-[1.05] hover:bg-[var(--theme-card)]/70 hover:text-[var(--theme-text)]"
+              style={{
+                borderColor: 'var(--theme-border)',
+                color: 'var(--theme-muted)',
+                background:
+                  'linear-gradient(135deg, color-mix(in srgb, var(--theme-card) 80%, transparent), transparent)',
+              }}
+            >
+              <HugeiconsIcon
+                icon={Settings02Icon}
+                size={15}
+                strokeWidth={1.7}
+              />
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* ── Setup checklist card: only renders once the client-only read
-           settles and finds outstanding, non-dismissed items — see
-           `shouldShowSetupChecklistCard`. Sits above the attention marquee
-           since it's an operator-facing, one-time-ish call to action rather
-           than an ongoing incident feed. ── */}
-      <SetupChecklistCard />
+        <SetupChecklistCard />
 
-      {/* ── Attention marquee ──
-           Iteration 008: lifted *out* of the OpsStrip into its own
-           dedicated row above it. Fixed Eric's 'feels cluttered'
-           concern by giving the ticker its own visual chamber
-           (warning gradient, separated border) so it doesn't blend
-           into the gateway/version/cron line below it. */}
-      {(
-        Array.isArray(
-          (
-            overview as
-              | { incidents?: Array<unknown> }
-              | null
-              | undefined
-          )?.incidents,
-        )
-          ? (
-              overview as
-                | { incidents?: Array<unknown> }
-                | null
-                | undefined
-            )?.incidents?.length
-          : 0
-      ) > 0 ? (
-        <AttentionMarquee overview={overview ?? null} />
-      ) : null}
-
-      {/* ── Ops strip (gateway + version drift + platforms + cron pulse). ── */}
-      <OpsStrip
-        status={overview?.status ?? null}
-        cron={overview?.cron ?? null}
-        platforms={overview?.platforms ?? []}
-      />
-
-      {/* ── Hero Metrics: 3 analytics tiles + Active Model KPI in slot 4 ── */}
-      <HeroMetrics
-        analytics={overview?.analytics ?? null}
-        fallback={{
-          sessions: stats.totalSessions,
-          messages: stats.totalMessages,
-          toolCalls: stats.totalToolCalls,
-          tokens: stats.totalTokens,
-        }}
-        extraTile={
-          <ActiveModelKpi
-            modelInfo={overview?.modelInfo ?? null}
-            analytics={overview?.analytics ?? null}
+        {/* ── Social dashboard: left (you + agents) / centre (act now) /
+           right (leaderboard + badges). 3 cols > 1180px, right column
+           drops under at <= 1180px, everything stacks at <= 760px. ── */}
+        <div className="grid grid-cols-1 gap-4 min-[761px]:grid-cols-[262px_minmax(0,1fr)] min-[1181px]:grid-cols-[262px_minmax(0,1fr)_292px]">
+          <LeftColumn
+            data={social}
+            onOpenAgent={setAgentId}
+            onOpenBadges={() => setBadgesOpen(true)}
           />
-        }
+          <CenterColumn
+            data={social}
+            onChanged={() => {
+              void socialQuery.refetch()
+              void overviewQuery.refetch()
+            }}
+          />
+          {/* RightColumn renders its own agent + badge dialogs, so its
+            open callbacks are notifications only. */}
+          <RightColumn
+            data={social}
+            onOpenAgent={() => undefined}
+            onOpenBadges={() => undefined}
+            className="min-[761px]:col-span-2 min-[1181px]:col-span-1"
+          />
+        </div>
+
+        {/* ── Ops & analytics, pinned to the bottom of the content. ── */}
+        <OpsSection
+          className="mt-auto"
+          overview={overview}
+          period={period}
+          onPeriodChange={setPeriod}
+          installedCount={skillsInstalled}
+          hourHistogram={hourHistogram}
+        />
+      </div>
+
+      <StatusDock overview={overview} period={period} />
+
+      <AgentDialog
+        agent={openAgent}
+        rank={openAgentRank > 0 ? openAgentRank : null}
+        open={agentId !== null}
+        onClose={() => setAgentId(null)}
       />
-
-      {/* ── Edit-mode banner (only renders when toggled). ── */}
-      <EditModePanel layout={layout} />
-
-      {/* ── Analytics chart (left) + Top models / Provider mix / Cache
-           efficiency stacked on the right. The right-side stack now
-           occupies the full vertical of the chart so we don't get the
-           floating-card empty-space Eric flagged in iter 008. ── */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        {layout.isVisible('analytics_chart') ? (
-          <div className="lg:col-span-8">
-            <WidgetShell id="analytics_chart" layout={layout}>
-              <AnalyticsChartCard
-                analytics={overview?.analytics ?? null}
-                insights={overview?.insights ?? []}
-                period={period}
-                onPeriodChange={setPeriod}
-                loading={overviewQuery.isFetching}
-              />
-            </WidgetShell>
-          </div>
-        ) : null}
-        {layout.isVisible('top_models') ||
-        layout.isVisible('provider_mix') ||
-        layout.isVisible('cache_efficiency') ||
-        layout.isVisible('velocity') ||
-        layout.isVisible('cost_ledger') ? (
-          <div
-            className={
-              layout.isVisible('analytics_chart')
-                ? 'flex flex-col gap-3 lg:col-span-4'
-                : 'flex flex-col gap-3 lg:col-span-12'
-            }
-          >
-            {layout.isVisible('top_models') ? (
-              <WidgetShell id="top_models" layout={layout}>
-                <TopModelsCard analytics={overview?.analytics ?? null} />
-              </WidgetShell>
-            ) : null}
-            {layout.isVisible('cache_efficiency') ? (
-              <WidgetShell id="cache_efficiency" layout={layout}>
-                <CacheEfficiencyCard
-                  analytics={overview?.analytics ?? null}
-                />
-              </WidgetShell>
-            ) : null}
-            {layout.isVisible('provider_mix') ? (
-              <WidgetShell id="provider_mix" layout={layout}>
-                <ProviderMixCard analytics={overview?.analytics ?? null} />
-              </WidgetShell>
-            ) : null}
-            {layout.isVisible('velocity') ? (
-              <WidgetShell id="velocity" layout={layout}>
-                <VelocityCard analytics={overview?.analytics ?? null} />
-              </WidgetShell>
-            ) : null}
-            {layout.isVisible('cost_ledger') ? (
-              <WidgetShell id="cost_ledger" layout={layout}>
-                <CostLedgerCard
-                  analytics={overview?.analytics ?? null}
-                />
-              </WidgetShell>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
-
-      {/* ── Primary content: Sessions Intelligence (replaces 14d Activity) + side rail ──
-           Iteration 006 layout per Eric:
-           - Attention now rides the OpsStrip marquee, not the rail.
-           - Achievements moved up to sit beside Top Models would push the chart out
-             of place; instead it now lives at the *top* of the side rail since the
-             rail itself is right of the chart, which produces the same visual order.
-           - Logs default off; still toggleable from edit mode for power users. */}
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-12">
-        {/* Iter 013 main column order: Operator Tip first (compact),
-            then Sessions Intelligence (the bottom anchor that grows
-            to fill the column to match the side rail height), then
-            optional Logs Tail at the bottom for power users in edit
-            mode. The column itself is `min-h-full flex` so the
-            child Sessions card's `flex-1` actually expands. */}
-        <div className="flex min-h-full flex-col gap-3 lg:col-span-8">
-          {layout.isVisible('operator_tip') ? (
-            <WidgetShell id="operator_tip" layout={layout}>
-              <OperatorTipCard overview={overview ?? null} />
-            </WidgetShell>
-          ) : null}
-          {layout.isVisible('sessions_intelligence') ? (
-            <div className="flex min-h-0 flex-1 flex-col">
-              <WidgetShell id="sessions_intelligence" layout={layout}>
-                {sessionsAvailable ? (
-                  <SessionsIntelligenceCard sessions={sessionRows} />
-                ) : (
-                  <UnavailableWidget
-                    title="Recent Sessions"
-                    description={getUnavailableReason('sessions')}
-                  />
-                )}
-              </WidgetShell>
-            </div>
-          ) : null}
-          {layout.isVisible('logs_tail') ? (
-            <WidgetShell id="logs_tail" layout={layout}>
-              <LogsTailCard logs={overview?.logs ?? null} />
-            </WidgetShell>
-          ) : null}
-        </div>
-        {/* Side rail. Achievements is now first (sits beside Top Models
-            visually since the rail is right of the chart row + sessions),
-            then Skills, then the rhythm card. Mix & rhythm is the unique
-            chart in this column — keeping it.
-            `min-h-full` + the trailing `flex-1` rhythm card together
-            stretch the rail to match Sessions Intelligence height so
-            we don't get the dangling gap Eric flagged in iter 007. */}
-        <div className="flex min-h-full flex-col gap-3 lg:col-span-4">
-          <WidgetShell id="achievements" layout={layout}>
-            <AchievementsCard
-              achievements={overview?.achievements ?? null}
-            />
-          </WidgetShell>
-          <WidgetShell id="skills_usage" layout={layout}>
-            <SkillsUsageCard
-              usage={overview?.skillsUsage ?? null}
-              installedCount={skillsInstalled}
-              onOpen={() => navigate({ to: '/skills' })}
-            />
-          </WidgetShell>
-          {/* `flex-1` here pushes the rhythm card to consume any
-              remaining vertical space so the rail's bottom aligns
-              with Sessions Intelligence. The card itself uses
-              h-full + flex-1 to honor the stretch. */}
-          <div className="flex min-h-0 flex-1 flex-col">
-            <WidgetShell id="mix_rhythm" layout={layout}>
-              <TokenMixHourCard
-                analytics={overview?.analytics ?? null}
-                sessions={sessionRows}
-              />
-            </WidgetShell>
-          </div>
-        </div>
-      </div>
-      </div>
+      <BadgeDialog
+        badges={social.badges}
+        open={badgesOpen}
+        onClose={() => setBadgesOpen(false)}
+      />
     </div>
   )
 }
