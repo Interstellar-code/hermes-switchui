@@ -625,7 +625,7 @@ describe('buildDashboardSocial', () => {
 
     expect(data.counts).toMatchObject({
       chats: 150,
-      workflows: 106, // definitions run_count, all-time
+      workflows: 2, // definitions count (known workflows), QA follow-up #5
       cron: 4, // 3 (hermes-switch, incl. the timestamp-less job) + 1 (neo)
       tasks: 4,
       memory: 131, // 100 + 31 across the two profile banks
@@ -737,7 +737,7 @@ describe('buildDashboardSocial', () => {
     expect(data.counts?.memory).toBe(131)
   })
 
-  it('nulls the sessions slice when sessions time out (4 s deadline, fake timers)', async () => {
+  it('nulls the sessions slice when sessions time out (8 s deadline, fake timers)', async () => {
     vi.useFakeTimers()
     try {
       const { fetcher } = makeFetcher({
@@ -748,12 +748,42 @@ describe('buildDashboardSocial', () => {
         profile: null,
         now: NOW,
       })
-      await vi.advanceTimersByTimeAsync(4_000)
+      await vi.advanceTimersByTimeAsync(8_000)
       const data = await pending
       expect(data.operator).toBeNull()
       expect(data.hotTopics).toBeNull()
       expect(data.badges).not.toBeNull() // badges survive on other counters
       expect(data.counts).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('fills the slice when an upstream answers between 4 s and 8 s (fake timers)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { fetcher } = makeFetcher()
+      // The old 4 s deadline cut cold-server upstreams (5–7 s) off;
+      // the QA follow-up raises the deadline to 8 s, so a 5 s answer
+      // must still fill its slice.
+      const slow: DashboardFetcher = (path) =>
+        path.startsWith('/api/profiles/sessions')
+          ? new Promise<Response>((resolve) => {
+              setTimeout(() => {
+                fetcher(path).then(resolve)
+              }, 5_000)
+            })
+          : fetcher(path)
+      const pending = buildDashboardSocial({
+        fetcher: slow,
+        profile: null,
+        now: NOW,
+      })
+      await vi.advanceTimersByTimeAsync(5_000)
+      const data = await pending
+      expect(data.operator).not.toBeNull()
+      expect(data.hotTopics).not.toBeNull()
+      expect(data.counts?.chats).toBe(150)
     } finally {
       vi.useRealTimers()
     }
@@ -877,6 +907,181 @@ describe('buildDashboardSocial', () => {
     expect(data.counts?.tasks).toBe(0)
     const ghost = data.agents?.find((a) => a.id === 'ghost')
     expect(ghost?.sessions).toBe(0)
+  })
+
+  it('merges a cron run and the chat session it created into one recent row (QA #2)', async () => {
+    const { fetcher } = makeFetcher()
+    // The cron run at NOW-32min and the session it spawned (title embeds
+    // the job name, last_active 2 min later) — the exact live QA shape.
+    const cronJob = {
+      id: 'cron_email',
+      name: 'Email Check Combined (Gmail + Interstellar)',
+      last_status: 'ok',
+      last_run_at: ISO(new Date(NOW.getTime() - 32 * 60_000)),
+    }
+    const sessionRow = {
+      id: 's_cron',
+      profile: 'hermes-switch',
+      title: 'Email Check Combined (Gmail + Interstellar) · Oct 09 09:03',
+      started_at: SEC(new Date(NOW.getTime() - 32 * 60_000)),
+      last_active: SEC(new Date(NOW.getTime() - 30 * 60_000)),
+      message_count: 4,
+      input_tokens: 100,
+      output_tokens: 50,
+    }
+    const wrapped: DashboardFetcher = (path) => {
+      if (path.startsWith('/api/profiles/sessions')) {
+        return Promise.resolve(
+          jsonResponse({
+            ...sessionsFixture,
+            sessions: [sessionRow, ...sessionsFixture.sessions.slice(0, 9)],
+          }),
+        )
+      }
+      if (path.startsWith('/api/cron/jobs')) {
+        const profileParam = new URL(path, 'http://x.local').searchParams.get(
+          'profile',
+        )
+        // The job belongs to hermes-switch only — one row per profile.
+        const jobs =
+          profileParam === 'hermes-switch'
+            ? [cronJob, ...cronJobsByProfile['hermes-switch']]
+            : profileParam
+              ? (cronJobsByProfile[profileParam] ?? [])
+              : [cronJob]
+        return Promise.resolve(jsonResponse({ jobs }))
+      }
+      return fetcher(path)
+    }
+    const data = await buildDashboardSocial({
+      fetcher: wrapped,
+      profile: null,
+      now: NOW,
+    })
+    // One row for the pair: the cron row survives, the session row is
+    // dropped, and the cut to 5 happens after the dedupe.
+    const pairRows = (data.recent ?? []).filter((r) =>
+      r.title.includes('Email Check Combined'),
+    )
+    expect(pairRows).toHaveLength(1)
+    expect(pairRows[0]).toMatchObject({ kind: 'cron', who: 'cron' })
+    expect(data.recent?.length).toBeLessThanOrEqual(5)
+  })
+
+  it('excludes workflow-run rows from recent when a profile is set (QA #3)', async () => {
+    const { fetcher } = makeFetcher()
+    const data = await buildDashboardSocial({
+      fetcher,
+      profile: 'neo',
+      now: NOW,
+    })
+    // Workflow engine has no per-profile data — the fleet's run rows
+    // must not pose as neo's activity.
+    expect(data.recent?.every((r) => r.kind !== 'workflow')).toBe(true)
+    // Sanity: the fleet view still shows them.
+    const fleet = await buildDashboardSocial({
+      fetcher,
+      profile: null,
+      now: NOW,
+    })
+    expect(fleet.recent?.some((r) => r.kind === 'workflow')).toBe(true)
+  })
+
+  it('drops stop-words, short words, numbers and hex/uuid-like ids from hot topics (QA #4)', async () => {
+    const { fetcher } = makeFetcher()
+    const wrapped: DashboardFetcher = (path) => {
+      if (path.startsWith('/api/profiles/sessions')) {
+        const rows = [
+          {
+            id: 't1',
+            profile: 'hermes-switch',
+            title: 'only run work sweep the memory layer',
+            started_at: SEC(NOW),
+            last_active: SEC(NOW),
+            message_count: 1,
+          },
+          {
+            id: 't2',
+            profile: 'hermes-switch',
+            title: 'f00d15ee and 3f2a9c1b7d ids with mnemosyne 42',
+            started_at: SEC(NOW),
+            last_active: SEC(NOW),
+            message_count: 1,
+          },
+        ]
+        return Promise.resolve(
+          jsonResponse({
+            sessions: rows,
+            total: 2,
+            profile_totals: { 'hermes-switch': 2 },
+          }),
+        )
+      }
+      return fetcher(path)
+    }
+    const data = await buildDashboardSocial({
+      fetcher: wrapped,
+      profile: null,
+      now: NOW,
+    })
+    const labels = (data.hotTopics ?? []).map((t) => t.label)
+    expect(labels).toContain('mnemosyne')
+    expect(labels).toContain('sweep')
+    expect(labels).toContain('memory')
+    expect(labels).toContain('layer')
+    for (const dropped of [
+      'only',
+      'run',
+      'work',
+      'f00d15ee',
+      '3f2a9c1b7d',
+      '42',
+      'and',
+      'the',
+      'with',
+      'ids',
+    ]) {
+      expect(labels).not.toContain(dropped)
+    }
+  })
+
+  it('counts workflows from the definitions list; profile view stays 0 (QA #5)', async () => {
+    const { fetcher } = makeFetcher()
+    const data = await buildDashboardSocial({
+      fetcher,
+      profile: null,
+      now: NOW,
+    })
+    // Known workflows = definitions count from
+    // /api/plugins/workflow-engine/definitions — run_count is absent
+    // on live legacy rows, so the old sum read 0.
+    expect(data.counts?.workflows).toBe(definitionsFixture.definitions.length)
+    const scoped = await buildDashboardSocial({
+      fetcher,
+      profile: 'neo',
+      now: NOW,
+    })
+    expect(scoped.counts?.workflows).toBe(0)
+  })
+
+  it('does not let workflow sources alone keep counts alive for a set profile (A-R3 LOW #3)', async () => {
+    const { fetcher } = makeFetcher({
+      fail: {
+        '/api/profiles/sessions': 'throw',
+        '/api/cron/jobs': 'throw',
+        '/api/plugins/karpathy-self-improve/experiments': 'throw',
+        '/api/memory/activity': 'throw',
+        '/api/plugins/kanban/board': 'throw',
+      },
+    })
+    const data = await buildDashboardSocial({
+      fetcher,
+      profile: 'neo',
+      now: NOW,
+    })
+    // Runs and definitions answered, but they are fleet-wide sources
+    // the profile view excludes — counts must null, not show zeros.
+    expect(data.counts).toBeNull()
   })
 })
 
