@@ -60,18 +60,113 @@ describe('CenterColumn', () => {
     expect(screen.getByText('ADD TASK').getAttribute('href')).toBe('/tasks')
   })
 
-  it('shows at most 5 recent rows, each a link', () => {
-    const base = data.recent![0]
-    const recent = Array.from({ length: 7 }, (_, i) => ({
-      ...base,
+  const recentRows = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      ...data.recent![0],
       title: `row ${i}`,
       href: `/chat/${i}`,
     }))
-    render(<CenterColumn data={{ ...data, recent }} />)
-    const list = screen.getByRole('region', { name: /RECENT ACTIVITY/ })
-    const links = within(list).getAllByRole('link')
+  const recentRegion = () =>
+    screen.getByRole('region', { name: /RECENT ACTIVITY/ })
+
+  it('without ResizeObserver shows 5 recent rows (each a link) and a +N more line', () => {
+    render(<CenterColumn data={{ ...data, recent: recentRows(7) }} />)
+    const links = within(recentRegion()).getAllByRole('link')
     expect(links).toHaveLength(5)
     expect(links[0].getAttribute('href')).toBe('/chat/0')
+    expect(
+      within(recentRegion()).getByText('+2 more · see all in Feed'),
+    ).toBeTruthy()
+  })
+
+  it('maxRows pins the rendered recent rows and the +N more line', () => {
+    render(
+      <CenterColumn
+        data={{ ...data, recent: recentRows(10) }}
+        recentMaxRows={7}
+      />,
+    )
+    expect(within(recentRegion()).getAllByRole('link')).toHaveLength(7)
+    expect(
+      within(recentRegion()).getByText('+3 more · see all in Feed'),
+    ).toBeTruthy()
+  })
+
+  it('shows no +N more line when every row fits', () => {
+    render(
+      <CenterColumn
+        data={{ ...data, recent: recentRows(4) }}
+        recentMaxRows={9}
+      />,
+    )
+    expect(within(recentRegion()).getAllByRole('link')).toHaveLength(4)
+    expect(within(recentRegion()).queryByText(/more · see all/)).toBeNull()
+  })
+
+  it('measures the card: shows the rows that fit whole, minimum 3', () => {
+    // 30px rows stacked in a 140px box; one 20px line is kept for "+N more".
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        constructor(private cb: () => void) {}
+        observe() {
+          this.cb()
+        }
+        disconnect() {}
+      },
+    )
+    const px = (get: (el: HTMLElement) => number) => ({
+      configurable: true,
+      get(this: HTMLElement) {
+        return get(this)
+      },
+    })
+    const proto = HTMLElement.prototype
+    const saved = ['clientHeight', 'offsetHeight', 'offsetTop'].map(
+      (k) => [k, Object.getOwnPropertyDescriptor(proto, k)] as const,
+    )
+    let box = 140
+    Object.defineProperty(
+      proto,
+      'clientHeight',
+      px(() => box),
+    )
+    Object.defineProperty(
+      proto,
+      'offsetHeight',
+      px(() => 30),
+    )
+    Object.defineProperty(
+      proto,
+      'offsetTop',
+      px((el) => Array.from(el.parentElement?.children ?? []).indexOf(el) * 30),
+    )
+    try {
+      const { rerender } = render(
+        <CenterColumn data={{ ...data, recent: recentRows(8) }} />,
+      )
+      expect(within(recentRegion()).getAllByRole('link')).toHaveLength(4)
+      expect(
+        within(recentRegion()).getByText('+4 more · see all in Feed'),
+      ).toBeTruthy()
+      // Tiny box: never fewer than 3 whole rows.
+      box = 40
+      rerender(<CenterColumn data={{ ...data, recent: recentRows(9) }} />)
+      expect(within(recentRegion()).getAllByRole('link')).toHaveLength(3)
+    } finally {
+      for (const [k, d] of saved) {
+        if (d) Object.defineProperty(proto, k, d)
+        else delete (proto as unknown as Record<string, unknown>)[k]
+      }
+    }
+  })
+
+  it('the Recent card grows to fill its column', () => {
+    render(<CenterColumn data={data} />)
+    expect(recentRegion().className).toContain('flex-1')
+    expect(screen.getByRole('main', { name: 'Act now' }).className).toContain(
+      'self-stretch',
+    )
   })
 
   it('shows empty and unavailable states', () => {

@@ -346,3 +346,64 @@ describe('null slices', () => {
     expect(screen.getAllByText('Unavailable')).toHaveLength(2)
   })
 })
+
+describe('RightColumn auto-fit', () => {
+  const LOCKED = (i: number): DashboardBadge => ({
+    ...LOCKED_BADGE,
+    id: `b${i}`,
+    name: `Badge ${i}`,
+    have: i,
+  })
+  const badgeData = (n: number) => ({
+    ...slice(mockDashboardSocial),
+    badges: Array.from({ length: n }, (_, i) => LOCKED(i + 1)),
+  })
+
+  it('without ResizeObserver lists 3 in-progress badges', () => {
+    renderColumn(badgeData(8))
+    expect(screen.getAllByLabelText(/ progress$/)).toHaveLength(3)
+  })
+
+  it('badgeMaxRows pins the list, capped at 6 in-progress badges', () => {
+    const { rerender } = render(
+      <RightColumn data={badgeData(8)} badgeMaxRows={5} />,
+    )
+    expect(screen.getAllByLabelText(/ progress$/)).toHaveLength(5)
+    rerender(<RightColumn data={badgeData(8)} badgeMaxRows={20} />)
+    expect(screen.getAllByLabelText(/ progress$/)).toHaveLength(6)
+    // Highest progress first.
+    expect(
+      screen.getAllByLabelText(/ progress$/)[0].getAttribute('aria-label'),
+    ).toBe('Badge 8 progress')
+  })
+
+  it('stretches, grows the BADGES card and wraps its cards at medium widths', () => {
+    renderColumn(slice(mockDashboardSocial))
+    const aside = screen.getByRole('complementary', {
+      name: 'Leaderboard, streak and badges',
+    })
+    expect(aside.className).toContain('self-stretch')
+    expect(aside.className).toContain('min-[761px]:max-[1180px]:flex-row')
+    expect(aside.className).toContain('min-[761px]:max-[1180px]:flex-wrap')
+    const cards = Array.from(aside.querySelectorAll('section'))
+    expect(cards).toHaveLength(3)
+    for (const card of cards) {
+      expect(card.className).toContain(
+        'min-[761px]:max-[1180px]:flex-[1_1_300px]',
+      )
+    }
+    expect(cards[2].className).toContain('flex-1')
+    expect(cards[0].className.split(' ')).not.toContain('flex-1')
+  })
+
+  it('podium blocks are ~20% shorter (100 / 78 / 62)', () => {
+    renderColumn(slice(mockDashboardSocial))
+    const height = (rank: number) =>
+      (
+        screen
+          .getByRole('button', { name: new RegExp(`, rank ${rank},`) })
+          .querySelector('span.rounded-t-\\[5px\\]') as HTMLElement
+      ).style.height
+    expect([height(1), height(2), height(3)]).toEqual(['100px', '78px', '62px'])
+  })
+})

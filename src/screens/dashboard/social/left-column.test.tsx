@@ -136,3 +136,17 @@ describe('LeftColumn — empty and partial data', () => {
     ).toBeNull()
   })
 })
+
+describe('LeftColumn — fill', () => {
+  it('stretches the column and lets HOT THIS WEEK grow to the bottom', () => {
+    render(<LeftColumn data={data()} onOpenAgent={noop} onOpenBadges={noop} />)
+    const hot = screen.getByRole('region', { name: 'HOT THIS WEEK' })
+    expect(hot.className).toContain('flex-1')
+    expect(
+      screen.getByRole('complementary', { name: 'You and your agents' })
+        .className,
+    ).toContain('self-stretch')
+    const agents = screen.getByRole('region', { name: /MY AGENTS/ })
+    expect(agents.className).not.toContain('flex-1')
+  })
+})

@@ -524,9 +524,10 @@ export function DashboardScreen() {
         <SetupChecklistCard />
 
         {/* ── Social dashboard: left (you + agents) / centre (act now) /
-           right (leaderboard + badges). 3 cols > 1180px, right column
-           drops under at <= 1180px, everything stacks at <= 760px. ── */}
-        <div className="grid grid-cols-1 gap-4 min-[761px]:grid-cols-[262px_minmax(0,1fr)] min-[1181px]:grid-cols-[262px_minmax(0,1fr)_292px]">
+           right (leaderboard + badges). 3 equal-height cols > 1180px; at
+           <= 1180px the right column drops under as a wrapping row of its
+           cards; everything stacks at <= 760px. ── */}
+        <div className="grid grid-cols-1 items-stretch gap-4 min-[761px]:grid-cols-[262px_minmax(0,1fr)] min-[1181px]:grid-cols-[262px_minmax(0,1fr)_292px]">
           {socialLoading ? (
             <>
               <ColumnSkeleton

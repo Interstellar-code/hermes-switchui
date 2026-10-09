@@ -241,7 +241,7 @@ function HotTopicsPanel({
   hotTopics: DashboardSocial['hotTopics']
 }) {
   return (
-    <Panel as="section" aria-labelledby="lc-topics-h">
+    <Panel as="section" aria-labelledby="lc-topics-h" className="flex-1">
       <SectionHeading id="lc-topics-h" icon={<FlameIcon />}>
         HOT THIS WEEK
       </SectionHeading>
@@ -286,7 +286,7 @@ export function LeftColumn({
   return (
     <aside
       aria-label="You and your agents"
-      className={cx('flex min-w-0 flex-col gap-[14px]', className)}
+      className={cx('flex min-w-0 flex-col gap-[14px] self-stretch', className)}
     >
       <ProfileCard
         operator={data.operator}

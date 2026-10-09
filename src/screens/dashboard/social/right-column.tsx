@@ -8,6 +8,7 @@ import {
 } from './primitives'
 import { AgentDialog } from './agent-dialog'
 import { BadgeDialog, badgeProgress, badgeStatus } from './badge-dialog'
+import { useFitRows } from './center-column'
 import type { CSSProperties, ReactNode } from 'react'
 import type {
   DashboardAgent,
@@ -22,6 +23,8 @@ export interface RightColumnProps {
   onOpenAgent?: (id: string) => void
   /** Notified whenever the ALL button opens the badge grid. */
   onOpenBadges?: () => void
+  /** Pins how many in-progress badges render; the screen leaves it unset (measured). */
+  badgeMaxRows?: number
   className?: string
 }
 
@@ -61,9 +64,15 @@ const METRICS: Array<Metric> = [
   },
 ]
 
+/** Most in-progress badges the card ever lists. */
+const MAX_NEXT_BADGES = 6
+
+/** 761–1180px: the three cards share a wrapping row instead of a stack. */
+const MEDIUM_CARD = 'min-[761px]:max-[1180px]:flex-[1_1_300px]'
+
 /** Podium geometry: rank 2 left, rank 1 tall in the middle, rank 3 right. */
 const PODIUM_ORDER = [2, 1, 3]
-const PODIUM_HEIGHT: Record<number, number> = { 1: 126, 2: 96, 3: 76 }
+const PODIUM_HEIGHT: Record<number, number> = { 1: 100, 2: 78, 3: 62 }
 const PODIUM_RING: Record<number, string> = {
   1: 'var(--dash-podium-1)',
   2: 'var(--dash-podium-2)',
@@ -228,7 +237,7 @@ function LeaderboardPanel({
     ranked.length > 0 && ranked.every((agent) => metric.value(agent) === 0)
 
   return (
-    <Panel as="section" aria-labelledby={headingId}>
+    <Panel as="section" aria-labelledby={headingId} className={MEDIUM_CARD}>
       <SectionHeading
         id={headingId}
         icon={
@@ -433,7 +442,7 @@ function StreakPanel({
   headingId: string
 }) {
   return (
-    <Panel as="section" aria-labelledby={headingId}>
+    <Panel as="section" aria-labelledby={headingId} className={MEDIUM_CARD}>
       <SectionHeading
         id={headingId}
         icon={
@@ -486,20 +495,32 @@ function BadgesPanel({
   badges,
   headingId,
   onOpenBadges,
+  maxRows,
 }: {
   badges: Array<DashboardBadge> | null
   headingId: string
   onOpenBadges: () => void
+  maxRows?: number
 }) {
   const nextBadges = badges
     ? [...badges]
         .filter((badge) => badgeStatus(badge) !== 'earned')
         .sort((a, b) => badgeProgress(b) - badgeProgress(a))
-        .slice(0, 3)
+        .slice(0, MAX_NEXT_BADGES)
     : []
+  const { ref, measured, count, minHeight } = useFitRows(nextBadges.length, {
+    min: 3,
+    fallback: 3,
+    override: maxRows,
+  })
+  const shown = measured ? nextBadges : nextBadges.slice(0, count)
 
   return (
-    <Panel as="section" aria-labelledby={headingId}>
+    <Panel
+      as="section"
+      aria-labelledby={headingId}
+      className={`flex flex-1 flex-col ${MEDIUM_CARD}`}
+    >
       <SectionHeading
         id={headingId}
         action={
@@ -525,34 +546,46 @@ function BadgesPanel({
 
       {badges ? (
         nextBadges.length > 0 ? (
-          <div className="mt-2.5 flex flex-col gap-[9px]">
-            {nextBadges.map((badge, index) => (
-              <div key={badge.id}>
-                <div className="flex items-center">
-                  <span>{badge.name}</span>
-                  <span className="grow" />
-                  <span
+          <div
+            ref={ref}
+            className="relative mt-2.5 flex-1"
+            style={{ minHeight }}
+          >
+            <div
+              className={`flex flex-col gap-[9px]${measured ? ' absolute inset-0 overflow-hidden' : ''}`}
+            >
+              {shown.map((badge, index) => (
+                <div
+                  key={badge.id}
+                  data-fit-row=""
+                  style={index >= count ? { visibility: 'hidden' } : undefined}
+                >
+                  <div className="flex items-center">
+                    <span>{badge.name}</span>
+                    <span className="grow" />
+                    <span
+                      className="text-[10px]"
+                      style={{ color: 'var(--theme-muted)' }}
+                    >
+                      {`${compact(badge.have)} / ${compact(badge.need)}`}
+                    </span>
+                  </div>
+                  <div
                     className="text-[10px]"
                     style={{ color: 'var(--theme-muted)' }}
                   >
-                    {`${compact(badge.have)} / ${compact(badge.need)}`}
-                  </span>
+                    {badge.how}
+                  </div>
+                  <ProgressBar
+                    className="mt-1"
+                    value={badgeProgress(badge)}
+                    label={`${badge.name} progress`}
+                    height={4}
+                    color={agentColor(index)}
+                  />
                 </div>
-                <div
-                  className="text-[10px]"
-                  style={{ color: 'var(--theme-muted)' }}
-                >
-                  {badge.how}
-                </div>
-                <ProgressBar
-                  className="mt-1"
-                  value={badgeProgress(badge)}
-                  label={`${badge.name} progress`}
-                  height={4}
-                  color={agentColor(index)}
-                />
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         ) : (
           <p
@@ -577,6 +610,7 @@ export function RightColumn({
   data,
   onOpenAgent,
   onOpenBadges,
+  badgeMaxRows,
   className,
 }: RightColumnProps) {
   const [metricId, setMetricId] = useState<MetricId>('tokens')
@@ -614,7 +648,7 @@ export function RightColumn({
   return (
     <aside
       aria-label="Leaderboard, streak and badges"
-      className={`flex min-w-0 flex-col gap-[14px]${className ? ` ${className}` : ''}`}
+      className={`flex min-w-0 flex-col gap-[14px] self-stretch min-[761px]:max-[1180px]:flex-row min-[761px]:max-[1180px]:flex-wrap${className ? ` ${className}` : ''}`}
     >
       <LeaderboardPanel
         agents={agents}
@@ -629,6 +663,7 @@ export function RightColumn({
         badges={badges}
         headingId={badgesId}
         onOpenBadges={openBadges}
+        maxRows={badgeMaxRows}
       />
 
       <AgentDialog
