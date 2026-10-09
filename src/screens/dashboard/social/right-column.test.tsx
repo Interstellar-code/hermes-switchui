@@ -9,7 +9,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockDashboardSocial, mockDashboardSocialEmpty } from './mock'
 import { BadgeDialog } from './badge-dialog'
-import { RightColumn } from './right-column'
+import { RightColumn, agentRank } from './right-column'
 import type {
   DashboardAgent,
   DashboardBadge,
@@ -145,6 +145,54 @@ describe('RightColumn leaderboard', () => {
     expect(
       within(screen.getByRole('dialog')).getByText('agent profile · idle'),
     ).toBeTruthy()
+  })
+})
+
+describe('RightColumn zero leaderboard', () => {
+  const zeroRuns = (agents: Array<DashboardAgent>) => ({
+    agents,
+    operator: null,
+    badges: null,
+  })
+
+  it('shows an empty state instead of a #1 when every value is 0', () => {
+    renderColumn(
+      zeroRuns([
+        agent({ id: 'a', runsWeek: 0 }),
+        agent({ id: 'b', runsWeek: 0 }),
+      ]),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'RUNS' }))
+    expect(screen.getByText('No runs this week yet')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /rank 1/ })).toBeNull()
+  })
+
+  it('keeps the podium when only some values are 0', () => {
+    renderColumn(
+      zeroRuns([
+        agent({ id: 'a', runsWeek: 3 }),
+        agent({ id: 'b', runsWeek: 0 }),
+      ]),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'RUNS' }))
+    expect(screen.queryByText(/this week yet/)).toBeNull()
+    expect(screen.getByRole('button', { name: /^a, rank 1/ })).toBeTruthy()
+  })
+})
+
+describe('agent dialog rank', () => {
+  it('uses the current leaderboard metric in the right column', () => {
+    renderColumn(slice(mockDashboardSocial))
+    fireEvent.click(screen.getByRole('button', { name: 'TASKS' }))
+    fireEvent.click(screen.getByRole('button', { name: /^neo, rank 1/ }))
+    expect(within(screen.getByRole('dialog')).getByText(/RANK 1/)).toBeTruthy()
+  })
+
+  it('agentRank defaults to tokens and honours an explicit metric', () => {
+    const agents = mockDashboardSocial.agents ?? []
+    expect(agentRank(agents, 'neo')).toBe(2)
+    expect(agentRank(agents, 'neo', 'tasks')).toBe(1)
+    expect(agentRank(agents, 'nobody')).toBe(0)
   })
 })
 

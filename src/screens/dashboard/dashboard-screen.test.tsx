@@ -9,7 +9,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DashboardScreen } from './dashboard-screen'
-import { mockDashboardSocial } from './social/mock'
+import { mockDashboardSocial, mockDashboardSocialEmpty } from './social/mock'
 import type { DashboardFetcher } from '@/server/dashboard-aggregator'
 import { buildDashboardOverview } from '@/server/dashboard-aggregator'
 
@@ -40,6 +40,12 @@ const overviewFetcher: DashboardFetcher = (path) => {
       }),
     )
   }
+  // Minimal analytics so the Ops chart card (and its period tabs) renders.
+  if (path.startsWith('/api/analytics/usage')) {
+    return Promise.resolve(
+      json({ totals: { total_input: 10, total_output: 5 }, daily: [] }),
+    )
+  }
   return Promise.resolve(new Response('not found', { status: 404 }))
 }
 
@@ -50,28 +56,35 @@ const SESSIONS = {
   ],
 }
 
-function stubFetch(socialStatus = 200) {
+function stubFetch(
+  socialStatus = 200,
+  social: () => Promise<Response> = () =>
+    Promise.resolve(json(mockDashboardSocial)),
+) {
   const overview = buildDashboardOverview({
     fetcher: overviewFetcher,
     analyticsWindowDays: 30,
   })
-  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input)
-    if (url.startsWith('/api/dashboard/social')) {
-      return socialStatus === 200
-        ? json(mockDashboardSocial)
-        : new Response('boom', { status: socialStatus })
-    }
-    if (url.startsWith('/api/dashboard/overview')) {
-      return json(await overview)
-    }
-    if (url.startsWith('/api/gateway-status')) {
-      return json({ capabilities: { sessions: true, skills: true } })
-    }
-    if (url.startsWith('/api/sessions')) return json(SESSIONS)
-    if (url.startsWith('/api/skills')) return json({ skills: [{}, {}] })
-    return new Response('not found', { status: 404 })
-  })
+  const fetchMock = vi.fn(
+    async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input)
+      if (url.startsWith('/api/dashboard/social')) {
+        return socialStatus === 200
+          ? social()
+          : new Response('boom', { status: socialStatus })
+      }
+      if (url.startsWith('/api/dashboard/overview')) {
+        return json(await overview)
+      }
+      if (url.startsWith('/api/gateway-status')) {
+        return json({ capabilities: { sessions: true, skills: true } })
+      }
+      if (url.startsWith('/api/claude-jobs/')) return json({ ok: true })
+      if (url.startsWith('/api/sessions')) return json(SESSIONS)
+      if (url.startsWith('/api/skills')) return json({ skills: [{}, {}] })
+      return new Response('not found', { status: 404 })
+    },
+  )
   vi.stubGlobal('fetch', fetchMock)
   return fetchMock
 }
@@ -136,5 +149,91 @@ describe('DashboardScreen', () => {
     expect(screen.queryByText('Rohit')).toBeNull()
     expect(screen.getByText('OPS & ANALYTICS')).toBeTruthy()
     expect(screen.getByLabelText('System status')).toBeTruthy()
+  })
+
+  it('shows busy skeletons, never Unavailable, while the social query is pending', async () => {
+    stubFetch(200, () => new Promise<Response>(() => undefined))
+    renderScreen()
+    const busy = await screen.findAllByRole('status')
+    expect(busy).toHaveLength(3)
+    for (const block of busy)
+      expect(block.getAttribute('aria-busy')).toBe('true')
+    expect(screen.queryByText('Unavailable')).toBeNull()
+    // ops + dock do not wait for the social query
+    expect(screen.getByText('OPS & ANALYTICS')).toBeTruthy()
+  })
+
+  it('shows Unavailable, not skeletons, for a null slice in a real response', async () => {
+    stubFetch(200, () => Promise.resolve(json(mockDashboardSocialEmpty)))
+    renderScreen()
+    await waitFor(() =>
+      expect(screen.getAllByText('Unavailable').length).toBeGreaterThan(0),
+    )
+    expect(document.querySelector('[aria-busy="true"]')).toBeNull()
+  })
+
+  it('refetches social and overview when the centre column reports a change', async () => {
+    const fetchMock = stubFetch()
+    renderScreen()
+    const retry = await screen.findByRole('button', { name: 'RETRY NOW' })
+    const count = (prefix: string) =>
+      fetchMock.mock.calls.filter(([u]) => String(u).startsWith(prefix)).length
+    await waitFor(() => expect(count('/api/dashboard/overview')).toBe(1))
+    expect(count('/api/dashboard/social')).toBe(1)
+
+    fireEvent.click(retry)
+
+    await waitFor(() => expect(count('/api/dashboard/social')).toBe(2))
+    await waitFor(() => expect(count('/api/dashboard/overview')).toBe(2))
+    const post = fetchMock.mock.calls.find(([u]) =>
+      String(u).startsWith('/api/claude-jobs/'),
+    )
+    expect(post?.[0]).toBe('/api/claude-jobs/cron_31?action=run')
+    expect(post?.[1]?.method).toBe('POST')
+  })
+
+  it('feeds the sessions hour histogram and installed-skill count into the ops section', async () => {
+    stubFetch()
+    renderScreen()
+    // installedCount: 2 skills from /api/skills
+    await screen.findByText(/2 installed/)
+    // hourHistogram: the "not loaded yet" tile is replaced once sessions load
+    await waitFor(() =>
+      expect(screen.queryByText(/Hour-of-day session data/)).toBeNull(),
+    )
+  })
+
+  it('refetches the overview for 7 / 14 / 30 days when the ops period changes', async () => {
+    const fetchMock = stubFetch()
+    renderScreen()
+    const overviewUrls = () =>
+      fetchMock.mock.calls
+        .map(([u]) => String(u))
+        .filter((u) => u.startsWith('/api/dashboard/overview'))
+    await waitFor(() =>
+      expect(overviewUrls()).toContain(
+        '/api/dashboard/overview?days=30&achievements=5',
+      ),
+    )
+
+    for (const days of [7, 14, 30]) {
+      fireEvent.click(await screen.findByRole('tab', { name: `${days}d` }))
+      await waitFor(() =>
+        expect(overviewUrls()).toContain(
+          `/api/dashboard/overview?days=${days}&achievements=5`,
+        ),
+      )
+      expect(window.localStorage.getItem('dashboard.analyticsPeriod')).toBe(
+        String(days),
+      )
+      // the card remounts once the new period's overview resolves
+      await waitFor(() =>
+        expect(
+          screen
+            .getByRole('tab', { name: `${days}d` })
+            .getAttribute('aria-selected'),
+        ).toBe('true'),
+      )
+    }
   })
 })
