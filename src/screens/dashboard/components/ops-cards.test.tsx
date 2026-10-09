@@ -138,6 +138,12 @@ describe('empty-but-answered states', () => {
     expect(screen.getByText('No data in this window')).toBeTruthy()
   })
 
+  it('TopModelsCard fills its cell; the list grows so spare space sits below it', () => {
+    const { container } = render(<TopModelsCard analytics={analytics()} />)
+    expect((container.firstChild as HTMLElement).className).toContain('h-full')
+    expect(container.querySelector('ul')!.className).toContain('flex-1')
+  })
+
   it('populated analytics still renders the real cards', () => {
     render(<TopModelsCard analytics={analytics()} />)
     expect(screen.getByText('1 ranked')).toBeTruthy()

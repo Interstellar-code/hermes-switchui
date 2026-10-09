@@ -37,8 +37,14 @@ const OPS_WIDGET_IDS: ReadonlyArray<WidgetId> = [
   'logs_tail',
 ]
 
-/** Grid cell: the card fills the cell's full height and width. */
-const CELL = 'flex *:min-w-0 *:flex-1'
+/**
+ * Wrapping flex row: a short last row grows to full width, cards in a row
+ * share one height. The card fills its cell; one column below 300px.
+ */
+const CELL = 'flex min-w-[min(100%,300px)] flex-[1_1_300px] *:min-w-0 *:flex-1'
+/** The usage chart takes two cards' worth of a row. */
+const CELL_WIDE =
+  'flex min-w-[min(100%,300px)] flex-[2_1_600px] *:min-w-0 *:flex-1'
 
 function readBool(key: string, fallback: boolean): boolean {
   if (typeof window === 'undefined') return fallback
@@ -197,13 +203,10 @@ export function OpsSection({
       ) : null}
 
       {open ? (
-        <div className="@container mt-3">
-          <div
-            id="ops-grid"
-            className="ops grid grid-flow-dense grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] items-stretch gap-3"
-          >
+        <div className="mt-3">
+          <div id="ops-grid" className="ops flex flex-wrap items-stretch gap-3">
             {layout.isVisible('analytics_chart') ? (
-              <div className={`${CELL} @min-[640px]:col-span-2`}>
+              <div className={CELL_WIDE}>
                 <AnalyticsChartCard
                   analytics={overview?.analytics ?? null}
                   insights={overview?.insights ?? []}
