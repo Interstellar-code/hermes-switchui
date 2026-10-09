@@ -14,9 +14,14 @@
  * through a `safeJson`-style helper with a 4 s timeout and a failed
  * upstream nulls ONLY its slice, never the whole response.
  *
- * Profile scope (C3): `profile: null` = all profiles summed; a set
- * profile scopes every call via the dashboard `?profile=` mechanism
- * (the same one `getCronJobs` / `listExperiments` use).
+ * Profile scope (C3): `?profile=` is appended ONLY to upstreams this
+ * repo proves honour it (sessions, cron, self-improve experiments,
+ * mnemosyne memory). Upstreams with no profile dimension in their
+ * typed contracts (workflow engine, kanban board, achievements,
+ * analytics, /api/status, gateway health) are called unscoped and are
+ * fleet/workspace-wide by construction — see the PROFILE SCOPE notes
+ * on each fetch below. `profile: null` sums the per-profile sources by
+ * fanning them out over the profile roster.
  */
 
 import type { DashboardFetcher } from './dashboard-aggregator'
@@ -129,13 +134,26 @@ export type BadgeInputs = {
   maxWeekTokens: number
   streakDays: number
   bestStreak: number
-  /** `YYYY-MM-DD` fallback for `earnedAt` when history cannot tell. */
-  today: string
   /**
-   * Best-effort "first day the badge held" per badge id, when day
-   * history allows computing it. Absent ids fall back to `today`.
+   * First `YYYY-MM-DD` the badge provably held, per badge id, when the
+   * day history contains the crossing. Emitted as a full ISO timestamp.
    */
   firstEarnedDay?: Record<string, string>
+  /**
+   * Earliest `YYYY-MM-DD` covered by any evidence (rows, runs, unlocks).
+   * Used for earned badges whose crossing the windowed history cannot
+   * show: with all-time counters, the badge had already been earned by
+   * this date, so it is the earliest date the evidence can assert.
+   */
+  earliestKnown?: string | null
+  /**
+   * Measurement day, `YYYY-MM-DD`. Last-resort `earnedAt` for earned
+   * badges with NO date-bearing evidence at all (C1 types `earnedAt:
+   * string | null` with null meaning unearned, so an earned badge must
+   * carry a date). B3 must not render this as "earned today" — see the
+   * lane report.
+   */
+  today: string
 }
 
 type BadgeSpec = {
@@ -234,17 +252,22 @@ const BADGE_SPECS: Array<BadgeSpec> = [
   },
 ]
 
+function isoDay(day: string | null | undefined): string | null {
+  if (!day || !Number.isFinite(Date.parse(`${day}T00:00:00Z`))) return null
+  return `${day}T00:00:00.000Z`
+}
+
 /**
  * The 12 badges with `have` from real counters. Earned iff
- * `have >= need`; `earnedAt` is the first day it held when history
- * could tell (`firstEarnedDay`), else `today` (documented fallback),
- * and `null` when not earned.
+ * `have >= need`; `earnedAt` (full ISO) is the first day it held when
+ * history can tell (`firstEarnedDay`), else the earliest day the
+ * evidence covers (`earliestKnown` — an upper bound on the true earn
+ * date), else the measurement day (`today`) — null only when unearned.
  */
 export function badgeProgress(input: BadgeInputs): Array<DashboardBadge> {
   return BADGE_SPECS.map((spec) => {
     const have = Math.max(0, Math.floor(spec.have(input)))
     const earned = have >= spec.need
-    const firstDay = input.firstEarnedDay?.[spec.id]
     return {
       id: spec.id,
       name: spec.name,
@@ -252,9 +275,11 @@ export function badgeProgress(input: BadgeInputs): Array<DashboardBadge> {
       have,
       need: spec.need,
       earnedAt: earned
-        ? Number.isFinite(Date.parse(`${firstDay ?? input.today}T00:00:00Z`))
-          ? (firstDay ?? input.today)
-          : input.today
+        ? isoDay(
+            input.firstEarnedDay?.[spec.id] ??
+              input.earliestKnown ??
+              input.today,
+          )
         : null,
     }
   })
@@ -320,9 +345,8 @@ function dayKeyFromMs(ms: number): string {
   return localDayKey(new Date(ms))
 }
 
-/** Append (or extend) `?profile=` on a dashboard path (C3 scope). */
-function scoped(path: string, profile: string | null): string {
-  if (!profile) return path
+/** Append (or extend) `?profile=` on a path whose upstream honours it. */
+function scoped(path: string, profile: string): string {
   return `${path}${path.includes('?') ? '&' : '?'}profile=${encodeURIComponent(profile)}`
 }
 
@@ -383,6 +407,15 @@ type HealthPayload = {
   gateway_state?: string
   active_agents?: number
   [key: string]: unknown
+}
+
+type BoardPayload = {
+  board?: {
+    columns?: Array<{
+      name?: string
+      tasks?: Array<Record<string, unknown>>
+    }>
+  }
 }
 
 // ── Options ─────────────────────────────────────────────────────────────────
@@ -564,6 +597,37 @@ function firstDayStreakReached(
   return null
 }
 
+/** Highest 7-day token total across `analytics.daily` (input+output). */
+function maxWeekTokensFromDaily(daily: Array<Record<string, unknown>>): number {
+  const byDay = new Map<string, number>()
+  for (const entry of daily) {
+    const day = readString(entry.day)
+    if (!day) continue
+    const tokens =
+      readNumber(entry.input_tokens) + readNumber(entry.output_tokens)
+    byDay.set(day, (byDay.get(day) ?? 0) + tokens)
+  }
+  const days = Array.from(byDay.keys())
+    .filter((d) => Number.isFinite(Date.parse(`${d}T00:00:00Z`)))
+    .sort()
+  let max = 0
+  for (let i = 0; i < days.length; i += 1) {
+    let week = 0
+    for (let j = i; j < days.length; j += 1) {
+      if (
+        Date.parse(`${days[j]}T00:00:00Z`) -
+          Date.parse(`${days[i]}T00:00:00Z`) >=
+        7 * 86_400_000
+      ) {
+        break
+      }
+      week += byDay.get(days[j]) ?? 0
+    }
+    if (week > max) max = week
+  }
+  return max
+}
+
 // ── Builder ─────────────────────────────────────────────────────────────────
 
 export async function buildDashboardSocial(
@@ -577,111 +641,202 @@ export async function buildDashboardSocial(
   // Minutes east of UTC for the memory-activity local-day computation.
   const tzMinutes = -now.getTimezoneOffset()
 
-  // Fans out every source in parallel; each nulls only its own slice.
+  // ── Phase 1: profile-independent fan-out ───────────────────────────────
+  //
+  // PROFILE SCOPE, per upstream (proof in repo callers / typed contracts):
+  //  - /api/profiles/sessions  honours ?profile= (claude-dashboard-api.ts:246)
+  //  - /api/status             no profile dimension (topology: profiles list)
+  //  - /api/analytics/usage    no profile param anywhere (getAnalytics,
+  //                            claude-dashboard-api.ts:564) — active-profile
+  //                            view; only used for profile=null slices
+  //  - workflow-engine plugin  WorkflowRun/WorkflowDefinitionRow carry no
+  //                            profile field (workflow-engine/interface.ts)
+  //                            — shared engine, fleet-wide by construction
+  //  - kanban board plugin     tasks carry tenant/assignee, no profile
+  //                            (hermes-kanban-client.ts) — shared workspace
+  //  - achievements plugin     same aggregator path as overview, global
+  //  - /health/detailed        gateway runtime state, not profile data
   const [
     sessionsRaw,
+    statusRaw,
     analyticsRaw,
-    cronRaw,
     runsRaw,
     definitionsRaw,
-    experimentsRaw,
+    boardRaw,
     achievementsRaw,
     unlocksRaw,
-    memoryRaw,
-    statusRaw,
     healthRaw,
   ] = await Promise.all([
     safeJson<SessionsPayload>(
       fetcher,
-      scoped('/api/profiles/sessions?limit=100', profile),
+      profile
+        ? scoped('/api/profiles/sessions?limit=100', profile)
+        : '/api/profiles/sessions?limit=100',
     ),
-    safeJson<AnalyticsPayload>(
-      fetcher,
-      scoped('/api/analytics/usage?days=30', profile),
-    ),
-    safeJson<Array<CronJobPayload> | { jobs?: Array<CronJobPayload> }>(
-      fetcher,
-      scoped('/api/cron/jobs', profile),
-    ),
+    safeJson<StatusPayload>(fetcher, '/api/status'),
+    safeJson<AnalyticsPayload>(fetcher, '/api/analytics/usage?days=30'),
     safeJson<WorkflowRunPayload>(
       fetcher,
-      scoped('/api/plugins/workflow-engine/runs?limit=200', profile),
+      '/api/plugins/workflow-engine/runs?limit=200',
     ),
     safeJson<WorkflowDefinitionsPayload>(
       fetcher,
-      scoped('/api/plugins/workflow-engine/definitions', profile),
+      '/api/plugins/workflow-engine/definitions',
     ),
-    safeJson<ExperimentsPayload>(
-      fetcher,
-      scoped('/api/plugins/karpathy-self-improve/experiments', profile),
-    ),
+    safeJson<BoardPayload>(fetcher, '/api/plugins/kanban/board'),
     safeJson<AchievementsPayload>(
       fetcher,
-      scoped('/api/plugins/hermes-achievements/achievements', profile),
+      '/api/plugins/hermes-achievements/achievements',
     ),
     safeJson<RecentUnlocksPayload>(
       fetcher,
-      scoped(
-        '/api/plugins/hermes-achievements/recent-unlocks?limit=5',
-        profile,
-      ),
+      '/api/plugins/hermes-achievements/recent-unlocks?limit=5',
     ),
-    safeJson<MemoryActivityPayload>(
-      fetcher,
-      `/api/memory/activity?days=30&tz=${tzMinutes}${profile ? `&profile=${encodeURIComponent(profile)}` : ''}`,
-    ),
-    safeJson<StatusPayload>(fetcher, scoped('/api/status', profile)),
     gatewayFetcher
-      ? safeJson<HealthPayload>(
-          gatewayFetcher,
-          scoped('/health/detailed', profile),
-        )
+      ? safeJson<HealthPayload>(gatewayFetcher, '/health/detailed')
       : Promise.resolve(null),
   ])
 
-  // Cron payload is either a bare array or `{jobs: [...]}` (both shapes
-  // appear across dashboard versions — normalizeCron does the same).
-  const cronJobs: Array<CronJobPayload> = Array.isArray(cronRaw)
-    ? cronRaw
-    : Array.isArray(cronRaw?.jobs)
-      ? cronRaw.jobs
-      : []
-
-  // ── Sessions ──────────────────────────────────────────────────────────
+  // ── Roster (fleet list — topology, not per-profile activity) ───────────
   const sessionRows = Array.isArray(sessionsRaw?.sessions)
     ? sessionsRaw.sessions
     : []
   const profileTotals = sessionsRaw?.profile_totals ?? {}
+  const roster = new Set<string>()
+  if (Array.isArray(statusRaw?.profiles)) {
+    for (const name of statusRaw.profiles) {
+      if (typeof name === 'string' && name) roster.add(name)
+    }
+  }
+  for (const name of Object.keys(profileTotals)) roster.add(name)
+  for (const row of sessionRows) {
+    const name = readOptionalString(row.profile)
+    if (name) roster.add(name)
+  }
+  const rosterList = Array.from(roster)
+
+  // ── Phase 2: per-profile sources ───────────────────────────────────────
+  //
+  // All three honours ?profile= (cron: claude-dashboard-api.ts:523,
+  // self-improve: self-improve-client.ts:67,112, memory:
+  // mnemosyne-browser.ts:788-792). For profile=null they are fanned out
+  // over the roster and summed, so "all profiles" never silently means
+  // "the active profile"; with no roster to fan out over, a single
+  // unscoped call is the dashboard default (disclosed here).
+  const fanOutProfiles: Array<string | null> = profile
+    ? [profile]
+    : rosterList.length > 0
+      ? rosterList
+      : [null]
+  const [cronLists, experimentsLists, memoryLists] = await Promise.all([
+    Promise.all(
+      fanOutProfiles.map((p) =>
+        safeJson<Array<CronJobPayload> | { jobs?: Array<CronJobPayload> }>(
+          fetcher,
+          p ? scoped('/api/cron/jobs', p) : '/api/cron/jobs',
+        ),
+      ),
+    ),
+    Promise.all(
+      fanOutProfiles.map((p) =>
+        safeJson<ExperimentsPayload>(
+          fetcher,
+          p
+            ? scoped('/api/plugins/karpathy-self-improve/experiments', p)
+            : '/api/plugins/karpathy-self-improve/experiments',
+        ),
+      ),
+    ),
+    Promise.all(
+      fanOutProfiles.map((p) =>
+        safeJson<MemoryActivityPayload>(
+          fetcher,
+          `/api/memory/activity?days=30&tz=${tzMinutes}${p ? `&profile=${encodeURIComponent(p)}` : ''}`,
+        ),
+      ),
+    ),
+  ])
+
+  const cronJobs: Array<CronJobPayload> = []
+  let cronOk = false
+  for (const list of cronLists) {
+    if (list === null) continue
+    cronOk = true
+    if (Array.isArray(list)) cronJobs.push(...list)
+    else if (Array.isArray(list.jobs)) cronJobs.push(...list.jobs)
+  }
+  const experiments: Array<Record<string, unknown>> = []
+  let experimentsOk = false
+  for (const list of experimentsLists) {
+    if (list === null) continue
+    experimentsOk = true
+    if (Array.isArray(list.experiments)) experiments.push(...list.experiments)
+  }
+  const memoryDaysByDate = new Map<string, number>()
+  let memoryFacts = 0
+  let memoryOk = false
+  for (const list of memoryLists) {
+    if (list === null) continue
+    memoryOk = true
+    memoryFacts += readNumber(list.totals?.fact)
+    for (const day of Array.isArray(list.days) ? list.days : []) {
+      memoryDaysByDate.set(
+        day.date,
+        (memoryDaysByDate.get(day.date) ?? 0) + readNumber(day.count),
+      )
+    }
+  }
+  const memoryDays = Array.from(memoryDaysByDate.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  // ── Sessions counts: scoped, never a global fallback (#4) ─────────────
   const sessionsTotal =
     profile !== null
-      ? readNumber(profileTotals[profile], readNumber(sessionsRaw?.total))
+      ? readNumber(profileTotals[profile], 0)
       : readNumber(sessionsRaw?.total)
 
-  // ── Workflow runs ─────────────────────────────────────────────────────
+  // ── Workflow runs (shared engine; only real WorkflowRun fields) ───────
   const runs = Array.isArray(runsRaw?.runs) ? runsRaw.runs : []
-  const completedDatesMs: Array<number> = []
-  let runsFinished = 0
-  const runDayKeys: Array<string> = []
-  const pausedRuns: Array<Record<string, unknown>> = []
-  for (const run of runs) {
-    const status = readString(run.status).toLowerCase()
-    if (status === 'completed') {
-      runsFinished += 1
-      const done = toEpochMs(run.completed_at) ?? toEpochMs(run.started_at)
-      if (done !== null) completedDatesMs.push(done)
-    }
-    const started = toEpochMs(run.started_at)
-    if (started !== null) runDayKeys.push(dayKeyFromMs(started))
-    if (status === 'paused') pausedRuns.push(run)
+  const defByName = new Map<string, { name: string; version: string }>()
+  const definitions = Array.isArray(definitionsRaw?.definitions)
+    ? definitionsRaw.definitions
+    : []
+  for (const def of definitions) {
+    const id = readString(def.id)
+    if (!id) continue
+    defByName.set(id, {
+      name: readString(def.name) || id,
+      version: readString(def.version),
+    })
+  }
+  const workflowLabel = (run: Record<string, unknown>): string => {
+    const id = readString(run.workflow_id)
+    return defByName.get(id)?.name ?? id
   }
 
-  // Node runs for (a) paused runs → Needs You approvals, (b) the 10 most
-  // recent runs → approval counting for XP/Gatekeeper. Capped so the
-  // aggregate stays a bounded fan-out.
+  const pausedRuns: Array<Record<string, unknown>> = []
+  const runDayKeys: Array<string> = []
+  for (const run of runs) {
+    const status = readString(run.status).toLowerCase()
+    if (status === 'paused') pausedRuns.push(run)
+    const started = toEpochMs(run.started_at)
+    if (started !== null) runDayKeys.push(dayKeyFromMs(started))
+  }
+
+  // Node runs for (a) the 5 newest paused runs → Needs You approvals,
+  // (b) the 10 most recent runs → approval counting for XP/Gatekeeper.
+  // Approvals are the single operator's recorded decisions
+  // (workflow-runs.$runId.approve.ts sets approved_by='switchui'), so
+  // they are fleet-wide facts, not per-profile data.
+  // APPROVAL WINDOW: approvals are counted only over the node runs of
+  // these 10 most recent runs (bounded fan-out); older approvals age
+  // out of the count. Runs-finished uses the all-time definition
+  // run_count below, so XP's largest terms stay monotonic.
   const runsForNodes = Array.from(
     new Map(
       [
-        ...pausedRuns,
+        ...pausedRuns.slice(0, 5),
         ...runs.slice(0, 10), // listRuns returns newest first
       ].map((run) => [readString(run.id), run]),
     ).values(),
@@ -690,17 +845,20 @@ export async function buildDashboardSocial(
     runsForNodes.map((run) =>
       safeJson<NodeRunsPayload>(
         fetcher,
-        scoped(
-          `/api/plugins/workflow-engine/runs/${encodeURIComponent(readString(run.id))}/nodes`,
-          profile,
-        ),
+        `/api/plugins/workflow-engine/runs/${encodeURIComponent(readString(run.id))}/nodes`,
       ),
     ),
   )
   const nodesByRun = new Map<string, Array<Record<string, unknown>>>()
+  let nodeFetchFailures = 0
   nodeRunsLists.forEach((list, idx) => {
     const runId = readString(runsForNodes[idx].id)
-    nodesByRun.set(runId, Array.isArray(list?.nodeRuns) ? list.nodeRuns : [])
+    if (list === null) {
+      nodeFetchFailures += 1
+      nodesByRun.set(runId, [])
+      return
+    }
+    nodesByRun.set(runId, Array.isArray(list.nodeRuns) ? list.nodeRuns : [])
   })
 
   let approvals = 0
@@ -717,39 +875,33 @@ export async function buildDashboardSocial(
     }
   }
 
-  // ── Workflow definitions (all-time run counts, versions, releases) ────
-  const definitions = Array.isArray(definitionsRaw?.definitions)
-    ? definitionsRaw.definitions
-    : []
-  const runsAllTime = definitions.reduce(
+  // Runs finished: all-time run_count from the definitions (#5 — XP's
+  // runs term must not go down as runs age out of the 200-run window).
+  // Fleet-wide by construction (definitions carry no profile).
+  const runsFinished = definitions.reduce(
     (sum, def) => sum + readNumber(def.run_count),
     0,
   )
+
   // "Releases" proxy: finished runs of release-flavoured workflows. No
-  // release-tag endpoint exists behind the dashboard fetcher, so Shipper
-  // counts completed runs whose workflow id/name mentions release/deploy.
+  // release-tag endpoint exists behind the fetcher, so Shipper counts
+  // completed runs whose workflow id/name matches release/deploy/ship.
   const releaseRunDatesMs = runs
     .filter((run) => {
       const status = readString(run.status).toLowerCase()
-      const target = `${readString(run.workflow_id)} ${readString(
-        (run.metadata as Record<string, unknown> | null)?.workflow_name ?? '',
-      )}`.toLowerCase()
-      return status === 'completed' && /release|deploy|ship/.test(target)
+      const target =
+        `${readString(run.workflow_id)} ${workflowLabel(run)}`.toLowerCase()
+      return status === 'completed' && /\b(release|deploy|ship)\b/.test(target)
     })
     .map((run) => toEpochMs(run.completed_at) ?? toEpochMs(run.started_at))
     .filter((ms): ms is number => ms !== null)
   const releases = releaseRunDatesMs.length
 
-  // ── Kanban (dashboard plugin board powers /tasks) ──────────────────────
-  const board = await safeJson<{
-    board?: {
-      columns?: Array<{ name?: string; tasks?: Array<Record<string, unknown>> }>
-    }
-  }>(fetcher, scoped('/api/plugins/kanban/board', profile))
+  // ── Kanban (shared workspace board; per-agent via assignee) ───────────
   const tasks: Array<Record<string, unknown>> = []
   const tasksByStatus = new Map<string, Array<Record<string, unknown>>>()
-  if (Array.isArray(board?.board?.columns)) {
-    for (const column of board.board.columns) {
+  if (Array.isArray(boardRaw?.board?.columns)) {
+    for (const column of boardRaw.board.columns) {
       const name = readString(column.name).toLowerCase() || 'unknown'
       const rows = Array.isArray(column.tasks) ? column.tasks : []
       tasksByStatus.set(name, [...(tasksByStatus.get(name) ?? []), ...rows])
@@ -760,36 +912,17 @@ export async function buildDashboardSocial(
   const reviewTasks = tasksByStatus.get('review') ?? []
   const tasksDone = doneTasks.length
 
-  // ── Memory ────────────────────────────────────────────────────────────
-  const memoryDays = Array.isArray(memoryRaw?.days) ? memoryRaw.days : []
-  const memoryFacts = readNumber(memoryRaw?.totals?.fact)
-
-  // ── Self-improve (verified experiment = a win) ────────────────────────
-  const experiments = Array.isArray(experimentsRaw?.experiments)
-    ? experimentsRaw.experiments
-    : []
+  // ── Self-improve (verified experiment = a win; per-profile fan-out) ───
   const selfImproveWins = experiments.filter(
     (exp) => readString(exp.state).toLowerCase() === 'verified',
   ).length
 
-  // ── Achievements plugin (badge-unlock recents) ────────────────────────
+  // ── Achievements plugin (badge-unlock recents; global) ────────────────
   const unlocks = Array.isArray(unlocksRaw?.unlocks) ? unlocksRaw.unlocks : []
 
-  // ── Profiles roster + per-agent rows ──────────────────────────────────
-  const roster = new Set<string>()
-  if (Array.isArray(statusRaw?.profiles)) {
-    for (const name of statusRaw.profiles) {
-      if (typeof name === 'string' && name) roster.add(name)
-    }
-  }
-  for (const name of Object.keys(profileTotals)) roster.add(name)
-  for (const row of sessionRows) {
-    const name = readOptionalString(row.profile)
-    if (name) roster.add(name)
-  }
-
+  // ── Agents roster rows ─────────────────────────────────────────────────
   const agents: Array<DashboardAgent> = []
-  for (const id of roster) {
+  for (const id of rosterList) {
     const rows = sessionRows.filter((row) => readString(row.profile) === id)
     const tokensWeek = rows
       .filter((row) => {
@@ -805,16 +938,6 @@ export async function buildDashboardSocial(
       const at = toEpochMs(task.completed_at)
       return readString(task.assignee) === id && at !== null && at >= weekAgoMs
     }).length
-    const runsWeek = runs.filter((run) => {
-      const started = toEpochMs(run.started_at)
-      return (
-        started !== null &&
-        started >= weekAgoMs &&
-        readString(
-          (run.metadata as Record<string, unknown> | null)?.profile ?? '',
-        ) === id
-      )
-    }).length
     // "Working" heartbeat: a session for this profile touched in the
     // last 2 minutes (last_active / is_active on the fetched rows).
     const working = rows.some((row) => {
@@ -825,10 +948,14 @@ export async function buildDashboardSocial(
     agents.push({
       id,
       initials: initialsFor(id),
-      sessions: readNumber(profileTotals[id]),
+      // Per-profile totals from the scoped sessions response only — a
+      // profile absent from profile_totals is 0, never the global total.
+      sessions: readNumber(profileTotals[id], 0),
       tokensWeek,
       tasksWeek,
-      runsWeek,
+      // Workflow runs carry no profile field (interface.ts WorkflowRun),
+      // so per-agent run counts have no source; 0 rather than invented.
+      runsWeek: 0,
       working,
       // No per-profile tool-name source exists behind the fetcher; the
       // column stays honest and empty rather than invented.
@@ -836,9 +963,17 @@ export async function buildDashboardSocial(
     })
   }
 
-  // ── Active days / streaks (sessions via analytics daily + run days) ───
+  // ── Active days / streaks (sessions + shared workflow runs) ───────────
+  // Sessions come from the scoped rows (cross-profile rows when
+  // profile=null); analytics daily is an active-profile view and is
+  // therefore only unioned in for profile=null, where its days are a
+  // subset of the true all-profile days.
   const activeDaySet = new Set<string>(runDayKeys)
-  if (Array.isArray(analyticsRaw?.daily)) {
+  for (const row of sessionRows) {
+    const at = toEpochMs(row.started_at)
+    if (at !== null) activeDaySet.add(dayKeyFromMs(at))
+  }
+  if (profile === null && Array.isArray(analyticsRaw?.daily)) {
     for (const day of analyticsRaw.daily) {
       const key = readString(day.day)
       if (key && readNumber(day.sessions) > 0) activeDaySet.add(key)
@@ -858,13 +993,18 @@ export async function buildDashboardSocial(
     activeDaysWeek.push(activeDaySet.has(key))
   }
 
-  // ── Night sessions / weekly token peak (from the fetched rows) ────────
+  // ── Night sessions / weekly token peak ────────────────────────────────
+  // Night owl is bounded by the 100 fetched session rows.
   const nightSessions = sessionRows.filter((row) => {
     const at = toEpochMs(row.started_at)
     if (at === null) return false
     const hour = new Date(at).getHours()
     return hour >= 0 && hour < 5
   }).length
+  // Token whale uses the MAXIMUM rolling 7-day window, not the current
+  // week, so it cannot un-earn as weeks rotate (#9). profile=null: the
+  // 30-day analytics daily rollup (active-profile view — disclosed);
+  // profile set: the scoped session rows (bounded by the 100-row page).
   const weekTokens = sessionRows
     .filter((row) => {
       const at = toEpochMs(row.started_at) ?? toEpochMs(row.last_active)
@@ -875,6 +1015,15 @@ export async function buildDashboardSocial(
         sum + readNumber(row.input_tokens) + readNumber(row.output_tokens),
       0,
     )
+  const maxWeekTokens =
+    profile === null
+      ? Math.max(
+          maxWeekTokensFromDaily(
+            Array.isArray(analyticsRaw?.daily) ? analyticsRaw.daily : [],
+          ),
+          weekTokens,
+        )
+      : weekTokens
 
   // ── XP / level / badges (C2 maths) ────────────────────────────────────
   const xp = computeXp({
@@ -885,35 +1034,65 @@ export async function buildDashboardSocial(
   })
   const { level, levelStartXp: startXp, nextLevelXp } = levelFor(xp)
 
-  const todayIso = `${todayKey}T00:00:00.000Z`
-  const firstEarnedDay: Record<string, string> = {
-    'first-chat':
-      firstDayCountReached(
-        sessionRows
-          .map((row) => toEpochMs(row.started_at))
-          .filter((ms): ms is number => ms !== null),
-        1,
-      ) ?? todayKey,
-    'streak-7': firstDayStreakReached(activeDays, 7) ?? todayKey,
-    'streak-30': firstDayStreakReached(activeDays, 30) ?? todayKey,
-    conductor: firstDayCountReached(completedDatesMs, 50) ?? todayKey,
-    maestro: firstDayCountReached(completedDatesMs, 200) ?? todayKey,
-    gatekeeper: firstDayCountReached(approvalDatesMs, 10) ?? todayKey,
+  // Earliest day any evidence covers — the fallback upper bound for
+  // earned badges whose crossing the windowed history cannot show.
+  const evidenceDates: Array<number> = [
+    ...sessionRows.map((row) => toEpochMs(row.started_at)),
+    ...runs.map((run) => toEpochMs(run.started_at)),
+    ...approvalDatesMs,
+    ...unlocks.map((unlock) => toEpochMs(unlock.unlocked_at)),
+  ].filter((ms): ms is number => ms !== null)
+  const earliestKnown =
+    evidenceDates.length > 0 ? dayKeyFromMs(Math.min(...evidenceDates)) : null
+
+  const firstEarnedDay: Record<string, string> = {}
+  const sessionStartDates = sessionRows
+    .map((row) => toEpochMs(row.started_at))
+    .filter((ms): ms is number => ms !== null)
+  const setFirstEarned = (id: string, day: string | null): void => {
+    if (day) firstEarnedDay[id] = day
   }
+  setFirstEarned('first-chat', firstDayCountReached(sessionStartDates, 1))
+  setFirstEarned('streak-7', firstDayStreakReached(activeDays, 7))
+  setFirstEarned('streak-30', firstDayStreakReached(activeDays, 30))
+  // conductor/maestro cross on all-time run_count; the 200-run window
+  // only proves the crossing when it falls inside it.
+  setFirstEarned(
+    'conductor',
+    firstDayCountReached(
+      runs
+        .filter((run) => readString(run.status).toLowerCase() === 'completed')
+        .map((run) => toEpochMs(run.completed_at) ?? toEpochMs(run.started_at))
+        .filter((ms): ms is number => ms !== null),
+      50,
+    ),
+  )
+  setFirstEarned(
+    'maestro',
+    firstDayCountReached(
+      runs
+        .filter((run) => readString(run.status).toLowerCase() === 'completed')
+        .map((run) => toEpochMs(run.completed_at) ?? toEpochMs(run.started_at))
+        .filter((ms): ms is number => ms !== null),
+      200,
+    ),
+  )
+  setFirstEarned('gatekeeper', firstDayCountReached(approvalDatesMs, 10))
   const badges = badgeProgress({
     chatSessions: sessionsTotal,
     approvals,
     runsFinished,
     memoryFacts,
-    profileCount: roster.size,
+    profileCount: rosterList.length,
     releases,
     selfImproveWins,
     nightSessions,
-    maxWeekTokens: weekTokens,
+    maxWeekTokens,
     streakDays,
     bestStreak,
-    today: todayKey,
     firstEarnedDay,
+    earliestKnown,
+    today: todayKey,
   })
 
   // ── Operator name: active profile when known ──────────────────────────
@@ -926,19 +1105,28 @@ export async function buildDashboardSocial(
       : null) ??
     'operator'
 
-  const operator =
-    sessionsRaw !== null
-      ? {
-          name: operatorName,
-          xp,
-          level,
-          levelStartXp: startXp,
-          nextLevelXp,
-          streakDays,
-          bestStreak,
-          activeDays: activeDaysWeek,
-        }
-      : null
+  // XP is only honest when every source feeding it answered (#8):
+  // sessions (chats), runs+nodes (approvals), definitions (run_count),
+  // kanban (tasks done).
+  const xpSourcesOk =
+    sessionsRaw !== null &&
+    runsRaw !== null &&
+    definitionsRaw !== null &&
+    boardRaw !== null &&
+    !(runsForNodes.length > 0 && nodeFetchFailures === runsForNodes.length)
+
+  const operator = xpSourcesOk
+    ? {
+        name: operatorName,
+        xp,
+        level,
+        levelStartXp: startXp,
+        nextLevelXp,
+        streakDays,
+        bestStreak,
+        activeDays: activeDaysWeek,
+      }
+    : null
 
   // ── Needs You ─────────────────────────────────────────────────────────
   const needsYou: Array<NeedsYouItem> = []
@@ -947,50 +1135,45 @@ export async function buildDashboardSocial(
     for (const run of pausedRuns.slice(0, 5)) {
       const runId = readString(run.id)
       const nodes = nodesByRun.get(runId) ?? []
-      const pausedNode =
-        nodes.find(
-          (node) => readString(node.status).toLowerCase() === 'paused',
-        ) ?? null
+      const pausedNode = nodes.find(
+        (node) => readString(node.status).toLowerCase() === 'paused',
+      )
       if (!pausedNode) continue
       const nodeRunId = readString(pausedNode.id)
+      // #11: no fabricated timestamps — an approval item needs a real
+      // pause time; without one it is skipped.
+      const pausedMs = toEpochMs(pausedNode.started_at)
+      if (pausedMs === null) continue
       const completed = nodes.filter(
         (node) => readString(node.status).toLowerCase() === 'completed',
       ).length
-      const pausedAt =
-        toEpochMs(pausedNode.started_at) ?? toEpochMs(run.started_at)
       needsYou.push({
         kind: 'approval',
         runId,
         nodeRunId,
-        workflow: readString(run.workflow_id),
-        version: readString(
-          (run.metadata as Record<string, unknown> | null)?.version,
-        ),
-        pausedAt:
-          pausedAt !== null ? new Date(pausedAt).toISOString() : todayIso,
-        progress: `${completed} of ${nodes.length} steps`,
-        next:
-          readOptionalString(pausedNode.approval_message) ??
-          readString(pausedNode.dag_node_id),
-        agent:
-          readString(pausedNode.assigned_agent) ||
-          readString(
-            (run.metadata as Record<string, unknown> | null)?.profile,
-          ) ||
-          'workflow',
-        at: pausedAt !== null ? new Date(pausedAt).toISOString() : todayIso,
+        workflow: workflowLabel(run),
+        version: defByName.get(readString(run.workflow_id))?.version ?? '',
+        // C1: pausedAt is the paused node NAME, at is the ISO pause time.
+        pausedAt: readString(pausedNode.dag_node_id),
+        progress:
+          nodes.length > 0 ? `${completed} of ${nodes.length} nodes done` : '',
+        next: readOptionalString(pausedNode.approval_message) ?? '',
+        agent: readString(pausedNode.assigned_agent) || 'workflow',
+        at: new Date(pausedMs).toISOString(),
       })
     }
   }
 
-  if (cronRaw !== null) {
+  if (cronOk) {
     for (const job of cronJobs) {
       const lastStatus = readString(job.last_status).toLowerCase()
       const lastError = readOptionalString(job.last_error)
       if (lastStatus !== 'error' && lastStatus !== 'failed' && !lastError) {
         continue
       }
+      // #11: skip the item rather than invent a run time.
       const lastRun = toEpochMs(job.last_run_at)
+      if (lastRun === null) continue
       needsYou.push({
         kind: 'cron-failing',
         jobId: readString(job.id) || readString(job.name) || 'unknown',
@@ -1000,26 +1183,28 @@ export async function buildDashboardSocial(
         failures: 1,
         lastError: lastError ?? `last status: ${lastStatus || 'error'}`,
         agent: 'cron',
-        at: lastRun !== null ? new Date(lastRun).toISOString() : todayIso,
+        at: new Date(lastRun).toISOString(),
       })
     }
   }
 
-  if (board !== null) {
+  if (boardRaw !== null) {
     for (const task of reviewTasks.slice(0, 5)) {
+      // #11: skip the item rather than invent a move time.
       const at = toEpochMs(task.updated_at) ?? toEpochMs(task.started_at)
+      if (at === null) continue
       needsYou.push({
         kind: 'task-review',
         taskId: readString(task.id),
         title: readString(task.title) || 'untitled task',
         board: readString(task.tenant) || 'default',
         agent: readString(task.assignee) || 'unassigned',
-        at: at !== null ? new Date(at).toISOString() : todayIso,
+        at: new Date(at).toISOString(),
       })
     }
   }
 
-  // ── Recent activity (newest 5 across sources) ─────────────────────────
+  // ── Recent activity (newest 5 across sources; no invented times) ──────
   const recentCandidates: Array<RecentItem> = []
 
   if (sessionsRaw !== null) {
@@ -1044,17 +1229,14 @@ export async function buildDashboardSocial(
       recentCandidates.push({
         at: new Date(at).toISOString(),
         kind: 'workflow',
-        title: `${readString(run.workflow_id)} ${status}`,
+        title: `${workflowLabel(run)} ${status}`,
         sub: status === 'completed' ? 'run finished' : `run ${status}`,
-        who:
-          readString(
-            (run.metadata as Record<string, unknown> | null)?.profile,
-          ) || 'workflow',
+        who: 'workflow',
         href: '/workflows',
       })
     }
   }
-  if (cronRaw !== null) {
+  if (cronOk) {
     for (const job of cronJobs) {
       const at = toEpochMs(job.last_run_at)
       if (at === null) continue
@@ -1069,7 +1251,7 @@ export async function buildDashboardSocial(
       })
     }
   }
-  if (board !== null) {
+  if (boardRaw !== null) {
     for (const task of tasks) {
       const at =
         toEpochMs(task.completed_at) ??
@@ -1086,11 +1268,12 @@ export async function buildDashboardSocial(
       })
     }
   }
-  if (memoryRaw !== null) {
+  if (memoryOk) {
+    // Day-granular source: the day boundary itself is the timestamp.
     for (const day of [...memoryDays].reverse()) {
       if (readNumber(day.count) <= 0) continue
       recentCandidates.push({
-        at: `${readString(day.date) || todayKey}T12:00:00.000Z`,
+        at: `${day.date}T00:00:00.000Z`,
         kind: 'memory',
         title: `${readNumber(day.count)} memories saved`,
         sub: 'mnemosyne writes',
@@ -1124,20 +1307,20 @@ export async function buildDashboardSocial(
       readString(healthRaw.status).toLowerCase() === 'ok' ||
       readNumber(healthRaw.active_agents) > 0)
   const sourcesOk = [
-    sessionsRaw,
-    analyticsRaw,
-    cronRaw,
-    runsRaw,
-    board,
-    memoryRaw,
-    experimentsRaw,
-  ].filter((raw) => raw !== null).length
+    sessionsRaw !== null,
+    cronOk,
+    experimentsOk,
+    memoryOk,
+    runsRaw !== null,
+    definitionsRaw !== null,
+    boardRaw !== null,
+  ].filter(Boolean).length
   const counts =
     sourcesOk > 0
       ? {
           chats: sessionsTotal,
           needsYou: needsYou.length,
-          workflows: runsAllTime > 0 ? runsAllTime : runs.length,
+          workflows: runsFinished,
           cron: cronJobs.length,
           tasks: tasks.length,
           memory: memoryFacts,
@@ -1150,11 +1333,10 @@ export async function buildDashboardSocial(
     profile,
     generatedAt: now.toISOString(),
     operator,
-    agents: roster.size > 0 || sessionsRaw !== null ? agents : null,
+    agents: rosterList.length > 0 || sessionsRaw !== null ? agents : null,
     hotTopics: sessionsRaw !== null ? computeHotTopics(sessionRows, now) : null,
     counts,
-    needsYou:
-      runsRaw !== null || cronRaw !== null || board !== null ? needsYou : null,
+    needsYou: runsRaw !== null || cronOk || boardRaw !== null ? needsYou : null,
     recent,
     badges,
   }

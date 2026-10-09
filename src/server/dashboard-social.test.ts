@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   badgeProgress,
@@ -20,11 +20,16 @@ function dayKey(date: Date): string {
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
+function isoDay(day: string): string {
+  return `${day}T00:00:00.000Z`
+}
 const TODAY = dayKey(NOW)
 const YESTERDAY = dayKey(new Date(NOW.getTime() - DAY_MS))
 const TWO_DAYS_AGO = dayKey(new Date(NOW.getTime() - 2 * DAY_MS))
 const THREE_DAYS_AGO = dayKey(new Date(NOW.getTime() - 3 * DAY_MS))
+const EIGHT_DAYS_AGO = dayKey(new Date(NOW.getTime() - 8 * DAY_MS))
 const SEC = (d: Date) => Math.floor(d.getTime() / 1000)
+const ISO = (d: Date) => d.toISOString()
 
 // ── Fixtures shaped like the real upstream payloads ─────────────────────────
 
@@ -67,66 +72,92 @@ const sessionsFixture = {
 
 const analyticsFixture = {
   totals: { total_sessions: 150, total_input: 900_000, total_output: 400_000 },
-  daily: [THREE_DAYS_AGO, TWO_DAYS_AGO, YESTERDAY, TODAY].map((day) => ({
-    day,
-    sessions: 2,
-  })),
+  daily: [
+    {
+      day: THREE_DAYS_AGO,
+      sessions: 2,
+      input_tokens: 60_000,
+      output_tokens: 40_000,
+    },
+    {
+      day: TWO_DAYS_AGO,
+      sessions: 2,
+      input_tokens: 120_000,
+      output_tokens: 80_000,
+    },
+    {
+      day: YESTERDAY,
+      sessions: 2,
+      input_tokens: 30_000,
+      output_tokens: 20_000,
+    },
+    { day: TODAY, sessions: 2, input_tokens: 90_000, output_tokens: 60_000 },
+  ],
 }
 
-const cronFixture = {
-  jobs: [
+// Cron jobs are per-profile (the API takes ?profile=): disjoint lists.
+const cronJobsByProfile: Record<string, Array<Record<string, unknown>>> = {
+  'hermes-switch': [
     {
       id: 'cron_31',
       name: 'nightly-digest',
       last_status: 'error',
       last_error: 'gateway timeout after 30s',
-      last_run_at: new Date(NOW.getTime() - 3 * 3_600_000).toISOString(),
+      last_run_at: ISO(new Date(NOW.getTime() - 3 * 3_600_000)),
     },
     {
       id: 'cron_32',
       name: 'hourly-heartbeat',
       last_status: 'ok',
-      last_run_at: new Date(NOW.getTime() - 8 * DAY_MS).toISOString(),
+      last_run_at: ISO(new Date(NOW.getTime() - 8 * DAY_MS)),
+    },
+    {
+      // Failing but timestamp-less: must be skipped, never back-dated.
+      id: 'cron_34',
+      name: 'silent-job',
+      last_status: 'error',
+      last_error: 'exploded',
+    },
+  ],
+  neo: [
+    {
+      id: 'cron_33',
+      name: 'neo-weekly',
+      last_status: 'ok',
+      last_run_at: ISO(new Date(NOW.getTime() - 2 * DAY_MS)),
     },
   ],
 }
 
+// Only real WorkflowRun fields — no invented metadata keys.
 const runsFixture = {
   runs: [
     {
       id: 'run_1',
       workflow_id: 'release-train',
       status: 'completed',
-      started_at: new Date(NOW.getTime() - 3 * DAY_MS).toISOString(),
-      completed_at: new Date(
-        NOW.getTime() - 3 * DAY_MS + 600_000,
-      ).toISOString(),
-      metadata: { profile: 'hermes-switch', version: 'v3' },
+      started_at: ISO(new Date(NOW.getTime() - 3 * DAY_MS)),
+      completed_at: ISO(new Date(NOW.getTime() - 3 * DAY_MS + 600_000)),
     },
     {
       id: 'run_2',
       workflow_id: 'release-train',
       status: 'completed',
-      started_at: new Date(NOW.getTime() - 2 * DAY_MS).toISOString(),
-      completed_at: new Date(
-        NOW.getTime() - 2 * DAY_MS + 600_000,
-      ).toISOString(),
-      metadata: { profile: 'hermes-switch' },
+      started_at: ISO(new Date(NOW.getTime() - 2 * DAY_MS)),
+      completed_at: ISO(new Date(NOW.getTime() - 2 * DAY_MS + 600_000)),
     },
     {
       id: 'run_3',
       workflow_id: 'data-pipeline',
       status: 'completed',
-      started_at: new Date(NOW.getTime() - DAY_MS).toISOString(),
-      completed_at: new Date(NOW.getTime() - DAY_MS + 600_000).toISOString(),
-      metadata: { profile: 'neo' },
+      started_at: ISO(new Date(NOW.getTime() - DAY_MS)),
+      completed_at: ISO(new Date(NOW.getTime() - DAY_MS + 600_000)),
     },
     {
       id: 'run_4',
       workflow_id: 'release-train',
       status: 'paused',
-      started_at: new Date(NOW.getTime() - 2 * 3_600_000).toISOString(),
-      metadata: { profile: 'hermes-switch', version: 'v3' },
+      started_at: ISO(new Date(NOW.getTime() - 2 * 3_600_000)),
     },
   ],
 }
@@ -139,7 +170,7 @@ const nodeRunsFixture: Record<string, unknown> = {
         dag_node_id: 'build',
         status: 'completed',
         approval_response: 'ship it',
-        completed_at: new Date(NOW.getTime() - 3 * DAY_MS).toISOString(),
+        completed_at: ISO(new Date(NOW.getTime() - 3 * DAY_MS)),
       },
       { id: 'node_1_2', dag_node_id: 'test', status: 'completed' },
     ],
@@ -151,7 +182,7 @@ const nodeRunsFixture: Record<string, unknown> = {
         dag_node_id: 'approve',
         status: 'completed',
         approval_response: 'ok',
-        completed_at: new Date(NOW.getTime() - 2 * DAY_MS).toISOString(),
+        completed_at: ISO(new Date(NOW.getTime() - 2 * DAY_MS)),
       },
     ],
   },
@@ -163,7 +194,7 @@ const nodeRunsFixture: Record<string, unknown> = {
         id: 'node_4_2',
         dag_node_id: 'gate',
         status: 'paused',
-        started_at: new Date(NOW.getTime() - 2 * 3_600_000).toISOString(),
+        started_at: ISO(new Date(NOW.getTime() - 2 * 3_600_000)),
         approval_message: 'Publish GitHub release',
         assigned_agent: 'hermes-switch',
       },
@@ -171,17 +202,25 @@ const nodeRunsFixture: Record<string, unknown> = {
   },
 }
 
+// Workflow names/versions come from the definitions, not run metadata.
 const definitionsFixture = {
   definitions: [
-    { id: 'release-train', name: 'release-train', run_count: 106 },
-    { id: 'data-pipeline', name: 'data-pipeline', run_count: 0 },
+    {
+      id: 'release-train',
+      name: 'release-train',
+      version: 'v3',
+      run_count: 106,
+    },
+    { id: 'data-pipeline', name: 'data-pipeline', version: null, run_count: 0 },
   ],
 }
 
-const experimentsFixture = {
-  experiments: [
+const experimentsByProfile: Record<string, Array<Record<string, unknown>>> = {
+  'hermes-switch': [
     { id: 1, state: 'verified' },
     { id: 2, state: 'live' },
+  ],
+  neo: [
     { id: 3, state: 'verified' },
     { id: 4, state: 'reverted' },
   ],
@@ -202,19 +241,26 @@ const unlocksFixture = {
   ],
 }
 
-// Memory activity is day-granular and ascending by date. Today stays 0
-// so `recent` ordering is deterministic across timezones.
-const memoryFixture = {
-  days: [
-    { date: TWO_DAYS_AGO, count: 0 },
-    { date: YESTERDAY, count: 2 },
-    { date: TODAY, count: 0 },
-  ],
-  totals: { fact: 131, gist: 4, episodic: 10, working: 6, entity: 2 },
+// Memory banks are per-profile: facts split across the two banks (131).
+const memoryByProfile: Record<string, unknown> = {
+  'hermes-switch': {
+    days: [
+      { date: TWO_DAYS_AGO, count: 0 },
+      { date: YESTERDAY, count: 2 },
+      { date: TODAY, count: 0 },
+    ],
+    totals: { fact: 100, gist: 4, episodic: 10, working: 6, entity: 2 },
+  },
+  neo: {
+    days: [{ date: YESTERDAY, count: 1 }],
+    totals: { fact: 31, gist: 0, episodic: 0, working: 0, entity: 0 },
+  },
 }
 
 const statusFixture = {
-  profiles: ['hermes-switch', 'neo'],
+  // ghost exists as a profile but has no sessions and no per-profile
+  // data: it must read as 0 everywhere, never the global totals (#4).
+  profiles: ['hermes-switch', 'neo', 'ghost'],
   hermes_home: '/home/u/.hermes/profiles/hermes-switch',
   gateways: [{ profile: 'hermes-switch' }],
 }
@@ -277,49 +323,80 @@ function jsonResponse(value: unknown, status = 200): Response {
   })
 }
 
+/** Upstreams proven to honour ?profile= (review #3). */
+const PROFILE_SCOPED_BARES = new Set([
+  '/api/profiles/sessions',
+  '/api/cron/jobs',
+  '/api/plugins/karpathy-self-improve/experiments',
+  '/api/memory/activity',
+])
+
 type FailMode = 'throw' | '500' | 'hang'
 
 /** Fake `(path) => Response` fetcher: the ONLY thing stubbed here. */
-function makeFetcher(
-  opts: {
-    fail?: Record<string, FailMode | undefined>
-  } = {},
-) {
+function makeFetcher(opts: {
+  fail?: Record<string, FailMode | undefined>
+} = {}) {
   const requestedPaths: Array<string> = []
   const fail = opts.fail ?? {}
-  const fetcher: DashboardFetcher = async (path) => {
+  const fetcher: DashboardFetcher = (path) => {
     requestedPaths.push(path)
-    const bare = path.split('?')[0]
+    const url = new URL(path, 'http://upstream.local')
+    const bare = url.pathname
+    const profileParam = url.searchParams.get('profile')
     const mode: FailMode | undefined = fail[bare] ?? fail[path]
-    if (mode === 'throw') throw new Error(`boom: ${path}`)
-    if (mode === '500') return jsonResponse({ error: 'upstream down' }, 500)
-    if (mode === 'hang') return new Promise<Response>(() => {})
-    if (bare === '/api/profiles/sessions') return jsonResponse(sessionsFixture)
-    if (bare === '/api/analytics/usage') return jsonResponse(analyticsFixture)
-    if (bare === '/api/cron/jobs') return jsonResponse(cronFixture)
-    if (bare === '/api/plugins/workflow-engine/runs')
-      return jsonResponse(runsFixture)
-    const nodeMatch =
-      /^\/api\/plugins\/workflow-engine\/runs\/([^/]+)\/nodes$/.exec(bare)
-    if (nodeMatch) {
-      const fixture = nodeRunsFixture[nodeMatch[1]]
-      // Unknown run id → 500 (the safeJson helper must swallow it).
-      return fixture
-        ? jsonResponse(fixture)
-        : jsonResponse({ error: 'no such run' }, 500)
+    const answer = (): Response | Promise<Response> => {
+      if (mode === 'throw') return Promise.reject(new Error(`boom: ${path}`))
+      if (mode === '500')
+        return Promise.resolve(jsonResponse({ error: 'upstream down' }, 500))
+      if (mode === 'hang') return new Promise<Response>(() => {})
+      if (bare === '/api/profiles/sessions')
+        return jsonResponse(sessionsFixture)
+      if (bare === '/api/analytics/usage') return jsonResponse(analyticsFixture)
+      if (bare === '/api/cron/jobs') {
+        const jobs = profileParam
+          ? (cronJobsByProfile[profileParam] ?? [])
+          : cronJobsByProfile['hermes-switch']
+        return jsonResponse({ jobs })
+      }
+      if (bare === '/api/plugins/workflow-engine/runs')
+        return jsonResponse(runsFixture)
+      const nodeMatch =
+        /^\/api\/plugins\/workflow-engine\/runs\/([^/]+)\/nodes$/.exec(bare)
+      if (nodeMatch) {
+        const fixture = nodeRunsFixture[nodeMatch[1]]
+        // Unknown run id → 500 (the safeJson helper must swallow it).
+        return fixture
+          ? jsonResponse(fixture)
+          : jsonResponse({ error: 'no such run' }, 500)
+      }
+      if (bare === '/api/plugins/workflow-engine/definitions')
+        return jsonResponse(definitionsFixture)
+      if (bare === '/api/plugins/karpathy-self-improve/experiments') {
+        const experiments = profileParam
+          ? (experimentsByProfile[profileParam] ?? [])
+          : experimentsByProfile['hermes-switch']
+        return jsonResponse({ experiments })
+      }
+      if (bare === '/api/plugins/hermes-achievements/achievements')
+        return jsonResponse(achievementsFixture)
+      if (bare === '/api/plugins/hermes-achievements/recent-unlocks')
+        return jsonResponse(unlocksFixture)
+      if (bare === '/api/memory/activity') {
+        const activity = profileParam
+          ? (memoryByProfile[profileParam] ?? {
+              days: [],
+              totals: { fact: 0 },
+            })
+          : memoryByProfile['hermes-switch']
+        return jsonResponse(activity)
+      }
+      if (bare === '/api/plugins/kanban/board')
+        return jsonResponse(boardFixture)
+      if (bare === '/api/status') return jsonResponse(statusFixture)
+      return Promise.reject(new Error(`unexpected path: ${path}`))
     }
-    if (bare === '/api/plugins/workflow-engine/definitions')
-      return jsonResponse(definitionsFixture)
-    if (bare === '/api/plugins/karpathy-self-improve/experiments')
-      return jsonResponse(experimentsFixture)
-    if (bare === '/api/plugins/hermes-achievements/achievements')
-      return jsonResponse(achievementsFixture)
-    if (bare === '/api/plugins/hermes-achievements/recent-unlocks')
-      return jsonResponse(unlocksFixture)
-    if (bare === '/api/memory/activity') return jsonResponse(memoryFixture)
-    if (bare === '/api/plugins/kanban/board') return jsonResponse(boardFixture)
-    if (bare === '/api/status') return jsonResponse(statusFixture)
-    throw new Error(`unexpected path: ${path}`)
+    return Promise.resolve().then(answer)
   }
   const gatewayFetcher: DashboardFetcher = (path) => {
     requestedPaths.push(path)
@@ -412,7 +489,7 @@ describe('badgeProgress', () => {
   const base = {
     chatSessions: 150,
     approvals: 2,
-    runsFinished: 3,
+    runsFinished: 106,
     memoryFacts: 131,
     profileCount: 2,
     releases: 0,
@@ -421,35 +498,49 @@ describe('badgeProgress', () => {
     maxWeekTokens: 4_200_000,
     streakDays: 3,
     bestStreak: 3,
-    today: TODAY,
   }
 
   it('earns a badge iff have >= need', () => {
-    const badges = badgeProgress(base)
+    const badges = badgeProgress({ ...base, today: TODAY })
     const byId = new Map(badges.map((b) => [b.id, b]))
-    expect(byId.get('first-chat')?.earnedAt).toBe(TODAY)
-    expect(byId.get('memory-keeper')?.earnedAt).toBe(TODAY)
+    // No history given: earned badges fall back to the measurement day
+    // (C1 types null as unearned), unearned ones stay null.
+    expect(byId.get('first-chat')?.earnedAt).toBe(isoDay(TODAY))
+    expect(byId.get('conductor')?.earnedAt).toBe(isoDay(TODAY)) // 106 >= 50
     expect(byId.get('night-owl')?.earnedAt).toBeNull() // 7 < 10
     expect(byId.get('token-whale')?.earnedAt).toBeNull() // 4.2M < 5M
-    expect(byId.get('maestro')?.earnedAt).toBeNull() // 3 < 200
-    expect(byId.get('streak-30')?.earnedAt).toBeNull() // 3 < 30
+    expect(byId.get('maestro')?.earnedAt).toBeNull() // 106 < 200
     for (const badge of badges) {
       expect(badge.earnedAt !== null).toBe(badge.have >= badge.need)
     }
   })
 
-  it('uses the computed first day when history can tell', () => {
+  it('uses the computed first day (full ISO) when history can tell', () => {
     const badges = badgeProgress({
       ...base,
+      today: TODAY,
       firstEarnedDay: { 'memory-keeper': '2026-09-05' },
     })
     expect(badges.find((b) => b.id === 'memory-keeper')?.earnedAt).toBe(
-      '2026-09-05',
+      '2026-09-05T00:00:00.000Z',
     )
   })
 
+  it('falls back to the earliest provable day for earned-but-unknown', () => {
+    const badges = badgeProgress({
+      ...base,
+      today: TODAY,
+      earliestKnown: '2026-01-01',
+    })
+    expect(badges.find((b) => b.id === 'conductor')?.earnedAt).toBe(
+      '2026-01-01T00:00:00.000Z',
+    )
+    // Unearned badges stay null regardless of the fallback.
+    expect(badges.find((b) => b.id === 'maestro')?.earnedAt).toBeNull()
+  })
+
   it('covers exactly the 12 mock badges with have/need numbers', () => {
-    const badges = badgeProgress(base)
+    const badges = badgeProgress({ ...base, today: TODAY })
     expect(badges.map((b) => b.id)).toEqual([
       'first-chat',
       'streak-7',
@@ -485,15 +576,16 @@ describe('buildDashboardSocial', () => {
     expect(data.profile).toBeNull()
     expect(data.generatedAt).toBe(NOW.toISOString())
 
-    // XP = 10·150 chats + 25·2 approvals + 40·2 done tasks + 5·3 finished
-    // runs = 1500 + 50 + 80 + 15 = 1645 → level 2 (1000..2999).
+    // XP = 10·150 chats + 25·2 approvals + 40·2 done tasks + 5·106
+    // all-time runs (definitions run_count) = 1500+50+80+530 = 2160
+    // → level 2 (1000..2999).
     expect(data.operator).toMatchObject({
-      xp: 1645,
+      xp: 2160,
       level: 2,
       levelStartXp: 1000,
       nextLevelXp: 3000,
-      // Active days: 3 days ago..today all have sessions (analytics) and
-      // runs, so the current streak — and the best — is 4.
+      // Active days: Oct 6..9 all have sessions/runs; Oct 3 rows are
+      // isolated by the Oct 4-5 gap → current and best streak are 4.
       streakDays: 4,
       bestStreak: 4,
     })
@@ -508,6 +600,8 @@ describe('buildDashboardSocial', () => {
     expect(hs?.sessions).toBe(90)
     expect(neo?.sessions).toBe(60)
     expect(neo?.tasksWeek).toBe(1) // one done task this week, one 9 days old
+    // Workflow runs carry no profile field: runsWeek is 0, not invented.
+    expect(hs?.runsWeek).toBe(0)
     expect(hs?.working).toBe(true) // row 5: in-flight session (is_active)
     expect(neo?.working).toBe(false) // all neo rows are 6 days quiet
 
@@ -523,22 +617,29 @@ describe('buildDashboardSocial', () => {
     expect(data.counts).toMatchObject({
       chats: 150,
       workflows: 106, // definitions run_count, all-time
-      cron: 2,
+      cron: 4, // 3 (hermes-switch, incl. the timestamp-less job) + 1 (neo)
       tasks: 4,
-      memory: 131,
-      selfImprove: 2,
+      memory: 131, // 100 + 31 across the two profile banks
+      selfImprove: 2, // 1 verified per profile
       gatewayOk: true,
     })
     expect(data.counts?.needsYou).toBe(data.needsYou?.length)
 
-    // Needs You: paused approval (runId + nodeRunId), failing cron, review.
+    // Needs You approval item: C1 semantics (#1) — pausedAt is the node
+    // NAME, progress counts nodes, at is the ISO pause time, and the
+    // workflow/version come from the definition, not run metadata (#2).
     const approval = data.needsYou?.find((n) => n.kind === 'approval')
-    expect(approval).toMatchObject({
+    expect(approval).toEqual({
+      kind: 'approval',
       runId: 'run_4',
       nodeRunId: 'node_4_2',
       workflow: 'release-train',
-      progress: '1 of 2 steps',
+      version: 'v3',
+      pausedAt: 'gate',
+      progress: '1 of 2 nodes done',
       next: 'Publish GitHub release',
+      agent: 'hermes-switch',
+      at: ISO(new Date(NOW.getTime() - 2 * 3_600_000)),
     })
     const cronFail = data.needsYou?.find((n) => n.kind === 'cron-failing')
     expect(cronFail).toMatchObject({
@@ -546,6 +647,12 @@ describe('buildDashboardSocial', () => {
       name: 'nightly-digest',
       lastError: 'gateway timeout after 30s',
     })
+    // cron_34 fails but has no last_run_at: skipped, never back-dated (#11).
+    expect(
+      data.needsYou?.some(
+        (n) => n.kind === 'cron-failing' && n.jobId === 'cron_34',
+      ),
+    ).toBe(false)
     expect(data.needsYou?.find((n) => n.kind === 'task-review')).toMatchObject({
       taskId: 'k_4',
       title: 'Review agents tab sidebar list',
@@ -564,7 +671,15 @@ describe('buildDashboardSocial', () => {
       )
     }
 
+    // Badges: earnedAt is full ISO (#10); first-chat's crossing is the
+    // earliest session row; conductor falls back to the earliest
+    // evidence day because the 200-run window cannot show 50 crossings.
     expect(data.badges).toHaveLength(12)
+    const byId = new Map((data.badges ?? []).map((b) => [b.id, b]))
+    expect(byId.get('first-chat')?.earnedAt).toBe(isoDay(EIGHT_DAYS_AGO))
+    expect(byId.get('conductor')?.earnedAt).toBe(isoDay(EIGHT_DAYS_AGO))
+    expect(byId.get('token-whale')?.have).toBe(500_000) // max rolling week
+    expect(byId.get('token-whale')?.earnedAt).toBeNull()
   })
 
   it('nulls only the failing slice when one upstream throws', async () => {
@@ -574,6 +689,7 @@ describe('buildDashboardSocial', () => {
       profile: null,
       now: NOW,
     })
+    // Cron does not feed XP: the operator card stays.
     expect(data.operator).not.toBeNull()
     expect(data.badges).toHaveLength(12)
     expect(data.needsYou?.some((n) => n.kind === 'cron-failing')).toBe(false)
@@ -581,7 +697,7 @@ describe('buildDashboardSocial', () => {
     expect(data.counts?.chats).toBe(150)
   })
 
-  it('nulls only the failing slice when one upstream returns 500', async () => {
+  it('nulls the operator when an XP-feeding source returns 500 (#8)', async () => {
     const { fetcher } = makeFetcher({
       fail: { '/api/plugins/workflow-engine/runs': '500' },
     })
@@ -590,16 +706,17 @@ describe('buildDashboardSocial', () => {
       profile: null,
       now: NOW,
     })
-    expect(data.operator).not.toBeNull()
+    // Approvals are unreadable → XP would be invented, so the operator
+    // slice nulls instead of showing a lower XP as if real.
+    expect(data.operator).toBeNull()
     expect(data.needsYou?.some((n) => n.kind === 'approval')).toBe(false)
     expect(data.recent?.every((r) => r.kind !== 'workflow')).toBe(true)
-    // XP loses the runs/approvals contributions but keeps chats + tasks.
-    expect(data.operator?.xp).toBe(10 * 150 + 40 * 2)
+    expect(data.counts).not.toBeNull()
   })
 
-  it('nulls the sessions slice when sessions time out (4 s deadline)', async () => {
+  it('nulls the operator when the definitions (all-time run_count) fail (#8)', async () => {
     const { fetcher } = makeFetcher({
-      fail: { '/api/profiles/sessions': 'hang' },
+      fail: { '/api/plugins/workflow-engine/definitions': '500' },
     })
     const data = await buildDashboardSocial({
       fetcher,
@@ -607,12 +724,33 @@ describe('buildDashboardSocial', () => {
       now: NOW,
     })
     expect(data.operator).toBeNull()
-    expect(data.hotTopics).toBeNull()
-    expect(data.badges).not.toBeNull() // badges survive on other counters
-    expect(data.counts).not.toBeNull()
-  }, 10_000)
+    expect(data.badges).toHaveLength(12) // badges degrade, not null
+    expect(data.counts?.memory).toBe(131)
+  })
 
-  it('scopes every requested path to the profile when one is set', async () => {
+  it('nulls the sessions slice when sessions time out (4 s deadline, fake timers)', async () => {
+    vi.useFakeTimers()
+    try {
+      const { fetcher } = makeFetcher({
+        fail: { '/api/profiles/sessions': 'hang' },
+      })
+      const pending = buildDashboardSocial({
+        fetcher,
+        profile: null,
+        now: NOW,
+      })
+      await vi.advanceTimersByTimeAsync(4_000)
+      const data = await pending
+      expect(data.operator).toBeNull()
+      expect(data.hotTopics).toBeNull()
+      expect(data.badges).not.toBeNull() // badges survive on other counters
+      expect(data.counts).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('scopes only the proven upstreams and leaves the rest unscoped (#3)', async () => {
     const { fetcher, gatewayFetcher, requestedPaths } = makeFetcher()
     await buildDashboardSocial({
       fetcher,
@@ -622,12 +760,45 @@ describe('buildDashboardSocial', () => {
     })
     expect(requestedPaths.length).toBeGreaterThan(0)
     for (const path of requestedPaths) {
-      expect(path).toContain('profile=neo')
+      const bare = new URL(path, 'http://x.local').pathname
+      if (PROFILE_SCOPED_BARES.has(bare)) {
+        expect(path).toContain('profile=neo')
+      } else {
+        // Unprovable upstreams are called bare — a silently ignored
+        // ?profile= is exactly what the review forbids.
+        expect(path).not.toContain('profile=')
+      }
     }
-    // The node-runs fan-out carries the scope too.
+    // The node-runs fan-out stays unscoped too.
     expect(requestedPaths).toContain(
-      '/api/plugins/workflow-engine/runs/run_4/nodes?profile=neo',
+      '/api/plugins/workflow-engine/runs/run_4/nodes',
     )
+  })
+
+  it('fans the per-profile sources out over the roster when profile is null', async () => {
+    const { fetcher, requestedPaths } = makeFetcher()
+    const data = await buildDashboardSocial({
+      fetcher,
+      profile: null,
+      now: NOW,
+    })
+    expect(requestedPaths).toContain('/api/cron/jobs?profile=hermes-switch')
+    expect(requestedPaths).toContain('/api/cron/jobs?profile=neo')
+    expect(requestedPaths).toContain(
+      '/api/plugins/karpathy-self-improve/experiments?profile=neo',
+    )
+    expect(
+      requestedPaths.some(
+        (p) =>
+          p.startsWith('/api/memory/activity') &&
+          p.includes('profile=hermes-switch'),
+      ),
+    ).toBe(true)
+    // No unscoped per-profile call slipped through.
+    expect(requestedPaths).not.toContain('/api/cron/jobs')
+    expect(data.counts?.cron).toBe(4)
+    expect(data.counts?.memory).toBe(131)
+    expect(data.counts?.selfImprove).toBe(2)
   })
 
   it('uses sessions total, not the capped 100-row list length', async () => {
@@ -639,7 +810,7 @@ describe('buildDashboardSocial', () => {
     })
     // 150 total with 100 rows on the wire: chats and XP follow `total`.
     expect(data.counts?.chats).toBe(150)
-    expect(data.operator?.xp).toBe(1645)
+    expect(data.operator?.xp).toBe(2160)
   })
 
   it('scopes per-profile session counts when a profile is set', async () => {
@@ -649,8 +820,26 @@ describe('buildDashboardSocial', () => {
       profile: 'neo',
       now: NOW,
     })
-    // total falls back to profile_totals for the selected profile.
-    expect(data.operator?.xp).toBe(10 * 60 + 25 * 2 + 40 * 2 + 5 * 3)
+    // Only the selected profile's total: 60 chats + shared terms.
+    expect(data.operator?.xp).toBe(10 * 60 + 25 * 2 + 40 * 2 + 5 * 106)
     expect(data.profile).toBe('neo')
   })
+
+  it('treats a profile absent from profile_totals as 0, never the global total (#4)', async () => {
+    const { fetcher } = makeFetcher()
+    const data = await buildDashboardSocial({
+      fetcher,
+      profile: 'ghost',
+      now: NOW,
+    })
+    expect(data.counts?.chats).toBe(0)
+    // XP keeps only the shared terms (approvals/tasks/all-time runs).
+    expect(data.operator?.xp).toBe(25 * 2 + 40 * 2 + 5 * 106)
+    const ghost = data.agents?.find((a) => a.id === 'ghost')
+    expect(ghost?.sessions).toBe(0)
+  })
+})
+
+afterEach(() => {
+  vi.useRealTimers()
 })

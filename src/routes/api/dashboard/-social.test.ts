@@ -135,7 +135,7 @@ describe('GET /api/dashboard/social', () => {
     expect(getMnemosyneActivity).toHaveBeenCalled()
   })
 
-  it('honours ?profile= and forwards it to every upstream call', async () => {
+  it('honours ?profile= on the proven upstreams and leaves the rest bare', async () => {
     vi.mocked(isAuthenticated).mockReturnValue(true)
     stubUpstreams()
 
@@ -146,8 +146,34 @@ describe('GET /api/dashboard/social', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.profile).toBe('neo')
-    for (const call of vi.mocked(dashboardFetch).mock.calls) {
-      expect(call[0]).toContain('profile=neo')
+    const calls = vi.mocked(dashboardFetch).mock.calls.map((c) => c[0])
+    expect(calls).toContain('/api/profiles/sessions?limit=100&profile=neo')
+    // profile=neo is set: the per-profile sources get exactly that
+    // scope; memory is served by the local module with the same profile.
+    expect(calls).toContain('/api/cron/jobs?profile=neo')
+    expect(calls).toContain(
+      '/api/plugins/karpathy-self-improve/experiments?profile=neo',
+    )
+    expect(getMnemosyneActivity).toHaveBeenCalledWith(
+      30,
+      undefined,
+      'neo',
+      expect.any(Number),
+    )
+    // Upstreams with no profile dimension are called bare — a silently
+    // ignored ?profile= is what the review forbids.
+    const bareAllowlist = [
+      '/api/analytics/usage?days=30',
+      '/api/status',
+      '/api/plugins/workflow-engine/runs?limit=200',
+      '/api/plugins/workflow-engine/definitions',
+      '/api/plugins/kanban/board',
+      '/api/plugins/hermes-achievements/achievements',
+      '/api/plugins/hermes-achievements/recent-unlocks?limit=5',
+    ]
+    for (const path of calls) {
+      if (bareAllowlist.includes(path) || path.includes('/nodes')) continue
+      expect(path).toContain('profile=')
     }
   })
 })
