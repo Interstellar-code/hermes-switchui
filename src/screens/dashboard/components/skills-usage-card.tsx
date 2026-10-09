@@ -11,7 +11,12 @@ import { formatSkillName } from '@/screens/dashboard/lib/formatters'
  * list either.
  *
  * Falls back to the Skills installed count when usage data isn't
- * present (e.g. fresh install).
+ * present (e.g. fresh install). `installedCount` is optional and may
+ * be `null` when the dashboard hasn't fetched the installed list yet
+ * — the card then renders "—" for the denominator instead of
+ * inventing "0" or "N of 0 used". A real `0` is still rendered as
+ * "0 installed" / "no skills installed" because the API explicitly
+ * confirmed an empty install.
  */
 export function SkillsUsageCard({
   usage,
@@ -19,13 +24,24 @@ export function SkillsUsageCard({
   onOpen,
 }: {
   usage: DashboardOverview['skillsUsage']
-  installedCount: number
+  installedCount?: number | null
   onOpen: () => void
 }) {
   const navigate = useNavigate()
   const hasUsage = !!usage && usage.topSkills.length > 0
   const top = hasUsage ? usage.topSkills : []
   const max = top[0]?.totalCount || 1
+  // `null` means "we don't know yet" — distinct from `0` which means
+  // "the installed list came back empty". The first becomes "—"; the
+  // second renders the existing "0 installed" / "no skills installed"
+  // copy unchanged so today's screen still reads correctly.
+  const countLabel =
+    installedCount === null || installedCount === undefined
+      ? '—'
+      : String(installedCount)
+  const noInstalledInfo =
+    installedCount === null || installedCount === undefined
+  const noInstalledAtAll = installedCount === 0
 
   return (
     <button
@@ -61,8 +77,8 @@ export function SkillsUsageCard({
           style={{ color: 'var(--theme-muted)' }}
         >
           {hasUsage
-            ? `${usage.distinctSkills} of ${installedCount} used`
-            : `${installedCount} installed`}
+            ? `${usage.distinctSkills} of ${countLabel} used`
+            : `${countLabel} installed`}
           {' · manage →'}
         </span>
       </div>
@@ -115,9 +131,11 @@ export function SkillsUsageCard({
           className="font-mono text-[11px] uppercase tracking-[0.15em]"
           style={{ color: 'var(--theme-muted)' }}
         >
-          {installedCount === 0
-            ? 'no skills installed'
-            : 'no usage in this window yet'}
+          {noInstalledInfo
+            ? 'installed list not loaded yet'
+            : noInstalledAtAll
+              ? 'no skills installed'
+              : 'no usage in this window yet'}
         </div>
       )}
     </button>

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
-const STORAGE_KEY = 'dashboard.layout.v1'
+/**
+ * Storage key. Exported so the layout hook's tests can read/write
+ * the same slot the hook does. Not part of the public API.
+ */
+export const STORAGE_KEY = 'dashboard.layout.v1'
 
 /**
  * Catalog of hideable widgets. The order here is also the *default
@@ -23,6 +27,7 @@ export type WidgetId =
   | 'skills_usage'
   | 'achievements'
   | 'mix_rhythm'
+  | 'token_mix_hour'
 
 export type WidgetMeta = {
   id: WidgetId
@@ -60,16 +65,14 @@ export const WIDGET_CATALOG: ReadonlyArray<WidgetMeta> = [
   {
     id: 'cache_efficiency',
     label: 'Cache efficiency',
-    description:
-      'Cache-hit rate with daily sparkline. Higher = lower cost.',
+    description: 'Cache-hit rate with daily sparkline. Higher = lower cost.',
     column: 'main',
     hideable: true,
   },
   {
     id: 'velocity',
     label: 'Velocity',
-    description:
-      'Sessions/day average + delta vs prior period + sparkline.',
+    description: 'Sessions/day average + delta vs prior period + sparkline.',
     column: 'main',
     hideable: true,
   },
@@ -125,6 +128,13 @@ export const WIDGET_CATALOG: ReadonlyArray<WidgetMeta> = [
     column: 'rail',
     hideable: true,
   },
+  {
+    id: 'token_mix_hour',
+    label: 'Tokens by hour',
+    description: 'Hour-of-day token-usage strip (ops section).',
+    column: 'rail',
+    hideable: true,
+  },
 ]
 
 type StoredLayout = {
@@ -132,6 +142,10 @@ type StoredLayout = {
 }
 
 /**
+ * The hidden-by-default widget set. Exported so tests and any future
+ * "Reset" UI can reason about the same canonical list the hook
+ * writes when no stored value is present.
+ *
  * Iteration 014 defaults:
  * - Logs Tail off (triage tool, not a default).
  * - Provider Mix off (Eric kept Cache only).
@@ -143,7 +157,7 @@ type StoredLayout = {
  *   in the edit menu for users who want a contextual nudge.
  * Attention is no longer a widget id at all (it moved into OpsStrip).
  */
-const DEFAULT_HIDDEN: ReadonlyArray<WidgetId> = [
+export const DEFAULT_HIDDEN: ReadonlyArray<WidgetId> = [
   'logs_tail',
   'provider_mix',
   'velocity',
@@ -152,12 +166,43 @@ const DEFAULT_HIDDEN: ReadonlyArray<WidgetId> = [
 ]
 
 /**
- * Storage schema marker. We bumped from v1 → v2 when iteration 006
- * removed the `attention` widget id and made `logs_tail` default-off,
- * so existing localStorage entries with `attention` get migrated
- * cleanly instead of silently re-hiding stale ids.
+ * In-tab subscriber set so multiple `useDashboardLayout()` instances
+ * mounted at once (legacy screen + ops section) stay in sync. A write
+ * in one instance calls `notifySubscribers()`; every other instance
+ * re-reads from localStorage and updates its state. We do not rely
+ * on the browser's `storage` event because that only fires for
+ * changes from *other* tabs — same-tab writes need an explicit
+ * fan-out.
  */
-const STORAGE_VERSION = 4
+const subscribers = new Set<() => void>()
+
+function notifySubscribers(): void {
+  for (const fn of subscribers) fn()
+}
+
+/**
+ * Storage schema version. Bump this whenever:
+ *  - a widget id is added/removed/renamed (write a migration in
+ *    `MIGRATIONS` so the user's stored choice carries over), OR
+ *  - the default hidden set changes and returning users should
+ *    pick up the new defaults while keeping their explicit hides.
+ *
+ * Exported so the layout hook's tests can seed a stored value with
+ * the current version. Not part of the public API.
+ */
+export const STORAGE_VERSION = 4
+
+/**
+ * Per-version migrations applied when reading a stored layout. Empty
+ * today; the v4 -> v4 (id `token_mix_hour` added) path needs no
+ * migration because the new id is not in `DEFAULT_HIDDEN`, so
+ * returning users do not need to have it unioned in. The hook
+ * keeps the migration shape so future bumps have a place to land.
+ */
+const MIGRATIONS: ReadonlyArray<{
+  from: number
+  fn: (hidden: Array<string>) => Array<string>
+}> = []
 
 function readLayout(): StoredLayout {
   if (typeof window === 'undefined') {
@@ -166,27 +211,53 @@ function readLayout(): StoredLayout {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return { hidden: [...DEFAULT_HIDDEN] }
-    const parsed = JSON.parse(raw) as StoredLayout & {
-      version?: number
+    const parsed = JSON.parse(raw) as {
+      hidden?: unknown
+      version?: unknown
+    }
+    // Unknown / future / non-number version: fall back to defaults.
+    // A returning user with a stored value from a build that wrote
+    // a higher number than we know about would otherwise load with
+    // a half-migrated set; the safer choice is to start clean and
+    // let them re-pick any non-default opt-ins.
+    if (
+      typeof parsed.version !== 'number' ||
+      parsed.version > STORAGE_VERSION
+    ) {
+      return { hidden: [...DEFAULT_HIDDEN] }
     }
     const valid = new Set<WidgetId>(WIDGET_CATALOG.map((w) => w.id))
-    const incoming = Array.isArray(parsed.hidden) ? parsed.hidden : []
-    const filtered = incoming.filter((id): id is WidgetId =>
-      valid.has(id),
-    )
-    // Schema migration: when we introduce new widgets that should be
-    // off-by-default, bump STORAGE_VERSION and union the prior user
-    // hides with the new defaults so existing installs don't suddenly
-    // sprout widgets they never asked for. Returning users keep every
-    // explicit hide they had, plus the newly default-hidden widgets
-    // become hidden until they opt in via the edit menu.
-    const storedVersion = parsed.version ?? 0
-    if (storedVersion < STORAGE_VERSION) {
-      const merged = new Set<WidgetId>(filtered)
-      for (const id of DEFAULT_HIDDEN) merged.add(id)
-      return { hidden: Array.from(merged) }
+    // `parsed.hidden` is declared as `Array<WidgetId>` but JSON.parse
+    // can return any shape — the cast widens it so the migrations and
+    // the `valid` filter can drop entries that no longer exist in
+    // the catalog without a separate type-narrowing pass.
+    const incoming: Array<string> = Array.isArray(parsed.hidden)
+      ? (parsed.hidden as Array<unknown>).filter(
+          (id): id is string => typeof id === 'string',
+        )
+      : []
+    // Apply migrations in declared order so a v1 stored value passes
+    // through every applicable step and lands on the current shape.
+    const storedVersion = parsed.version
+    let migrated: Array<string> = incoming
+    for (const step of MIGRATIONS) {
+      if (storedVersion < step.from) {
+        // The user stored before this step was introduced — there's
+        // nothing to rewrite, their array is already in the old shape.
+        continue
+      }
+      migrated = step.fn(migrated)
     }
-    return { hidden: filtered }
+    // Drop any ids that don't exist in the current catalog. Renamed
+    // ids that were migrated above are kept; truly removed ids
+    // disappear here, silently — the user's choice was for a card
+    // that no longer exists, so there's nothing to preserve.
+    return {
+      hidden: migrated.filter(
+        (id): id is WidgetId =>
+          typeof id === 'string' && valid.has(id as WidgetId),
+      ),
+    }
   } catch {
     return { hidden: [...DEFAULT_HIDDEN] }
   }
@@ -212,10 +283,14 @@ function writeLayout(layout: StoredLayout) {
  * Returns helpers for individual widgets to ask "am I visible?" and
  * for the edit panel to flip widgets on/off.
  *
- * Kept as a hook (not a React Context) because the dashboard tree is
- * shallow enough that prop-drilling the result one level is cleaner
- * than threading a provider — and prop-drilling makes it obvious
- * which widgets actually consume the layout.
+ * Multiple instances of this hook in the same tab share state via
+ * a module-level subscriber fan-out (see `notifySubscribers`).
+ * Earlier revisions kept state inside `useState`, so two mounted
+ * instances (the legacy screen + the new ops section, both on the
+ * dashboard at once after P2) would each own their own `hidden`
+ * set and overwrite each other's writes to localStorage on every
+ * change. The fan-out keeps every instance reflecting the latest
+ * persisted set.
  */
 export function useDashboardLayout() {
   const [editMode, setEditMode] = useState(false)
@@ -223,9 +298,42 @@ export function useDashboardLayout() {
     () => new Set(readLayout().hidden),
   )
 
+  // Subscribe to other instances' writes so we re-read from
+  // localStorage and update local state. The subscriber does not
+  // call `setHidden` from inside a `useEffect` body directly —
+  // React requires a state updater to be invoked from the render
+  // phase, so we wrap the call in a guarded `setHidden` that
+  // re-reads only when our local state diverges from the persisted
+  // set. This is also why the test for "two instances stay in
+  // sync" uses `act()` — React 18 batches state updates across
+  // the subscribers.
+  useEffect(() => {
+    const cb = () => {
+      setHidden((prev) => {
+        const next = new Set(readLayout().hidden)
+        if (next.size === prev.size) {
+          let same = true
+          for (const id of next) {
+            if (!prev.has(id)) {
+              same = false
+              break
+            }
+          }
+          if (same) return prev
+        }
+        return next
+      })
+    }
+    subscribers.add(cb)
+    return () => {
+      subscribers.delete(cb)
+    }
+  }, [])
+
   // Persist on every change. Cheap; ~1KB max.
   useEffect(() => {
     writeLayout({ hidden: Array.from(hidden) })
+    notifySubscribers()
   }, [hidden])
 
   const toggleEdit = useCallback(() => setEditMode((v) => !v), [])
@@ -251,15 +359,9 @@ export function useDashboardLayout() {
   // Reset returns to the iteration-006 defaults rather than "show
   // literally everything" so first-time users hitting Reset don't
   // suddenly see Logs they never asked for.
-  const reset = useCallback(
-    () => setHidden(new Set(DEFAULT_HIDDEN)),
-    [],
-  )
+  const reset = useCallback(() => setHidden(new Set(DEFAULT_HIDDEN)), [])
 
-  const isVisible = useCallback(
-    (id: WidgetId) => !hidden.has(id),
-    [hidden],
-  )
+  const isVisible = useCallback((id: WidgetId) => !hidden.has(id), [hidden])
 
   const counts = useMemo(() => {
     const total = WIDGET_CATALOG.length
