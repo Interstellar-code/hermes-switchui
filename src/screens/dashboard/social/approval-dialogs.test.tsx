@@ -115,15 +115,15 @@ describe('RejectDialog', () => {
     const confirm = screen.getByRole('button', {
       name: 'CONFIRM REJECT',
     })
-    expect(confirm.disabled).toBe(true)
+    expect(confirm.hasAttribute('disabled')).toBe(true)
     fireEvent.change(screen.getByLabelText('Reason (required)'), {
       target: { value: '   ' },
     })
-    expect(confirm.disabled).toBe(true)
+    expect(confirm.hasAttribute('disabled')).toBe(true)
     fireEvent.change(screen.getByLabelText('Reason (required)'), {
       target: { value: 'wrong target' },
     })
-    expect(confirm.disabled).toBe(false)
+    expect(confirm.hasAttribute('disabled')).toBe(false)
     fireEvent.click(confirm)
     await waitFor(() => expect(onDone).toHaveBeenCalledWith('rejected'))
     const [url, init] = fetchMock.mock.calls[0]
