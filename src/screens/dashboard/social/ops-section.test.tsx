@@ -436,25 +436,29 @@ describe('OpsSection auto-adjusting grid + inline edit panel', () => {
     )
   }
 
-  it('hidden cards are not in the DOM; grid is auto-fill + dense', async () => {
+  it('hidden cards are not in the DOM; grid is a wrapping flex row', async () => {
     mount(await fixtureOverview())
     expect(screen.queryByText(/Provider mix/i)).toBeNull()
     expect(screen.queryByText('Velocity')).toBeNull()
     const grid = document.getElementById('ops-grid')!
-    expect(grid.className).toContain('auto-fill')
-    expect(grid.className).toContain('grid-flow-dense')
+    expect(grid.className).toContain('flex-wrap')
+    expect(grid.className).not.toContain('grid')
     expect(grid.className).toContain('items-stretch')
     // 5 default-visible cards = 5 cells
     expect(grid.children.length).toBe(5)
   })
 
-  it('the usage-trend chart cell spans 2 columns only in a wide container', async () => {
+  it('every cell grows from 300px; the usage-trend chart cell from 600px', async () => {
     mount(await fixtureOverview())
     const grid = document.getElementById('ops-grid')!
-    expect(grid.parentElement!.className).toContain('@container')
     const [chart, ...rest] = Array.from(grid.children)
-    expect(chart.className).toContain('@min-[640px]:col-span-2')
-    for (const cell of rest) expect(cell.className).not.toContain('col-span')
+    expect(chart.className).toContain('flex-[2_1_600px]')
+    expect(chart.className).toContain('min-w-[min(100%,300px)]')
+    for (const cell of rest) {
+      expect(cell.className).toContain('flex-[1_1_300px]')
+      expect(cell.className).toContain('min-w-[min(100%,300px)]')
+      expect(cell.className).not.toContain('600px')
+    }
   })
 
   it('cards stay in the grid while the overview is pending or missing', () => {

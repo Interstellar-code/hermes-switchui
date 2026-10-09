@@ -58,7 +58,7 @@ export function TopModelsCard({
 
   return (
     <div
-      className="relative flex flex-col gap-2 overflow-hidden rounded-xl border p-3"
+      className="relative flex h-full flex-col gap-2 overflow-hidden rounded-xl border p-3"
       style={{
         background:
           'linear-gradient(150deg, color-mix(in srgb, var(--theme-card) 96%, transparent), color-mix(in srgb, var(--theme-card) 92%, transparent))',
@@ -88,7 +88,7 @@ export function TopModelsCard({
         </span>
       </div>
 
-      <ul className="flex flex-col gap-1.5">
+      <ul className="flex flex-1 flex-col gap-1.5">
         {analytics.topModels.map((m, i) => {
           const widthPct = Math.max(2, Math.round((m.tokens / maxTokens) * 100))
           const sharePct =

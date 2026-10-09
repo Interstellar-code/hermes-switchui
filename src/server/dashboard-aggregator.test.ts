@@ -370,6 +370,33 @@ describe('buildDashboardOverview', () => {
     })
   })
 
+  it('keeps the top 6 models by tokens', async () => {
+    const fetcher = ((path: string) =>
+      Promise.resolve(
+        path.startsWith('/api/analytics/usage')
+          ? new Response(
+              JSON.stringify({
+                totals: { total_input: 1 },
+                by_model: Array.from({ length: 8 }, (_, i) => ({
+                  model: `m${i}`,
+                  input_tokens: 100 - i,
+                })),
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } },
+            )
+          : new Response('nf', { status: 404 }),
+      )) as DashboardFetcher
+    const overview = await buildDashboardOverview({ fetcher })
+    expect(overview.analytics?.topModels.map((m) => m.id)).toEqual([
+      'm0',
+      'm1',
+      'm2',
+      'm3',
+      'm4',
+      'm5',
+    ])
+  })
+
   it('falls back to legacy analytics shape (top_models + total_tokens)', async () => {
     const fetcher = makeFetcher({
       '/api/analytics/usage': {
