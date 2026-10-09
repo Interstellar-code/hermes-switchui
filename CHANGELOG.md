@@ -3,39 +3,24 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.14.0] - 2026-10-09
+## [2.14.0] — 2026-10-09
+
+The dashboard is rebuilt as a social, act-now page: your level, streak and agents on the left, what needs you in the middle, the agent leaderboard and badges on the right, with the old analytics kept in an auto-fitting Ops section and a slim status bar.
 
 ### Added
-- **dashboard:** top section auto-fits — equal columns, filling cards (899ea54a)
-- **dashboard:** social dashboard layout on live data (ac5bf3e9)
-- **dashboard:** left column — profile, agents, hot this week (1c61a9ac)
-- **dashboard:** right column — leaderboard, streak, badges (cadc4426)
-- **dashboard:** social dashboard API with derived XP, streak and badges (5f678741)
-- **dashboard:** center column — rings, ask box, needs you, recent activity (f973ee12)
-- **dashboard:** social dashboard contract, mock data and primitives (5d5e33df)
+
+- **Social dashboard**: three columns that end level and fill the page. Left: operator card with level, XP, streak and badges, MY AGENTS (sessions, working-now dot) and HOT THIS WEEK. Middle: eight shortcut rings with live counts, an ask box with Run workflow / Add task, NEEDS YOU (approve or reject paused workflow runs, retry failing cron jobs, open task reviews) and RECENT ACTIVITY, which shows as many rows as fit. Right: agent leaderboard by tokens, sessions, tasks or runs (empty state when everything is zero), daily streak and the closest badges. Agent and badge dialogs open from both sides.
+- **`GET /api/dashboard/social`**: one call for the new columns, scoped to the selected profile. XP, level, streak and the 12 badges are worked out from existing data (sessions, workflow runs, approvals, tasks, memory); nothing new is stored. Each source fails on its own, so one slow service no longer blanks the page.
+- **Ops & Analytics + status bar**: the old usage chart, top models, cache, skills, tokens-by-hour and the optional cards now sit in one section whose cards wrap and stretch to fill each row, with no holes when you hide some. EDIT LAYOUT (or the header pencil) opens an inline strip of on/off chips with Show all and Reset. Gateway, platforms, cron, config, logs and the period's sessions, tokens and API calls move into a status bar pinned to the bottom.
 
 ### Fixed
-- **dashboard:** F4 review fixes — mobile recent rows, remeasure, shared useFitRows (89eb7249)
-- **dashboard:** ops cards wrap and stretch to fill each row (9df4c926)
-- **dashboard:** F3 review fixes — header edit opens ops panel, shared retry helper (0bcf8850)
-- **dashboard:** ops cards never vanish, fast retry, auto-adjusting grid (e01f75bc)
-- **dashboard:** social API follow-ups from QA (fede1b59)
-- **dashboard:** loading state, partial-data retry, zero leaderboard (0431172a)
-- **dashboard:** social API profile view excludes unscoped sources (8213a3cf)
-- **dashboard:** social API review fixes — contract, real fields, profile scope (76114a64)
-- **dashboard:** ops section review fixes — no invented numbers, layout sync (83493998)
-- **dashboard:** type-safe disabled check in center column test (589b3304)
-- **dashboard:** center column review fixes — focus, 390px, pending (625020b5)
-- **dashboard:** type-safe disabled assertions in approval dialog test (6d5ab767)
-- **dashboard:** drop leftover /cron href in primitives test (2eb999db)
-- **dashboard:** P0 review fixes — real hrefs, Panel attrs, avatar label (f287f3ef)
 
-### Docs
-- **changelog:** describe v2.13.2 in the house style (eae1c66a)
+- **Cold load**: the dashboard shows loading skeletons instead of "Unavailable" while data arrives, retries after 5 s when a response comes back partial (instead of 30 s), and the analytics cards show Loading / Unavailable instead of disappearing. Per-source timeouts went from 4 s to 8 s.
+- **Recent activity**: a cron run and the chat session it created are one row, and a selected profile no longer shows other profiles' workflow runs. Hot topics drop stop-words and hex ids.
 
-### Other
-- **dashboard:** ops section and status dock; drop unused cards (9c7e9523)
-- **dashboard:** prettier on center column test (5197f831)
+### Removed
+
+- Six unused dashboard cards and the old hero metrics, model KPI, ops strip and attention marquee, replaced by the sections above.
 
 ## [2.13.2] — 2026-10-09
 
