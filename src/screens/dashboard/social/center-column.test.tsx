@@ -10,6 +10,7 @@ import {
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CenterColumn } from './center-column'
 import { mockDashboardSocial } from './mock'
+import { stubFitGeometry, stubMatchMedia } from './fit-rows-test-utils'
 
 const navigate = vi.fn()
 vi.mock('@tanstack/react-router', () => ({
@@ -104,43 +105,9 @@ describe('CenterColumn', () => {
   })
 
   it('measures the card: shows the rows that fit whole, minimum 3', () => {
-    // 30px rows stacked in a 140px box; one 20px line is kept for "+N more".
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(private cb: () => void) {}
-        observe() {
-          this.cb()
-        }
-        disconnect() {}
-      },
-    )
-    const px = (get: (el: HTMLElement) => number) => ({
-      configurable: true,
-      get(this: HTMLElement) {
-        return get(this)
-      },
-    })
-    const proto = HTMLElement.prototype
-    const saved = ['clientHeight', 'offsetHeight', 'offsetTop'].map(
-      (k) => [k, Object.getOwnPropertyDescriptor(proto, k)] as const,
-    )
-    let box = 140
-    Object.defineProperty(
-      proto,
-      'clientHeight',
-      px(() => box),
-    )
-    Object.defineProperty(
-      proto,
-      'offsetHeight',
-      px(() => 30),
-    )
-    Object.defineProperty(
-      proto,
-      'offsetTop',
-      px((el) => Array.from(el.parentElement?.children ?? []).indexOf(el) * 30),
-    )
+    // 30px rows in a 140px box; one 20px line is kept for "+N more".
+    const box = { height: 140 }
+    const geo = stubFitGeometry(box)
     try {
       const { rerender } = render(
         <CenterColumn data={{ ...data, recent: recentRows(8) }} />,
@@ -150,14 +117,70 @@ describe('CenterColumn', () => {
         within(recentRegion()).getByText('+4 more · see all in Feed'),
       ).toBeTruthy()
       // Tiny box: never fewer than 3 whole rows.
-      box = 40
+      box.height = 40
       rerender(<CenterColumn data={{ ...data, recent: recentRows(9) }} />)
       expect(within(recentRegion()).getAllByRole('link')).toHaveLength(3)
     } finally {
-      for (const [k, d] of saved) {
-        if (d) Object.defineProperty(proto, k, d)
-        else delete (proto as unknown as Record<string, unknown>)[k]
+      geo.restore()
+    }
+  })
+
+  it('single-column layout: no measuring, 5 rows in normal flow plus +N more', () => {
+    const geo = stubFitGeometry({ height: 400 })
+    stubMatchMedia(true)
+    try {
+      render(<CenterColumn data={{ ...data, recent: recentRows(10) }} />)
+      expect(within(recentRegion()).getAllByRole('link')).toHaveLength(5)
+      expect(
+        within(recentRegion()).getByText('+5 more · see all in Feed'),
+      ).toBeTruthy()
+      expect(recentRegion().querySelector('.absolute')).toBeNull()
+      expect(geo.observers).toHaveLength(0)
+    } finally {
+      geo.restore()
+    }
+  })
+
+  it('re-measures when the rows change but their count does not', () => {
+    const geo = stubFitGeometry({ height: 140 })
+    try {
+      const rows = recentRows(8)
+      const { rerender } = render(
+        <CenterColumn data={{ ...data, recent: rows }} />,
+      )
+      expect(within(recentRegion()).getAllByRole('link')).toHaveLength(4)
+      // Same count, but every row is now taller: only 2 fit, min 3 wins.
+      geo.restore()
+      const tall = stubFitGeometry({ height: 140 }, 60)
+      try {
+        rerender(
+          <CenterColumn
+            data={{
+              ...data,
+              recent: rows.map((r) => ({ ...r, sub: `${r.sub} (longer)` })),
+            }}
+          />,
+        )
+        expect(within(recentRegion()).getAllByRole('link')).toHaveLength(3)
+      } finally {
+        tall.restore()
       }
+    } finally {
+      geo.restore()
+    }
+  })
+
+  it('disconnects the observer on unmount', () => {
+    const geo = stubFitGeometry({ height: 140 })
+    try {
+      const { unmount } = render(
+        <CenterColumn data={{ ...data, recent: recentRows(8) }} />,
+      )
+      expect(geo.observers).toHaveLength(1)
+      unmount()
+      expect(geo.observers[0].disconnect).toHaveBeenCalledTimes(1)
+    } finally {
+      geo.restore()
     }
   })
 

@@ -8,7 +8,7 @@ import {
 } from './primitives'
 import { AgentDialog } from './agent-dialog'
 import { BadgeDialog, badgeProgress, badgeStatus } from './badge-dialog'
-import { useFitRows } from './center-column'
+import { useFitRows } from './use-fit-rows'
 import type { CSSProperties, ReactNode } from 'react'
 import type {
   DashboardAgent,
@@ -512,6 +512,9 @@ function BadgesPanel({
     min: 3,
     fallback: 3,
     override: maxRows,
+    contentKey: nextBadges
+      .map((b) => `${b.id}|${b.name}|${b.how}|${b.have}|${b.need}`)
+      .join('\n'),
   })
   const shown = measured ? nextBadges : nextBadges.slice(0, count)
 

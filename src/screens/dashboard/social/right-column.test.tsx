@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,6 +9,7 @@ import {
 } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mockDashboardSocial, mockDashboardSocialEmpty } from './mock'
+import { stubFitGeometry, stubMatchMedia } from './fit-rows-test-utils'
 import { BadgeDialog } from './badge-dialog'
 import { RightColumn, agentRank } from './right-column'
 import type {
@@ -375,6 +377,48 @@ describe('RightColumn auto-fit', () => {
     expect(
       screen.getAllByLabelText(/ progress$/)[0].getAttribute('aria-label'),
     ).toBe('Badge 8 progress')
+  })
+
+  const visibleBadges = () =>
+    screen
+      .getAllByLabelText(/ progress$/)
+      .filter(
+        (bar) =>
+          bar.closest('[data-fit-row]')?.getAttribute('style') !==
+          'visibility: hidden;',
+      )
+
+  it('measured: rows past the fit are hidden, never a half row', () => {
+    // Each badge row is 50px; 160px box, 20px kept for the more line: 2 fit, min 3 wins.
+    const box = { height: 160 }
+    const geo = stubFitGeometry(box, 50)
+    try {
+      const { rerender } = render(<RightColumn data={badgeData(8)} />)
+      expect(screen.getAllByLabelText(/ progress$/)).toHaveLength(6)
+      expect(visibleBadges()).toHaveLength(3)
+      // Roomy box: 6 x 50 = 300 fits whole, nothing hidden.
+      box.height = 400
+      rerender(<RightColumn data={badgeData(7)} />)
+      expect(visibleBadges()).toHaveLength(6)
+      box.height = 230
+      act(() => geo.fire())
+      // 4 rows end at 200, +20 <= 230 ; the 5th ends at 250 and is hidden.
+      expect(visibleBadges()).toHaveLength(4)
+    } finally {
+      geo.restore()
+    }
+  })
+
+  it('single-column layout: 3 badges in normal flow, no measuring', () => {
+    const geo = stubFitGeometry({ height: 400 }, 50)
+    stubMatchMedia(true)
+    try {
+      render(<RightColumn data={badgeData(8)} />)
+      expect(screen.getAllByLabelText(/ progress$/)).toHaveLength(3)
+      expect(geo.observers).toHaveLength(0)
+    } finally {
+      geo.restore()
+    }
   })
 
   it('stretches, grows the BADGES card and wraps its cards at medium widths', () => {
