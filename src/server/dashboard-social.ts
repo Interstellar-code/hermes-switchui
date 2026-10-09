@@ -11,7 +11,7 @@
  *   Badges   = the 12 fixed ones, earned iff have >= need
  *
  * Pattern follows `dashboard-aggregator.ts`: every upstream read goes
- * through a `safeJson`-style helper with a 4 s timeout and a failed
+ * through a `safeJson`-style helper with an 8 s timeout and a failed
  * upstream nulls ONLY its slice, never the whole response.
  *
  * Profile scope (C3): `?profile=` is appended ONLY to upstreams this
@@ -287,7 +287,9 @@ export function badgeProgress(input: BadgeInputs): Array<DashboardBadge> {
 
 // ── Fetch plumbing (mirrors dashboard-aggregator's safeJson) ────────────────
 
-const SOCIAL_FETCH_TIMEOUT_MS = 4_000
+// 8 s (QA follow-up #1): a cold dev server answers some upstreams in
+// 5–7 s; at 4 s those slices came back null.
+const SOCIAL_FETCH_TIMEOUT_MS = 8_000
 
 async function safeJson<T>(
   fetcher: DashboardFetcher,
@@ -530,12 +532,36 @@ const STOP_WORDS = new Set([
   'session',
   'agent',
   'task',
+  // QA follow-up #4: common verbs/adverbs that survived the first cut.
+  'only',
+  'run',
+  'runs',
+  'work',
+  'make',
+  'need',
+  'also',
+  'check',
+  'using',
+  'used',
+  'been',
 ])
 
 function initialsFor(name: string): string {
   const cleaned = name.replace(/[^a-zA-Z0-9]/g, '')
   if (cleaned.length >= 2) return cleaned.slice(0, 2).toUpperCase()
   return (cleaned || 'AG').toUpperCase().slice(0, 2)
+}
+
+/**
+ * Hex/uuid-like token (QA follow-up #4): pure hex with ≥ 6 chars, or a
+ * digits+letters mix with ≥ 6 hex chars — ids and hashes, not topics.
+ * Project-like words (`mnemosyne`, `workflows`) stay: they either have
+ * no digits or not enough hex characters.
+ */
+function isHexLikeToken(word: string): boolean {
+  if (/^[0-9a-f]{6,}$/i.test(word)) return true
+  if (!/\d/.test(word) || !/[a-z]/.test(word)) return false
+  return (word.match(/[0-9a-f]/gi) ?? []).length >= 6
 }
 
 /**
@@ -556,7 +582,10 @@ function computeHotTopics(
     if (!title) continue
     for (const rawWord of title.split(/[^A-Za-z0-9]+/)) {
       const word = rawWord.toLowerCase()
-      if (word.length < 3 || STOP_WORDS.has(word)) continue
+      // QA follow-up #4: < 4 chars, stop-words, pure numbers and
+      // hex/uuid-like ids are not topics.
+      if (word.length < 4 || STOP_WORDS.has(word)) continue
+      if (/^\d+$/.test(word) || isHexLikeToken(word)) continue
       counts.set(word, (counts.get(word) ?? 0) + 1)
     }
   }
@@ -1226,6 +1255,12 @@ export async function buildDashboardSocial(
 
   // ── Recent activity (newest 5 across sources; no invented times) ──────
   const recentCandidates: Array<RecentItem> = []
+  // QA follow-up #2: a cron run and the chat session that run created
+  // are ONE row. Anchors are (job name, last_run_at) pairs; a chat row
+  // whose title contains the job name and whose time (last_active ??
+  // started_at) sits within ±5 min of the run is dropped in favour of
+  // the cron row — before the newest-5 cut, never after.
+  const cronAnchors: Array<{ name: string; at: number }> = []
 
   if (sessionsRaw !== null) {
     for (const row of sessionRows.slice(0, 10)) {
@@ -1241,7 +1276,9 @@ export async function buildDashboardSocial(
       })
     }
   }
-  if (runsRaw !== null) {
+  // workflow engine has no per-profile data; profile view excludes it
+  // (QA follow-up #3 — same rule as XP and counts.workflows)
+  if (runsRaw !== null && runsInScope) {
     for (const run of runs.slice(0, 10)) {
       const at = toEpochMs(run.started_at)
       if (at === null) continue
@@ -1260,6 +1297,8 @@ export async function buildDashboardSocial(
     for (const job of cronJobs) {
       const at = toEpochMs(job.last_run_at)
       if (at === null) continue
+      const name = readString(job.name)
+      if (name) cronAnchors.push({ name, at })
       const lastStatus = readString(job.last_status) || 'ran'
       recentCandidates.push({
         at: new Date(at).toISOString(),
@@ -1316,7 +1355,18 @@ export async function buildDashboardSocial(
       })
     }
   }
+  const isCronSessionDuplicate = (item: RecentItem): boolean => {
+    if (item.kind !== 'chat') return false
+    const at = Date.parse(item.at)
+    const title = item.title.toLowerCase()
+    return cronAnchors.some(
+      (anchor) =>
+        title.includes(anchor.name.toLowerCase()) &&
+        Math.abs(at - anchor.at) <= 5 * 60_000,
+    )
+  }
   const recent = recentCandidates
+    .filter((item) => !isCronSessionDuplicate(item))
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     .slice(0, 5)
 
@@ -1326,23 +1376,31 @@ export async function buildDashboardSocial(
     (readString(healthRaw.gateway_state).toLowerCase() === 'running' ||
       readString(healthRaw.status).toLowerCase() === 'ok' ||
       readNumber(healthRaw.active_agents) > 0)
+  // QA follow-up #5: `counts.workflows` is the known-workflows count
+  // (the plan's "active/known workflows" ring) sourced from the
+  // definitions list length. The old source (runsFinished, the sum of
+  // definitions run_count) read 0 live because run_count is optional
+  // ("absent on legacy rows", WorkflowDefinitionRow) and the live rows
+  // do not carry it; the definitions list itself is non-empty and real.
+  // workflow engine has no per-profile data; profile view excludes it
+  // (0 for a set profile).
+  const workflowsKnown = runsInScope ? definitions.length : 0
   const sourcesOk = [
     sessionsRaw !== null,
     cronOk,
     experimentsOk,
     memoryOk,
-    runsRaw !== null,
-    definitionsRaw !== null,
     boardRaw !== null,
+    // workflow engine has no per-profile data; profile view excludes
+    // it — its sources must not keep `counts` alive for a set profile
+    ...(runsInScope ? [runsRaw !== null, definitionsRaw !== null] : []),
   ].filter(Boolean).length
   const counts =
     sourcesOk > 0
       ? {
           chats: sessionsTotal,
           needsYou: needsYou.length,
-          // workflow engine has no per-profile data; profile view
-          // excludes it (0 for a set profile)
-          workflows: runsFinished,
+          workflows: workflowsKnown,
           cron: cronJobs.length,
           tasks: tasks.length,
           memory: memoryFacts,

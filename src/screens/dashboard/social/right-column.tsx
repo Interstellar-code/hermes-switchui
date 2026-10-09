@@ -19,9 +19,9 @@ import type {
 export interface RightColumnProps {
   data: Pick<DashboardSocial, 'agents' | 'operator' | 'badges'>
   /** Notified whenever a podium block or row opens an agent. */
-  onOpenAgent: (id: string) => void
+  onOpenAgent?: (id: string) => void
   /** Notified whenever the ALL button opens the badge grid. */
-  onOpenBadges: () => void
+  onOpenBadges?: () => void
   className?: string
 }
 
@@ -95,6 +95,19 @@ function rankAgents(agents: Array<DashboardAgent>, metric: Metric) {
       metric.value(b) - metric.value(a) ||
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   )
+}
+
+/**
+ * 1-based rank of an agent for a leaderboard metric (tokens by default), or 0
+ * when absent. The one rank rule shared by every agent dialog.
+ */
+export function agentRank(
+  agents: Array<DashboardAgent>,
+  agentId: string,
+  metricId: MetricId = 'tokens',
+): number {
+  const metric = METRICS.find((entry) => entry.id === metricId) ?? METRICS[0]
+  return rankAgents(agents, metric).findIndex((a) => a.id === agentId) + 1
 }
 
 function Unavailable({ what }: { what: string }) {
@@ -210,6 +223,9 @@ function LeaderboardPanel({
     (rank) => entries[rank - 1],
   )
   const rows = entries.slice(3)
+  // Nobody has any activity for this metric: no podium, and never a "#1" for 0.
+  const allZero =
+    ranked.length > 0 && ranked.every((agent) => metric.value(agent) === 0)
 
   return (
     <Panel as="section" aria-labelledby={headingId}>
@@ -234,7 +250,14 @@ function LeaderboardPanel({
       </SectionHeading>
       <MetricToggle active={metric} onPick={onPickMetric} />
 
-      {agents ? (
+      {agents && allZero ? (
+        <p
+          className="mt-3.5 text-[10.5px]"
+          style={{ color: 'var(--theme-muted)' }}
+        >
+          No {metric.label.toLowerCase()} this week yet
+        </p>
+      ) : agents ? (
         podium.length > 0 ? (
           <div className="mt-3.5 grid grid-cols-3 items-end gap-1.5">
             {podium.map((entry) => (
@@ -302,7 +325,7 @@ function LeaderboardPanel({
         <Unavailable what="The leaderboard" />
       )}
 
-      {agents && rows.length > 0 ? (
+      {agents && !allZero && rows.length > 0 ? (
         <div
           className="mt-3 flex flex-col gap-[7px] border-t pt-2.5"
           style={{ borderColor: 'var(--theme-border)' }}
@@ -574,20 +597,19 @@ export function RightColumn({
 
   const openAgent = (id: string) => {
     setOpenAgentId(id)
-    onOpenAgent(id)
+    onOpenAgent?.(id)
   }
   const openBadges = () => {
     setBadgesOpen(true)
-    onOpenBadges()
+    onOpenBadges?.()
   }
 
   const openAgentData =
     openAgentId && agents
       ? (agents.find((agent) => agent.id === openAgentId) ?? null)
       : null
-  const rank = openAgentData
-    ? ranked.findIndex((agent) => agent.id === openAgentData.id) + 1
-    : 0
+  const rank =
+    openAgentData && agents ? agentRank(agents, openAgentData.id, metricId) : 0
 
   return (
     <aside
