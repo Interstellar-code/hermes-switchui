@@ -651,9 +651,12 @@ export async function buildDashboardSocial(
   //                            view; only used for profile=null slices
   //  - workflow-engine plugin  WorkflowRun/WorkflowDefinitionRow carry no
   //                            profile field (workflow-engine/interface.ts)
-  //                            — shared engine, fleet-wide by construction
-  //  - kanban board plugin     tasks carry tenant/assignee, no profile
-  //                            (hermes-kanban-client.ts) — shared workspace
+  //                            — fleet-wide; a set profile EXCLUDES its
+  //                            data from XP, counts.workflows, streak and
+  //                            needsYou approvals (see runsInScope)
+  //  - kanban board plugin     no profile param (hermes-kanban-client.ts);
+  //                            the assignee is the per-profile key, so a
+  //                            set profile filters tasks by assignee
   //  - achievements plugin     same aggregator path as overview, global
   //  - /health/detailed        gateway runtime state, not profile data
   const [
@@ -796,6 +799,9 @@ export async function buildDashboardSocial(
       ? readNumber(profileTotals[profile], 0)
       : readNumber(sessionsRaw?.total)
 
+  // Workflow runs/approvals/run_count are only usable fleet-wide.
+  const runsInScope = profile === null
+
   // ── Workflow runs (shared engine; only real WorkflowRun fields) ───────
   const runs = Array.isArray(runsRaw?.runs) ? runsRaw.runs : []
   const defByName = new Map<string, { name: string; version: string }>()
@@ -821,7 +827,8 @@ export async function buildDashboardSocial(
     const status = readString(run.status).toLowerCase()
     if (status === 'paused') pausedRuns.push(run)
     const started = toEpochMs(run.started_at)
-    if (started !== null) runDayKeys.push(dayKeyFromMs(started))
+    // workflow engine has no per-profile data; profile view excludes it
+    if (runsInScope && started !== null) runDayKeys.push(dayKeyFromMs(started))
   }
 
   // Node runs for (a) the 5 newest paused runs → Needs You approvals,
@@ -833,14 +840,17 @@ export async function buildDashboardSocial(
   // these 10 most recent runs (bounded fan-out); older approvals age
   // out of the count. Runs-finished uses the all-time definition
   // run_count below, so XP's largest terms stay monotonic.
-  const runsForNodes = Array.from(
-    new Map(
-      [
-        ...pausedRuns.slice(0, 5),
-        ...runs.slice(0, 10), // listRuns returns newest first
-      ].map((run) => [readString(run.id), run]),
-    ).values(),
-  ).filter((run) => readString(run.id))
+  // workflow engine has no per-profile data; profile view excludes it
+  const runsForNodes = runsInScope
+    ? Array.from(
+        new Map(
+          [
+            ...pausedRuns.slice(0, 5),
+            ...runs.slice(0, 10), // listRuns returns newest first
+          ].map((run) => [readString(run.id), run]),
+        ).values(),
+      ).filter((run) => readString(run.id))
+    : []
   const nodeRunsLists = await Promise.all(
     runsForNodes.map((run) =>
       safeJson<NodeRunsPayload>(
@@ -878,10 +888,10 @@ export async function buildDashboardSocial(
   // Runs finished: all-time run_count from the definitions (#5 — XP's
   // runs term must not go down as runs age out of the 200-run window).
   // Fleet-wide by construction (definitions carry no profile).
-  const runsFinished = definitions.reduce(
-    (sum, def) => sum + readNumber(def.run_count),
-    0,
-  )
+  // workflow engine has no per-profile data; profile view excludes it
+  const runsFinished = runsInScope
+    ? definitions.reduce((sum, def) => sum + readNumber(def.run_count), 0)
+    : 0
 
   // "Releases" proxy: finished runs of release-flavoured workflows. No
   // release-tag endpoint exists behind the fetcher, so Shipper counts
@@ -895,15 +905,20 @@ export async function buildDashboardSocial(
     })
     .map((run) => toEpochMs(run.completed_at) ?? toEpochMs(run.started_at))
     .filter((ms): ms is number => ms !== null)
-  const releases = releaseRunDatesMs.length
+  // workflow engine has no per-profile data; profile view excludes it
+  const releases = runsInScope ? releaseRunDatesMs.length : 0
 
   // ── Kanban (shared workspace board; per-agent via assignee) ───────────
+  // The board has no profile param — the assignee is the per-profile
+  // key, so a set profile sees only its own tasks.
   const tasks: Array<Record<string, unknown>> = []
   const tasksByStatus = new Map<string, Array<Record<string, unknown>>>()
   if (Array.isArray(boardRaw?.board?.columns)) {
     for (const column of boardRaw.board.columns) {
       const name = readString(column.name).toLowerCase() || 'unknown'
-      const rows = Array.isArray(column.tasks) ? column.tasks : []
+      const rows = (Array.isArray(column.tasks) ? column.tasks : []).filter(
+        (task) => profile === null || readString(task.assignee) === profile,
+      )
       tasksByStatus.set(name, [...(tasksByStatus.get(name) ?? []), ...rows])
       tasks.push(...rows)
     }
@@ -1106,14 +1121,18 @@ export async function buildDashboardSocial(
     'operator'
 
   // XP is only honest when every source feeding it answered (#8):
-  // sessions (chats), runs+nodes (approvals), definitions (run_count),
-  // kanban (tasks done).
+  // sessions (chats) and kanban (tasks done) always; runs+nodes
+  // (approvals) and definitions (run_count) only when profile is null —
+  // they feed no XP term in the profile view.
   const xpSourcesOk =
     sessionsRaw !== null &&
-    runsRaw !== null &&
-    definitionsRaw !== null &&
     boardRaw !== null &&
-    !(runsForNodes.length > 0 && nodeFetchFailures === runsForNodes.length)
+    (!runsInScope ||
+      (runsRaw !== null &&
+        definitionsRaw !== null &&
+        !(
+          runsForNodes.length > 0 && nodeFetchFailures === runsForNodes.length
+        )))
 
   const operator = xpSourcesOk
     ? {
@@ -1131,7 +1150,8 @@ export async function buildDashboardSocial(
   // ── Needs You ─────────────────────────────────────────────────────────
   const needsYou: Array<NeedsYouItem> = []
 
-  if (runsRaw !== null) {
+  // workflow engine has no per-profile data; profile view excludes it
+  if (runsRaw !== null && runsInScope) {
     for (const run of pausedRuns.slice(0, 5)) {
       const runId = readString(run.id)
       const nodes = nodesByRun.get(runId) ?? []
@@ -1320,6 +1340,8 @@ export async function buildDashboardSocial(
       ? {
           chats: sessionsTotal,
           needsYou: needsYou.length,
+          // workflow engine has no per-profile data; profile view
+          // excludes it (0 for a set profile)
           workflows: runsFinished,
           cron: cronJobs.length,
           tasks: tasks.length,

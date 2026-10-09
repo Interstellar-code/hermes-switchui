@@ -334,9 +334,11 @@ const PROFILE_SCOPED_BARES = new Set([
 type FailMode = 'throw' | '500' | 'hang'
 
 /** Fake `(path) => Response` fetcher: the ONLY thing stubbed here. */
-function makeFetcher(opts: {
-  fail?: Record<string, FailMode | undefined>
-} = {}) {
+function makeFetcher(
+  opts: {
+    fail?: Record<string, FailMode | undefined>
+  } = {},
+) {
   const requestedPaths: Array<string> = []
   const fail = opts.fail ?? {}
   const fetcher: DashboardFetcher = (path) => {
@@ -350,8 +352,15 @@ function makeFetcher(opts: {
       if (mode === '500')
         return Promise.resolve(jsonResponse({ error: 'upstream down' }, 500))
       if (mode === 'hang') return new Promise<Response>(() => {})
-      if (bare === '/api/profiles/sessions')
-        return jsonResponse(sessionsFixture)
+      if (bare === '/api/profiles/sessions') {
+        // The real scoped endpoint returns only that profile's rows.
+        const rows = profileParam
+          ? sessionsFixture.sessions.filter(
+              (row) => row.profile === profileParam,
+            )
+          : sessionsFixture.sessions
+        return jsonResponse({ ...sessionsFixture, sessions: rows })
+      }
       if (bare === '/api/analytics/usage') return jsonResponse(analyticsFixture)
       if (bare === '/api/cron/jobs') {
         const jobs = profileParam
@@ -769,10 +778,9 @@ describe('buildDashboardSocial', () => {
         expect(path).not.toContain('profile=')
       }
     }
-    // The node-runs fan-out stays unscoped too.
-    expect(requestedPaths).toContain(
-      '/api/plugins/workflow-engine/runs/run_4/nodes',
-    )
+    // The node-runs fan-out stays unscoped too — and never happens for a
+    // set profile (workflow data is excluded from the profile view).
+    expect(requestedPaths.some((p) => p.includes('/nodes'))).toBe(false)
   })
 
   it('fans the per-profile sources out over the roster when profile is null', async () => {
@@ -794,6 +802,10 @@ describe('buildDashboardSocial', () => {
           p.includes('profile=hermes-switch'),
       ),
     ).toBe(true)
+    // The node-runs fan-out runs only for the fleet view (profile null).
+    expect(requestedPaths).toContain(
+      '/api/plugins/workflow-engine/runs/run_4/nodes',
+    )
     // No unscoped per-profile call slipped through.
     expect(requestedPaths).not.toContain('/api/cron/jobs')
     expect(data.counts?.cron).toBe(4)
@@ -820,9 +832,36 @@ describe('buildDashboardSocial', () => {
       profile: 'neo',
       now: NOW,
     })
-    // Only the selected profile's total: 60 chats + shared terms.
-    expect(data.operator?.xp).toBe(10 * 60 + 25 * 2 + 40 * 2 + 5 * 106)
+    // 60 chats + 2 of neo's done tasks; no run or approval terms.
+    expect(data.operator?.xp).toBe(10 * 60 + 40 * 2)
     expect(data.profile).toBe('neo')
+  })
+
+  it('profile view excludes unscoped workflow and kanban data (R3 #1)', async () => {
+    const { fetcher } = makeFetcher()
+    const data = await buildDashboardSocial({
+      fetcher,
+      profile: 'neo',
+      now: NOW,
+    })
+
+    // XP has no run/approval terms: 10·60 chats + 40·2 neo tasks done.
+    expect(data.operator?.xp).toBe(10 * 60 + 40 * 2)
+    expect(data.operator?.streakDays).toBe(0) // sessions only: all neo
+    expect(data.operator?.bestStreak).toBe(1) // rows are on Oct 3
+    // Fleet runs (106) and the paused approval are not neo's numbers.
+    expect(data.counts?.workflows).toBe(0)
+    expect(data.needsYou?.some((n) => n.kind === 'approval')).toBe(false)
+    // Kanban filtered by assignee === 'neo': k_2, k_3 (done), k_4
+    // (review); k_1 (unassigned backlog) is not neo's.
+    expect(data.counts?.tasks).toBe(3)
+    expect(data.needsYou?.find((n) => n.kind === 'task-review')).toMatchObject({
+      taskId: 'k_4',
+    })
+    // Run-based badges carry no fleet counts into the profile view.
+    const byId = new Map((data.badges ?? []).map((b) => [b.id, b]))
+    expect(byId.get('conductor')?.have).toBe(0)
+    expect(byId.get('shipper')?.have).toBe(0)
   })
 
   it('treats a profile absent from profile_totals as 0, never the global total (#4)', async () => {
@@ -833,8 +872,9 @@ describe('buildDashboardSocial', () => {
       now: NOW,
     })
     expect(data.counts?.chats).toBe(0)
-    // XP keeps only the shared terms (approvals/tasks/all-time runs).
-    expect(data.operator?.xp).toBe(25 * 2 + 40 * 2 + 5 * 106)
+    // No chats, no neo-assigned tasks, no run/approval terms: XP is 0.
+    expect(data.operator?.xp).toBe(0)
+    expect(data.counts?.tasks).toBe(0)
     const ghost = data.agents?.find((a) => a.id === 'ghost')
     expect(ghost?.sessions).toBe(0)
   })
