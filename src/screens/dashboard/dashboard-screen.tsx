@@ -19,7 +19,7 @@ import { BadgeDialog } from './social/badge-dialog'
 import { CenterColumn } from './social/center-column'
 import { LeftColumn } from './social/left-column'
 import { OpsSection } from './social/ops-section'
-import { RightColumn } from './social/right-column'
+import { RightColumn, agentRank } from './social/right-column'
 import { StatusDock } from './social/status-dock'
 import { useDashboardSocial } from './social/use-dashboard-social'
 import type { AnalyticsPeriod } from './components/analytics-chart-card'
@@ -86,6 +86,41 @@ const UNAVAILABLE_SOCIAL: DashboardSocial = {
   needsYou: null,
   recent: null,
   badges: null,
+}
+
+// Placeholder for a column while the first social response is in flight, so a
+// slow cold load never reads as "Unavailable". Block heights roughly follow
+// each column's panels.
+function ColumnSkeleton({
+  label,
+  blocks,
+  className,
+}: {
+  label: string
+  blocks: Array<number>
+  className?: string
+}) {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label={label}
+      className={`flex min-w-0 flex-col gap-[14px]${className ? ` ${className}` : ''}`}
+    >
+      {blocks.map((height, index) => (
+        <div
+          key={index}
+          aria-hidden="true"
+          className="animate-pulse rounded-lg border"
+          style={{
+            height,
+            borderColor: 'var(--theme-border)',
+            background: 'var(--theme-card)',
+          }}
+        />
+      ))}
+    </div>
+  )
 }
 
 // ── Secondary action (smaller, monochrome) ─────────────────────
@@ -235,12 +270,11 @@ export function DashboardScreen() {
   const [agentId, setAgentId] = useState<string | null>(null)
   const [badgesOpen, setBadgesOpen] = useState(false)
   const openAgent = social.agents?.find((a) => a.id === agentId) ?? null
-  // The leaderboard metric lives inside RightColumn, so rank by weekly tokens.
-  const openAgentRank = openAgent
-    ? [...(social.agents ?? [])]
-        .sort((a, b) => b.tokensWeek - a.tokensWeek)
-        .findIndex((a) => a.id === openAgent.id) + 1
-    : 0
+  // Same rule as RightColumn's own dialog; the leaderboard metric lives inside
+  // RightColumn, so from here it is the default (weekly tokens).
+  const openAgentRank =
+    openAgent && social.agents ? agentRank(social.agents, openAgent.id) : 0
+  const socialLoading = socialQuery.isPending
 
   return (
     <div className="flex min-h-full flex-col">
@@ -463,26 +497,43 @@ export function DashboardScreen() {
            right (leaderboard + badges). 3 cols > 1180px, right column
            drops under at <= 1180px, everything stacks at <= 760px. ── */}
         <div className="grid grid-cols-1 gap-4 min-[761px]:grid-cols-[262px_minmax(0,1fr)] min-[1181px]:grid-cols-[262px_minmax(0,1fr)_292px]">
-          <LeftColumn
-            data={social}
-            onOpenAgent={setAgentId}
-            onOpenBadges={() => setBadgesOpen(true)}
-          />
-          <CenterColumn
-            data={social}
-            onChanged={() => {
-              void socialQuery.refetch()
-              void overviewQuery.refetch()
-            }}
-          />
-          {/* RightColumn renders its own agent + badge dialogs, so its
-            open callbacks are notifications only. */}
-          <RightColumn
-            data={social}
-            onOpenAgent={() => undefined}
-            onOpenBadges={() => undefined}
-            className="min-[761px]:col-span-2 min-[1181px]:col-span-1"
-          />
+          {socialLoading ? (
+            <>
+              <ColumnSkeleton
+                label="Loading you and your agents"
+                blocks={[200, 220, 120]}
+              />
+              <ColumnSkeleton
+                label="Loading what needs you"
+                blocks={[160, 260]}
+              />
+              <ColumnSkeleton
+                label="Loading leaderboard, streak and badges"
+                blocks={[300, 130, 160]}
+                className="min-[761px]:col-span-2 min-[1181px]:col-span-1"
+              />
+            </>
+          ) : (
+            <>
+              <LeftColumn
+                data={social}
+                onOpenAgent={setAgentId}
+                onOpenBadges={() => setBadgesOpen(true)}
+              />
+              <CenterColumn
+                data={social}
+                onChanged={() => {
+                  void socialQuery.refetch()
+                  void overviewQuery.refetch()
+                }}
+              />
+              {/* RightColumn renders its own agent + badge dialogs. */}
+              <RightColumn
+                data={social}
+                className="min-[761px]:col-span-2 min-[1181px]:col-span-1"
+              />
+            </>
+          )}
         </div>
 
         {/* ── Ops & analytics, pinned to the bottom of the content. ── */}
