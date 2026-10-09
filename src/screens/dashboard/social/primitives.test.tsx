@@ -47,12 +47,12 @@ describe('primitives', () => {
 
   it('CountRing renders link, count, hides at 0, shows ok dot', () => {
     const { rerender } = render(
-      <CountRing href="/cron" label="Cron" color="red" icon="i" count={8} />,
+      <CountRing href="/jobs" label="Cron" color="red" icon="i" count={8} />,
     )
-    expect(screen.getByRole('link').getAttribute('href')).toBe('/cron')
+    expect(screen.getByRole('link').getAttribute('href')).toBe('/jobs')
     expect(screen.getByText('8')).toBeTruthy()
     rerender(
-      <CountRing href="/cron" label="Cron" color="red" icon="i" count={0} />,
+      <CountRing href="/jobs" label="Cron" color="red" icon="i" count={0} />,
     )
     expect(screen.queryByText('0')).toBeNull()
     rerender(<CountRing href="/g" label="Gateway" color="red" icon="i" ok />)
