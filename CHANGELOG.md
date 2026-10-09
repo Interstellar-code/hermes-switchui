@@ -3,6 +3,40 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.14.0] - 2026-10-09
+
+### Added
+- **dashboard:** top section auto-fits — equal columns, filling cards (899ea54a)
+- **dashboard:** social dashboard layout on live data (ac5bf3e9)
+- **dashboard:** left column — profile, agents, hot this week (1c61a9ac)
+- **dashboard:** right column — leaderboard, streak, badges (cadc4426)
+- **dashboard:** social dashboard API with derived XP, streak and badges (5f678741)
+- **dashboard:** center column — rings, ask box, needs you, recent activity (f973ee12)
+- **dashboard:** social dashboard contract, mock data and primitives (5d5e33df)
+
+### Fixed
+- **dashboard:** F4 review fixes — mobile recent rows, remeasure, shared useFitRows (89eb7249)
+- **dashboard:** ops cards wrap and stretch to fill each row (9df4c926)
+- **dashboard:** F3 review fixes — header edit opens ops panel, shared retry helper (0bcf8850)
+- **dashboard:** ops cards never vanish, fast retry, auto-adjusting grid (e01f75bc)
+- **dashboard:** social API follow-ups from QA (fede1b59)
+- **dashboard:** loading state, partial-data retry, zero leaderboard (0431172a)
+- **dashboard:** social API profile view excludes unscoped sources (8213a3cf)
+- **dashboard:** social API review fixes — contract, real fields, profile scope (76114a64)
+- **dashboard:** ops section review fixes — no invented numbers, layout sync (83493998)
+- **dashboard:** type-safe disabled check in center column test (589b3304)
+- **dashboard:** center column review fixes — focus, 390px, pending (625020b5)
+- **dashboard:** type-safe disabled assertions in approval dialog test (6d5ab767)
+- **dashboard:** drop leftover /cron href in primitives test (2eb999db)
+- **dashboard:** P0 review fixes — real hrefs, Panel attrs, avatar label (f287f3ef)
+
+### Docs
+- **changelog:** describe v2.13.2 in the house style (eae1c66a)
+
+### Other
+- **dashboard:** ops section and status dock; drop unused cards (9c7e9523)
+- **dashboard:** prettier on center column test (5197f831)
+
 ## [2.13.2] — 2026-10-09
 
 Agents move into the chat header as a tab with their list in the sidebar, and the Skills and MCP pills count the whole session instead of only the loaded messages.
