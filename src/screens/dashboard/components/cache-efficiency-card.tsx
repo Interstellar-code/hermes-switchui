@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
+import { CardPlaceholder } from '@/screens/dashboard/components/widget-shell'
 
 function formatTokens(n: number): string {
   if (!n || n <= 0) return '0'
@@ -26,23 +27,35 @@ function formatTokens(n: number): string {
  */
 export function CacheEfficiencyCard({
   analytics,
+  loading,
 }: {
   analytics: DashboardOverview['analytics']
+  loading?: boolean
 }) {
-  if (!analytics || analytics.source !== 'analytics') return null
+  const daily = analytics?.daily
+  const dailyRates = useMemo(() => {
+    return (daily ?? []).map((d) => {
+      const sum = d.cacheReadTokens + d.inputTokens
+      return sum > 0 ? (d.cacheReadTokens / sum) * 100 : 0
+    })
+  }, [daily])
+
+  if (!analytics || analytics.source !== 'analytics') {
+    return (
+      <CardPlaceholder
+        title="Cache efficiency"
+        state={loading ? 'loading' : 'unavailable'}
+      />
+    )
+  }
 
   const cache = analytics.cacheReadTokens
   const input = analytics.inputTokens
   const denom = cache + input
 
-  const dailyRates = useMemo(() => {
-    return analytics.daily.map((d) => {
-      const sum = d.cacheReadTokens + d.inputTokens
-      return sum > 0 ? (d.cacheReadTokens / sum) * 100 : 0
-    })
-  }, [analytics.daily])
-
-  if (denom === 0) return null
+  if (denom === 0) {
+    return <CardPlaceholder title="Cache efficiency" state="empty" />
+  }
 
   const ratePct = (cache / denom) * 100
   const max = Math.max(...dailyRates, 1)
@@ -133,8 +146,7 @@ export function CacheEfficiencyCard({
           aria-hidden
         >
           {dailyRates.map((rate, idx) => {
-            const heightPct =
-              max > 0 ? Math.max(6, (rate / max) * 100) : 6
+            const heightPct = max > 0 ? Math.max(6, (rate / max) * 100) : 6
             return (
               <div
                 key={idx}

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { HugeiconsIcon } from '@hugeicons/react'
 import {
   BubbleChatAddIcon,
@@ -162,6 +162,55 @@ function SecondaryAction({
 
 // ── Main Dashboard ───────────────────────────────────────────────
 
+const OVERVIEW_POLL_MS = 30_000
+const OVERVIEW_RETRY_MS = 5_000
+const MAX_OVERVIEW_RETRIES = 3
+
+/** Analytics or status missing/degraded = an upstream was slow or down. */
+export function isPartialOverview(
+  data: DashboardOverview | undefined,
+): boolean {
+  return !data || !data.status || data.analytics?.source !== 'analytics'
+}
+
+/**
+ * Overview query (`GET /api/dashboard/overview`). A partial response (or a
+ * failed request) refetches after 5 s, at most 3 times in a row, then falls
+ * back to the normal 30 s poll. Same pattern as `useDashboardSocial`.
+ */
+export function useDashboardOverview(period: AnalyticsPeriod) {
+  // Consecutive partial/failed responses; reset by the first complete one.
+  const partialStreak = useRef(0)
+  return useQuery<DashboardOverview>({
+    queryKey: ['dashboard', 'overview', period],
+    queryFn: async () => {
+      // achievements=5 (instead of 3) gives the Achievements rail
+      // card enough vertical mass to fill the gap below Top Models.
+      const res = await fetch(
+        `/api/dashboard/overview?days=${period}&achievements=5`,
+      )
+      if (!res.ok) {
+        partialStreak.current += 1
+        throw new Error(`overview ${res.status}`)
+      }
+      const data = (await res.json()) as DashboardOverview
+      partialStreak.current = isPartialOverview(data)
+        ? partialStreak.current + 1
+        : 0
+      return data
+    },
+    staleTime: 5_000,
+    // The streak counts the first partial response too, hence `<=`.
+    refetchInterval: (query) =>
+      (query.state.status === 'error' ||
+        (query.state.data !== undefined &&
+          isPartialOverview(query.state.data))) &&
+      partialStreak.current <= MAX_OVERVIEW_RETRIES
+        ? OVERVIEW_RETRY_MS
+        : OVERVIEW_POLL_MS,
+  })
+}
+
 export function DashboardScreen() {
   const navigate = useNavigate()
   const sessionsAvailable = useFeatureAvailable('sessions')
@@ -236,24 +285,9 @@ export function DashboardScreen() {
     }
   }, [period])
 
-  // Aggregate dashboard overview — surfaces the data the native
-  // Hermes dashboard exposes (status, platforms, cron, achievements,
-  // model info, analytics) in a single round trip with per-section
-  // graceful fallbacks. Each card renders only when its slice resolves.
-  const overviewQuery = useQuery<DashboardOverview>({
-    queryKey: ['dashboard', 'overview', period],
-    queryFn: async () => {
-      // achievements=5 (instead of 3) gives the Achievements rail
-      // card enough vertical mass to fill the gap below Top Models.
-      const res = await fetch(
-        `/api/dashboard/overview?days=${period}&achievements=5`,
-      )
-      if (!res.ok) throw new Error(`overview ${res.status}`)
-      return (await res.json()) as DashboardOverview
-    },
-    staleTime: 5_000,
-    refetchInterval: 30_000,
-  })
+  // Aggregate dashboard overview: status, platforms, cron, analytics… in one
+  // round trip with per-section fallbacks. Partial responses retry fast.
+  const overviewQuery = useDashboardOverview(period)
   const overview = overviewQuery.data ?? null
 
   const palette = useDashboardPalette()
@@ -544,6 +578,7 @@ export function DashboardScreen() {
           onPeriodChange={setPeriod}
           installedCount={skillsInstalled}
           hourHistogram={hourHistogram}
+          loading={overviewQuery.isPending}
         />
       </div>
 

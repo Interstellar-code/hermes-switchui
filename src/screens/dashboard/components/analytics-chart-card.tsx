@@ -17,6 +17,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import { formatModelName } from '@/screens/dashboard/lib/formatters'
+import { CardPlaceholder } from '@/screens/dashboard/components/widget-shell'
 
 export type AnalyticsPeriod = 7 | 14 | 30
 
@@ -96,7 +97,14 @@ export function AnalyticsChartCard({
     }))
   }, [analytics])
 
-  if (!analytics) return null
+  if (!analytics) {
+    return (
+      <CardPlaceholder
+        title={`Usage trend · ${period}d`}
+        state={loading ? 'loading' : 'unavailable'}
+      />
+    )
+  }
   const hasData = analytics.source === 'analytics' && data.length > 0
 
   return (

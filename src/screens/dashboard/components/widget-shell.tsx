@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
-import type { DashboardLayout, WidgetId } from '@/screens/dashboard/lib/use-dashboard-layout'
+import type {
+  DashboardLayout,
+  WidgetId,
+} from '@/screens/dashboard/lib/use-dashboard-layout'
 import { WIDGET_CATALOG } from '@/screens/dashboard/lib/use-dashboard-layout'
 
 /**
@@ -73,6 +76,54 @@ export function WidgetShell({
           ×
         </button>
       ) : null}
+    </div>
+  )
+}
+
+const PLACEHOLDER_MESSAGE = {
+  loading: 'Loading…',
+  unavailable: 'Unavailable — analytics did not load. Retrying…',
+  empty: 'No data in this window',
+} as const
+
+/**
+ * Titled card shell with a muted body, for ops cards whose data is
+ * pending, missing, or genuinely empty. Cards use it instead of
+ * returning `null` so the grid never loses a tile (and never leaves a
+ * hole) just because an upstream was slow.
+ */
+export function CardPlaceholder({
+  title,
+  state,
+  message,
+}: {
+  title: string
+  state: keyof typeof PLACEHOLDER_MESSAGE
+  /** Overrides the default per-state text. */
+  message?: string
+}) {
+  return (
+    <div
+      aria-busy={state === 'loading' ? 'true' : undefined}
+      className="flex h-full min-h-[120px] flex-col gap-2 overflow-hidden rounded-xl border p-3"
+      style={{
+        background:
+          'linear-gradient(150deg, color-mix(in srgb, var(--theme-card) 96%, transparent), color-mix(in srgb, var(--theme-card) 92%, transparent))',
+        borderColor: 'var(--theme-border)',
+      }}
+    >
+      <h3
+        className="text-[10px] font-semibold uppercase tracking-[0.18em]"
+        style={{ color: 'var(--theme-text)' }}
+      >
+        {title}
+      </h3>
+      <p
+        className="font-mono text-[11px] tracking-[0.05em]"
+        style={{ color: 'var(--theme-muted)' }}
+      >
+        {message ?? PLACEHOLDER_MESSAGE[state]}
+      </p>
     </div>
   )
 }

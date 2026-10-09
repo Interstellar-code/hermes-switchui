@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -8,7 +9,7 @@ import {
   waitFor,
 } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DashboardScreen } from './dashboard-screen'
+import { DashboardScreen, useDashboardOverview } from './dashboard-screen'
 import { mockDashboardSocial, mockDashboardSocialEmpty } from './social/mock'
 import type { DashboardFetcher } from '@/server/dashboard-aggregator'
 import { buildDashboardOverview } from '@/server/dashboard-aggregator'
@@ -235,5 +236,78 @@ describe('DashboardScreen', () => {
         ).toBe('true'),
       )
     }
+  })
+})
+
+describe('useDashboardOverview retry cadence', () => {
+  function Probe() {
+    useDashboardOverview(30)
+    return null
+  }
+
+  async function overviewCalls(
+    payload: unknown,
+    steps: Array<number>,
+  ): Promise<Array<number>> {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(() => Promise.resolve(json(payload)))
+    vi.stubGlobal('fetch', fetchMock)
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, gcTime: 0 } },
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <Probe />
+      </QueryClientProvider>,
+    )
+    const counts: Array<number> = []
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    counts.push(fetchMock.mock.calls.length)
+    for (const ms of steps) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ms)
+      })
+      counts.push(fetchMock.mock.calls.length)
+    }
+    vi.useRealTimers()
+    return counts
+  }
+
+  const full = {
+    status: { gateway_state: 'running' },
+    analytics: { source: 'analytics' },
+  }
+
+  it('partial response (analytics null) refetches every 5 s, 3 times, then 30 s', async () => {
+    const counts = await overviewCalls(
+      { status: full.status, analytics: null },
+      [5_000, 5_000, 5_000, 5_000, 25_000, 5_000],
+    )
+    // initial, +3 fast retries, then the 4th 5 s step adds nothing,
+    // and the 30 s poll lands after 30 s total from the last fetch.
+    expect(counts).toEqual([1, 2, 3, 4, 4, 5, 5])
+  })
+
+  it('missing status also counts as partial', async () => {
+    const counts = await overviewCalls(
+      { status: null, analytics: full.analytics },
+      [5_000],
+    )
+    expect(counts).toEqual([1, 2])
+  })
+
+  it('degraded analytics source counts as partial', async () => {
+    const counts = await overviewCalls(
+      { status: full.status, analytics: { source: 'fallback' } },
+      [5_000],
+    )
+    expect(counts).toEqual([1, 2])
+  })
+
+  it('a full response waits the normal 30 s', async () => {
+    const counts = await overviewCalls(full, [5_000, 20_000, 5_000])
+    expect(counts).toEqual([1, 1, 1, 2])
   })
 })

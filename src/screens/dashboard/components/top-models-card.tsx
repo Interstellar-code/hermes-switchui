@@ -2,6 +2,7 @@ import { HugeiconsIcon } from '@hugeicons/react'
 import { ChartBarLineIcon } from '@hugeicons/core-free-icons'
 import type { DashboardOverview } from '@/server/dashboard-aggregator'
 import { formatModelName } from '@/screens/dashboard/lib/formatters'
+import { CardPlaceholder } from '@/screens/dashboard/components/widget-shell'
 
 function formatTokens(n: number): string {
   if (!n || n <= 0) return '0'
@@ -27,10 +28,27 @@ function formatCost(usd: number): string {
  */
 export function TopModelsCard({
   analytics,
+  loading,
 }: {
   analytics: DashboardOverview['analytics']
+  loading?: boolean
 }) {
-  if (!analytics || analytics.topModels.length === 0) return null
+  if (!analytics || analytics.source !== 'analytics') {
+    return (
+      <CardPlaceholder
+        title="Top models"
+        state={loading ? 'loading' : 'unavailable'}
+      />
+    )
+  }
+  if (analytics.topModels.length === 0) {
+    return (
+      <CardPlaceholder
+        title={`Top models · ${analytics.windowDays}d`}
+        state="empty"
+      />
+    )
+  }
   const totalCalls = analytics.totalApiCalls || 0
   const maxTokens = analytics.topModels[0]?.tokens || 1
 

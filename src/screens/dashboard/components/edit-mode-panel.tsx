@@ -1,32 +1,57 @@
-import type {DashboardLayout} from '@/screens/dashboard/lib/use-dashboard-layout';
-import {
-  
-  WIDGET_CATALOG
+import { useEffect } from 'react'
+import type { RefObject } from 'react'
+import type {
+  DashboardLayout,
+  WidgetId,
 } from '@/screens/dashboard/lib/use-dashboard-layout'
+import { WIDGET_CATALOG } from '@/screens/dashboard/lib/use-dashboard-layout'
 
 /**
- * Edit-mode banner. Renders only when `layout.editMode` is true.
+ * Inline EDIT LAYOUT panel. Renders only when `layout.editMode` is true,
+ * directly under the Ops header. One toggle chip per card (title +
+ * shown/hidden state); changes apply live through the shared layout hook.
  *
- * Layout: a single sticky-ish strip below the header showing all
- * known widgets grouped by column (Main / Side rail) with a toggle
- * pill for each. Hidden widgets show as outlined chips so the
- * operator can re-add them.
- *
- * Design notes:
- * - We deliberately surface every widget here even ones that are
- *   currently visible, so it doubles as a hint of what's available.
- * - The banner is dense (single row on lg) so it doesn't push the
- *   real content way down.
+ * - `widgetIds` limits the list to the cards the host actually renders
+ *   (default: the whole catalog).
+ * - Escape closes the panel and, when `returnFocusTo` is given, returns
+ *   focus to the control that opened it.
  */
-export function EditModePanel({ layout }: { layout: DashboardLayout }) {
-  if (!layout.editMode) return null
+export function EditModePanel({
+  layout,
+  widgetIds,
+  returnFocusTo,
+  className,
+}: {
+  layout: DashboardLayout
+  widgetIds?: ReadonlyArray<WidgetId>
+  returnFocusTo?: RefObject<HTMLElement | null>
+  className?: string
+}) {
+  const { editMode, setEditMode } = layout
 
-  const main = WIDGET_CATALOG.filter((w) => w.column === 'main')
-  const rail = WIDGET_CATALOG.filter((w) => w.column === 'rail')
+  useEffect(() => {
+    if (!editMode) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      setEditMode(false)
+      returnFocusTo?.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [editMode, setEditMode, returnFocusTo])
+
+  if (!editMode) return null
+
+  const widgets = WIDGET_CATALOG.filter(
+    (w) => !widgetIds || widgetIds.includes(w.id),
+  )
+  const shown = widgets.filter((w) => layout.isVisible(w.id)).length
 
   return (
     <div
-      className="relative flex flex-col gap-3 overflow-hidden rounded-xl border p-3"
+      role="region"
+      aria-label="Edit layout"
+      className={`relative flex flex-col gap-3 overflow-hidden rounded-xl border p-3 ${className ?? ''}`}
       style={{
         background:
           'linear-gradient(120deg, color-mix(in srgb, var(--theme-accent) 6%, var(--theme-card)), color-mix(in srgb, var(--theme-card) 92%, transparent))',
@@ -49,26 +74,25 @@ export function EditModePanel({ layout }: { layout: DashboardLayout }) {
             className="font-mono text-[10px] uppercase tracking-[0.15em]"
             style={{ color: 'var(--theme-muted)' }}
           >
-            {layout.counts.visible} of {layout.counts.total} widgets shown
+            {shown} of {widgets.length} cards shown
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={layout.reset}
-            className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors hover:bg-[var(--theme-card)]"
-            style={{
-              background: 'var(--theme-card)',
-              borderColor: 'var(--theme-border)',
-              color: 'var(--theme-text)',
-            }}
-            title="Show every widget again"
+          <PanelButton
+            onClick={() => widgets.forEach((w) => layout.show(w.id))}
+            title="Show every card"
           >
-            Reset
-          </button>
+            Show all
+          </PanelButton>
+          <PanelButton onClick={layout.reset} title="Back to the default cards">
+            Reset to default
+          </PanelButton>
           <button
             type="button"
-            onClick={() => layout.setEditMode(false)}
+            onClick={() => {
+              setEditMode(false)
+              returnFocusTo?.current?.focus()
+            }}
             className="rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors"
             style={{
               background:
@@ -82,31 +106,6 @@ export function EditModePanel({ layout }: { layout: DashboardLayout }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <Group title="Main column" layout={layout} widgets={main} />
-        <Group title="Side rail" layout={layout} widgets={rail} />
-      </div>
-    </div>
-  )
-}
-
-function Group({
-  title,
-  layout,
-  widgets,
-}: {
-  title: string
-  layout: DashboardLayout
-  widgets: typeof WIDGET_CATALOG
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <span
-        className="font-mono text-[9px] uppercase tracking-[0.18em]"
-        style={{ color: 'var(--theme-muted)' }}
-      >
-        {title}
-      </span>
       <div className="flex flex-wrap gap-1.5">
         {widgets.map((w) => {
           const visible = layout.isVisible(w.id)
@@ -114,8 +113,9 @@ function Group({
             <button
               key={w.id}
               type="button"
+              aria-pressed={visible}
               onClick={() => (visible ? layout.hide(w.id) : layout.show(w.id))}
-              className="group inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-all"
+              className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.08em] transition-all"
               style={{
                 background: visible
                   ? 'color-mix(in srgb, var(--theme-success) 14%, transparent)'
@@ -125,13 +125,12 @@ function Group({
                     ? 'color-mix(in srgb, var(--theme-success) 60%, transparent)'
                     : 'var(--theme-border)'
                 }`,
-                color: visible
-                  ? 'var(--theme-success)'
-                  : 'var(--theme-muted)',
+                color: visible ? 'var(--theme-success)' : 'var(--theme-muted)',
               }}
               title={w.description}
             >
               <span
+                aria-hidden
                 className="inline-block size-1.5 rounded-full"
                 style={{
                   background: visible
@@ -140,10 +139,39 @@ function Group({
                 }}
               />
               {w.label}
+              <span className="font-mono text-[9px] font-normal normal-case tracking-normal opacity-80">
+                {visible ? 'shown' : 'hidden'}
+              </span>
             </button>
           )
         })}
       </div>
     </div>
+  )
+}
+
+function PanelButton({
+  onClick,
+  title,
+  children,
+}: {
+  onClick: () => void
+  title: string
+  children: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors hover:bg-[var(--theme-card)]"
+      style={{
+        background: 'var(--theme-card)',
+        borderColor: 'var(--theme-border)',
+        color: 'var(--theme-text)',
+      }}
+    >
+      {children}
+    </button>
   )
 }
