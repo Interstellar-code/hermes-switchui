@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 import { gatewayStatus } from '@/lib/hermes-client'
 
@@ -50,6 +51,7 @@ export default function SectionNetwork() {
         <SettingRow
           label="Force IPv4"
           desc="Skip IPv6 (AAAA) lookups — fixes TCP-timeout hangs on servers with broken IPv6"
+          meta={getKeyMeta('config.network.force_ipv4')}
         >
           <Toggle on={forceIpv4} set={(v) => set('config.network.force_ipv4', v)} />
         </SettingRow>

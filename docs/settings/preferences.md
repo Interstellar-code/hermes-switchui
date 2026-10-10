@@ -153,7 +153,7 @@ Direct editor for `~/.hermes/config.yaml` with its own Save, Discard, Upload, an
 
 ### Danger Zone
 
-Destructive operations behind confirmation dialogs: reset settings (clears `hermes.*` browser storage and restarts the gateway), restart the gateway, and clear-caches / delete-workspace actions that report plainly when the gateway does not support them.
+Destructive operations behind confirmation dialogs: Reset local UI settings (clears SwitchUI's own `hermes.*` browser storage and requests a gateway restart — the agent's `config.yaml` on disk is untouched), and Restart gateway.
 
 ## Where data lives
 

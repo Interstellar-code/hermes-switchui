@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  GROUP_SPECS,
   SECTION_COMPONENTS,
   SECTION_SPECS,
   SECTION_SPEC_BY_ID,
@@ -202,5 +203,92 @@ describe('curatedSectionIdsForKey', () => {
 
   it('excludes the prefix catch-all, so the browser can tell curated apart', () => {
     expect(curatedSectionIdsForKey('config.nothing.claims.this')).toEqual([])
+  })
+})
+
+describe('board A intent groups', () => {
+  /** Groups render contiguously, so first-occurrence order is render order. */
+  it('orders the groups exactly as board A renders them', () => {
+    const seen = SECTION_SPECS.map((s) => s.group).filter(
+      (g, i, arr) => arr.indexOf(g) === i,
+    )
+    expect(seen).toEqual(GROUP_SPECS.map((g) => g.label))
+  })
+
+  it('keeps every pre-regroup section id registered and reachable', () => {
+    const ids = new Set(SECTION_SPECS.map((s) => s.id))
+    const beforeRegroup = [
+      'workspace',
+      'account',
+      'appearance',
+      'notifications',
+      'provider',
+      'model-registry',
+      'agent-runtime',
+      'execution',
+      'gateway',
+      'memory-wiki',
+      'skills',
+      'workflows',
+      'mcp-servers',
+      'mcp-registered',
+      'hermes-plugin',
+      'storage',
+      'privacy',
+      'safety',
+      'telemetry',
+      'api-keys',
+      'network',
+      'performance',
+      'updates',
+      'shortcuts',
+      'all-settings',
+      'advanced',
+      'raw-config',
+      'danger',
+    ]
+    // P5B adds `health` — every pre-regroup section must still be there.
+    expect(ids.has('health')).toBe(true)
+    expect(
+      [...beforeRegroup].every((id) => ids.has(id)),
+      'every pre-regroup id still reachable',
+    ).toBe(true)
+    for (const id of [...beforeRegroup, 'health']) {
+      expect(SECTION_COMPONENTS[id], id).toBeTruthy()
+    }
+  })
+
+  it('moves sections to their board A groups', () => {
+    const groupOf = (id: string) => SECTION_SPEC_BY_ID.get(id)?.group
+    expect(groupOf('provider')).toBe('Models')
+    expect(groupOf('agent-runtime')).toBe('Agent behavior')
+    expect(groupOf('memory-wiki')).toBe('Context & memory')
+    expect(groupOf('execution')).toBe('Tools & execution')
+    expect(groupOf('skills')).toBe('Tools & execution')
+    expect(groupOf('safety')).toBe('Safety & privacy')
+    expect(groupOf('privacy')).toBe('Safety & privacy')
+    expect(groupOf('storage')).toBe('Sessions & storage')
+    expect(groupOf('workflows')).toBe('Automation')
+    expect(groupOf('gateway')).toBe('Channels & gateway')
+    expect(groupOf('notifications')).toBe('Display & language')
+    expect(groupOf('shortcuts')).toBe('Display & language')
+    expect(groupOf('appearance')).toBe('Appearance')
+    expect(groupOf('mcp-servers')).toBe('Integrations')
+    expect(groupOf('api-keys')).toBe('Integrations')
+    expect(groupOf('telemetry')).toBe('System')
+    expect(groupOf('workspace')).toBe('System')
+    expect(groupOf('all-settings')).toBe('Advanced')
+    expect(groupOf('danger')).toBe('Danger')
+  })
+
+  it('has a spec for every rendered group, and Overview leads it with health', () => {
+    const labels = new Set(SECTION_SPECS.map((s) => s.group))
+    for (const g of GROUP_SPECS) {
+      expect(labels.has(g.label), g.label).toBe(true)
+    }
+    // P5B (board C): Overview now renders — first group, health section.
+    expect(GROUP_SPECS[0]?.label).toBe('Overview')
+    expect(SECTION_SPECS[0]?.id).toBe('health')
+    expect(SECTION_SPECS[0]?.group).toBe('Overview')
   })
 })

@@ -22,6 +22,7 @@ import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Segmented, Toggle } from '../components/controls'
 import { useSchemaOptions } from '../lib/schema-binding'
+import { getKeyMeta } from '../lib/key-meta'
 import {
   
   computeSafetyPosture,
@@ -146,6 +147,7 @@ export default function SectionSafety() {
         <SettingRow
           label="Approval mode"
           desc="manual prompts for every dangerous command; smart lets an auxiliary model screen low-risk ones; off skips every prompt (YOLO). This setting is global and permanent. A single chat can also skip approvals from the shield button in its header — that bypass is per-session, held in gateway memory, and lost on restart. The two are OR'd: whichever is more permissive wins, so with this set to Off a chat's own bypass changes nothing and switching it off does not bring prompts back."
+          meta={getKeyMeta('config.approvals.mode')}
         >
           <Segmented
             options={approvalModes}
@@ -156,6 +158,7 @@ export default function SectionSafety() {
         <SettingRow
           label="Cron approval mode"
           desc="What happens when a scheduled/cron job hits a dangerous command with no one present to review it."
+          meta={getKeyMeta('config.approvals.cron_mode')}
         >
           <Segmented
             options={[
@@ -169,6 +172,7 @@ export default function SectionSafety() {
         <SettingRow
           label="Confirm destructive slash commands"
           desc="Ask before /clear, /new, /reset, or /undo discard conversation state."
+          meta={getKeyMeta('config.approvals.destructive_slash_confirm')}
         >
           <Toggle
             on={destructiveSlashConfirm}
@@ -178,6 +182,7 @@ export default function SectionSafety() {
         <SettingRow
           label="Confirm MCP reloads"
           desc="Ask before /reload-mcp rebuilds the tool set (invalidates the prompt cache)."
+          meta={getKeyMeta('config.approvals.mcp_reload_confirm')}
         >
           <Toggle on={mcpReloadConfirm} set={(v) => set('config.approvals.mcp_reload_confirm', v)} />
         </SettingRow>
@@ -185,6 +190,7 @@ export default function SectionSafety() {
           label="Auto-accept shell hooks"
           pill={{ t: 'danger' }}
           desc="Registers new shell-script hooks without a prompt. Needed for headless/cron runs, but means any hook a skill declares runs unreviewed."
+          meta={getKeyMeta('config.hooks_auto_accept')}
         >
           <Toggle on={hooksAutoAccept} set={(v) => set('config.hooks_auto_accept', v)} />
         </SettingRow>
@@ -194,6 +200,7 @@ export default function SectionSafety() {
         <SettingRow
           label="Tirith scanner"
           desc="Scans commands for danger signals before they run, independent of the approval prompt."
+          meta={getKeyMeta('config.security.tirith_enabled')}
         >
           <Toggle on={tirithEnabled} set={(v) => set('config.security.tirith_enabled', v)} />
         </SettingRow>
@@ -205,6 +212,7 @@ export default function SectionSafety() {
               ? 'On: if the scanner errors out or is unreachable, commands are allowed through as if nothing was scanned.'
               : 'Off: a scanner outage blocks risky commands instead of silently letting them through.'
           }
+          meta={getKeyMeta('config.security.tirith_fail_open')}
         >
           <Toggle
             on={tirithFailOpen}

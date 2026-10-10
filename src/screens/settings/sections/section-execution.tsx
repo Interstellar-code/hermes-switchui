@@ -36,6 +36,8 @@ import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider, Segmented, Toggle } from '../components/controls'
+import { TextField } from '../components/text-field'
+import { getKeyMeta } from '../lib/key-meta'
 import type { ReactNode } from 'react'
 import { useSettingsStore } from '@/stores/settings-store'
 import {
@@ -71,13 +73,16 @@ function WarningNote({ children }: { children: ReactNode }) {
         margin: '0 0 12px',
         borderRadius: '6px',
         border: '1px solid var(--m-warning, var(--theme-warning))',
-        background: 'color-mix(in srgb, var(--m-warning, var(--theme-warning)) 8%, transparent)',
+        background:
+          'color-mix(in srgb, var(--m-warning, var(--theme-warning)) 8%, transparent)',
         fontSize: '12px',
         color: 'var(--m-text, var(--theme-text))',
         lineHeight: 1.4,
       }}
     >
-      <span aria-hidden style={{ flexShrink: 0 }}>⚠</span>
+      <span aria-hidden style={{ flexShrink: 0 }}>
+        ⚠
+      </span>
       <span>{children}</span>
     </div>
   )
@@ -94,24 +99,44 @@ export default function SectionExecution() {
   const draft = useSettingsStore((s) => s.draft)
   const set = useSettingsStore((s) => s.set)
 
-  const backend = (draft['config.terminal.backend'] as string | undefined) ?? 'local'
+  const backend =
+    (draft['config.terminal.backend'] as string | undefined) ?? 'local'
   const isKnownBackend = EDITABLE_BACKENDS.some((b) => b.value === backend)
   const isDocker = backend === 'docker'
+  // A backend this picker cannot offer (modal, singularity, ssh-*, …) must still
+  // show as the selected value — with no matching option the row reads as blank,
+  // which looks like the config is unset rather than pointing elsewhere.
+  const backendOptions = isKnownBackend
+    ? EDITABLE_BACKENDS
+    : [
+        ...EDITABLE_BACKENDS,
+        { value: backend, label: `${backend} (not offered here)` },
+      ]
 
-  const timeout = (draft['config.terminal.timeout'] as number | undefined) ?? 180
-  const persistentShell = (draft['config.terminal.persistent_shell'] as boolean | undefined) ?? true
-  const codeExecutionMode = (draft['config.code_execution.mode'] as string | undefined) ?? 'project'
+  const timeout =
+    (draft['config.terminal.timeout'] as number | undefined) ?? 180
+  const persistentShell =
+    (draft['config.terminal.persistent_shell'] as boolean | undefined) ?? true
+  const codeExecutionMode =
+    (draft['config.code_execution.mode'] as string | undefined) ?? 'project'
 
   const dockerImage =
     (draft['config.terminal.docker_image'] as string | undefined) ??
     'nikolaik/python-nodejs:python3.11-nodejs20'
-  const dockerVolumes = (draft['config.terminal.docker_volumes'] as Array<string> | undefined) ?? []
+  const dockerVolumes =
+    (draft['config.terminal.docker_volumes'] as Array<string> | undefined) ?? []
   const dockerMountCwd =
-    (draft['config.terminal.docker_mount_cwd_to_workspace'] as boolean | undefined) ?? false
-  const dockerNetwork = (draft['config.terminal.docker_network'] as boolean | undefined) ?? true
-  const containerCpu = (draft['config.terminal.container_cpu'] as number | undefined) ?? 1
-  const containerMemory = (draft['config.terminal.container_memory'] as number | undefined) ?? 5120
-  const containerDisk = (draft['config.terminal.container_disk'] as number | undefined) ?? 51200
+    (draft['config.terminal.docker_mount_cwd_to_workspace'] as
+      | boolean
+      | undefined) ?? false
+  const dockerNetwork =
+    (draft['config.terminal.docker_network'] as boolean | undefined) ?? true
+  const containerCpu =
+    (draft['config.terminal.container_cpu'] as number | undefined) ?? 1
+  const containerMemory =
+    (draft['config.terminal.container_memory'] as number | undefined) ?? 5120
+  const containerDisk =
+    (draft['config.terminal.container_disk'] as number | undefined) ?? 51200
 
   const { data: cwdStatus, isLoading: cwdLoading } = useQuery({
     queryKey: ['agent-cwd', 'settings-execution'],
@@ -124,9 +149,13 @@ export default function SectionExecution() {
       <div className="section-head">
         <div>
           <h2>Execution</h2>
-          <div className="desc">Where and how the agent runs shell commands and code.</div>
+          <div className="desc">
+            Where and how the agent runs shell commands and code.
+          </div>
         </div>
-        <div className="meta">Section · <b>terminal · code_execution</b></div>
+        <div className="meta">
+          Section · <b>terminal · code_execution</b>
+        </div>
       </div>
 
       <SettingCard title="Working directory">
@@ -134,10 +163,14 @@ export default function SectionExecution() {
           label="Agent working directory"
           desc="Read-only here — set it from the working-directory chip in the chat composer, which previews the change before writing terminal.cwd."
         >
-          <span style={{ fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text, var(--theme-text))' }}>
-            {cwdLoading
-              ? '…'
-              : (cwdStatus?.resolved.path ?? 'undetermined')}
+          <span
+            style={{
+              fontSize: '12px',
+              fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+              color: 'var(--m-text, var(--theme-text))',
+            }}
+          >
+            {cwdLoading ? '…' : (cwdStatus?.resolved.path ?? 'undetermined')}
           </span>
         </SettingRow>
         {cwdStatus && (
@@ -145,46 +178,65 @@ export default function SectionExecution() {
             label="Source"
             desc={agentCwdSourceDetail(cwdStatus.resolved)}
           >
-            <span style={{ fontSize: '12px', color: 'var(--m-text-faint, var(--theme-muted))' }}>
-              {agentCwdSourceLabel(cwdStatus.resolved.source)} · backend {cwdStatus.resolved.backend} ·
-              profile {cwdStatus.resolved.profile}
+            <span
+              style={{
+                fontSize: '12px',
+                color: 'var(--m-text-faint, var(--theme-muted))',
+              }}
+            >
+              {agentCwdSourceLabel(cwdStatus.resolved.source)} · backend{' '}
+              {cwdStatus.resolved.backend} · profile{' '}
+              {cwdStatus.resolved.profile}
             </span>
           </SettingRow>
         )}
         {cwdStatus?.resolved.warnings.map((warning) => (
           <WarningNote key={warning}>{warning}</WarningNote>
         ))}
-        {cwdStatus && !cwdStatus.hasTerminalBlock && cwdStatus.resolved.warnings.length === 0 && (
-          <WarningNote>
-            This profile has no <code>terminal:</code> block. Profile configs do not inherit from the
-            default profile (hermes_cli/config.py reads only HERMES_HOME/config.yaml), so switching to
-            this profile silently drops any terminal.cwd set elsewhere and the agent runs in $HOME.
-          </WarningNote>
-        )}
+        {cwdStatus &&
+          !cwdStatus.hasTerminalBlock &&
+          cwdStatus.resolved.warnings.length === 0 && (
+            <WarningNote>
+              This profile has no <code>terminal:</code> block. Profile configs
+              do not inherit from the default profile (hermes_cli/config.py
+              reads only HERMES_HOME/config.yaml), so switching to this profile
+              silently drops any terminal.cwd set elsewhere and the agent runs
+              in $HOME.
+            </WarningNote>
+          )}
       </SettingCard>
 
       <SettingCard title="Backend">
         {!isKnownBackend && (
           <WarningNote>
-            Current backend is <code>{backend}</code>, which is not editable from this picker. Switching
-            here would replace it with local or docker — leave this section alone and edit
-            terminal.backend in the raw config editor instead.
+            Current backend is <code>{backend}</code>, which is not editable
+            from this picker. Switching here would replace it with local or
+            docker — leave this section alone and edit terminal.backend in the
+            raw config editor instead.
           </WarningNote>
         )}
         <SettingRow
           label="Terminal backend"
           desc="Only local and docker are supported here — we cannot test Modal, Singularity, Daytona, or SSH-style remotes in this UI, and a broken picker for them is worse than no picker. Configure those via the raw config editor."
+          meta={getKeyMeta('config.terminal.backend')}
         >
           <Segmented
-            options={EDITABLE_BACKENDS}
-            value={isKnownBackend ? backend : ''}
+            options={backendOptions}
+            value={backend}
             onChange={(v) => set('config.terminal.backend', v)}
           />
         </SettingRow>
         <div style={{ margin: '-6px 0 12px', fontSize: '11px' }}>
-          <HermesDocsLink path="user-guide/docker.md" label="Docker backend docs ↗" />
+          <HermesDocsLink
+            path="user-guide/docker.md"
+            label="Docker backend docs ↗"
+          />
         </div>
-        <SettingRow label="Command timeout" desc={`${timeout}s — max seconds a terminal command may run`}>
+        <SettingRow
+          label="Command timeout"
+          desc={`${timeout}s — max seconds a terminal command may run`}
+          meta={getKeyMeta('config.terminal.timeout')}
+        >
           <NumberSlider
             min={10}
             max={3600}
@@ -201,8 +253,12 @@ export default function SectionExecution() {
               ? 'This is a no-op on the local backend (tools/terminal_tool.py:1440-1444) — local only reads TERMINAL_LOCAL_PERSISTENT, which no config key sets. Toggling it here changes nothing while backend is local.'
               : 'Keep a long-lived shell across commands so cwd/env vars survive between calls.'
           }
+          meta={getKeyMeta('config.terminal.persistent_shell')}
         >
-          <Toggle on={persistentShell} set={(v) => set('config.terminal.persistent_shell', v)} />
+          <Toggle
+            on={persistentShell}
+            set={(v) => set('config.terminal.persistent_shell', v)}
+          />
         </SettingRow>
       </SettingCard>
 
@@ -214,6 +270,7 @@ export default function SectionExecution() {
               ? 'Scripts run isolated in a temp directory with hermes-agent’s own Python — maximum reproducibility, but project deps and relative paths will not resolve.'
               : "Scripts run in the session's working directory with the active virtualenv — project deps and relative paths resolve normally."
           }
+          meta={getKeyMeta('config.code_execution.mode')}
         >
           <Segmented
             options={EXECUTION_MODES}
@@ -237,40 +294,69 @@ export default function SectionExecution() {
             Advanced Docker settings
           </summary>
           <div style={{ padding: '0 18px 18px' }}>
-            <SettingRow label="Docker image" desc="Image used for sandboxed docker terminal sessions">
-              <input
-                type="text"
-                className="text-input"
+            <SettingRow
+              label="Docker image"
+              desc="Image used for sandboxed docker terminal sessions"
+              meta={getKeyMeta('config.terminal.docker_image')}
+            >
+              <TextField
                 value={dockerImage}
-                onChange={(e) => set('config.terminal.docker_image', e.target.value)}
+                onChange={(v) => set('config.terminal.docker_image', v)}
               />
             </SettingRow>
             <SettingRow
               label="Mount host cwd to /workspace"
               pill={{ t: 'danger' }}
               desc="Off by default — passing host directories into the sandbox weakens isolation. When ON, the agent's filesystem view becomes the bind-mounted host directory at /workspace instead of an isolated container filesystem; files it writes land directly on your host."
+              meta={getKeyMeta('config.terminal.docker_mount_cwd_to_workspace')}
             >
               <Toggle
                 on={dockerMountCwd}
-                set={(v) => set('config.terminal.docker_mount_cwd_to_workspace', v)}
+                set={(v) =>
+                  set('config.terminal.docker_mount_cwd_to_workspace', v)
+                }
               />
             </SettingRow>
             <SettingRow
               label="Docker volumes"
-              desc={'One "host_path:container_path" mount per line (standard docker -v syntax).'}
+              desc={
+                'One "host_path:container_path" mount per line (standard docker -v syntax).'
+              }
+              meta={getKeyMeta('config.terminal.docker_volumes')}
             >
+              {/* Raw: multiline editing — TextField is single-line. */}
               <textarea
                 className="text-input"
                 rows={3}
-                style={{ width: '100%', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: '12px' }}
+                style={{
+                  width: '100%',
+                  fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                  fontSize: '12px',
+                }}
                 value={dockerVolumes.join('\n')}
-                onChange={(e) => set('config.terminal.docker_volumes', parseVolumes(e.target.value))}
+                onChange={(e) =>
+                  set(
+                    'config.terminal.docker_volumes',
+                    parseVolumes(e.target.value),
+                  )
+                }
               />
             </SettingRow>
-            <SettingRow label="Network access" desc="Off runs the container with --network=none (no egress)">
-              <Toggle on={dockerNetwork} set={(v) => set('config.terminal.docker_network', v)} />
+            <SettingRow
+              label="Network access"
+              desc="Off runs the container with --network=none (no egress)"
+              meta={getKeyMeta('config.terminal.docker_network')}
+            >
+              <Toggle
+                on={dockerNetwork}
+                set={(v) => set('config.terminal.docker_network', v)}
+              />
             </SettingRow>
-            <SettingRow label="CPU limit" desc={`${containerCpu} core(s)`}>
+            <SettingRow
+              label="CPU limit"
+              desc={`${containerCpu} core(s)`}
+              meta={getKeyMeta('config.terminal.container_cpu')}
+            >
               <NumberSlider
                 min={1}
                 max={16}
@@ -279,7 +365,11 @@ export default function SectionExecution() {
                 onChange={(v) => set('config.terminal.container_cpu', v)}
               />
             </SettingRow>
-            <SettingRow label="Memory limit" desc={`${containerMemory} MB`}>
+            <SettingRow
+              label="Memory limit"
+              desc={`${containerMemory} MB`}
+              meta={getKeyMeta('config.terminal.container_memory')}
+            >
               <NumberSlider
                 min={512}
                 max={32768}
@@ -288,7 +378,11 @@ export default function SectionExecution() {
                 onChange={(v) => set('config.terminal.container_memory', v)}
               />
             </SettingRow>
-            <SettingRow label="Disk limit" desc={`${containerDisk} MB`}>
+            <SettingRow
+              label="Disk limit"
+              desc={`${containerDisk} MB`}
+              meta={getKeyMeta('config.terminal.container_disk')}
+            >
               <NumberSlider
                 min={1024}
                 max={204800}

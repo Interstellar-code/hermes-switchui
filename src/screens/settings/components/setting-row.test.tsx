@@ -3,6 +3,7 @@ import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SettingRow } from './setting-row'
 import { Toggle } from './controls'
+import type { KeyMeta } from '../lib/key-meta-types'
 
 afterEach(() => {
   cleanup()
@@ -106,5 +107,66 @@ describe('SettingRow', () => {
     const wrapper = screen.getByTestId('wrapper')
     expect(wrapper.getAttribute('aria-labelledby')).toBe(null)
     expect(wrapper.id).toBe('')
+  })
+
+  // ── meta prop (P3, board B) ───────────────────────────────────────────────
+
+  const META: KeyMeta = {
+    id: 'agent.max_turns',
+    label: 'Max turns',
+    group: 'agent-runtime',
+    scope: 'hermes-config',
+    applies: 'next-session',
+    type: 'int',
+    default: null,
+    recommended: 40,
+    range: { min: 1, max: 500, unlimited: null },
+    effect: 'Caps tool-calling iterations per turn.',
+    source: 'agent/config.py',
+    verified: false,
+  }
+
+  it('renders the RowMeta strip under the label when meta is present', () => {
+    render(
+      <SettingRow label="Max turns" meta={META}>
+        <input type="number" defaultValue="40" readOnly />
+      </SettingRow>,
+    )
+
+    expect(screen.getByText('config.yaml')).toBeTruthy()
+    expect(screen.getByText('Next session')).toBeTruthy()
+    expect(
+      screen.getByText('Default ∞ · Recommended 40 · Range 1–∞'),
+    ).toBeTruthy()
+    expect(screen.getByText('ⓘ')).toBeTruthy()
+  })
+
+  it('keeps the label → control association intact alongside meta', () => {
+    render(
+      <SettingRow label="Max turns" meta={META}>
+        <input type="number" defaultValue="40" readOnly />
+      </SettingRow>,
+    )
+
+    const control = screen.getByLabelText<HTMLInputElement>(/Max turns/)
+    expect(control.tagName).toBe('INPUT')
+    expect(control.value).toBe('40')
+  })
+
+  it('renders no wrapper and no meta markup when meta is omitted', () => {
+    const { container } = render(
+      <SettingRow label="Plain">
+        <input type="text" defaultValue="a" readOnly />
+      </SettingRow>,
+    )
+
+    // Exactly the pre-P3 DOM: .row > label.lbl + div.ctl, nothing between.
+    const row = container.querySelector('.row')
+    expect(row).toBeTruthy()
+    expect(row?.children.length).toBe(2)
+    expect(row?.children[0].tagName).toBe('LABEL')
+    expect(row?.children[0].className).toBe('lbl')
+    expect(row?.querySelector('.row-meta')).toBeNull()
+    expect(row?.querySelector('.lbl-wrap')).toBeNull()
   })
 })

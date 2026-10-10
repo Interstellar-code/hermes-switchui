@@ -7,13 +7,15 @@
  *    Roughly 200 call sites read `draft['config.x']` directly and expect a
  *    value, not `undefined`, so the overlay is never exposed as `draft`.
  * 2. `overlay` holds exactly the user's unsaved edits, and its key set is
- *    always identical to `dirty`. Nothing else may write it.
+ *    always identical to `dirty`. Nothing else may write it, except that
+ *    `registerDefaults()` may drop an edit that now equals its new default.
  * 3. `committed` is server truth and nothing else. Fabricated fallbacks live
  *    in `defaults` so Export keeps exporting what the server actually has.
  * 4. Only `seed()` may write `status`. `registerDefaults()` in particular may
- *    never write `status`, `committed` or `dirty` — a mount effect that did
- *    exactly that (via the old `load()`) is what raced the real server seed
- *    and silently discarded other sections' edits.
+ *    never write `status` or `committed`, and may touch `dirty` only to clear
+ *    a key whose edit now equals its new default — a mount effect that wrote
+ *    them (via the old `load()`) is what raced the real server seed and
+ *    silently discarded other sections' edits.
  * 5. `save()` never throws and commits **only** the keys the saver reports as
  *    persisted.
  */
@@ -66,16 +68,23 @@ export type SettingsActions = {
    *
    * `{ force: true }` is the Refresh button: a hard reset that drops drafts.
    */
-  seed: (
-    committed: Record<string, unknown>,
-    opts?: { force?: boolean },
-  ) => void
+  seed: (committed: Record<string, unknown>, opts?: { force?: boolean }) => void
   /**
    * Register fallback values for keys the server may not define. Additive,
    * idempotent and order-independent (first registration for a key wins).
-   * Never touches `status`, `committed` or `dirty`.
+   * Never touches `status` or `committed`. An uncommitted edit that equals
+   * the newly registered default is redundant and goes clean.
+   *
+   * `{ override: true }` is for the gateway's own `/api/config/defaults`: those
+   * outrank a section's hand-copied literal, so a differing value already
+   * registered is replaced. Sections register on mount, usually before the
+   * defaults request lands, so first-wins alone would pin the stale literal.
+   * Server truth and user edits still outrank both.
    */
-  registerDefaults: (defaults: Record<string, unknown>) => void
+  registerDefaults: (
+    defaults: Record<string, unknown>,
+    opts?: { override?: boolean },
+  ) => void
   set: (key: string, value: unknown) => void
   setMany: (patch: Record<string, unknown>) => void
   /**
@@ -225,24 +234,40 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     })
   },
 
-  registerDefaults(incoming) {
+  registerDefaults(incoming, opts) {
     const state = get()
     const added: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(incoming)) {
-      if (key in state.defaults) continue
+      if (key in state.defaults) {
+        if (!opts?.override || valuesEqual(state.defaults[key], value)) continue
+      }
       added[key] = value
     }
     if (Object.keys(added).length === 0) return
 
     const defaults = { ...state.defaults, ...added }
     const draft = { ...state.draft }
+    let overlay = state.overlay
+    let dirty = state.dirty
     for (const [key, value] of Object.entries(added)) {
       // Server truth and user edits both outrank a registered default.
-      if (key in state.committed || key in state.overlay) continue
+      if (key in state.committed) continue
+      if (key in state.overlay) {
+        // An edit that now equals its default is redundant: go clean, as
+        // `applyEdits` does when an edit returns to base.
+        if (valuesEqual(state.overlay[key], value)) {
+          if (overlay === state.overlay) overlay = { ...overlay }
+          if (dirty === state.dirty) dirty = new Set(dirty)
+          delete overlay[key]
+          dirty.delete(key)
+        }
+        continue
+      }
       draft[key] = value
     }
-    // Deliberately writes neither `status`, `committed` nor `dirty`.
-    set({ defaults, draft })
+    // Writes neither `status` nor `committed`; `overlay`/`dirty` change only to
+    // drop an edit that became equal to its new default.
+    set({ defaults, draft, overlay, dirty })
   },
 
   set(key, value) {
@@ -306,7 +331,14 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     if (state.saveState.phase === 'saving') return { persisted: [], failed: [] }
     if (state.dirty.size === 0) {
       if (state.saveState.phase !== 'idle') {
-        set({ saveState: { ...state.saveState, phase: 'idle', error: null, failures: [] } })
+        set({
+          saveState: {
+            ...state.saveState,
+            phase: 'idle',
+            error: null,
+            failures: [],
+          },
+        })
       }
       return { persisted: [], failed: [] }
     }

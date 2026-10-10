@@ -3,20 +3,21 @@
  *
  * The sidebar used to filter 27 section *labels*. Searching "docker",
  * "tirith", "retention" or "port" — every one of them a real, editable setting
- * — returned nothing, on a page with 27 sections and 555 fields. That is the
- * single highest-value affordance missing here.
+ * — returned nothing, on a page whose field count is whatever the schema
+ * serves (`SchemaIndex.fields.length`; 837 in the captured fixture). That is
+ * the single highest-value affordance missing here.
  *
  * The index is built from two sources and neither is sufficient alone:
  *
- *   - the **schema** (`GET /api/config/schema`) knows all 555 keys, their
- *     categories and their auto-generated descriptions;
+ *   - the **schema** (`GET /api/config/schema`) knows every published key,
+ *     its category and its auto-generated descriptions;
  *   - the **registry** (`SECTION_SPECS`) knows which section edits which key,
- *     and carries four keys the schema does not publish at all
+ *     and carries a few keys the schema does not publish at all
  *     (`config.fallback_model`, `config.gateway.multiplex_profiles`,
  *     `config.platforms.api_server.{host,port}`).
  *
- * Section titles stay searchable so today's behaviour is a strict subset of the
- * new one.
+ * Section titles and board A group names stay searchable — both flow through
+ * `SECTION_SPECS`, so today's behaviour is a strict subset of the new one.
  *
  * This module is pure. It takes a `SchemaIndex` and returns data; the sidebar
  * decides how to draw it.

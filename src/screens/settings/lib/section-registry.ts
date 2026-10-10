@@ -37,41 +37,61 @@ export type SectionSpec = {
   defaults?: Record<string, unknown>
 }
 
+/**
+ * Board A's intent groups, in mockup order — the order the sidebar renders
+ * them in. `hint` is the muted tail the mockup shows next to the upper-cased
+ * label; `hintKeyCount` marks the group whose hint is prefixed with the live
+ * schema key count (`SchemaIndex.fields.length` — 837 in the captured
+ * fixture; never a hard-coded number).
+ *
+ * `Overview` leads the tree with the Config health page (P5B, board C) — the
+ * live lint of the draft against defaults, recommendations and the SwitchUI
+ * required keys.
+ */
+export const GROUP_SPECS: Array<{
+  label: string
+  hint?: string
+  hintKeyCount?: boolean
+}> = [
+  { label: 'Overview' },
+  { label: 'Models', hint: 'fallback · aux' },
+  { label: 'Agent behavior' },
+  { label: 'Context & memory', hint: 'compression' },
+  { label: 'Tools & execution', hint: 'terminal · web' },
+  { label: 'Safety & privacy', hint: 'approvals' },
+  { label: 'Sessions & storage' },
+  { label: 'Automation', hint: 'cron' },
+  { label: 'Channels & gateway', hint: 'api_server' },
+  { label: 'Display & language', hint: 'tz' },
+  { label: 'Appearance', hint: 'this browser' },
+  { label: 'Integrations', hint: 'mcp · keys' },
+  { label: 'System', hint: 'net · updates' },
+  { label: 'Advanced', hint: 'raw', hintKeyCount: true },
+  { label: 'Danger' },
+]
+
 export const SECTION_SPECS: Array<SectionSpec> = [
-  // ── General ─────────────────────────────────────────────────────────────
+  // ── Overview ──────────────────────────────────────────────────────────────
   {
-    id: 'workspace',
-    label: 'Workspace',
-    group: 'General',
-    ownership: 'read-only',
-  },
-  {
-    id: 'account',
-    label: 'Account',
-    group: 'General',
-    ownership: 'read-only',
-  },
-  {
-    id: 'appearance',
-    label: 'Appearance',
-    group: 'General',
-    ownership: 'self-saving',
-    selfSavedSurfaces: ['Theme'],
-  },
-  {
-    id: 'notifications',
-    label: 'Notifications',
-    group: 'General',
-    ownership: 'read-only',
+    id: 'health',
+    label: 'Config health',
+    group: 'Overview',
+    // Writes the draft store through Fix / preset buttons, but declares no
+    // keys: every key it can write already belongs to the curated section
+    // that owns it (or the All-settings catch-all), so dirty dots light
+    // where the keys live rather than here.
+    ownership: 'store',
   },
 
-  // ── Models ──────────────────────────────────────────────────────────────
+  // ── Models ───────────────────────────────────────────────────────────────
   {
     id: 'provider',
     label: 'Provider',
     group: 'Models',
     ownership: 'mixed',
-    keys: ['config.fallback_model'],
+    // `config.fallback_model` is only ever read (legacy pre-fill); the chain
+    // editor writes `config.fallback_providers`.
+    keys: ['config.fallback_model', 'config.fallback_providers'],
     // Provider / default-model rows call setModelAssignment directly.
     selfSavedSurfaces: ['Active provider', 'Default model'],
   },
@@ -82,11 +102,11 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     ownership: 'read-only',
   },
 
-  // ── Agent ───────────────────────────────────────────────────────────────
+  // ── Agent behavior ───────────────────────────────────────────────────────
   {
     id: 'agent-runtime',
     label: 'Runtime',
-    group: 'Agent',
+    group: 'Agent behavior',
     ownership: 'store',
     keys: [
       'config.agent.api_max_retries',
@@ -96,10 +116,28 @@ export const SECTION_SPECS: Array<SectionSpec> = [
       'config.agent.tool_use_enforcement',
     ],
   },
+
+  // ── Context & memory ─────────────────────────────────────────────────────
+  {
+    id: 'memory-wiki',
+    label: 'Memory & Wiki',
+    group: 'Context & memory',
+    ownership: 'mixed',
+    keys: [
+      'config.memory.memory_char_limit',
+      'config.memory.memory_enabled',
+      'config.memory.provider',
+      'config.memory.user_char_limit',
+      'config.memory.user_profile_enabled',
+    ],
+    selfSavedSurfaces: ['Hindsight', 'Wiki source'],
+  },
+
+  // ── Tools & execution ────────────────────────────────────────────────────
   {
     id: 'execution',
     label: 'Execution',
-    group: 'Agent',
+    group: 'Tools & execution',
     ownership: 'store',
     keys: [
       'config.code_execution.mode',
@@ -116,38 +154,9 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     ],
   },
   {
-    id: 'gateway',
-    label: 'Gateway',
-    group: 'Agent',
-    ownership: 'store',
-    keys: [
-      'config.gateway.multiplex_profiles',
-      'config.platforms.api_server.host',
-      'config.platforms.api_server.port',
-    ],
-  },
-
-  // ── Memory ──────────────────────────────────────────────────────────────
-  {
-    id: 'memory-wiki',
-    label: 'Memory & Wiki',
-    group: 'Memory',
-    ownership: 'mixed',
-    keys: [
-      'config.memory.memory_char_limit',
-      'config.memory.memory_enabled',
-      'config.memory.provider',
-      'config.memory.user_char_limit',
-      'config.memory.user_profile_enabled',
-    ],
-    selfSavedSurfaces: ['Hindsight', 'Wiki source'],
-  },
-
-  // ── Skills ──────────────────────────────────────────────────────────────
-  {
     id: 'skills',
     label: 'Skills',
-    group: 'Skills',
+    group: 'Tools & execution',
     ownership: 'store',
     keys: [
       'config.skills.external_dirs',
@@ -157,61 +166,11 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     ],
   },
 
-  // ── Workflows ───────────────────────────────────────────────────────────
-  {
-    id: 'workflows',
-    label: 'Workflows',
-    group: 'Workflows',
-    ownership: 'read-only',
-  },
-
-  // ── MCP ─────────────────────────────────────────────────────────────────
-  {
-    id: 'mcp-servers',
-    label: 'Servers',
-    group: 'MCP',
-    ownership: 'read-only',
-  },
-  {
-    id: 'mcp-registered',
-    label: 'Registered',
-    group: 'MCP',
-    ownership: 'self-saving',
-  },
-  {
-    id: 'hermes-plugin',
-    label: 'Hermes Plugin',
-    group: 'MCP',
-    ownership: 'self-saving',
-  },
-
-  // ── System ──────────────────────────────────────────────────────────────
-  {
-    id: 'storage',
-    label: 'Storage',
-    group: 'System',
-    ownership: 'store',
-    keys: [
-      'config.sessions.auto_prune',
-      'config.sessions.retention_days',
-      'config.sessions.vacuum_after_prune',
-    ],
-  },
-  {
-    id: 'privacy',
-    label: 'Privacy',
-    group: 'System',
-    ownership: 'store',
-    keys: [
-      'config.privacy.redact_pii',
-      'config.security.allow_private_urls',
-      'config.security.redact_secrets',
-    ],
-  },
+  // ── Safety & privacy ─────────────────────────────────────────────────────
   {
     id: 'safety',
     label: 'Safety',
-    group: 'System',
+    group: 'Safety & privacy',
     ownership: 'store',
     keys: [
       'config.approvals.cron_mode',
@@ -225,21 +184,115 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     ],
   },
   {
-    id: 'telemetry',
-    label: 'Telemetry',
-    group: 'System',
+    id: 'privacy',
+    label: 'Privacy',
+    group: 'Safety & privacy',
     ownership: 'store',
     keys: [
-      'config.logging.backup_count',
-      'config.logging.level',
-      'config.logging.max_size_mb',
+      'config.privacy.redact_pii',
+      'config.security.allow_private_urls',
+      'config.security.redact_secrets',
     ],
+  },
+
+  // ── Sessions & storage ───────────────────────────────────────────────────
+  {
+    id: 'storage',
+    label: 'Storage',
+    group: 'Sessions & storage',
+    ownership: 'store',
+    keys: [
+      'config.sessions.auto_prune',
+      'config.sessions.retention_days',
+      'config.sessions.vacuum_after_prune',
+    ],
+  },
+
+  // ── Automation ───────────────────────────────────────────────────────────
+  {
+    id: 'workflows',
+    label: 'Workflows',
+    group: 'Automation',
+    ownership: 'read-only',
+  },
+
+  // ── Channels & gateway ───────────────────────────────────────────────────
+  {
+    id: 'gateway',
+    label: 'Gateway',
+    group: 'Channels & gateway',
+    ownership: 'store',
+    keys: [
+      'config.gateway.multiplex_profiles',
+      'config.platforms.api_server.extra.host',
+      'config.platforms.api_server.extra.port',
+      // Legacy flat keys: read as a display fallback only, never written.
+      'config.platforms.api_server.host',
+      'config.platforms.api_server.port',
+    ],
+  },
+
+  // ── Display & language ───────────────────────────────────────────────────
+  {
+    id: 'notifications',
+    label: 'Notifications',
+    group: 'Display & language',
+    ownership: 'read-only',
+  },
+  {
+    id: 'shortcuts',
+    label: 'Shortcuts',
+    group: 'Display & language',
+    ownership: 'read-only',
+  },
+
+  // ── Appearance ───────────────────────────────────────────────────────────
+  {
+    id: 'appearance',
+    label: 'Appearance',
+    group: 'Appearance',
+    ownership: 'self-saving',
+    selfSavedSurfaces: ['Theme'],
+  },
+
+  // ── Integrations ─────────────────────────────────────────────────────────
+  {
+    id: 'mcp-servers',
+    label: 'Servers',
+    group: 'Integrations',
+    ownership: 'read-only',
+  },
+  {
+    id: 'mcp-registered',
+    label: 'Registered',
+    group: 'Integrations',
+    ownership: 'self-saving',
+  },
+  {
+    id: 'hermes-plugin',
+    label: 'Hermes Plugin',
+    group: 'Integrations',
+    ownership: 'self-saving',
   },
   {
     id: 'api-keys',
     label: 'API Keys',
-    group: 'System',
+    group: 'Integrations',
     ownership: 'self-saving',
+  },
+
+  // ── System ───────────────────────────────────────────────────────────────
+  {
+    id: 'workspace',
+    label: 'Workspace',
+    group: 'System',
+    ownership: 'read-only',
+  },
+  {
+    id: 'account',
+    label: 'Account',
+    group: 'System',
+    ownership: 'read-only',
   },
   {
     id: 'network',
@@ -260,18 +313,26 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     group: 'System',
     ownership: 'self-saving',
   },
-
-  // ── Other ───────────────────────────────────────────────────────────────
   {
-    id: 'shortcuts',
-    label: 'Shortcuts',
-    group: 'Shortcuts',
-    ownership: 'read-only',
+    id: 'telemetry',
+    label: 'Telemetry',
+    group: 'System',
+    ownership: 'store',
+    keys: [
+      'config.logging.backup_count',
+      'config.logging.level',
+      'config.logging.max_size_mb',
+    ],
   },
+
+  // ── Advanced ─────────────────────────────────────────────────────────────
   {
     /**
      * Schema-generated browser over every field `GET /api/config/schema`
-     * publishes — 555 of them against the 48 the curated sections hand-maintain.
+     * publishes — every key in `SchemaIndex.fields` (837 in the captured
+     * fixture; the live count is whatever the gateway serves) against the
+     * curated sections' declared keys (`SECTION_SPECS.reduce((n, s) => n +
+     * (s.keys?.length ?? 0), 0)`).
      *
      * `keyPrefixes: ['config.']` is a deliberate fail-open catch-all: an orphan
      * key (one no curated section declares) still resolves to a section, so it
@@ -329,6 +390,7 @@ export const SECTION_COMPONENTS: Record<
   string,
   ComponentType<SectionProps> | undefined
 > = {
+  health: lazy(() => import('../sections/section-health')),
   workspace: lazy(() => import('../sections/section-workspace')),
   account: lazy(() => import('../sections/section-account')),
   appearance: lazy(() => import('../sections/section-appearance')),
@@ -376,9 +438,10 @@ const EXACT_INDEX: Map<string, Array<string>> = (() => {
 })()
 
 /** Prefix rules, longest first so the most specific claim wins. */
-const PREFIX_INDEX: Array<{ prefix: string; id: string }> = SECTION_SPECS.flatMap(
-  (spec) => (spec.keyPrefixes ?? []).map((prefix) => ({ prefix, id: spec.id })),
-).sort((a, b) => b.prefix.length - a.prefix.length)
+const PREFIX_INDEX: Array<{ prefix: string; id: string }> =
+  SECTION_SPECS.flatMap((spec) =>
+    (spec.keyPrefixes ?? []).map((prefix) => ({ prefix, id: spec.id })),
+  ).sort((a, b) => b.prefix.length - a.prefix.length)
 
 /** Every section that claims `key`, exact matches first. */
 export function sectionIdsForKey(key: string): Array<string> {
@@ -409,7 +472,9 @@ export function sectionOwnsKey(spec: SectionSpec, key: string): boolean {
 
 /**
  * Section ids with at least one dirty key. Iterates the dirty set, not the
- * cross-product of sections and keys — Wave 2 registers 555 keys.
+ * cross-product of sections and keys — the dirty set is at most the number of
+ * keys the user touched this visit, while the cross-product scales with every
+ * key the schema publishes (`SchemaIndex.fields.length`).
  */
 export function dirtySectionIds(dirty: Iterable<string>): Set<string> {
   const out = new Set<string>()

@@ -11,6 +11,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider, Toggle } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 import { listSkills } from '@/lib/hermes-client'
 
@@ -146,7 +147,13 @@ export default function SectionSkills() {
       </SettingCard>
 
       <SettingCard title="Skill sources">
-        <SettingRow label="External skill dirs" desc="One path per line (e.g. ~/.agents/skills, /shared/team-skills)">
+        <SettingRow
+          label="External skill dirs"
+          desc="One path per line (e.g. ~/.agents/skills, /shared/team-skills)"
+          meta={getKeyMeta('config.skills.external_dirs')}
+        >
+          {/* Raw, not TextField: this is a multi-line list editor and TextField renders
+            a single-line <input>. */}
           <textarea
             className="text-input"
             style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', minHeight: '120px', resize: 'vertical' }}
@@ -155,16 +162,29 @@ export default function SectionSkills() {
             onChange={(e) => setExternalDirs(e.target.value)}
           />
         </SettingRow>
-        <SettingRow label="Template variables" desc="Substitute ${HERMES_SKILL_DIR} and ${HERMES_SESSION_ID} in SKILL.md">
+        <SettingRow
+          label="Template variables"
+          desc="Substitute ${HERMES_SKILL_DIR} and ${HERMES_SESSION_ID} in SKILL.md"
+          meta={getKeyMeta('config.skills.template_vars')}
+        >
           <Toggle on={templateVars} set={(v) => set('config.skills.template_vars', v)} />
         </SettingRow>
       </SettingCard>
 
       <SettingCard title="Inline shell">
-        <SettingRow label="Inline shell" pill={{ t: 'danger' }} desc="Pre-execute !`cmd` snippets in SKILL.md">
+        <SettingRow
+          label="Inline shell"
+          pill={{ t: 'danger' }}
+          desc="Pre-execute !`cmd` snippets in SKILL.md"
+          meta={getKeyMeta('config.skills.inline_shell')}
+        >
           <Toggle on={inlineShell} set={(v) => set('config.skills.inline_shell', v)} />
         </SettingRow>
-        <SettingRow label="Inline shell timeout" desc="Maximum seconds per !`cmd` snippet">
+        <SettingRow
+          label="Inline shell timeout"
+          desc="Maximum seconds per !`cmd` snippet"
+          meta={getKeyMeta('config.skills.inline_shell_timeout')}
+        >
           <NumberSlider
             min={1}
             max={60}

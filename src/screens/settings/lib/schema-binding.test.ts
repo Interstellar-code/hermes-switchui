@@ -12,6 +12,7 @@ import {
   orderCategories,
   useConfigSchema,
   useRegisterSchemaDefaults,
+  useSchemaDefault,
   useSchemaDefaults,
   widgetFor,
 } from './schema-binding'
@@ -32,7 +33,11 @@ vi.mock('@/lib/hermes-client', () => ({
 const SCHEMA = {
   category_order: ['general', 'agent', 'terminal'],
   fields: {
-    model: { type: 'string', description: 'Default model', category: 'general' },
+    model: {
+      type: 'string',
+      description: 'Default model',
+      category: 'general',
+    },
     'agent.max_turns': {
       type: 'number',
       description: 'Agent → Max Turns',
@@ -105,11 +110,10 @@ describe('normalizeType', () => {
 describe('orderCategories', () => {
   it('puts category_order first, then the rest alphabetically', () => {
     expect(
-      orderCategories(['zeta', 'agent', 'alpha', 'general'], [
-        'general',
-        'agent',
-        'terminal',
-      ]),
+      orderCategories(
+        ['zeta', 'agent', 'alpha', 'general'],
+        ['general', 'agent', 'terminal'],
+      ),
     ).toEqual(['general', 'agent', 'alpha', 'zeta'])
   })
 
@@ -170,7 +174,14 @@ describe('buildSchemaIndex', () => {
 
   // ── Degradation ───────────────────────────────────────────────────────
   it('returns an empty index rather than throwing on junk', () => {
-    for (const junk of [undefined, null, {}, { fields: null }, { fields: [] }, 7]) {
+    for (const junk of [
+      undefined,
+      null,
+      {},
+      { fields: null },
+      { fields: [] },
+      7,
+    ]) {
       expect(buildSchemaIndex(junk).fields.length, String(junk)).toBe(0)
     }
   })
@@ -187,7 +198,9 @@ describe('buildSchemaIndex', () => {
 
 describe('widgetFor', () => {
   const select = buildSchemaIndex(SCHEMA).byKey.get('config.terminal.backend')!
-  const bool = buildSchemaIndex(SCHEMA).byKey.get('config.security.tirith_enabled')!
+  const bool = buildSchemaIndex(SCHEMA).byKey.get(
+    'config.security.tirith_enabled',
+  )!
 
   it('picks a select whenever options exist', () => {
     expect(widgetFor(select, 'local')).toBe('select')
@@ -219,15 +232,17 @@ describe('optionsFor', () => {
   const fallback = [{ value: 'local', label: 'Local' }]
 
   it('prefers the schema over the caller’s hardcoded list', () => {
-    expect(optionsFor(index, 'config.terminal.backend', fallback)).toHaveLength(6)
+    expect(optionsFor(index, 'config.terminal.backend', fallback)).toHaveLength(
+      6,
+    )
   })
 
   /** This is what keeps a curated section working with the gateway down. */
   it('returns the fallback when the schema has nothing to say', () => {
     expect(optionsFor(index, 'config.nope', fallback)).toBe(fallback)
-    expect(optionsFor(EMPTY_SCHEMA_INDEX, 'config.terminal.backend', fallback)).toBe(
-      fallback,
-    )
+    expect(
+      optionsFor(EMPTY_SCHEMA_INDEX, 'config.terminal.backend', fallback),
+    ).toBe(fallback)
   })
 
   it('returns undefined when there is no fallback either', () => {
@@ -245,7 +260,9 @@ describe('humanizeKey', () => {
 describe('useConfigSchema', () => {
   it('indexes the fetched schema', async () => {
     mockGetConfigSchema.mockResolvedValue(SCHEMA)
-    const { result } = renderHook(() => useConfigSchema(), { wrapper: wrapper() })
+    const { result } = renderHook(() => useConfigSchema(), {
+      wrapper: wrapper(),
+    })
 
     await waitFor(() => expect(result.current.index.fields.length).toBe(6))
     expect(result.current.isError).toBe(false)
@@ -257,7 +274,9 @@ describe('useConfigSchema', () => {
    */
   it('degrades to an empty index when the request fails', async () => {
     mockGetConfigSchema.mockRejectedValue(new Error('404: Not Found'))
-    const { result } = renderHook(() => useConfigSchema(), { wrapper: wrapper() })
+    const { result } = renderHook(() => useConfigSchema(), {
+      wrapper: wrapper(),
+    })
 
     await waitFor(() => expect(result.current.isError).toBe(true))
     expect(result.current.index.fields).toEqual([])
@@ -273,7 +292,9 @@ describe('useConfigSchema', () => {
 describe('useSchemaDefaults / useRegisterSchemaDefaults', () => {
   it('flattens the bare defaults dict into config.* store keys', async () => {
     mockGetConfigDefaults.mockResolvedValue({ terminal: { timeout: 180 } })
-    const { result } = renderHook(() => useSchemaDefaults(), { wrapper: wrapper() })
+    const { result } = renderHook(() => useSchemaDefaults(), {
+      wrapper: wrapper(),
+    })
 
     await waitFor(() =>
       expect(result.current['config.terminal.timeout']).toBe(180),
@@ -303,17 +324,51 @@ describe('useSchemaDefaults / useRegisterSchemaDefaults', () => {
     renderHook(() => useRegisterSchemaDefaults(), { wrapper: wrapper() })
 
     await waitFor(() =>
-      expect(useSettingsStore.getState().defaults['config.terminal.timeout']).toBe(
+      expect(
+        useSettingsStore.getState().defaults['config.terminal.timeout'],
+      ).toBe(180),
+    )
+    expect(useSettingsStore.getState().draft['config.terminal.timeout']).toBe(
+      120,
+    )
+    expect(
+      useSettingsStore.getState().committed['config.terminal.timeout'],
+    ).toBe(90)
+  })
+
+  it('gateway defaults win over an already-registered hand-copied literal', async () => {
+    useSettingsStore
+      .getState()
+      .registerDefaults({ 'config.terminal.timeout': 90 })
+    mockGetConfigDefaults.mockResolvedValue({ terminal: { timeout: 180 } })
+    renderHook(() => useRegisterSchemaDefaults(), { wrapper: wrapper() })
+
+    await waitFor(() =>
+      expect(useSettingsStore.getState().draft['config.terminal.timeout']).toBe(
         180,
       ),
     )
-    expect(useSettingsStore.getState().draft['config.terminal.timeout']).toBe(120)
-    expect(useSettingsStore.getState().committed['config.terminal.timeout']).toBe(90)
+  })
+
+  it('useSchemaDefault prefers the gateway value, else the fallback', async () => {
+    mockGetConfigDefaults.mockResolvedValue({ terminal: { timeout: 180 } })
+    const { result } = renderHook(
+      () => [
+        useSchemaDefault('config.terminal.timeout', 90),
+        useSchemaDefault('config.x.y', 7),
+      ],
+      { wrapper: wrapper() },
+    )
+    expect(result.current).toEqual([90, 7])
+    await waitFor(() => expect(result.current[0]).toBe(180))
+    expect(result.current[1]).toBe(7)
   })
 
   it('registers nothing when the endpoint is missing', async () => {
     mockGetConfigDefaults.mockRejectedValue(new Error('404: Not Found'))
-    const { result } = renderHook(() => useSchemaDefaults(), { wrapper: wrapper() })
+    const { result } = renderHook(() => useSchemaDefaults(), {
+      wrapper: wrapper(),
+    })
 
     await waitFor(() => expect(mockGetConfigDefaults).toHaveBeenCalled())
     expect(result.current).toEqual({})

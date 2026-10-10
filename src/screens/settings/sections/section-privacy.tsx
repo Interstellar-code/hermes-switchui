@@ -3,7 +3,9 @@
  *
  * Real DEFAULT_CONFIG keys:
  *   privacy.redact_pii           — hash user IDs / strip phone numbers from LLM context
- *   security.redact_secrets      — strip *_API_KEY/*_TOKEN/*_SECRET from logs
+ *   security.redact_secrets      — mask credential-shaped strings in tool/terminal
+ *     output and in assistant messages as they are stored to session history
+ *     (agent/redact.py; snapshotted at startup via HERMES_REDACT_SECRETS)
  *   security.allow_private_urls  — allow requests to private/internal IPs
  *
  * Dropped ghost keys (not in DEFAULT_CONFIG):
@@ -14,6 +16,7 @@
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 
 export default function SectionPrivacy() {
@@ -21,35 +24,51 @@ export default function SectionPrivacy() {
   const set = useSettingsStore((s) => s.set)
 
   // privacy.*
-  const redactPii = (draft['config.privacy.redact_pii'] as boolean | undefined) ?? false
+  const redactPii =
+    (draft['config.privacy.redact_pii'] as boolean | undefined) ?? false
 
   // security.* — surfaced here for discoverability
-  const redactSecrets = (draft['config.security.redact_secrets'] as boolean | undefined) ?? true
-  const allowPrivateUrls = (draft['config.security.allow_private_urls'] as boolean | undefined) ?? false
+  const redactSecrets =
+    (draft['config.security.redact_secrets'] as boolean | undefined) ?? true
+  const allowPrivateUrls =
+    (draft['config.security.allow_private_urls'] as boolean | undefined) ??
+    false
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Privacy</h2>
-          <div className="desc">PII redaction, secret scrubbing, and network trust policy.</div>
+          <div className="desc">
+            PII redaction, secret scrubbing, and network trust policy.
+          </div>
         </div>
-        <div className="meta">Section · <b>privacy · security</b></div>
+        <div className="meta">
+          Section · <b>privacy · security</b>
+        </div>
       </div>
 
       <SettingCard title="Data redaction">
         <SettingRow
           label="Redact PII from context"
           desc="Hash user IDs and strip phone numbers before sending to the LLM"
+          meta={getKeyMeta('config.privacy.redact_pii')}
         >
-          <Toggle on={redactPii} set={(v) => set('config.privacy.redact_pii', v)} />
+          <Toggle
+            on={redactPii}
+            set={(v) => set('config.privacy.redact_pii', v)}
+          />
         </SettingRow>
         <SettingRow
-          label="Redact secrets from logs"
+          label="Redact secrets from output"
           pill={{ t: 'recommended' }}
-          desc="Strip *_API_KEY, *_TOKEN, *_SECRET values from log output"
+          desc="Credential-shaped strings (API keys, tokens, passwords) are masked in tool and terminal output and in assistant messages as they are stored to session history — on by default, snapshotted at startup"
+          meta={getKeyMeta('config.security.redact_secrets')}
         >
-          <Toggle on={redactSecrets} set={(v) => set('config.security.redact_secrets', v)} />
+          <Toggle
+            on={redactSecrets}
+            set={(v) => set('config.security.redact_secrets', v)}
+          />
         </SettingRow>
       </SettingCard>
 
@@ -58,8 +77,12 @@ export default function SectionPrivacy() {
           label="Allow private / internal URLs"
           pill={{ t: 'danger' }}
           desc="Disabled by default. Browser/web tools will reject RFC-1918 and internal targets until you explicitly allow them here."
+          meta={getKeyMeta('config.security.allow_private_urls')}
         >
-          <Toggle on={allowPrivateUrls} set={(v) => set('config.security.allow_private_urls', v)} />
+          <Toggle
+            on={allowPrivateUrls}
+            set={(v) => set('config.security.allow_private_urls', v)}
+          />
         </SettingRow>
       </SettingCard>
     </div>

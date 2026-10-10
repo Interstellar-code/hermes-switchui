@@ -13,6 +13,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { PasswordField, Toggle } from '../components/controls'
+import { SelectField } from '../components/select-field'
+import { TextField } from '../components/text-field'
+import { getKeyMeta } from '../lib/key-meta'
 import type { KnowledgeBaseConfig } from '@/server/knowledge-config'
 import type { EnvVarInfo } from '@/lib/hermes-client'
 import { getEnv, putEnv, revealEnv } from '@/lib/hermes-client'
@@ -32,8 +35,18 @@ const HINDSIGHT_KEYS: Array<{
   type: 'password' | 'text' | 'number' | 'segmented'
   options?: Array<{ value: string; label: string }>
 }> = [
-  { key: 'HINDSIGHT_API_KEY', label: 'API Key', desc: 'Hindsight cloud API key', type: 'password' },
-  { key: 'HINDSIGHT_BANK_ID', label: 'Bank ID', desc: 'Memory bank identifier', type: 'text' },
+  {
+    key: 'HINDSIGHT_API_KEY',
+    label: 'API Key',
+    desc: 'Hindsight cloud API key',
+    type: 'password',
+  },
+  {
+    key: 'HINDSIGHT_BANK_ID',
+    label: 'Bank ID',
+    desc: 'Memory bank identifier',
+    type: 'text',
+  },
   {
     key: 'HINDSIGHT_BUDGET',
     label: 'Budget',
@@ -45,7 +58,12 @@ const HINDSIGHT_KEYS: Array<{
       { value: 'high', label: 'High' },
     ],
   },
-  { key: 'HINDSIGHT_API_URL', label: 'API URL', desc: 'Override Hindsight endpoint', type: 'text' },
+  {
+    key: 'HINDSIGHT_API_URL',
+    label: 'API URL',
+    desc: 'Override Hindsight endpoint',
+    type: 'text',
+  },
   {
     key: 'HINDSIGHT_MODE',
     label: 'Mode',
@@ -56,7 +74,12 @@ const HINDSIGHT_KEYS: Array<{
       { value: 'local', label: 'Local' },
     ],
   },
-  { key: 'HINDSIGHT_TIMEOUT', label: 'Timeout', desc: 'Request timeout in seconds', type: 'number' },
+  {
+    key: 'HINDSIGHT_TIMEOUT',
+    label: 'Timeout',
+    desc: 'Request timeout in seconds',
+    type: 'number',
+  },
 ]
 
 function HindsightEnvRow({
@@ -84,7 +107,12 @@ function HindsightEnvRow({
   const isSet = info?.is_set ?? false
   const redacted = info?.redacted_value ?? ''
 
-  useEffect(() => () => { if (revealTimerRef.current) clearTimeout(revealTimerRef.current) }, [])
+  useEffect(
+    () => () => {
+      if (revealTimerRef.current) clearTimeout(revealTimerRef.current)
+    },
+    [],
+  )
 
   async function handleReveal() {
     if (revealedValue !== null) {
@@ -106,7 +134,9 @@ function HindsightEnvRow({
         revealTimerRef.current = null
       }, 30_000)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to reveal', { type: 'error' })
+      toast(err instanceof Error ? err.message : 'Failed to reveal', {
+        type: 'error',
+      })
     }
   }
 
@@ -136,6 +166,7 @@ function HindsightEnvRow({
         label={label}
         desc={desc}
         pill={isSet ? { t: 'set' } : { t: 'not set' }}
+        meta={getKeyMeta(`env.${envKey}`)}
       >
         <div style={{ display: 'flex', gap: 4 }}>
           {options.map((opt) => (
@@ -159,9 +190,12 @@ function HindsightEnvRow({
         label={label}
         desc={desc}
         pill={isSet ? { t: 'set' } : { t: 'not set' }}
+        meta={getKeyMeta(`env.${envKey}`)}
       >
         {editing ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Raw, not TextField: TextField carries no style prop, so the
+                90px width that keeps Save beside it would be lost. */}
             <input
               type="number"
               className="text-input"
@@ -177,13 +211,22 @@ function HindsightEnvRow({
             >
               Save
             </button>
-            <button type="button" className="btn btn-sm" onClick={() => setEditing(false)}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setEditing(false)}
+            >
               Cancel
             </button>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12 }}>
+            <span
+              style={{
+                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                fontSize: 12,
+              }}
+            >
               {isSet ? redacted : '—'}
             </span>
             <button
@@ -208,15 +251,11 @@ function HindsightEnvRow({
         label={label}
         desc={desc}
         pill={isSet ? { t: 'set' } : { t: 'not set' }}
+        meta={getKeyMeta(`env.${envKey}`)}
       >
         {editing ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="text"
-              className="text-input"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-            />
+            <TextField value={editValue} onChange={setEditValue} />
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -225,13 +264,23 @@ function HindsightEnvRow({
             >
               Save
             </button>
-            <button type="button" className="btn btn-sm" onClick={() => setEditing(false)}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setEditing(false)}
+            >
               Cancel
             </button>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+            <span
+              style={{
+                fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                fontSize: 12,
+                color: 'var(--m-text-faint, var(--theme-muted))',
+              }}
+            >
               {isSet ? redacted : '—'}
             </span>
             <button
@@ -257,6 +306,7 @@ function HindsightEnvRow({
       label={label}
       desc={desc}
       pill={isSet ? { t: 'set' } : { t: 'not set' }}
+      meta={getKeyMeta(`env.${envKey}`)}
     >
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
         {editing ? (
@@ -275,7 +325,11 @@ function HindsightEnvRow({
             >
               Save
             </button>
-            <button type="button" className="btn btn-sm" onClick={() => setEditing(false)}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setEditing(false)}
+            >
               Cancel
             </button>
           </>
@@ -287,7 +341,12 @@ function HindsightEnvRow({
               onChange={() => undefined}
               disabled
             />
-            <button type="button" className="btn btn-sm" onClick={() => void handleReveal()} disabled={!isSet && revealedValue === null}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => void handleReveal()}
+              disabled={!isSet && revealedValue === null}
+            >
               {revealedValue !== null ? 'Hide' : 'Reveal'}
             </button>
             <button
@@ -320,14 +379,18 @@ async function apiFetchConfig(url: string): Promise<ConfigResponse> {
   return res.json() as Promise<ConfigResponse>
 }
 
-async function apiPostConfig(url: string, body: Record<string, unknown>): Promise<void> {
+async function apiPostConfig(
+  url: string,
+  body: Record<string, unknown>,
+): Promise<void> {
   const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
   const payload = (await res.json().catch(() => ({}))) as { error?: string }
-  if (!res.ok || payload.error) throw new Error(payload.error ?? `Request failed (${res.status})`)
+  if (!res.ok || payload.error)
+    throw new Error(payload.error ?? `Request failed (${res.status})`)
 }
 
 function WikiCard() {
@@ -366,14 +429,21 @@ function WikiCard() {
       const source: KnowledgeBaseConfig['source'] =
         sourceType === 'local'
           ? { type: 'local', path: localPath.trim() }
-          : { type: 'github', repo: ghRepo.trim(), branch: ghBranch.trim(), path: ghPath.trim() }
+          : {
+              type: 'github',
+              repo: ghRepo.trim(),
+              branch: ghBranch.trim(),
+              path: ghPath.trim(),
+            }
       await apiPostConfig('/api/knowledge/config', { source })
       await qc.invalidateQueries({ queryKey: ['knowledge', 'config'] })
       await qc.invalidateQueries({ queryKey: ['knowledge', 'list'] })
       toast('Wiki source saved', { type: 'success' })
       setEditing(false)
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Failed to save config', { type: 'error' })
+      toast(err instanceof Error ? err.message : 'Failed to save config', {
+        type: 'error',
+      })
     } finally {
       setSaving(false)
     }
@@ -382,19 +452,33 @@ function WikiCard() {
   return (
     <SettingCard title="Wiki" sub="knowledge config">
       <SettingRow label="Wiki pages" desc="Browse, create, and edit wiki pages">
-        <a href="/memory?tab=wiki" className="btn btn-sm" style={{ textDecoration: 'none' }}>
+        <a
+          href="/memory?tab=wiki"
+          className="btn btn-sm"
+          style={{ textDecoration: 'none' }}
+        >
           Open Memory → Wiki
         </a>
       </SettingRow>
 
       {isLoading && (
-        <div style={{ padding: '12px 18px', color: 'var(--m-text-faint, var(--theme-muted))', fontSize: 12 }}>
+        <div
+          style={{
+            padding: '12px 18px',
+            color: 'var(--m-text-faint, var(--theme-muted))',
+            fontSize: 12,
+          }}
+        >
           Loading…
         </div>
       )}
       {isError && (
         <SettingRow label="Error" desc="Failed to load wiki config">
-          <button type="button" className="btn btn-sm" onClick={() => void refetch()}>
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => void refetch()}
+          >
             Retry
           </button>
         </SettingRow>
@@ -402,7 +486,10 @@ function WikiCard() {
 
       {data && !editing && (
         <>
-          <SettingRow label="Source type" desc="Where Hermes reads and writes wiki pages">
+          <SettingRow
+            label="Source type"
+            desc="Where Hermes reads and writes wiki pages"
+          >
             <span
               style={{
                 fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
@@ -417,8 +504,17 @@ function WikiCard() {
           </SettingRow>
 
           {data.config.source.type === 'local' && (
-            <SettingRow label="Path" desc="Local filesystem directory for wiki pages">
-              <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+            <SettingRow
+              label="Path"
+              desc="Local filesystem directory for wiki pages"
+            >
+              <span
+                style={{
+                  fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                  fontSize: 12,
+                  color: 'var(--m-text-faint, var(--theme-muted))',
+                }}
+              >
                 {data.config.source.path || '(default $HERMES_HOME/wiki)'}
               </span>
             </SettingRow>
@@ -427,17 +523,38 @@ function WikiCard() {
           {data.config.source.type === 'github' && (
             <>
               <SettingRow label="Repository" desc="GitHub owner/repo">
-                <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                    fontSize: 12,
+                    color: 'var(--m-text-faint, var(--theme-muted))',
+                  }}
+                >
                   {data.config.source.repo}
                 </span>
               </SettingRow>
               <SettingRow label="Branch" desc="Git branch">
-                <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+                <span
+                  style={{
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                    fontSize: 12,
+                    color: 'var(--m-text-faint, var(--theme-muted))',
+                  }}
+                >
                   {data.config.source.branch}
                 </span>
               </SettingRow>
-              <SettingRow label="Subdirectory" desc="Path within the repository">
-                <span style={{ fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>
+              <SettingRow
+                label="Subdirectory"
+                desc="Path within the repository"
+              >
+                <span
+                  style={{
+                    fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                    fontSize: 12,
+                    color: 'var(--m-text-faint, var(--theme-muted))',
+                  }}
+                >
                   {data.config.source.path || '(root)'}
                 </span>
               </SettingRow>
@@ -454,7 +571,10 @@ function WikiCard() {
 
       {editing && (
         <>
-          <SettingRow label="Source type" desc="Local filesystem or GitHub repository">
+          <SettingRow
+            label="Source type"
+            desc="Local filesystem or GitHub repository"
+          >
             <div style={{ display: 'flex', gap: 4 }}>
               {(['local', 'github'] as const).map((t) => (
                 <button
@@ -471,12 +591,10 @@ function WikiCard() {
 
           {sourceType === 'local' && (
             <SettingRow label="Path" desc="Leave empty for $HERMES_HOME/wiki">
-              <input
-                type="text"
-                className="text-input"
+              <TextField
                 value={localPath}
                 placeholder="/Users/you/hermes/wikis/my-wiki"
-                onChange={(e) => setLocalPath(e.target.value)}
+                onChange={setLocalPath}
               />
             </SettingRow>
           )}
@@ -484,30 +602,24 @@ function WikiCard() {
           {sourceType === 'github' && (
             <>
               <SettingRow label="Repository" desc="owner/repo on GitHub">
-                <input
-                  type="text"
-                  className="text-input"
+                <TextField
                   value={ghRepo}
                   placeholder="acme/wiki"
-                  onChange={(e) => setGhRepo(e.target.value)}
+                  onChange={setGhRepo}
                 />
               </SettingRow>
               <SettingRow label="Branch" desc="Git branch to read from">
-                <input
-                  type="text"
-                  className="text-input"
+                <TextField
                   value={ghBranch}
                   placeholder="main"
-                  onChange={(e) => setGhBranch(e.target.value)}
+                  onChange={setGhBranch}
                 />
               </SettingRow>
               <SettingRow label="Subdirectory" desc="Optional path within repo">
-                <input
-                  type="text"
-                  className="text-input"
+                <TextField
                   value={ghPath}
                   placeholder="docs/"
-                  onChange={(e) => setGhPath(e.target.value)}
+                  onChange={setGhPath}
                 />
               </SettingRow>
             </>
@@ -515,7 +627,12 @@ function WikiCard() {
 
           <SettingRow label="" desc="">
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="btn btn-sm" onClick={() => setEditing(false)} disabled={saving}>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => setEditing(false)}
+                disabled={saving}
+              >
                 Cancel
               </button>
               <button
@@ -543,9 +660,8 @@ export default function SectionMemoryWiki() {
   const memoryEnabled =
     (draft['config.memory.memory_enabled'] as boolean | undefined) ?? true
   const userProfileEnabled =
-    (draft['config.memory.user_profile_enabled'] as boolean | undefined) ?? false
-  const provider =
-    (draft['config.memory.provider'] as string | undefined) ?? ''
+    (draft['config.memory.user_profile_enabled'] as boolean | undefined) ?? true
+  const provider = (draft['config.memory.provider'] as string | undefined) ?? ''
   const memoryCharLimit =
     (draft['config.memory.memory_char_limit'] as number | undefined) ?? 2200
   const userCharLimit =
@@ -573,42 +689,66 @@ export default function SectionMemoryWiki() {
             </span>
           </div>
         </div>
-        <div className="meta">Section · <b>memory-wiki</b></div>
+        <div className="meta">
+          Section · <b>memory-wiki</b>
+        </div>
       </div>
 
       <SettingCard title="Memory">
-        <SettingRow label="Memory enabled" desc="Enable long-term memory retrieval for sessions">
-          <Toggle on={memoryEnabled} set={(v) => set('config.memory.memory_enabled', v)} />
+        <SettingRow
+          label="Memory enabled"
+          desc="Enable long-term memory retrieval for sessions"
+          meta={getKeyMeta('config.memory.memory_enabled')}
+        >
+          <Toggle
+            on={memoryEnabled}
+            set={(v) => set('config.memory.memory_enabled', v)}
+          />
         </SettingRow>
 
-        <SettingRow label="User profile enabled" desc="Build and use a persistent user profile for personalization">
-          <Toggle on={userProfileEnabled} set={(v) => set('config.memory.user_profile_enabled', v)} />
+        <SettingRow
+          label="User profile enabled"
+          desc="Build and use a persistent user profile for personalization"
+          meta={getKeyMeta('config.memory.user_profile_enabled')}
+        >
+          <Toggle
+            on={userProfileEnabled}
+            set={(v) => set('config.memory.user_profile_enabled', v)}
+          />
         </SettingRow>
 
-        <SettingRow label="Provider" desc="Memory backend provider">
-          <select
-            className="select-input"
+        <SettingRow
+          label="Provider"
+          desc="Memory backend provider"
+          meta={getKeyMeta('config.memory.provider')}
+        >
+          <SelectField
+            options={MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED}
             value={provider}
-            onChange={(e) => set('config.memory.provider', e.target.value)}
-          >
-            {MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set('config.memory.provider', v)}
+          />
         </SettingRow>
 
         {providerInfo && (
           <SettingRow label="Provider details" desc={providerInfo.desc}>
-            <span style={{ fontSize: 12, color: 'var(--m-text-faint, var(--theme-muted))' }}>{providerInfo.label}</span>
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--m-text-faint, var(--theme-muted))',
+              }}
+            >
+              {providerInfo.label}
+            </span>
           </SettingRow>
         )}
 
         <SettingRow
           label="Memory char limit"
           desc={`${memoryCharLimit} — max characters injected from memory per request`}
+          meta={getKeyMeta('config.memory.memory_char_limit')}
         >
+          {/* Raw, not TextField: this input carries min/max/step and a width
+              the wrapper has no props for, and dropping them would change it. */}
           <input
             type="number"
             className="text-input"
@@ -618,7 +758,10 @@ export default function SectionMemoryWiki() {
             value={memoryCharLimit}
             style={{ width: 90 }}
             onChange={(e) =>
-              set('config.memory.memory_char_limit', parseInt(e.target.value, 10))
+              set(
+                'config.memory.memory_char_limit',
+                parseInt(e.target.value, 10),
+              )
             }
           />
         </SettingRow>
@@ -626,7 +769,10 @@ export default function SectionMemoryWiki() {
         <SettingRow
           label="User char limit"
           desc={`${userCharLimit} — max characters from user profile per request`}
+          meta={getKeyMeta('config.memory.user_char_limit')}
         >
+          {/* Raw, not TextField: min/max/step and the fixed width have no
+              equivalent props on the wrapper. */}
           <input
             type="number"
             className="text-input"
@@ -643,12 +789,15 @@ export default function SectionMemoryWiki() {
       </SettingCard>
 
       {provider === 'hindsight' && (
-        <SettingCard
-          title="Hindsight"
-          sub="env vars"
-        >
+        <SettingCard title="Hindsight" sub="env vars">
           {envLoading && (
-            <div style={{ padding: '12px 18px', color: 'var(--m-text-faint, var(--theme-muted))', fontSize: 12 }}>
+            <div
+              style={{
+                padding: '12px 18px',
+                color: 'var(--m-text-faint, var(--theme-muted))',
+                fontSize: 12,
+              }}
+            >
               Loading…
             </div>
           )}
