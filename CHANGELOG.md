@@ -3,6 +3,28 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.15.0] — 2026-10-11
+
+Settings is rebuilt around what each key does: an intent-grouped tree with filters, every row showing where its value lives and when a change applies, a Config health page with one-click fixes and presets, and a review step before anything is written to config.yaml.
+
+### Added
+
+- **Intent-grouped settings tree**: sections now sit under 15 groups (Overview, Models, Agent behavior, Context & memory, Tools & execution, Safety & privacy, Sessions & storage, Automation, Channels & gateway, Display & language, Appearance, Integrations, System, Advanced, Danger). Filter chips All / Modified / Off-rec / Issues narrow the tree, with ● modified, ◆ off-recommended and ▲ config-issue markers; search also finds group names. Config keys the agent supports but no section edits are listed so they are not hidden.
+- **Row anatomy**: each config row shows where the value lives (config.yaml, .env or this browser), when a change takes effect (live, next session, needs restart), the default, the recommended value and range, with a tooltip on what the key does and its tradeoff. Controls are typed (selects, number boxes, segmented switches) from a key catalogue checked against the gateway schema.
+- **Config health** (Overview): your config checked against upstream defaults, recommended values and what SwitchUI needs. Findings come with Fix and Fix all buttons, Balanced / Power / Safe presets show how many keys they change, and a "Required for SwitchUI" card lists the keys the UI depends on. Fixes and presets only change the unsaved draft and never touch required keys; list keys such as `toolsets` only gain missing items.
+- **Save review**: Save opens a dialog with the changes grouped by when they apply, a YAML diff of saved vs new values with API keys, tokens and passwords masked, an honest note on backups, and an optional gateway restart that runs only after a fully successful save and reports whether it worked.
+
+### Fixed
+
+- **Settings that saved but did nothing**: the fallback chain now writes `fallback_providers` (keeping `base_url`, `key_env` and other entry keys), the gateway section writes `platforms.api_server.extra.*` which the agent actually reads, and the agent-runtime rows (tool use enforcement and others) offer only values hermes-agent understands. Session auto-prune and the user profile toggle now show the agent's real defaults.
+- **Secrets in All settings**: API key, secret and password fields are shown as password inputs.
+- **Number boxes**: clearing a number no longer saves `0` or `null`.
+- **Log level**: Advanced offers ERROR again.
+
+### Removed
+
+- Danger zone stubs for clearing caches and deleting the workspace, which did nothing. Reset local UI settings stays.
+
 ## [2.14.0] — 2026-10-09
 
 The dashboard is rebuilt as a social, act-now page: your level, streak and agents on the left, what needs you in the middle, the agent leaderboard and badges on the right, with the old analytics kept in an auto-fitting Ops section and a slim status bar.
