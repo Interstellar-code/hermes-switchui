@@ -1,8 +1,17 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import SectionGateway, { validateApiServerHost, validateApiServerPort } from './section-gateway'
+import SectionGateway, {
+  validateApiServerHost,
+  validateApiServerPort,
+} from './section-gateway'
 import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
 
 const { mockFetchScopeStatus } = vi.hoisted(() => ({
@@ -14,7 +23,9 @@ vi.mock('@/screens/chat/components/chat-composer-services', () => ({
 }))
 
 vi.mock('@/components/hermes-docs-link', () => ({
-  HermesDocsLink: ({ label }: { label?: string }) => <span>{label ?? 'Docs'}</span>,
+  HermesDocsLink: ({ label }: { label?: string }) => (
+    <span>{label ?? 'Docs'}</span>
+  ),
 }))
 
 function loadDraft(patch: Record<string, unknown>) {
@@ -22,7 +33,9 @@ function loadDraft(patch: Record<string, unknown>) {
 }
 
 function renderSection() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={client}>
       <SectionGateway />
@@ -88,20 +101,28 @@ describe('validateApiServerPort', () => {
 
 describe('SectionGateway', () => {
   it('explains multiplex_profiles and round-trips the toggle', async () => {
-    mockFetchScopeStatus.mockResolvedValue({ mode: 'single', servedProfiles: null, sessionCounts: {} })
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
     loadDraft({ 'config.gateway.multiplex_profiles': false })
 
     renderSection()
     await waitFor(() => expect(mockFetchScopeStatus).toHaveBeenCalled())
 
-    expect(screen.getByText(/one gateway process serves multiple profiles/i)).toBeTruthy()
+    expect(
+      screen.getByText(/one gateway process serves multiple profiles/i),
+    ).toBeTruthy()
 
     // Previously an unnamed switch (`name: ''`) — `SettingRow` now gives
     // every single-control row a real `<label htmlFor>`, so the toggle's
     // accessible name is the row's label text.
     const toggle = screen.getByRole('switch', { name: /Multiplex profiles/ })
     fireEvent.click(toggle)
-    expect(useSettingsStore.getState().draft['config.gateway.multiplex_profiles']).toBe(true)
+    expect(
+      useSettingsStore.getState().draft['config.gateway.multiplex_profiles'],
+    ).toBe(true)
   })
 
   it('shows the live topology from /api/gateway-status scope', async () => {
@@ -115,7 +136,9 @@ describe('SectionGateway', () => {
 
     renderSection()
 
-    await waitFor(() => expect(screen.getByText(/single \(serving "default"\)/)).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText(/single \(serving "default"\)/)).toBeTruthy(),
+    )
   })
 
   it('warns when the saved setting disagrees with the live gateway topology', async () => {
@@ -130,7 +153,9 @@ describe('SectionGateway', () => {
     renderSection()
 
     await waitFor(() =>
-      expect(screen.getByText(/does not match what the live gateway is doing/)).toBeTruthy(),
+      expect(
+        screen.getByText(/does not match what the live gateway is doing/),
+      ).toBeTruthy(),
     )
   })
 
@@ -145,11 +170,17 @@ describe('SectionGateway', () => {
     renderSection()
     await waitFor(() => expect(screen.getByText('multiplex')).toBeTruthy())
 
-    expect(screen.queryByText(/does not match what the live gateway is doing/)).toBeNull()
+    expect(
+      screen.queryByText(/does not match what the live gateway is doing/),
+    ).toBeNull()
   })
 
-  it('round-trips the API server host and flags an invalid value', async () => {
-    mockFetchScopeStatus.mockResolvedValue({ mode: 'single', servedProfiles: null, sessionCounts: {} })
+  it('shows legacy host keys when extra is missing and writes edits only to extra.host', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
     loadDraft({ 'config.platforms.api_server.host': '127.0.0.1' })
 
     renderSection()
@@ -158,12 +189,24 @@ describe('SectionGateway', () => {
     const hostInput = screen.getByDisplayValue('127.0.0.1')
     fireEvent.change(hostInput, { target: { value: 'http://badhost' } })
 
-    expect(useSettingsStore.getState().draft['config.platforms.api_server.host']).toBe('http://badhost')
+    expect(
+      useSettingsStore.getState().draft[
+        'config.platforms.api_server.extra.host'
+      ],
+    ).toBe('http://badhost')
+    // The legacy flat key is read-only: it keeps its seeded value.
+    expect(
+      useSettingsStore.getState().draft['config.platforms.api_server.host'],
+    ).toBe('127.0.0.1')
     expect(screen.getByText(/bare host/)).toBeTruthy()
   })
 
-  it('round-trips the API server port and flags an invalid value', async () => {
-    mockFetchScopeStatus.mockResolvedValue({ mode: 'single', servedProfiles: null, sessionCounts: {} })
+  it('shows legacy port keys when extra is missing and writes edits only to extra.port', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
     loadDraft({ 'config.platforms.api_server.port': 8642 })
 
     renderSection()
@@ -172,7 +215,66 @@ describe('SectionGateway', () => {
     const portInput = screen.getByDisplayValue('8642')
     fireEvent.change(portInput, { target: { value: '99999' } })
 
-    expect(useSettingsStore.getState().draft['config.platforms.api_server.port']).toBe(99999)
+    expect(
+      useSettingsStore.getState().draft[
+        'config.platforms.api_server.extra.port'
+      ],
+    ).toBe(99999)
+    expect(
+      useSettingsStore.getState().draft['config.platforms.api_server.port'],
+    ).toBe(8642)
     expect(screen.getByText(/between 1 and 65535/)).toBeTruthy()
+  })
+
+  it('prefers extra.host|port over the legacy flat keys on read', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
+    loadDraft({
+      'config.platforms.api_server.host': '0.0.0.0',
+      'config.platforms.api_server.port': 7000,
+      'config.platforms.api_server.extra.host': '127.0.0.1',
+      'config.platforms.api_server.extra.port': 8642,
+    })
+
+    renderSection()
+    await waitFor(() => expect(mockFetchScopeStatus).toHaveBeenCalled())
+
+    // The extra values win; the legacy values are not shown at all.
+    expect(screen.getByDisplayValue('127.0.0.1')).toBeTruthy()
+    expect(screen.getByDisplayValue('8642')).toBeTruthy()
+    expect(screen.queryByDisplayValue('0.0.0.0')).toBeNull()
+    expect(screen.queryByDisplayValue('7000')).toBeNull()
+  })
+
+  it('warns when the effective port differs from the 127.0.0.1:8642 default', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
+    loadDraft({ 'config.platforms.api_server.extra.port': 9000 })
+
+    renderSection()
+    await waitFor(() =>
+      expect(screen.getByText(/SwitchUI's gateway connection/i)).toBeTruthy(),
+    )
+    expect(screen.getByText(/127\.0\.0\.1:8642/i)).toBeTruthy()
+  })
+
+  it('does not warn about the address when host and port are at their defaults', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
+    loadDraft({})
+
+    renderSection()
+    await waitFor(() => expect(mockFetchScopeStatus).toHaveBeenCalled())
+
+    expect(screen.queryByText(/SwitchUI's gateway connection/i)).toBeNull()
   })
 })

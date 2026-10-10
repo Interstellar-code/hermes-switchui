@@ -71,7 +71,9 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     label: 'Provider',
     group: 'Models',
     ownership: 'mixed',
-    keys: ['config.fallback_model'],
+    // `config.fallback_model` is only ever read (legacy pre-fill); the chain
+    // editor writes `config.fallback_providers`.
+    keys: ['config.fallback_model', 'config.fallback_providers'],
     // Provider / default-model rows call setModelAssignment directly.
     selfSavedSurfaces: ['Active provider', 'Default model'],
   },
@@ -122,6 +124,9 @@ export const SECTION_SPECS: Array<SectionSpec> = [
     ownership: 'store',
     keys: [
       'config.gateway.multiplex_profiles',
+      'config.platforms.api_server.extra.host',
+      'config.platforms.api_server.extra.port',
+      // Legacy flat keys: read as a display fallback only, never written.
       'config.platforms.api_server.host',
       'config.platforms.api_server.port',
     ],
@@ -376,9 +381,10 @@ const EXACT_INDEX: Map<string, Array<string>> = (() => {
 })()
 
 /** Prefix rules, longest first so the most specific claim wins. */
-const PREFIX_INDEX: Array<{ prefix: string; id: string }> = SECTION_SPECS.flatMap(
-  (spec) => (spec.keyPrefixes ?? []).map((prefix) => ({ prefix, id: spec.id })),
-).sort((a, b) => b.prefix.length - a.prefix.length)
+const PREFIX_INDEX: Array<{ prefix: string; id: string }> =
+  SECTION_SPECS.flatMap((spec) =>
+    (spec.keyPrefixes ?? []).map((prefix) => ({ prefix, id: spec.id })),
+  ).sort((a, b) => b.prefix.length - a.prefix.length)
 
 /** Every section that claims `key`, exact matches first. */
 export function sectionIdsForKey(key: string): Array<string> {
