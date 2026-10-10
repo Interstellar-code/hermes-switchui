@@ -139,6 +139,23 @@ describe('SectionAgentRuntime — tool use enforcement', () => {
     expect(screen.queryByRole('radio', { name: 'required' })).toBeNull()
     expect(screen.queryByRole('radio', { name: 'none' })).toBeNull()
   })
+
+  it('describes off as dropping prompt steering, never as removing tools', () => {
+    useSettingsStore
+      .getState()
+      .seed({ 'config.agent.tool_use_enforcement': 'auto' })
+    renderSection()
+
+    // `_model_gate` (agent/system_prompt.py) only decides whether
+    // TOOL_USE_ENFORCEMENT_GUIDANCE is appended to the prompt; the agent's
+    // tools come from `valid_tool_names` and are registered either way. The old
+    // copy read "on — require a tool call every turn; off — never call tools",
+    // which sold `off` as a read-only agent.
+    const desc = screen.getByText(/must-use-your-tools instruction/)
+    expect(desc.textContent).toContain('tools still work')
+    expect(desc.textContent).not.toMatch(/never call tools/)
+    expect(desc.textContent).not.toMatch(/require a tool call/)
+  })
 })
 
 describe('SectionAgentRuntime — max turns', () => {

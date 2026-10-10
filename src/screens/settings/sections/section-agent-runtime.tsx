@@ -97,9 +97,9 @@ export default function SectionAgentRuntime() {
   // an absent key is not, so it renders as a number rather than claiming a
   // cap the config never stated.
   const maxTurnsUnlimited = rawMaxTurns === null
-  // The cap to restore when ∞ is switched back off. Seeded from whatever the
-  // store holds, so a config that already caps turns comes back to its own
-  // number instead of a hardcoded guess.
+  // The cap to restore when ∞ is switched back off. Component state, so it
+  // survives only while this section stays mounted: switching sections and back
+  // resets it to the 90 default even if the store had been holding a number.
   const [lastMaxTurns, setLastMaxTurns] = useState(DEFAULT_MAX_TURNS)
   const maxTurns = typeof rawMaxTurns === 'number' ? rawMaxTurns : lastMaxTurns
 
@@ -227,7 +227,7 @@ export default function SectionAgentRuntime() {
         </SettingRow>
         <SettingRow
           label="Tool use enforcement"
-          desc="auto — the agent decides; on — require a tool call every turn; off — never call tools"
+          desc="Adds a must-use-your-tools instruction to the prompt — it never removes a tool. auto — only for models that need steering; on — always; off — never (tools still work)"
         >
           <Segmented
             options={ENFORCEMENT_OPTIONS}
