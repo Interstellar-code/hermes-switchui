@@ -141,6 +141,30 @@ describe('defaults overlay', () => {
   })
 })
 
+describe('override vs a pending edit', () => {
+  it('an edit equal to the new gateway default goes clean', () => {
+    s().seed({ 'config.z': 0 })
+    s().registerDefaults({ 'config.a': 'stale' })
+    s().set('config.a', 'gateway')
+    expect(s().dirty.has('config.a')).toBe(true)
+
+    s().registerDefaults({ 'config.a': 'gateway' }, { override: true })
+
+    expect(s().dirty.has('config.a')).toBe(false)
+    expect('config.a' in s().overlay).toBe(false)
+    expect(s().draft['config.a']).toBe('gateway')
+  })
+
+  it('an edit that differs from the new default stays dirty', () => {
+    s().registerDefaults({ 'config.a': 'stale' })
+    s().set('config.a', 'mine')
+    s().registerDefaults({ 'config.a': 'gateway' }, { override: true })
+
+    expect(s().dirty.has('config.a')).toBe(true)
+    expect(s().draft['config.a']).toBe('mine')
+  })
+})
+
 describe('array identity', () => {
   /**
    * `config.command_allowlist`, `config.terminal.docker_volumes` and

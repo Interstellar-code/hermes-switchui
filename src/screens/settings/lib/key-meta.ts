@@ -9,8 +9,9 @@ import type { KeyMeta, Preset } from './key-meta-types'
 
 const CONFIG_PREFIX = 'config.'
 
-const ALL: Array<KeyMeta> = keyMetaData
-const PRESETS: Array<Preset> = presetsData
+// JSON infers `string` for the unions; data/key-meta.data.test.ts (P1A) checks the shape.
+const ALL = keyMetaData as unknown as Array<KeyMeta>
+const PRESETS = presetsData as unknown as Array<Preset>
 const BY_ID = new Map(ALL.map((m) => [m.id, m]))
 
 export function getKeyMeta(key: string): KeyMeta | undefined {
