@@ -97,6 +97,15 @@ export default function SectionExecution() {
   const backend = (draft['config.terminal.backend'] as string | undefined) ?? 'local'
   const isKnownBackend = EDITABLE_BACKENDS.some((b) => b.value === backend)
   const isDocker = backend === 'docker'
+  // A backend this picker cannot offer (modal, singularity, ssh-*, …) must still
+  // show as the selected value — with no matching option the row reads as blank,
+  // which looks like the config is unset rather than pointing elsewhere.
+  const backendOptions = isKnownBackend
+    ? EDITABLE_BACKENDS
+    : [
+        ...EDITABLE_BACKENDS,
+        { value: backend, label: `${backend} (not offered here)` },
+      ]
 
   const timeout = (draft['config.terminal.timeout'] as number | undefined) ?? 180
   const persistentShell = (draft['config.terminal.persistent_shell'] as boolean | undefined) ?? true
@@ -176,8 +185,8 @@ export default function SectionExecution() {
           desc="Only local and docker are supported here — we cannot test Modal, Singularity, Daytona, or SSH-style remotes in this UI, and a broken picker for them is worse than no picker. Configure those via the raw config editor."
         >
           <Segmented
-            options={EDITABLE_BACKENDS}
-            value={isKnownBackend ? backend : ''}
+            options={backendOptions}
+            value={backend}
             onChange={(v) => set('config.terminal.backend', v)}
           />
         </SettingRow>

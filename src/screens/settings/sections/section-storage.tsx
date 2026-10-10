@@ -24,8 +24,9 @@ export default function SectionStorage() {
     staleTime: 60_000,
   })
 
-  // sessions.* — real DEFAULT_CONFIG keys
-  const autoPrune = (draft['config.sessions.auto_prune'] as boolean | undefined) ?? false
+  // sessions.* — real DEFAULT_CONFIG keys. Fallbacks mirror
+  // hermes_cli/config_defaults.py (auto_prune true, retention_days 90, vacuum_after_prune true).
+  const autoPrune = (draft['config.sessions.auto_prune'] as boolean | undefined) ?? true
   const retentionDays = (draft['config.sessions.retention_days'] as number | undefined) ?? 90
   const vacuumAfterPrune = (draft['config.sessions.vacuum_after_prune'] as boolean | undefined) ?? true
 

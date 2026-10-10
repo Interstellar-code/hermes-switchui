@@ -543,7 +543,7 @@ export default function SectionMemoryWiki() {
   const memoryEnabled =
     (draft['config.memory.memory_enabled'] as boolean | undefined) ?? true
   const userProfileEnabled =
-    (draft['config.memory.user_profile_enabled'] as boolean | undefined) ?? false
+    (draft['config.memory.user_profile_enabled'] as boolean | undefined) ?? true
   const provider =
     (draft['config.memory.provider'] as string | undefined) ?? ''
   const memoryCharLimit =

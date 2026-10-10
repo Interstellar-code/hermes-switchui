@@ -3,7 +3,9 @@
  *
  * Real DEFAULT_CONFIG keys:
  *   privacy.redact_pii           — hash user IDs / strip phone numbers from LLM context
- *   security.redact_secrets      — strip *_API_KEY/*_TOKEN/*_SECRET from logs
+ *   security.redact_secrets      — mask credential-shaped strings in tool/terminal
+ *     output and in assistant messages as they are stored to session history
+ *     (agent/redact.py; snapshotted at startup via HERMES_REDACT_SECRETS)
  *   security.allow_private_urls  — allow requests to private/internal IPs
  *
  * Dropped ghost keys (not in DEFAULT_CONFIG):
@@ -45,9 +47,9 @@ export default function SectionPrivacy() {
           <Toggle on={redactPii} set={(v) => set('config.privacy.redact_pii', v)} />
         </SettingRow>
         <SettingRow
-          label="Redact secrets from logs"
+          label="Redact secrets from output"
           pill={{ t: 'recommended' }}
-          desc="Strip *_API_KEY, *_TOKEN, *_SECRET values from log output"
+          desc="Credential-shaped strings (API keys, tokens, passwords) are masked in tool and terminal output and in assistant messages as they are stored to session history — on by default, snapshotted at startup (agent/redact.py)"
         >
           <Toggle on={redactSecrets} set={(v) => set('config.security.redact_secrets', v)} />
         </SettingRow>

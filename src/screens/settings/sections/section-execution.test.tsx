@@ -112,6 +112,40 @@ describe('SectionExecution', () => {
     expect(screen.getByText('modal')).toBeTruthy()
   })
 
+  it('shows an unoffered saved backend as "<value> (not offered here)" instead of a blank picker', async () => {
+    mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
+    loadDraft({ 'config.terminal.backend': 'modal-xyz' })
+
+    renderSection()
+    await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
+
+    const unknown = screen.getByRole('radio', {
+      name: 'modal-xyz (not offered here)',
+    })
+    expect(unknown.getAttribute('aria-checked')).toBe('true')
+    expect(
+      screen.getByRole('radio', { name: 'Local' }).getAttribute('aria-checked'),
+    ).toBe('false')
+    expect(
+      screen
+        .getByRole('radio', { name: 'Docker' })
+        .getAttribute('aria-checked'),
+    ).toBe('false')
+  })
+
+  it('choosing an offered option from an unoffered backend writes it to the draft', async () => {
+    mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
+    loadDraft({ 'config.terminal.backend': 'modal-xyz' })
+
+    renderSection()
+    await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Docker' }))
+    expect(useSettingsStore.getState().draft['config.terminal.backend']).toBe(
+      'docker',
+    )
+  })
+
   it('hides Docker advanced settings when backend is local', async () => {
     mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
     loadDraft({ 'config.terminal.backend': 'local' })
