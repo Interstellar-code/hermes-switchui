@@ -75,7 +75,7 @@ describe('seed', () => {
 })
 
 describe('registerDefaults', () => {
-  it('never clears another section\'s dirty state', () => {
+  it("never clears another section's dirty state", () => {
     s().seed({ 'config.terminal.timeout': 90 })
     s().set('config.terminal.timeout', 120)
 
@@ -107,6 +107,61 @@ describe('registerDefaults', () => {
     s().registerDefaults({ 'config.logging.level': 'INFO' })
 
     expect(s().draft['config.logging.level']).toBe('DEBUG')
+  })
+})
+
+describe('defaults overlay', () => {
+  it('a key absent from committed but registered appears in draft (gap-audit line 12)', () => {
+    s().seed({ 'config.a': 1 })
+    s().registerDefaults({ 'config.agent.max_turns': 90 })
+
+    expect('config.agent.max_turns' in s().committed).toBe(false)
+    expect(s().draft['config.agent.max_turns']).toBe(90)
+  })
+
+  it('override replaces a hand-copied default but never committed or edits', () => {
+    s().registerDefaults({
+      'config.a': 'stale',
+      'config.b': 'stale',
+      'config.c': 'stale',
+    })
+    s().seed({ 'config.b': 'server' })
+    s().set('config.c', 'mine')
+
+    s().registerDefaults(
+      { 'config.a': 'gateway', 'config.b': 'gateway', 'config.c': 'gateway' },
+      { override: true },
+    )
+
+    expect(s().defaults['config.a']).toBe('gateway')
+    expect(s().draft['config.a']).toBe('gateway')
+    expect(s().draft['config.b']).toBe('server')
+    expect(s().draft['config.c']).toBe('mine')
+    expect(s().dirty).toEqual(new Set(['config.c']))
+  })
+})
+
+describe('override vs a pending edit', () => {
+  it('an edit equal to the new gateway default goes clean', () => {
+    s().seed({ 'config.z': 0 })
+    s().registerDefaults({ 'config.a': 'stale' })
+    s().set('config.a', 'gateway')
+    expect(s().dirty.has('config.a')).toBe(true)
+
+    s().registerDefaults({ 'config.a': 'gateway' }, { override: true })
+
+    expect(s().dirty.has('config.a')).toBe(false)
+    expect('config.a' in s().overlay).toBe(false)
+    expect(s().draft['config.a']).toBe('gateway')
+  })
+
+  it('an edit that differs from the new default stays dirty', () => {
+    s().registerDefaults({ 'config.a': 'stale' })
+    s().set('config.a', 'mine')
+    s().registerDefaults({ 'config.a': 'gateway' }, { override: true })
+
+    expect(s().dirty.has('config.a')).toBe(true)
+    expect(s().draft['config.a']).toBe('mine')
   })
 })
 

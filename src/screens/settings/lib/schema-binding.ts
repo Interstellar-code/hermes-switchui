@@ -51,7 +51,12 @@ export const DEFAULTS_QUERY_KEY = ['config', 'defaults'] as const
  */
 const SCHEMA_STALE_TIME = 60 * 60 * 1000
 
-export type SchemaFieldType = 'string' | 'number' | 'boolean' | 'list' | 'select'
+export type SchemaFieldType =
+  | 'string'
+  | 'number'
+  | 'boolean'
+  | 'list'
+  | 'select'
 
 export type SchemaField = {
   /** Store key, `config.`-prefixed. */
@@ -97,7 +102,10 @@ const KNOWN_TYPES = new Set<SchemaFieldType>([
  * string. Anything unrecognised degrades to `string`, which is the only widget
  * that cannot corrupt a value it does not understand.
  */
-export function normalizeType(raw: unknown, hasOptions = false): SchemaFieldType {
+export function normalizeType(
+  raw: unknown,
+  hasOptions = false,
+): SchemaFieldType {
   if (hasOptions) return 'select'
   const t = typeof raw === 'string' ? raw.trim().toLowerCase() : ''
   if (KNOWN_TYPES.has(t as SchemaFieldType)) return t as SchemaFieldType
@@ -155,8 +163,12 @@ export function buildSchemaIndex(raw: unknown): SchemaIndex {
       key: `${CONFIG_PREFIX}${schemaKey}`,
       schemaKey,
       type: normalizeType(value.type, (options?.length ?? 0) > 0),
-      description: typeof value.description === 'string' ? value.description : '',
-      category: typeof value.category === 'string' && value.category ? value.category : 'other',
+      description:
+        typeof value.description === 'string' ? value.description : '',
+      category:
+        typeof value.category === 'string' && value.category
+          ? value.category
+          : 'other',
       ...(options && options.length > 0 ? { options } : {}),
     }
     fields.push(field)
@@ -332,7 +344,7 @@ export function useSchemaDefaults(): Record<string, unknown> {
  * inline `?? 90` guess — and so editing it and changing your mind returns the
  * row to clean.
  *
- * `registerDefaults` is additive, idempotent and may never write `status`,
+ * `registerDefaults` is idempotent and may never write `status`,
  * `committed` or `dirty`, so this is safe to call from the shell on every
  * render. Defaults are deliberately excluded from Export.
  */
@@ -341,6 +353,23 @@ export function useRegisterSchemaDefaults(): void {
   useEffect(() => {
     const keys = Object.keys(defaults)
     if (keys.length === 0) return
-    useSettingsStore.getState().registerDefaults(defaults)
+    // Gateway defaults beat a section's hand-copied literal (which registers
+    // first, on mount, and would otherwise win), and lose to committed values
+    // and live edits. The schema payload itself carries no defaults —
+    // `/api/config/defaults` is the one source, so there is no second
+    // schema-vs-defaults precedence to settle.
+    useSettingsStore.getState().registerDefaults(defaults, { override: true })
   }, [defaults])
+}
+
+/**
+ * Default for one key, gateway-first. `fallback` is the section's hand-copied
+ * value, used only when the defaults are unreachable or omit the key.
+ */
+export function useSchemaDefault<T = unknown>(
+  key: string,
+  fallback?: T,
+): T | undefined {
+  const defaults = useSchemaDefaults()
+  return key in defaults ? (defaults[key] as T) : fallback
 }
