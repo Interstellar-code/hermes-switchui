@@ -23,10 +23,12 @@ export default function SectionDanger() {
     keys.forEach((k) => localStorage.removeItem(k))
     try {
       await gatewayRestart()
+      toast('Local UI settings reset')
     } catch {
-      // ignore
+      toast('Local UI settings reset — gateway restart failed', {
+        type: 'warning',
+      })
     }
-    toast('Local UI settings reset')
     setResetOpen(false)
   }
 

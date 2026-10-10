@@ -1,6 +1,12 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SectionExecution from './section-execution'
 import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
@@ -16,7 +22,9 @@ vi.mock('@/screens/chat/components/chat-composer-services', () => ({
 }))
 
 vi.mock('@/components/hermes-docs-link', () => ({
-  HermesDocsLink: ({ label }: { label?: string }) => <span>{label ?? 'Docs'}</span>,
+  HermesDocsLink: ({ label }: { label?: string }) => (
+    <span>{label ?? 'Docs'}</span>
+  ),
 }))
 
 function loadDraft(patch: Record<string, unknown>) {
@@ -24,7 +32,9 @@ function loadDraft(patch: Record<string, unknown>) {
 }
 
 function renderSection() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <QueryClientProvider client={client}>
       <SectionExecution />
@@ -88,7 +98,10 @@ describe('SectionExecution', () => {
 
   it('round-trips terminal.timeout through the settings store', async () => {
     mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
-    loadDraft({ 'config.terminal.backend': 'local', 'config.terminal.timeout': 180 })
+    loadDraft({
+      'config.terminal.backend': 'local',
+      'config.terminal.timeout': 180,
+    })
 
     renderSection()
     await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
@@ -98,7 +111,9 @@ describe('SectionExecution', () => {
     expect(timeoutInput).toBeTruthy()
     fireEvent.change(timeoutInput!, { target: { value: '300' } })
 
-    expect(useSettingsStore.getState().draft['config.terminal.timeout']).toBe(300)
+    expect(useSettingsStore.getState().draft['config.terminal.timeout']).toBe(
+      300,
+    )
   })
 
   it('only supports local and docker in the backend picker, warning for other backends', async () => {
@@ -131,6 +146,12 @@ describe('SectionExecution', () => {
         .getByRole('radio', { name: 'Docker' })
         .getAttribute('aria-checked'),
     ).toBe('false')
+    expect(useSettingsStore.getState().draft['config.terminal.backend']).toBe(
+      'modal-xyz',
+    )
+    expect(
+      useSettingsStore.getState().dirty.has('config.terminal.backend'),
+    ).toBe(false)
   })
 
   it('choosing an offered option from an unoffered backend writes it to the draft', async () => {
@@ -171,12 +192,19 @@ describe('SectionExecution', () => {
 
     expect(screen.getByText('Advanced Docker settings')).toBeTruthy()
     fireEvent.click(screen.getByText('Advanced Docker settings'))
-    expect(screen.getByText(/agent's filesystem view becomes the bind-mounted host directory/)).toBeTruthy()
+    expect(
+      screen.getByText(
+        /agent's filesystem view becomes the bind-mounted host directory/,
+      ),
+    ).toBeTruthy()
   })
 
   it('flags persistent_shell as a no-op on the local backend', async () => {
     mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
-    loadDraft({ 'config.terminal.backend': 'local', 'config.terminal.persistent_shell': true })
+    loadDraft({
+      'config.terminal.backend': 'local',
+      'config.terminal.persistent_shell': true,
+    })
 
     renderSection()
     await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
@@ -186,12 +214,17 @@ describe('SectionExecution', () => {
 
   it('round-trips code_execution.mode', async () => {
     mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
-    loadDraft({ 'config.terminal.backend': 'local', 'config.code_execution.mode': 'project' })
+    loadDraft({
+      'config.terminal.backend': 'local',
+      'config.code_execution.mode': 'project',
+    })
 
     renderSection()
     await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
 
     fireEvent.click(screen.getByRole('radio', { name: 'Strict' }))
-    expect(useSettingsStore.getState().draft['config.code_execution.mode']).toBe('strict')
+    expect(
+      useSettingsStore.getState().draft['config.code_execution.mode'],
+    ).toBe('strict')
   })
 })

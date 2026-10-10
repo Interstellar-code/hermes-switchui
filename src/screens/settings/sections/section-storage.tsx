@@ -26,9 +26,12 @@ export default function SectionStorage() {
 
   // sessions.* — real DEFAULT_CONFIG keys. Fallbacks mirror
   // hermes_cli/config_defaults.py (auto_prune true, retention_days 90, vacuum_after_prune true).
-  const autoPrune = (draft['config.sessions.auto_prune'] as boolean | undefined) ?? true
-  const retentionDays = (draft['config.sessions.retention_days'] as number | undefined) ?? 90
-  const vacuumAfterPrune = (draft['config.sessions.vacuum_after_prune'] as boolean | undefined) ?? true
+  const autoPrune =
+    (draft['config.sessions.auto_prune'] as boolean | undefined) ?? true
+  const retentionDays =
+    (draft['config.sessions.retention_days'] as number | undefined) ?? 90
+  const vacuumAfterPrune =
+    (draft['config.sessions.vacuum_after_prune'] as boolean | undefined) ?? true
 
   const totalTokens = usage?.total_tokens
   const totalCalls = usage?.total_calls
@@ -40,37 +43,66 @@ export default function SectionStorage() {
       <div className="section-head">
         <div>
           <h2>Storage</h2>
-          <div className="desc">Session database pruning and 30-day usage summary.</div>
+          <div className="desc">
+            Session database pruning and 30-day usage summary.
+          </div>
         </div>
-        <div className="meta">Section · <b>sessions</b></div>
+        <div className="meta">
+          Section · <b>sessions</b>
+        </div>
       </div>
 
       {/* Summary card */}
       <SettingCard title="Usage (last 30 days)">
         <div
           className="kv"
-          style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', color: 'var(--m-text-faint, var(--theme-muted))' }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+            fontSize: '12px',
+            fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+            color: 'var(--m-text-faint, var(--theme-muted))',
+          }}
         >
           {isLoading ? (
             <span>Loading…</span>
           ) : (
             <>
               <div>
-                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Sessions</span>
+                <span
+                  style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}
+                >
+                  Sessions
+                </span>
                 {' · '}
                 <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
-                  {totalSessions !== undefined ? totalSessions.toLocaleString() : (usage?.sessions !== undefined ? (usage.sessions).toLocaleString() : '—')}
+                  {totalSessions !== undefined
+                    ? totalSessions.toLocaleString()
+                    : usage?.sessions !== undefined
+                      ? usage.sessions.toLocaleString()
+                      : '—'}
                 </b>
               </div>
               <div>
-                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Tokens</span>
+                <span
+                  style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}
+                >
+                  Tokens
+                </span>
                 {' · '}
                 <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
-                  {totalTokens !== undefined ? totalTokens.toLocaleString() : '—'}
+                  {totalTokens !== undefined
+                    ? totalTokens.toLocaleString()
+                    : '—'}
                 </b>
               </div>
               <div>
-                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>API calls</span>
+                <span
+                  style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}
+                >
+                  API calls
+                </span>
                 {' · '}
                 <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
                   {totalCalls !== undefined ? totalCalls.toLocaleString() : '—'}
@@ -78,15 +110,27 @@ export default function SectionStorage() {
               </div>
               {estimatedCost !== undefined && (
                 <div>
-                  <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Est. cost</span>
+                  <span
+                    style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}
+                  >
+                    Est. cost
+                  </span>
                   {' · '}
-                  <b style={{ color: 'var(--m-text, var(--theme-text))' }}>${estimatedCost.toFixed(4)}</b>
+                  <b style={{ color: 'var(--m-text, var(--theme-text))' }}>
+                    ${estimatedCost.toFixed(4)}
+                  </b>
                 </div>
               )}
               <div style={{ marginTop: 4 }}>
-                <span style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}>Data path</span>
+                <span
+                  style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}
+                >
+                  Data path
+                </span>
                 {' · '}
-                <span style={{ color: 'var(--m-text, var(--theme-text))' }}>~/.hermes/</span>
+                <span style={{ color: 'var(--m-text, var(--theme-text))' }}>
+                  ~/.hermes/
+                </span>
               </div>
             </>
           )}
@@ -99,7 +143,10 @@ export default function SectionStorage() {
           label="Auto-prune sessions"
           desc="Prune ended sessions older than the retention limit at startup"
         >
-          <Toggle on={autoPrune} set={(v) => set('config.sessions.auto_prune', v)} />
+          <Toggle
+            on={autoPrune}
+            set={(v) => set('config.sessions.auto_prune', v)}
+          />
         </SettingRow>
         <SettingRow
           label="Retention (days)"
@@ -118,7 +165,10 @@ export default function SectionStorage() {
           pill={{ t: 'recommended' }}
           desc="Reclaim SQLite disk space after pruning (brief write-lock)"
         >
-          <Toggle on={vacuumAfterPrune} set={(v) => set('config.sessions.vacuum_after_prune', v)} />
+          <Toggle
+            on={vacuumAfterPrune}
+            set={(v) => set('config.sessions.vacuum_after_prune', v)}
+          />
         </SettingRow>
       </SettingCard>
     </div>

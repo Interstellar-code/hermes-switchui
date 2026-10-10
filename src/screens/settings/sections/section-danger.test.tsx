@@ -6,9 +6,18 @@
  * resurrected as stubs — and the reset row is renamed to describe the only
  * thing it actually does: clear SwitchUI's own `hermes.*` localStorage.
  */
-import { cleanup, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SectionDanger from './section-danger'
+import { gatewayRestart } from '@/lib/hermes-client'
+import { toast } from '@/components/ui/toast'
 
 vi.mock('@/lib/hermes-client', () => ({
   gatewayRestart: vi.fn(),
@@ -21,6 +30,7 @@ vi.mock('@/components/ui/toast', () => ({
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  localStorage.clear()
 })
 
 describe('SectionDanger', () => {
@@ -55,5 +65,53 @@ describe('SectionDanger', () => {
 
     expect(screen.getByText('Restart gateway')).toBeTruthy()
     expect(screen.getByRole('button', { name: /Restart/ })).toBeTruthy()
+  })
+
+  it('confirming the reset removes only hermes.* localStorage keys and requests a gateway restart', async () => {
+    localStorage.setItem('hermes.theme', 'matrix')
+    localStorage.setItem('hermes.sidebar.collapsed', 'true')
+    localStorage.setItem('claude-theme', 'claude-official')
+
+    render(<SectionDanger />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Reset local UI settings/ }),
+    )
+    const dialog = await waitFor(() => screen.getByRole('dialog'))
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Reset local UI settings' }),
+    )
+
+    await waitFor(() => expect(gatewayRestart).toHaveBeenCalled())
+    expect(localStorage.getItem('hermes.theme')).toBeNull()
+    expect(localStorage.getItem('hermes.sidebar.collapsed')).toBeNull()
+    expect(localStorage.getItem('claude-theme')).toBe('claude-official')
+    expect(toast).toHaveBeenCalledWith('Local UI settings reset')
+  })
+
+  it('toasts a warning variant when the restart signal fails after the local reset', async () => {
+    localStorage.setItem('hermes.theme', 'matrix')
+    vi.mocked(gatewayRestart).mockRejectedValueOnce(new Error('gateway down'))
+
+    render(<SectionDanger />)
+
+    fireEvent.click(
+      screen.getByRole('button', { name: /Reset local UI settings/ }),
+    )
+    const dialog = await waitFor(() => screen.getByRole('dialog'))
+    fireEvent.click(
+      within(dialog).getByRole('button', { name: 'Reset local UI settings' }),
+    )
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        'Local UI settings reset — gateway restart failed',
+        {
+          type: 'warning',
+        },
+      ),
+    )
+    expect(toast).not.toHaveBeenCalledWith('Local UI settings reset')
+    expect(localStorage.getItem('hermes.theme')).toBeNull()
   })
 })

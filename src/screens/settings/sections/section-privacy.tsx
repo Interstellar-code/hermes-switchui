@@ -23,20 +23,28 @@ export default function SectionPrivacy() {
   const set = useSettingsStore((s) => s.set)
 
   // privacy.*
-  const redactPii = (draft['config.privacy.redact_pii'] as boolean | undefined) ?? false
+  const redactPii =
+    (draft['config.privacy.redact_pii'] as boolean | undefined) ?? false
 
   // security.* — surfaced here for discoverability
-  const redactSecrets = (draft['config.security.redact_secrets'] as boolean | undefined) ?? true
-  const allowPrivateUrls = (draft['config.security.allow_private_urls'] as boolean | undefined) ?? false
+  const redactSecrets =
+    (draft['config.security.redact_secrets'] as boolean | undefined) ?? true
+  const allowPrivateUrls =
+    (draft['config.security.allow_private_urls'] as boolean | undefined) ??
+    false
 
   return (
     <div>
       <div className="section-head">
         <div>
           <h2>Privacy</h2>
-          <div className="desc">PII redaction, secret scrubbing, and network trust policy.</div>
+          <div className="desc">
+            PII redaction, secret scrubbing, and network trust policy.
+          </div>
         </div>
-        <div className="meta">Section · <b>privacy · security</b></div>
+        <div className="meta">
+          Section · <b>privacy · security</b>
+        </div>
       </div>
 
       <SettingCard title="Data redaction">
@@ -44,14 +52,20 @@ export default function SectionPrivacy() {
           label="Redact PII from context"
           desc="Hash user IDs and strip phone numbers before sending to the LLM"
         >
-          <Toggle on={redactPii} set={(v) => set('config.privacy.redact_pii', v)} />
+          <Toggle
+            on={redactPii}
+            set={(v) => set('config.privacy.redact_pii', v)}
+          />
         </SettingRow>
         <SettingRow
           label="Redact secrets from output"
           pill={{ t: 'recommended' }}
-          desc="Credential-shaped strings (API keys, tokens, passwords) are masked in tool and terminal output and in assistant messages as they are stored to session history — on by default, snapshotted at startup (agent/redact.py)"
+          desc="Credential-shaped strings (API keys, tokens, passwords) are masked in tool and terminal output and in assistant messages as they are stored to session history — on by default, snapshotted at startup"
         >
-          <Toggle on={redactSecrets} set={(v) => set('config.security.redact_secrets', v)} />
+          <Toggle
+            on={redactSecrets}
+            set={(v) => set('config.security.redact_secrets', v)}
+          />
         </SettingRow>
       </SettingCard>
 
@@ -61,7 +75,10 @@ export default function SectionPrivacy() {
           pill={{ t: 'danger' }}
           desc="Disabled by default. Browser/web tools will reject RFC-1918 and internal targets until you explicitly allow them here."
         >
-          <Toggle on={allowPrivateUrls} set={(v) => set('config.security.allow_private_urls', v)} />
+          <Toggle
+            on={allowPrivateUrls}
+            set={(v) => set('config.security.allow_private_urls', v)}
+          />
         </SettingRow>
       </SettingCard>
     </div>
