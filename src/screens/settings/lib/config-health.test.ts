@@ -184,7 +184,7 @@ describe('checkConfigHealth', () => {
     delete draft['config.platforms.api_server.extra.host']
     draft['config.platforms.api_server.host'] = '0.0.0.0'
     expect(findingsFor(draft, 'legacy-flat-api-server-keys')).toEqual([])
-    // …and the removed required key is "not readable here", not drift (R2).
+    // …and the removed required key is "not readable here", not drift.
     expect(
       findingsFor(draft, 'required-platforms.api_server.extra.host'),
     ).toEqual([])
@@ -279,7 +279,7 @@ describe('checkConfigHealth', () => {
   })
 
   it('required: an absent required key is not readable here, not drift', () => {
-    // P5B R2: `_normalize_config_for_web` drops e.g. the model dict down to
+    // `_normalize_config_for_web` drops e.g. the model dict down to
     // its default string, so absence means "not exposed by this API" —
     // fabricating a fix beside that string could clobber the real setting.
     const draft = cleanDraft()
@@ -297,6 +297,34 @@ describe('checkConfigHealth', () => {
     expect(
       findingsFor(draft, 'required-platforms.api_server.extra.port'),
     ).toEqual([])
+  })
+
+  it('required: a list superset or reordered list matches (order-free containment)', () => {
+    const toolsets = (value: Array<string>) => ({
+      ...cleanDraft(),
+      'config.toolsets': value,
+    })
+    expect(
+      findingsFor(
+        toolsets(['web', 'hermes-cli', 'browser', 'kanban']),
+        'required-toolsets',
+      ),
+    ).toEqual([])
+    expect(
+      findingsFor(toolsets(['kanban', 'hermes-cli']), 'required-toolsets'),
+    ).toEqual([])
+  })
+
+  it('required: a list missing locked items fixes by appending only the missing items', () => {
+    const draft = {
+      ...cleanDraft(),
+      'config.toolsets': ['hermes-cli', 'web'],
+    }
+    const finding = oneFinding(draft, 'required-toolsets')
+    // The user's items survive, in their order; only `kanban` is added.
+    expect(finding.fix).toEqual({
+      'config.toolsets': ['hermes-cli', 'web', 'kanban'],
+    })
   })
 
   it('required: clean draft surfaces no required-* findings', () => {
@@ -391,6 +419,8 @@ describe('applyPreset', () => {
 describe('requiredValueMatches', () => {
   // int meta with locked value 8642 — the profile string the agent coerces.
   const port = META.find((m) => m.id === 'platforms.api_server.extra.port')!
+  // list meta locked to ["hermes-cli","kanban"].
+  const toolsets = META.find((m) => m.id === 'toolsets')!
 
   it('compares int/float meta numerically when the value is a numeric string', () => {
     expect(requiredValueMatches(port, '8642')).toBe(true)
@@ -402,5 +432,14 @@ describe('requiredValueMatches', () => {
     expect(requiredValueMatches(port, 'auto')).toBe(false)
     expect(requiredValueMatches(port, '')).toBe(false)
     expect(requiredValueMatches(port, undefined)).toBe(false)
+  })
+
+  it('treats a list required value as order-free containment, not equality', () => {
+    expect(requiredValueMatches(toolsets, ['kanban', 'hermes-cli'])).toBe(true)
+    expect(
+      requiredValueMatches(toolsets, ['hermes-cli', 'kanban', 'web']),
+    ).toBe(true)
+    expect(requiredValueMatches(toolsets, ['hermes-cli'])).toBe(false)
+    expect(requiredValueMatches(toolsets, 'all')).toBe(false)
   })
 })

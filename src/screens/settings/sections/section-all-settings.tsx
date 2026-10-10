@@ -31,6 +31,7 @@ import { SettingCard } from '../components/setting-card'
 import { Segmented, Toggle } from '../components/controls'
 import { SelectField } from '../components/select-field'
 import { TextField } from '../components/text-field'
+import { isSecretKey } from '../components/save-review-dialog'
 import {
   humanizeKey,
   orderCategories,
@@ -230,6 +231,7 @@ const FieldRow = memo(function Row({ field, defaultValue }: RowProps) {
         {widget === 'list' && <ListCell value={shown} onChange={set} />}
         {widget === 'text' && (
           <TextField
+            type={isSecretKey(field.key) ? 'password' : 'text'}
             value={shown === undefined || shown === null ? '' : String(shown)}
             onChange={(v) => set(v)}
           />
