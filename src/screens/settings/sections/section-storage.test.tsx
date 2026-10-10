@@ -52,4 +52,19 @@ describe('SectionStorage', () => {
         .getAttribute('aria-checked'),
     ).toBe('true')
   })
+
+  it('gives the sessions rows their key-meta strip (scope + applies badges)', async () => {
+    mockAnalyticsUsage.mockResolvedValue({ total_sessions: 0 })
+    useSettingsStore.getState().seed({})
+
+    renderSection()
+    await waitFor(() => expect(mockAnalyticsUsage).toHaveBeenCalledWith(30))
+
+    // `.row-meta` is RowMeta's strip; absent before this phase, so a user's only
+    // signal that pruning only lands on restart was the word "pruning".
+    const strip = screen.getByText('Auto-prune sessions').closest('.row')!
+    expect(strip.querySelector('.row-meta')).toBeTruthy()
+    expect(strip.textContent).toContain('config.yaml')
+    expect(strip.textContent).toContain('Needs restart')
+  })
 })

@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider, Toggle } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 import { analyticsUsage } from '@/lib/hermes-client'
 
@@ -142,6 +143,7 @@ export default function SectionStorage() {
         <SettingRow
           label="Auto-prune sessions"
           desc="Prune ended sessions older than the retention limit at startup"
+          meta={getKeyMeta('config.sessions.auto_prune')}
         >
           <Toggle
             on={autoPrune}
@@ -151,6 +153,7 @@ export default function SectionStorage() {
         <SettingRow
           label="Retention (days)"
           desc={`Keep ${retentionDays} days of ended-session history`}
+          meta={getKeyMeta('config.sessions.retention_days')}
         >
           <NumberSlider
             min={7}
@@ -164,6 +167,7 @@ export default function SectionStorage() {
           label="VACUUM after prune"
           pill={{ t: 'recommended' }}
           desc="Reclaim SQLite disk space after pruning (brief write-lock)"
+          meta={getKeyMeta('config.sessions.vacuum_after_prune')}
         >
           <Toggle
             on={vacuumAfterPrune}
