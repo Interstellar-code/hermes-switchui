@@ -8,7 +8,9 @@
  *  - an unknown current value (present in the config but not among `options`,
  *    e.g. a backend the UI doesn't know) stays visible instead of silently
  *    snapping to the first option, rendered as "<value> (not offered here)".
- *    An empty string means "no value yet" and is not treated as unknown.
+ *    An empty string means "no value yet": it gets a blank placeholder option
+ *    so the displayed selection is blank too, instead of the browser showing
+ *    the first option while the state says unset.
  */
 
 type SelectFieldProps = {
@@ -39,6 +41,7 @@ export function SelectField({
       aria-labelledby={ariaLabelledBy}
       onChange={(e) => onChange(e.target.value)}
     >
+      {!known && value === '' && <option value="" />}
       {!known && value !== '' && (
         <option value={value}>{`${value} (not offered here)`}</option>
       )}

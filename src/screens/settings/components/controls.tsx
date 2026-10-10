@@ -155,6 +155,13 @@ type NumberSliderProps = {
  * the range input, the row's actual `<label htmlFor>` target; the number
  * input can't also own that id, so it gets the same `aria-labelledby`
  * instead — both end up with the row's label as their accessible name.
+ *
+ * The number box edits through a local text draft: a cleared or half-typed
+ * box (`''`) never writes — `Number('')` is 0, and 0 is a live sentinel here
+ * (`agent.max_turns` 0 = unlimited, `gateway_timeout` 0 = off), so the old
+ * `onChange(Number(e.target.value))` committed "no limit" on the first
+ * backspace. Only a finite parse is written, clamped to min/max; blurring an
+ * empty/invalid box just restores the last committed value, no write.
  */
 export function NumberSlider({
   min,
@@ -166,6 +173,18 @@ export function NumberSlider({
   id,
   'aria-labelledby': ariaLabelledBy,
 }: NumberSliderProps) {
+  // null = not editing: the box mirrors the committed `value` prop.
+  const [draft, setDraft] = useState<string | null>(null)
+
+  function commit(raw: string) {
+    setDraft(raw)
+    if (raw === '') return
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return
+    const clamped = Math.min(max, Math.max(min, parsed))
+    onChange(clamped)
+  }
+
   return (
     <div className="num-slider">
       <input
@@ -185,9 +204,10 @@ export function NumberSlider({
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={draft ?? value}
         disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))}
+        onChange={(e) => commit(e.target.value)}
+        onBlur={() => setDraft(null)}
       />
     </div>
   )

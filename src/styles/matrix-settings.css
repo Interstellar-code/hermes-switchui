@@ -712,6 +712,49 @@
   border-color: rgba(255, 179, 71, 0.5);
 }
 
+/* ── Row meta strip (P3 board B) ────────────────────────────────────────────
+   Structural only — no colour tokens — so it renders identically under every
+   theme (each theme block defines the full --m-* set, but nothing here needs
+   one). The strip sits under the row label inside `.lbl-wrap`; spacing comes
+   from the container gap, so the generic `.pill` margin-left is zeroed
+   within it (including the first badge, which would otherwise indent 6px). */
+[data-screen='settings'] .row .row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 5px;
+}
+
+[data-screen='settings'] .row .row-meta .pill {
+  margin-left: 0;
+}
+
+/* `.m-timestamp` is nowrap globally; the Default/Recommended/Range line must
+   wrap or it overflows the 1fr label column. */
+[data-screen='settings'] .row .row-meta .m-timestamp {
+  white-space: normal;
+}
+
+/* ⓘ trigger: `.m-label-xs` sets 9px, too small to hit reliably; 11px keeps
+   it inline with the `.desc`/pill scale while staying compact. */
+[data-screen='settings'] .row .row-meta .row-meta-info {
+  cursor: help;
+  font-size: 11px;
+}
+
+/* Tooltip body — rendered through a portal to <body>, so it cannot be scoped
+   under [data-screen='settings'] like everything else in this file; the
+   class is uniquely namespaced instead. Colour/border come from the tooltip
+   primitive's own theme tokens; only paragraph rhythm lives here. */
+.row-meta-tip p {
+  margin: 0 0 6px;
+}
+
+.row-meta-tip p:last-child {
+  margin-bottom: 0;
+}
+
 [data-screen='settings'] .row .ctl {
   display: flex;
   flex-direction: column;

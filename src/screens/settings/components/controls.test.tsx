@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
-import { Segmented } from './controls'
+import { NumberSlider, Segmented } from './controls'
 import { SelectField } from './select-field'
 import { TextField } from './text-field'
 
@@ -166,10 +166,12 @@ describe('SelectField', () => {
   it('treats an empty value as unset, not as an unknown value to flag', () => {
     render(<SelectField options={TIERS} value="" onChange={() => undefined} />)
 
+    const select = screen.getByRole<HTMLSelectElement>('combobox')
     expect(screen.queryByText(/not offered here/)).toBeNull()
-    expect(screen.getByRole('combobox').querySelectorAll('option').length).toBe(
-      3,
-    )
+    // A blank placeholder option keeps the displayed selection empty —
+    // without it the browser shows the first tier while the state says unset.
+    expect(select.querySelectorAll('option').length).toBe(4)
+    expect(select.value).toBe('')
   })
 
   it('accepts the id/aria-labelledby SettingRow clones onto it', () => {
@@ -233,5 +235,121 @@ describe('TextField', () => {
     const input = screen.getByRole('textbox')
     expect(input.id).toBe('ctl')
     expect(input.getAttribute('aria-labelledby')).toBe('lbl')
+  })
+})
+
+describe('NumberSlider', () => {
+  it('does not write when the number box is cleared', () => {
+    const seen: Array<number> = []
+    render(
+      <NumberSlider
+        min={1}
+        max={500}
+        value={40}
+        onChange={(v) => seen.push(v)}
+      />,
+    )
+
+    // Backspacing to retype used to fire onChange(Number('')) === 0 — and 0
+    // is a live sentinel (max_turns 0 = unlimited, gateway_timeout 0 = off),
+    // so one backspace silently committed "no limit".
+    fireEvent.change(screen.getByRole('spinbutton'), { target: { value: '' } })
+    expect(seen).toEqual([])
+    expect(screen.getByRole<HTMLInputElement>('spinbutton').value).toBe('')
+  })
+
+  it('restores the last committed value on blur after an empty edit', () => {
+    let value = 40
+    const seen: Array<number> = []
+    const onChange = (v: number) => {
+      value = v
+      seen.push(v)
+    }
+    const { rerender } = render(
+      <NumberSlider min={1} max={500} value={value} onChange={onChange} />,
+    )
+    const number = screen.getByRole<HTMLInputElement>('spinbutton')
+    const rerenderWithValue = () =>
+      rerender(
+        <NumberSlider min={1} max={500} value={value} onChange={onChange} />,
+      )
+
+    // Commit 63 mid-edit (controlled parent picks it up), then clear: the box
+    // stays empty (no phantom write), and blur gives up the empty draft and
+    // restores 63, the last committed value.
+    fireEvent.change(number, { target: { value: '63' } })
+    expect(seen).toEqual([63])
+    rerenderWithValue()
+    fireEvent.change(number, { target: { value: '' } })
+    expect(seen).toEqual([63])
+    fireEvent.blur(number)
+    expect(seen).toEqual([63])
+    expect(number.value).toBe('63')
+  })
+
+  it('restores the pre-edit value on blur when nothing valid was typed', () => {
+    const seen: Array<number> = []
+    render(
+      <NumberSlider
+        min={1}
+        max={500}
+        value={40}
+        onChange={(v) => seen.push(v)}
+      />,
+    )
+    const number = screen.getByRole<HTMLInputElement>('spinbutton')
+
+    fireEvent.change(number, { target: { value: '' } })
+    fireEvent.blur(number)
+    expect(seen).toEqual([])
+    expect(number.value).toBe('40')
+  })
+
+  it('writes a newly typed number and clamps commits to the range', () => {
+    let value = 40
+    const onChange = (v: number) => {
+      value = v
+    }
+    const { rerender } = render(
+      <NumberSlider min={1} max={500} value={value} onChange={onChange} />,
+    )
+    const number = screen.getByRole<HTMLInputElement>('spinbutton')
+
+    // Controlled-consumer rerenders, the way a store-backed section would.
+    // While editing the box shows the raw draft (even out-of-range text);
+    // blur is the display sync point, where it settles on the committed
+    // clamped value.
+    const commit = (
+      typed: string,
+      expectWritten: number,
+      expectShown: string,
+    ) => {
+      fireEvent.change(number, { target: { value: typed } })
+      expect(value).toBe(expectWritten)
+      rerender(
+        <NumberSlider min={1} max={500} value={value} onChange={onChange} />,
+      )
+      fireEvent.blur(number)
+      expect(number.value).toBe(expectShown)
+    }
+
+    commit('63', 63, '63')
+    commit('9999', 500, '500')
+    commit('-4', 1, '1')
+  })
+
+  it('still writes straight from the range slider', () => {
+    const seen: Array<number> = []
+    render(
+      <NumberSlider
+        min={1}
+        max={500}
+        value={40}
+        onChange={(v) => seen.push(v)}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '120' } })
+    expect(seen).toEqual([120])
   })
 })
