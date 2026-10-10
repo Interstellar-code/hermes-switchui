@@ -12,6 +12,7 @@ import type { SectionOwnership } from '../lib/section-registry'
 import type { SaveState } from '@/stores/settings-store'
 import { gatewayRestart } from '@/lib/hermes-client'
 import { useSettingsStore } from '@/stores/settings-store'
+import { toast } from '@/components/ui/toast'
 
 type SaveBarProps = {
   dirtyCount: number
@@ -136,6 +137,8 @@ export function SaveBar({
    * Run the screen's existing save, then restart the gateway only if the save
    * finished with no failures. `onSave` is fire-and-forget, so the outcome is
    * read from the store's save phase (set to 'saving' synchronously by `save`).
+   * The restart outcome is always reported: success, failure, or skipped
+   * because the save did not finish cleanly.
    */
   function confirmSave(restart: boolean) {
     setReviewing(false)
@@ -145,8 +148,18 @@ export function SaveBar({
       const { phase: p, failures } = state.saveState
       if (p === 'saving') return
       unsub()
-      if (p === 'success' && failures.length === 0)
-        void gatewayRestart().catch(() => {})
+      if (p === 'success' && failures.length === 0) {
+        gatewayRestart()
+          .then(() => toast('Gateway restarting', { type: 'success' }))
+          .catch((err: unknown) => {
+            const reason = err instanceof Error ? err.message : String(err)
+            toast(`Gateway restart failed: ${reason}`, { type: 'error' })
+          })
+        return
+      }
+      toast('Gateway restart skipped — the save did not finish cleanly', {
+        type: 'warning',
+      })
     })
     if (useSettingsStore.getState().saveState.phase !== 'saving') unsub()
   }

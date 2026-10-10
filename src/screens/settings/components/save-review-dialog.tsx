@@ -28,8 +28,21 @@ const GROUPS: Array<{ id: KeyApplies | 'other'; label: string }> = [
   { id: 'other', label: 'Other' },
 ]
 
-/** Tested against one path segment, never the dotted key: `max_tokens` and `key_env` are not secrets. */
-const SECRET_SEGMENT = /(^|_)(api_?key|token|secret|password)$|secret|password/i
+/**
+ * Secret-name test. Always tested against the LAST dotted path segment,
+ * never the whole key. Anchored alternatives cover `api_key` / `api-key` /
+ * `x-api-key`, `token`, `secret`, `password`, `authorization`,
+ * `private_key`, `credential(s)`; unanchored `secret|password|
+ * authorization|credential` catch compound names like `basic_auth.password`
+ * or `client_secret`. `max_tokens` (plural) and `key_env` stay clear.
+ */
+const SECRET_SEGMENT =
+  /(^|[_-])(api[_-]?key|token|secret|password|authorization|private[_-]?key|credentials?)$|secret|password|authorization|credential/i
+
+/** True when a dotted key's last segment names a secret. */
+export function isSecretKey(key: string): boolean {
+  return SECRET_SEGMENT.test(key.split('.').pop() ?? key)
+}
 
 const MASK = '••••••'
 
@@ -102,6 +115,9 @@ export function SaveReviewDialog({ open, onCancel, onConfirm }: Props) {
   const draft = useSettingsStore((s) => s.draft)
 
   const keys = useMemo(() => [...dirty], [dirty])
+  // Only config. keys reach config.yaml; the message must not count
+  // env/switchui-local edits that ride along in the same dirty set.
+  const writeCount = keys.filter((k) => k.startsWith('config.')).length
   const groups = useMemo(() => groupChanges(keys), [keys])
   const diff = useMemo(
     () => buildDiff(keys, committed, draft),
@@ -117,7 +133,7 @@ export function SaveReviewDialog({ open, onCancel, onConfirm }: Props) {
     <ConfirmDialog
       open={open}
       title="Review changes"
-      message={`${keys.length} ${keys.length === 1 ? 'setting' : 'settings'} will be written to config.yaml.`}
+      message={`${writeCount} ${writeCount === 1 ? 'setting' : 'settings'} will be written to config.yaml.`}
       confirmLabel="Save"
       onConfirm={() => onConfirm(restart)}
       onCancel={onCancel}

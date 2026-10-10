@@ -1,20 +1,30 @@
 /**
- * config-health.ts — pure config-draft linting and preset application (P5A).
+ * config-health.ts — pure config-draft linting and preset application.
  *
  * No React, no fetch: `checkConfigHealth` inspects a settings draft (the flat
  * `Record<string, unknown>` shape `useSettingsStore` uses, hermes-config keys
  * prefixed `config.`, env/switchui-local keys bare) against the key metadata
  * and returns one `HealthFinding` per problem. Findings carry a `fix` patch in
- * the same draft-key shape so a UI (P5B) can offer one-click repair through
- * the normal save flow; `{}` means the finding is informational or needs a
- * human decision (e.g. deleting a dead key, which a value patch cannot
- * express).
+ * the same draft-key shape so the health page can offer one-click repair
+ * through the normal save flow; `{}` means the finding is informational or
+ * needs a human decision (e.g. deleting a dead key, which a value patch
+ * cannot express).
  *
- * Rules come from `.omc/research/settings-recommended.md` §4 issues 1–9
- * (lines 132–155) plus the two extras the P5A brief names: required-key drift
- * and duplicate/dead keys. Thresholds mirror the settled values in
- * `data/key-meta.json` (recommended/default), not the live-config anecdotes in
- * the research prose.
+ * Rules, one line each:
+ *  - approvals manual + timeout < 300 s → restore smart/300;
+ *  - sessions/checkpoints auto-prune off → back on;
+ *  - model catalog disabled → back on;
+ *  - agent.api_max_retries < 3 → 3;
+ *  - dead/duplicate keys (legacy fallback_model, flat api_server host/port)
+ *    → report only, no automatic fix;
+ *  - browser.cdp_url pinned to a devtools/browser UUID → report only;
+ *  - updates.pre_update_backup off → 'quick';
+ *  - interactive clarify on with clarify_timeout < 1800 s → 1800;
+ *  - compression hygiene limit tuned below 5000 → info only;
+ *  - required keys drifted (absent keys are unreadable, not drift) → locked
+ *    value (lists: append only the missing items).
+ * Thresholds mirror the settled values in `data/key-meta.json`
+ * (recommended/default).
  */
 
 import { getPresets } from './key-meta'
@@ -49,14 +59,24 @@ function sameValue(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Required-key comparison (P5B R2). The agent coerces numeric strings on
- * read (`gateway/platforms/api_server.py` `_coerce_port`), so a profile can
- * legitimately carry `port: '8642'`; for int/float meta a numeric string
- * therefore compares by `Number()` instead of failing on the type. Exported
- * for the health card, which scores the same rule.
+ * Required-key comparison. Two loosening rules:
+ *  - the agent coerces numeric strings on read
+ *    (`gateway/platforms/api_server.py` `_coerce_port`), so a profile can
+ *    legitimately carry `port: '8642'`; for int/float meta a numeric string
+ *    compares by `Number()`;
+ *  - the server's `_deep_merge` replaces lists whole, so a list-valued
+ *    required key means "contains every locked item" (order-free) — a
+ *    superset or reordered user list is fine and must never be "fixed" by
+ *    replacing it with the locked list.
+ * Exported for the health page and the sidebar issue flag, which score the
+ * same rule.
  */
 export function requiredValueMatches(meta: KeyMeta, value: unknown): boolean {
   const expected = meta.required?.value
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(value)) return sameValue(value, expected)
+    return missingItems(expected, value).length === 0
+  }
   if (
     (meta.type === 'int' || meta.type === 'float') &&
     typeof value === 'string' &&
@@ -66,6 +86,14 @@ export function requiredValueMatches(meta: KeyMeta, value: unknown): boolean {
     return Number(value) === Number(expected)
   }
   return sameValue(value, expected)
+}
+
+/** Locked items a user list does not already contain (order-free). */
+function missingItems(
+  expected: Array<unknown>,
+  value: Array<unknown>,
+): Array<unknown> {
+  return expected.filter((item) => !value.some((v) => sameValue(v, item)))
 }
 
 // Thresholds, each tied to its research issue / meta recommended value.
@@ -165,9 +193,9 @@ const apiMaxRetriesLow: Rule = (draft) => {
 }
 
 /**
- * Issue 5 / brief extra — dead & duplicate keys. A value patch cannot delete a
- * key, so these findings carry no automatic fix; the save review (P6) is where
- * a removal lands.
+ * Issue 5 — dead & duplicate keys. A value patch cannot delete a key and no
+ * save path in this UI removes keys, so these findings carry no automatic
+ * fix; removal means editing config.yaml by hand.
  */
 const deadKeyRules: Rule = (draft) => {
   const findings: Array<HealthFinding> = []
@@ -304,14 +332,14 @@ const hygieneLimitTuned: Rule = (draft, meta) => {
 }
 
 /**
- * Brief extra — required keys (board C locks). Any drift, including absence,
- * is an error: SwitchUI features depend on these values. One finding per key
- * (`required-<bare-id>`), fix restores the locked value.
+ * Required keys (the locked SwitchUI keys). A drifted readable value is an
+ * error: SwitchUI features depend on these values. One finding per key
+ * (`required-<bare-id>`), fix restores the locked value (lists: append-only).
  *
- * P5B R2: absence is no longer drift. The dashboard's
- * `_normalize_config_for_web` replaces e.g. the `model` dict with its
- * `default` string, so `config.model.provider` is simply not present in the
- * web draft — "not readable here", not drifted, and no fix may fabricate it.
+ * Absence is not drift: the dashboard's `_normalize_config_for_web` replaces
+ * e.g. the `model` dict with its `default` string, so `config.model.provider`
+ * is simply not present in the web draft — "not readable here", not drifted,
+ * and no fix may fabricate it.
  */
 const requiredKeyDrift: Rule = (draft, meta) => {
   const findings: Array<HealthFinding> = []
@@ -321,11 +349,18 @@ const requiredKeyDrift: Rule = (draft, meta) => {
     const value = draft[key]
     if (value === undefined) continue
     if (!requiredValueMatches(m, value)) {
+      // List fix keeps the user's items (order included) and only appends
+      // the missing locked ones — the server replaces lists whole, so a
+      // plain locked-value patch would drop the user's entries.
+      const fixValue =
+        Array.isArray(m.required.value) && Array.isArray(value)
+          ? [...value, ...missingItems(m.required.value, value)]
+          : m.required.value
       findings.push({
         id: `required-${m.id}`,
         severity: 'error',
         message: `${m.label} is required for SwitchUI: ${m.required.reason} Restoring the locked value ${JSON.stringify(m.required.value)}.`,
-        fix: { [key]: m.required.value },
+        fix: { [key]: fixValue },
       })
     }
   }
@@ -354,9 +389,9 @@ export function checkConfigHealth(
 }
 
 /**
- * Patch of draft keys that applies a preset. Constraints (P5A brief):
+ * Patch of draft keys that applies a preset. Constraints:
  *  - never includes a key whose meta is `required` — presets are judgment
- *    values and must not fight the board-C locks;
+ *    values and must not fight the required locks;
  *  - never includes a key the preset does not list;
  *  - plus: keys whose draft value already equals the preset value are left
  *    out, so applying a preset twice (or over an already-tuned draft) writes

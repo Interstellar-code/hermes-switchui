@@ -201,6 +201,31 @@ describe('buildSidebarGroups — board A flags and hints', () => {
     expect(items.find((i) => i.id === 'all-settings')?.issues).toBe(false)
   })
 
+  it('lights ▲ with the health page match: coerced strings and list supersets are fine', () => {
+    // A string '8642' port and a superset toolsets list match the locked
+    // values under requiredValueMatches — no gateway ▲. multiplex_profiles
+    // is pinned so its absent-default quirk cannot flag the group anyway.
+    const clean = buildSidebarGroups(new Set(), {
+      draft: {
+        'config.gateway.multiplex_profiles': true,
+        'config.platforms.api_server.extra.port': '8642',
+        'config.toolsets': ['web', 'hermes-cli', 'kanban'],
+      },
+    })
+    const cleanItems = clean.flatMap((g) => g.items)
+    expect(cleanItems.find((i) => i.id === 'gateway')?.issues).toBe(false)
+    // …while a genuinely wrong port still flags the owning section.
+    const drifted = buildSidebarGroups(new Set(), {
+      draft: {
+        'config.gateway.multiplex_profiles': true,
+        'config.platforms.api_server.extra.port': 9999,
+      },
+    })
+    expect(
+      drifted.flatMap((g) => g.items).find((i) => i.id === 'gateway')?.issues,
+    ).toBe(true)
+  })
+
   it('treats a null default as a value (∞ ≠ a finite recommendation)', () => {
     // agent.max_turns: default null (∞), recommended 150 — unset means ∞,
     // which genuinely differs from the recommendation.
