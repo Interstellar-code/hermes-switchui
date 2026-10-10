@@ -22,7 +22,7 @@
     "label": "Clarify timeout",
     "group": "agent-runtime",
     "scope": "hermes-config",
-    "applies": "next-session",
+    "applies": "live",
     "type": "int",
     "default": 3600,
     "recommended": 1800,
@@ -30,9 +30,9 @@
       "min": 0,
       "unlimited": 0
     },
-    "effect": "Seconds a clarify prompt stays live before the turn fails; 0/negative = unlimited. Read at clarify time via load_config (tools/clarify_gateway.py:259-267, 272-284).",
+    "effect": "Seconds a clarify prompt stays live before the turn fails; 0/negative = unlimited. Re-read from config on every clarify prompt (mtime-cached load_config), so edits apply to the next clarify card without a restart.",
     "tradeoff": "Higher = a card left open survives longer. Lower = abandoned prompts fail sooner.",
-    "source": "tools/clarify_gateway.py:259-284 (resolve_clarify_timeout/get_clarify_timeout); hermes_cli/config_defaults.py (3600)",
+    "source": "tools/clarify_gateway.py:272-284 (get_clarify_timeout -> load_config per call); callers read it per clarify event: gateway/run.py:786-791 (_clarify_send_then_wait), gateway/platforms/api_server.py:4381, tui_gateway/server.py:1319-1320; hermes_cli/config_defaults.py (3600)",
     "verified": true
   },
   {
@@ -122,13 +122,13 @@
     "label": "Interactive clarify",
     "group": "gateway",
     "scope": "hermes-config",
-    "applies": "next-session",
+    "applies": "live",
     "type": "bool",
     "default": false,
     "recommended": true,
-    "effect": "Keeps the clarify tool in API-server toolsets so chat streams can render interactive clarify cards. Read per request build on the SSE path (gateway/platforms/api_server.py:2739); the toolset is built per agent/session, so it applies to the next session.",
+    "effect": "Keeps the clarify tool in API-server toolsets so chat streams can render interactive clarify cards. Re-read via _load_gateway_config() every time an agent is built for a request (per turn on the SSE chat-stream path) and on every GET /v1/capabilities, so a config edit applies to the next request without a restart.",
     "tradeoff": "On = clarify cards work in the UI. Off = the clarify tool is stripped from API toolsets.",
-    "source": "gateway/platforms/api_server.py:2737-2739 (interactive_clarify gate), toolsets.py:199; hermes_cli/config_defaults.py (false)",
+    "source": "gateway/platforms/api_server.py:2726 (user_config = _load_gateway_config() in _create_agent), :2738-2740 (flag gate adds the clarify toolset), :5170-5171 (agent built per _run_agent call), :3110-3111 (_handle_capabilities reads per request); toolsets.py:196-199 (clarify stripped from static toolsets); hermes_cli/config_defaults.py (false)",
     "verified": true,
     "required": {
       "value": true,
@@ -618,10 +618,10 @@
     "applies": "restart",
     "type": "enum",
     "default": "INFO",
-    "options": ["DEBUG", "INFO", "WARNING"],
-    "effect": "Minimum severity written to ~/.hermes/logs/agent.log. Same key as the Advanced page Log level row.",
+    "options": ["DEBUG", "INFO", "WARNING", "ERROR"],
+    "effect": "Minimum severity written to ~/.hermes/logs/agent.log. Same key as the Advanced page Log level row. Read once by setup_logging() at process start and bound into the agent.log handler, so a change needs a gateway restart.",
     "tradeoff": "DEBUG = verbose, larger logs, helps diagnosis. WARNING = quiet, may hide the cause of failures.",
-    "source": "/Users/rohits/.hermes/hermes-agent/hermes_logging.py:622-624 (read); level consumer not traced; applies traced: hermes_logging.py:182 reads logging.level once inside setup_logging() (hermes_logging.py:164-186), which binds handlers at process start (gateway/run.py:4981-4982, hermes_cli/main.py:632-634); a level change rebinds handlers only on restart",
+    "source": "hermes_logging.py:182-184 (setup_logging reads cfg_level via _read_logging_config :604-624), :199 (level bound into the agent.log handler spec); setup at gateway/run.py:4981-4982 and hermes_cli/main.py:632-634 (idempotent, rebinds only on force); hermes_cli/config_defaults.py (INFO)",
     "verified": true
   },
   {
@@ -995,7 +995,7 @@
     "type": "enum",
     "default": "local",
     "options": ["local", "docker"],
-    "effect": "Chooses where agent shell commands run: directly on this machine or inside a Docker container.",
+    "effect": "Chooses where agent shell commands run: directly on this machine or inside a Docker container. SwitchUI deliberately offers local and docker only; the schema lists seven backends (ssh, modal, daytona, vercel_sandbox, singularity stay raw-config only). Re-resolved from config per terminal call.",
     "tradeoff": "Local = full host access and speed. Docker = isolation, but needs Docker and runs in a container view.",
     "source": "/Users/rohits/.hermes/hermes-agent/gateway/run.py:1914 (bridged to TERMINAL_ENV); applies traced: tools/terminal_tool.py:610 (_get_env_config) reads TERMINAL_ENV per tool call; the bridge (hermes_cli/config.py:2088 apply_terminal_config_to_env, tools/terminal_tool.py:529 _ensure_terminal_env_bridged) re-reads config.yaml keyed on file mtime \u2014 edits apply without a restart; multiplexed profiles get a per-turn scope (tools/terminal_scope.py:193)",
     "verified": true

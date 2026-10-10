@@ -51,6 +51,43 @@ const REQUIRED_KEY_IDS = [
   'kanban.dispatch_in_gateway',
 ]
 
+function requiredByKey(): Map<string, unknown> {
+  return new Map(
+    keyMeta
+      .filter((e) => e.required !== undefined)
+      .map((e) => [e.id, e.required!.value]),
+  )
+}
+
+function presetRequiredViolations(
+  presetList: Array<Preset>,
+  required: Map<string, unknown>,
+): Array<string> {
+  const violations: Array<string> = []
+  for (const preset of presetList) {
+    for (const [key, value] of Object.entries(preset.values)) {
+      if (!required.has(key)) continue
+      const requiredValue = required.get(key)
+      if (key === 'toolsets') {
+        const ok =
+          Array.isArray(value) &&
+          (requiredValue as Array<string>).every((rv) =>
+            (value as Array<string>).includes(rv),
+          )
+        if (!ok)
+          violations.push(
+            `${preset.id} toolsets must contain kanban (required ${JSON.stringify(requiredValue)})`,
+          )
+      } else if (value !== requiredValue) {
+        violations.push(
+          `${preset.id} ${key} must equal required ${JSON.stringify(requiredValue)}`,
+        )
+      }
+    }
+  }
+  return violations
+}
+
 describe('key-meta.json (contract C1)', () => {
   it('is a non-empty array', () => {
     expect(Array.isArray(keyMeta)).toBe(true)
@@ -223,6 +260,28 @@ describe('key-meta.json (contract C1)', () => {
       ).toEqual(value)
     }
   })
+
+  it('re-read-per-call keys are marked live with a trace (review M1/M2)', () => {
+    const clarify = keyMeta.find((e) => e.id === 'agent.clarify_timeout')
+    expect(clarify!.applies).toBe('live')
+    expect(clarify!.source).toContain('gateway/run.py:786-791')
+
+    const interactive = keyMeta.find(
+      (e) => e.id === 'api_server.interactive_clarify',
+    )
+    expect(interactive!.applies).toBe('live')
+    expect(interactive!.source).toContain(
+      'gateway/platforms/api_server.py:2726',
+    )
+  })
+
+  it('logging.level is restart with a traced consumer and schema options (review M3/LOW1)', () => {
+    const entry = keyMeta.find((e) => e.id === 'logging.level')
+    expect(entry!.applies).toBe('restart')
+    expect(entry!.verified).toBe(true)
+    expect(entry!.source).toContain('hermes_logging.py:182-184')
+    expect(entry!.options).toEqual(['DEBUG', 'INFO', 'WARNING', 'ERROR'])
+  })
 })
 
 describe('presets.json (contract C1)', () => {
@@ -241,60 +300,88 @@ describe('presets.json (contract C1)', () => {
     }
   })
 
-  it('no preset sets a value for a required key that differs from its required value', () => {
-    const required = new Map(
-      keyMeta
-        .filter((e) => e.required !== undefined)
-        .map((e) => [e.id, e.required!.value]),
-    )
+  it('every preset value matches its key type, enum options and range', () => {
+    const byId = new Map(keyMeta.map((e) => [e.id, e]))
+    const violations: Array<string> = []
+    let checked = 0
     for (const preset of presets) {
       for (const [key, value] of Object.entries(preset.values)) {
-        if (!required.has(key)) continue
-        const requiredValue = required.get(key)
-        if (key === 'toolsets') {
-          // required value is a list; the preset must contain the kanban toolset
-          expect(
-            Array.isArray(value) && (value as Array<string>).includes('kanban'),
-            `preset ${preset.id} toolsets must contain kanban`,
-          ).toBe(true)
-        } else {
-          expect(
-            value,
-            `preset ${preset.id} must not contradict required ${key}=${JSON.stringify(requiredValue)}`,
-          ).toEqual(requiredValue)
+        const entry = byId.get(key)
+        if (!entry) continue
+        checked += 1
+        const ctx = `preset ${preset.id} ${key}=${JSON.stringify(value)} (type ${entry.type})`
+        switch (entry.type) {
+          case 'bool':
+            if (typeof value !== 'boolean')
+              violations.push(`${ctx}: not a boolean`)
+            break
+          case 'int':
+            if (typeof value !== 'number' || !Number.isInteger(value))
+              violations.push(`${ctx}: not an integer`)
+            break
+          case 'float':
+            if (typeof value !== 'number')
+              violations.push(`${ctx}: not a number`)
+            break
+          case 'string':
+          case 'secret':
+            if (typeof value !== 'string')
+              violations.push(`${ctx}: not a string`)
+            break
+          case 'enum':
+            if (!entry.options || !entry.options.includes(value as string))
+              violations.push(
+                `${ctx}: not in options [${entry.options?.join(', ')}]`,
+              )
+            break
+          case 'list':
+            if (!Array.isArray(value)) violations.push(`${ctx}: not an array`)
+            break
+          case 'map':
+            if (typeof value !== 'object' || Array.isArray(value))
+              violations.push(`${ctx}: not a plain object`)
+            break
+        }
+        // range bounds apply to numeric values; the unlimited sentinel bypasses them
+        const range = entry.range
+        if (range && typeof value === 'number' && value !== range.unlimited) {
+          if (range.min !== undefined && value < range.min)
+            violations.push(`${ctx}: below range.min ${range.min}`)
+          if (range.max !== undefined && value > range.max)
+            violations.push(`${ctx}: above range.max ${range.max}`)
         }
       }
     }
+    // Non-vacuous guard: every value in every preset must have been checked.
+    expect(checked).toBe(72)
+    expect(violations).toEqual([])
   })
 
-  it('no preset touches a required key with a contradicting value (explicit list)', () => {
-    // The 8 locked keys and their required values, restated so a regression in
-    // either file fails here with a readable diff.
-    const expected: Record<string, unknown> = {
-      'platforms.api_server.enabled': true,
-      'platforms.api_server.extra.host': '127.0.0.1',
-      'platforms.api_server.extra.port': 8642,
-      'api_server.interactive_clarify': true,
-      'gateway.multiplex_profiles': true,
-      'model.provider': 'manifest',
-      'kanban.dispatch_in_gateway': true,
-    }
-    for (const preset of presets) {
-      for (const [key, value] of Object.entries(expected)) {
-        if (key in preset.values) {
-          expect(preset.values[key], `preset ${preset.id} ${key}`).toEqual(
-            value,
-          )
-        }
-      }
-      // toolsets, when present, must contain kanban
-      if ('toolsets' in preset.values) {
-        expect(
-          (preset.values.toolsets as Array<string>).includes('kanban'),
-          `preset ${preset.id} toolsets must contain kanban`,
-        ).toBe(true)
-      }
-    }
+  it('no preset sets a value for a required key that differs from its required value', () => {
+    const violations = presetRequiredViolations(presets, requiredByKey())
+    expect(violations).toEqual([])
+  })
+
+  it('the required-key contradiction check actually fires (in-test rogue fixture)', () => {
+    // Proves the loop above is not vacuous: no real preset touches a required
+    // key, so this rogue fixture is the evidence the check can fail. It lives
+    // in the test only — data/ files are untouched.
+    const rogue: Array<Preset> = [
+      {
+        id: 'balanced',
+        label: 'rogue fixture',
+        values: {
+          'gateway.multiplex_profiles': false, // contradicts required true
+          toolsets: ['hermes-cli'], // drops the required kanban member
+          'agent.max_turns': 150, // irrelevant key: must NOT be flagged
+        },
+      },
+    ]
+    const violations = presetRequiredViolations(rogue, requiredByKey())
+    expect(violations).toEqual([
+      'balanced gateway.multiplex_profiles must equal required true',
+      'balanced toolsets must contain kanban (required ["hermes-cli","kanban"])',
+    ])
   })
 
   it('preset values reference keys that exist in key-meta.json', () => {
