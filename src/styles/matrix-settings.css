@@ -1263,3 +1263,153 @@
     box-shadow: none;
   }
 }
+
+/* ── Board A intent groups (P4A): chips, hints, legend, unexposed keys ──── */
+
+/* Filter chips sit between the search box and the tree. */
+[data-screen='settings'] .side.sk-filter .sk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 12px 4px;
+}
+
+[data-screen='settings'] .side.sk-filter .sk-chip {
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--m-border, var(--theme-border));
+  background: transparent;
+  color: var(--m-text-faint, var(--theme-muted));
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+[data-screen='settings'] .side.sk-filter .sk-chip:hover {
+  color: var(--m-text, var(--theme-text));
+}
+
+[data-screen='settings'] .side.sk-filter .sk-chip.on {
+  border-color: var(--m-green-500, var(--theme-accent));
+  color: var(--m-green-500, var(--theme-accent));
+}
+
+/* Board A group headers: upper-case label + muted hint tail. The hint and the
+   collapsed-state section name opt back out of the casing. */
+[data-screen='settings'] .side.sk-filter .sec-toggle .sec-label-text {
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+[data-screen='settings'] .side.sk-filter .sec-toggle .sec-label-text .grp-hint,
+[data-screen='settings']
+  .side.sk-filter
+  .sec-toggle
+  .sec-label-text
+  .sec-active {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+[data-screen='settings'] .side.sk-filter .sec-toggle .sec-label-text .grp-hint {
+  margin-left: 6px;
+  font-weight: 400;
+  font-size: 10px;
+  color: var(--m-text-faint, var(--theme-muted));
+}
+
+/* Status legend under the tree, mirroring the row markers. */
+[data-screen='settings'] .side.sk-filter .sk-legend {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  color: var(--m-text-faint, var(--theme-muted));
+  border-top: 1px solid var(--m-border, var(--theme-border));
+}
+
+[data-screen='settings'] .side.sk-filter .sk-legend .sk-legend-sep {
+  color: var(--m-text-faint, var(--theme-muted));
+}
+
+/* Marker colours: ● modified keeps the accent, ◆ off-rec is a warning,
+   ▲ config issue is a danger. */
+[data-screen='settings'] .side.sk-filter .item-ct[data-marker='modified'] {
+  color: var(--m-green-500, var(--theme-accent));
+}
+
+[data-screen='settings'] .side.sk-filter .item-ct[data-marker='offrec'] {
+  color: var(--m-warning, var(--theme-warning));
+}
+
+[data-screen='settings'] .side.sk-filter .item-ct[data-marker='issue'] {
+  color: var(--m-danger, var(--theme-danger));
+}
+
+/* Chips and the legend live in the expanded rail only. */
+[data-screen='settings'] .side.sk-filter.collapsed .sk-chips,
+[data-screen='settings'] .side.sk-filter.collapsed .sk-legend {
+  display: none;
+}
+
+/* "More <prefix>.* keys" block under a section body. */
+[data-screen='settings'] .unexposed-keys {
+  margin-top: 14px;
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-head {
+  width: 100%;
+  text-align: left;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  color: var(--m-text-faint, var(--theme-muted));
+  background: transparent;
+  border: none;
+  border-top: 1px dashed var(--m-border, var(--theme-border));
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-head:hover {
+  color: var(--m-text, var(--theme-text));
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 16px;
+  font-family: var(--m-font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  border-bottom: 1px solid var(--m-border, var(--theme-border));
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-row:last-child {
+  border-bottom: none;
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-key {
+  color: var(--m-text, var(--theme-text));
+  min-width: 220px;
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-value {
+  color: var(--m-green-500, var(--theme-accent));
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-default {
+  flex: 1;
+  color: var(--m-text-faint, var(--theme-muted));
+}
+
+[data-screen='settings'] .unexposed-keys .unexposed-edit {
+  font-size: 10px;
+  padding: 2px 8px;
+}

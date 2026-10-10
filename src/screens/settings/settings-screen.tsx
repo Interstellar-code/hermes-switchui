@@ -21,20 +21,28 @@ import '@/styles/matrix-settings.css'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SidebarTree } from './components/sidebar-tree'
 import { SaveBar } from './components/save-bar'
+import { UnexposedKeys } from './components/unexposed-keys'
 import { settingsSaver } from './lib/saver'
 import { flattenConfig } from './lib/flatten-config'
 import {
+  GROUP_SPECS,
   SECTION_COMPONENTS,
   SECTION_SPECS,
   SECTION_SPEC_BY_ID,
   dirtySectionIds,
+  sectionIdsForKey,
 } from './lib/section-registry'
-import { useConfigSchema, useRegisterSchemaDefaults } from './lib/schema-binding'
+import { listKeyMeta } from './lib/key-meta'
+import {
+  useConfigSchema,
+  useRegisterSchemaDefaults,
+} from './lib/schema-binding'
 import { buildSearchIndex, searchSections } from './lib/search-index'
 import { DEFAULT_SECTION } from './lib/settings-search'
 import type { SectionSpec } from './lib/section-registry'
 import type { SidebarGroup } from './components/sidebar-tree'
 import { useDirtyCount, useSettingsStore } from '@/stores/settings-store'
+import { valuesEqual } from '@/stores/settings-equal'
 import { getConfig } from '@/lib/hermes-client'
 import { toast } from '@/components/ui/toast'
 
@@ -42,26 +50,96 @@ export { DEFAULT_SECTION }
 
 // ── Sidebar groups ────────────────────────────────────────────────────────
 
+export type BuildSidebarGroupsOptions = {
+  /** Resolved draft. Supplied by the screen; omitting skips the meta flags. */
+  draft?: Record<string, unknown>
+  /** `SchemaIndex.fields.length` — prefixes the Advanced group's hint. */
+  schemaKeyCount?: number
+}
+
 /**
  * The dirty dot used to be `dirty.has(section.id)` — a Set of setting *keys*
  * tested against a section *id*, which can never be true. `dirtySectionIds`
  * maps keys to owning sections instead.
+ *
+ * Board A adds two more per-section flags from the key-meta contract (C1):
+ * ◆ off-recommended (draft ≠ `recommended`) and ▲ config issue (draft ≠
+ * `required.value`), plus each group's mockup hint. Like the dirty dot, a key
+ * flags every section that owns it — same mapping, same rule. An absent draft
+ * value counts as differing: an unset key with a recommended value is exactly
+ * the case the chip exists to surface.
  */
-export function buildSidebarGroups(dirty: Set<string>): Array<SidebarGroup> {
+export function buildSidebarGroups(
+  dirty: Set<string>,
+  opts?: BuildSidebarGroupsOptions,
+): Array<SidebarGroup> {
   const dirtyIds = dirtySectionIds(dirty)
+
+  const offRecIds = new Set<string>()
+  const issueIds = new Set<string>()
+  if (opts?.draft) {
+    for (const meta of listKeyMeta()) {
+      const storeKey = `config.${meta.id}`
+      const owners = sectionIdsForKey(storeKey)
+      if (owners.length === 0) continue
+      const value = opts.draft[storeKey]
+      if (
+        meta.recommended !== undefined &&
+        !valuesEqual(value, meta.recommended)
+      ) {
+        for (const id of owners) offRecIds.add(id)
+      }
+      if (meta.required && !valuesEqual(value, meta.required.value)) {
+        for (const id of owners) issueIds.add(id)
+      }
+    }
+  }
+
+  const groupSpecs = new Map(GROUP_SPECS.map((g) => [g.label, g]))
   const groupMap = new Map<string, SidebarGroup>()
   for (const s of SECTION_SPECS) {
     if (!groupMap.has(s.group)) {
-      groupMap.set(s.group, { label: s.group, items: [] })
+      const spec = groupSpecs.get(s.group)
+      const count = opts?.schemaKeyCount ?? 0
+      const hint =
+        spec?.hintKeyCount && count > 0
+          ? `${count} keys · ${spec.hint ?? ''}`.trim()
+          : spec?.hint
+      groupMap.set(s.group, { label: s.group, hint, items: [] })
     }
     groupMap.get(s.group)!.items.push({
       id: s.id,
       label: s.label,
       dirty: dirtyIds.has(s.id),
+      offRec: offRecIds.has(s.id),
+      issues: issueIds.has(s.id),
       ownership: s.ownership,
     })
   }
   return Array.from(groupMap.values())
+}
+
+// ── Unexposed-keys prefixes ───────────────────────────────────────────────
+
+/**
+ * The longest dotted prefix every declared key of a section shares (bare
+ * keys, no `config.`): `agent.` for agent-runtime, `logging.` for telemetry.
+ * A section whose keys live in different namespaces (execution: terminal.* +
+ * code_execution.*) has none and gets no unexposed-keys block.
+ */
+export function commonKeyPrefix(keys: Array<string>): string | undefined {
+  const bare = keys.map((k) => k.replace(/^config\./, ''))
+  if (bare.length === 0) return undefined
+  const split = bare.map((k) => k.split('.'))
+  const first = split[0]
+  // A lone leaf key has no namespace to group under.
+  if (first.length < 2) return undefined
+  const common: Array<string> = []
+  for (let i = 0; i < first.length - 1; i++) {
+    if (split.every((parts) => parts[i] === first[i])) common.push(first[i])
+    else break
+  }
+  return common.length > 0 ? `${common.join('.')}.` : undefined
 }
 
 // ── Stub section component ────────────────────────────────────────────────
@@ -115,6 +193,7 @@ export function SettingsScreen({
   onSectionChange,
 }: SettingsScreenProps = {}) {
   const dirty = useSettingsStore((s) => s.dirty)
+  const draft = useSettingsStore((s) => s.draft)
   const save = useSettingsStore((s) => s.save)
   const saveState = useSettingsStore((s) => s.saveState)
   const dirtyCount = useDirtyCount()
@@ -203,7 +282,14 @@ export function SettingsScreen({
   const activeSection =
     SECTION_SPEC_BY_ID.get(activeId) ?? SECTION_SPEC_BY_ID.get(DEFAULT_SECTION)!
 
-  const sidebarGroups = buildSidebarGroups(dirty)
+  const sidebarGroups = buildSidebarGroups(dirty, {
+    draft,
+    schemaKeyCount: schemaIndex.fields.length,
+  })
+
+  // Sections whose declared keys share one dotted namespace get board A's
+  // "More <prefix>* keys" block for the schema rows no curated control covers.
+  const unexposedPrefix = commonKeyPrefix(activeSection.keys ?? [])
 
   function handleSave() {
     void save(settingsSaver).then((outcome) => {
@@ -318,23 +404,34 @@ export function SettingsScreen({
           </div>
         </div>
 
-        {/* Content */}
-        <div className="body">
-          {/* content scrollable area fills the 1fr row */}
-          <div className="content">
-            {(() => {
-              const SectionComponent = SECTION_COMPONENTS[activeId]
-              if (SectionComponent) {
-                return (
-                  <Suspense fallback={<div style={{ padding: '24px', color: 'var(--m-text-faint, var(--theme-muted))' }}>Loading…</div>}>
-                    <SectionComponent query={query} />
-                  </Suspense>
-                )
-              }
-              return <StubSection section={activeSection} />
-            })()}
+          {/* Content */}
+          <div className="body">
+            {/* content scrollable area fills the 1fr row */}
+            <div className="content">
+              {(() => {
+                const SectionComponent = SECTION_COMPONENTS[activeId]
+                if (SectionComponent) {
+                  return (
+                    <Suspense fallback={<div style={{ padding: '24px', color: 'var(--m-text-faint, var(--theme-muted))' }}>Loading…</div>}>
+                      <SectionComponent query={query} />
+                    </Suspense>
+                  )
+                }
+                return <StubSection section={activeSection} />
+              })()}
+              {unexposedPrefix && (
+                <UnexposedKeys
+                  prefix={unexposedPrefix}
+                  onEditKey={(key) => {
+                    // Same path the sidebar's search hits use: jump to
+                    // All-settings with the page-wide query pinned to the key.
+                    setQuery(key)
+                    selectSection('all-settings')
+                  }}
+                />
+              )}
+            </div>
           </div>
-        </div>
 
         {/* Save bar */}
         <SaveBar
