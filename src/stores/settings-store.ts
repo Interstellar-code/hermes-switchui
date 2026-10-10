@@ -66,16 +66,22 @@ export type SettingsActions = {
    *
    * `{ force: true }` is the Refresh button: a hard reset that drops drafts.
    */
-  seed: (
-    committed: Record<string, unknown>,
-    opts?: { force?: boolean },
-  ) => void
+  seed: (committed: Record<string, unknown>, opts?: { force?: boolean }) => void
   /**
    * Register fallback values for keys the server may not define. Additive,
    * idempotent and order-independent (first registration for a key wins).
    * Never touches `status`, `committed` or `dirty`.
+   *
+   * `{ override: true }` is for the gateway's own `/api/config/defaults`: those
+   * outrank a section's hand-copied literal, so a differing value already
+   * registered is replaced. Sections register on mount, usually before the
+   * defaults request lands, so first-wins alone would pin the stale literal.
+   * Server truth and user edits still outrank both.
    */
-  registerDefaults: (defaults: Record<string, unknown>) => void
+  registerDefaults: (
+    defaults: Record<string, unknown>,
+    opts?: { override?: boolean },
+  ) => void
   set: (key: string, value: unknown) => void
   setMany: (patch: Record<string, unknown>) => void
   /**
@@ -225,11 +231,13 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     })
   },
 
-  registerDefaults(incoming) {
+  registerDefaults(incoming, opts) {
     const state = get()
     const added: Record<string, unknown> = {}
     for (const [key, value] of Object.entries(incoming)) {
-      if (key in state.defaults) continue
+      if (key in state.defaults) {
+        if (!opts?.override || valuesEqual(state.defaults[key], value)) continue
+      }
       added[key] = value
     }
     if (Object.keys(added).length === 0) return
@@ -306,7 +314,14 @@ export const useSettingsStore = create<SettingsStore>()((set, get) => ({
     if (state.saveState.phase === 'saving') return { persisted: [], failed: [] }
     if (state.dirty.size === 0) {
       if (state.saveState.phase !== 'idle') {
-        set({ saveState: { ...state.saveState, phase: 'idle', error: null, failures: [] } })
+        set({
+          saveState: {
+            ...state.saveState,
+            phase: 'idle',
+            error: null,
+            failures: [],
+          },
+        })
       }
       return { persisted: [], failed: [] }
     }
