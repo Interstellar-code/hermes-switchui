@@ -16,6 +16,7 @@
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 
 export default function SectionPrivacy() {
@@ -51,6 +52,7 @@ export default function SectionPrivacy() {
         <SettingRow
           label="Redact PII from context"
           desc="Hash user IDs and strip phone numbers before sending to the LLM"
+          meta={getKeyMeta('config.privacy.redact_pii')}
         >
           <Toggle
             on={redactPii}
@@ -61,6 +63,7 @@ export default function SectionPrivacy() {
           label="Redact secrets from output"
           pill={{ t: 'recommended' }}
           desc="Credential-shaped strings (API keys, tokens, passwords) are masked in tool and terminal output and in assistant messages as they are stored to session history — on by default, snapshotted at startup"
+          meta={getKeyMeta('config.security.redact_secrets')}
         >
           <Toggle
             on={redactSecrets}
@@ -74,6 +77,7 @@ export default function SectionPrivacy() {
           label="Allow private / internal URLs"
           pill={{ t: 'danger' }}
           desc="Disabled by default. Browser/web tools will reject RFC-1918 and internal targets until you explicitly allow them here."
+          meta={getKeyMeta('config.security.allow_private_urls')}
         >
           <Toggle
             on={allowPrivateUrls}

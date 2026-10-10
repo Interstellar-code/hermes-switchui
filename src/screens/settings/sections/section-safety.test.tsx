@@ -95,4 +95,32 @@ describe('SectionSafety', () => {
     expect(screen.getByText(/No commands are permanently pre-approved/)).toBeTruthy()
     expect(screen.getByText('OK')).toBeTruthy()
   })
+
+  it('gives the approval and Tirith rows their key-meta strip', () => {
+    loadDraft({ 'config.approvals.mode': 'smart', 'config.command_allowlist': [] })
+
+    render(<SectionSafety />)
+
+    for (const label of [
+      'Approval mode',
+      'Cron approval mode',
+      'Confirm destructive slash commands',
+      'Auto-accept shell hooks',
+      'Tirith scanner',
+    ]) {
+      const row = screen.getByText(label).closest('.row')!
+      expect(
+        row.querySelector('.row-meta'),
+        `${label} has no meta strip`,
+      ).toBeTruthy()
+    }
+
+    // Per-key: approvals.mode is Live, hooks_auto_accept needs a restart.
+    expect(screen.getByText('Approval mode').closest('.row')!.textContent).toContain(
+      'Live',
+    )
+    expect(
+      screen.getByText('Auto-accept shell hooks').closest('.row')!.textContent,
+    ).toContain('Needs restart')
+  })
 })

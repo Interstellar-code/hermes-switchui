@@ -13,6 +13,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { PasswordField, Toggle } from '../components/controls'
+import { SelectField } from '../components/select-field'
+import { TextField } from '../components/text-field'
+import { getKeyMeta } from '../lib/key-meta'
 import type { KnowledgeBaseConfig } from '@/server/knowledge-config'
 import type { EnvVarInfo } from '@/lib/hermes-client'
 import { getEnv, putEnv, revealEnv } from '@/lib/hermes-client'
@@ -163,6 +166,7 @@ function HindsightEnvRow({
         label={label}
         desc={desc}
         pill={isSet ? { t: 'set' } : { t: 'not set' }}
+        meta={getKeyMeta(`env.${envKey}`)}
       >
         <div style={{ display: 'flex', gap: 4 }}>
           {options.map((opt) => (
@@ -186,9 +190,12 @@ function HindsightEnvRow({
         label={label}
         desc={desc}
         pill={isSet ? { t: 'set' } : { t: 'not set' }}
+        meta={getKeyMeta(`env.${envKey}`)}
       >
         {editing ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {/* Raw, not TextField: TextField carries no style prop, so the
+                90px width that keeps Save beside it would be lost. */}
             <input
               type="number"
               className="text-input"
@@ -244,15 +251,11 @@ function HindsightEnvRow({
         label={label}
         desc={desc}
         pill={isSet ? { t: 'set' } : { t: 'not set' }}
+        meta={getKeyMeta(`env.${envKey}`)}
       >
         {editing ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <input
-              type="text"
-              className="text-input"
-              value={editValue}
-              onChange={(e) => setEditValue(e.target.value)}
-            />
+            <TextField value={editValue} onChange={setEditValue} />
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -303,6 +306,7 @@ function HindsightEnvRow({
       label={label}
       desc={desc}
       pill={isSet ? { t: 'set' } : { t: 'not set' }}
+      meta={getKeyMeta(`env.${envKey}`)}
     >
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flex: 1 }}>
         {editing ? (
@@ -587,12 +591,10 @@ function WikiCard() {
 
           {sourceType === 'local' && (
             <SettingRow label="Path" desc="Leave empty for $HERMES_HOME/wiki">
-              <input
-                type="text"
-                className="text-input"
+              <TextField
                 value={localPath}
                 placeholder="/Users/you/hermes/wikis/my-wiki"
-                onChange={(e) => setLocalPath(e.target.value)}
+                onChange={setLocalPath}
               />
             </SettingRow>
           )}
@@ -600,30 +602,24 @@ function WikiCard() {
           {sourceType === 'github' && (
             <>
               <SettingRow label="Repository" desc="owner/repo on GitHub">
-                <input
-                  type="text"
-                  className="text-input"
+                <TextField
                   value={ghRepo}
                   placeholder="acme/wiki"
-                  onChange={(e) => setGhRepo(e.target.value)}
+                  onChange={setGhRepo}
                 />
               </SettingRow>
               <SettingRow label="Branch" desc="Git branch to read from">
-                <input
-                  type="text"
-                  className="text-input"
+                <TextField
                   value={ghBranch}
                   placeholder="main"
-                  onChange={(e) => setGhBranch(e.target.value)}
+                  onChange={setGhBranch}
                 />
               </SettingRow>
               <SettingRow label="Subdirectory" desc="Optional path within repo">
-                <input
-                  type="text"
-                  className="text-input"
+                <TextField
                   value={ghPath}
                   placeholder="docs/"
-                  onChange={(e) => setGhPath(e.target.value)}
+                  onChange={setGhPath}
                 />
               </SettingRow>
             </>
@@ -702,6 +698,7 @@ export default function SectionMemoryWiki() {
         <SettingRow
           label="Memory enabled"
           desc="Enable long-term memory retrieval for sessions"
+          meta={getKeyMeta('config.memory.memory_enabled')}
         >
           <Toggle
             on={memoryEnabled}
@@ -712,6 +709,7 @@ export default function SectionMemoryWiki() {
         <SettingRow
           label="User profile enabled"
           desc="Build and use a persistent user profile for personalization"
+          meta={getKeyMeta('config.memory.user_profile_enabled')}
         >
           <Toggle
             on={userProfileEnabled}
@@ -719,18 +717,16 @@ export default function SectionMemoryWiki() {
           />
         </SettingRow>
 
-        <SettingRow label="Provider" desc="Memory backend provider">
-          <select
-            className="select-input"
+        <SettingRow
+          label="Provider"
+          desc="Memory backend provider"
+          meta={getKeyMeta('config.memory.provider')}
+        >
+          <SelectField
+            options={MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED}
             value={provider}
-            onChange={(e) => set('config.memory.provider', e.target.value)}
-          >
-            {MEMORY_PROVIDER_SELECT_OPTIONS_WITH_DISABLED.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set('config.memory.provider', v)}
+          />
         </SettingRow>
 
         {providerInfo && (
@@ -749,7 +745,10 @@ export default function SectionMemoryWiki() {
         <SettingRow
           label="Memory char limit"
           desc={`${memoryCharLimit} — max characters injected from memory per request`}
+          meta={getKeyMeta('config.memory.memory_char_limit')}
         >
+          {/* Raw, not TextField: this input carries min/max/step and a width
+              the wrapper has no props for, and dropping them would change it. */}
           <input
             type="number"
             className="text-input"
@@ -770,7 +769,10 @@ export default function SectionMemoryWiki() {
         <SettingRow
           label="User char limit"
           desc={`${userCharLimit} — max characters from user profile per request`}
+          meta={getKeyMeta('config.memory.user_char_limit')}
         >
+          {/* Raw, not TextField: min/max/step and the fixed width have no
+              equivalent props on the wrapper. */}
           <input
             type="number"
             className="text-input"

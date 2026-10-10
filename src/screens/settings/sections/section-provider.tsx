@@ -34,6 +34,8 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { SelectField } from '../components/select-field'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 import { valuesEqual } from '@/stores/settings-equal'
 import {
@@ -134,6 +136,19 @@ export default function SectionProvider() {
   const providerList = options?.providers ?? []
   const modelsForProvider: Array<string> =
     providerList.find((p) => p.slug === currentProvider)?.models ?? []
+
+  // While the option lists are still loading the old raw `<select>` rendered a
+  // single placeholder option. Passing that placeholder as the option list
+  // keeps SelectField on its `known` branch, so it reproduces the old DOM and
+  // the "Loading…" copy instead of relabelling the value "(not offered here)".
+  const providerOptions =
+    providerList.length === 0
+      ? [{ value: currentProvider, label: currentProvider || 'Loading…' }]
+      : providerList.map((p) => ({ value: p.slug, label: p.name ?? p.slug }))
+  const modelFieldOptions =
+    modelsForProvider.length === 0
+      ? [{ value: currentModel, label: currentModel || 'Loading…' }]
+      : modelsForProvider.map((m) => ({ value: m, label: m }))
 
   const caps = info?.capabilities as Record<string, unknown> | undefined
   const contextWindow = caps?.context_window as number | undefined
@@ -385,39 +400,26 @@ export default function SectionProvider() {
       </SettingCard>
 
       <SettingCard title="Provider & model">
-        <SettingRow label="Provider" desc="Active backend provider">
-          <select
-            className="select-input"
+        <SettingRow
+          label="Provider"
+          desc="Active backend provider"
+          // Bare id, not `config.model.provider`: this row writes through
+          // setModelAssignment rather than the draft, and section-registry.test
+          // reads every quoted `config.*` literal as a key this section owns.
+          meta={getKeyMeta('model.provider')}
+        >
+          <SelectField
+            options={providerOptions}
             value={currentProvider}
-            onChange={(e) => void handleProviderChange(e.target.value)}
-          >
-            {providerList.length === 0 && (
-              <option value={currentProvider}>
-                {currentProvider || 'Loading…'}
-              </option>
-            )}
-            {providerList.map((p) => (
-              <option key={p.slug} value={p.slug}>
-                {p.name ?? p.slug}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => void handleProviderChange(v)}
+          />
         </SettingRow>
         <SettingRow label="Default model" desc="Model used for new sessions">
-          <select
-            className="select-input"
+          <SelectField
+            options={modelFieldOptions}
             value={currentModel}
-            onChange={(e) => void handleModelChange(e.target.value)}
-          >
-            {modelsForProvider.length === 0 && (
-              <option value={currentModel}>{currentModel || 'Loading…'}</option>
-            )}
-            {modelsForProvider.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => void handleModelChange(v)}
+          />
         </SettingRow>
       </SettingCard>
 
@@ -449,10 +451,23 @@ export default function SectionProvider() {
               <span aria-hidden style={{ flexShrink: 0 }}>
                 ⚠
               </span>
-              <span>
-                <code>fallback_model</code> is ignored by the agent — saved as{' '}
-                <code>fallback_providers</code>. The legacy key is left
-                untouched; only the chain below is written.
+              <span
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '4px',
+                }}
+              >
+                <span>
+                  <code>fallback_model</code> is ignored by the agent — saved as{' '}
+                  <code>fallback_providers</code>. The legacy key is left
+                  untouched; only the chain below is written.
+                </span>
+                <span>
+                  The row below is shown from the legacy{' '}
+                  <code>fallback_model</code> — it is not saved until you edit
+                  or confirm it.
+                </span>
               </span>
             </div>
           )}
@@ -508,6 +523,9 @@ export default function SectionProvider() {
                 >
                   {i + 1}.
                 </span>
+                {/* Raw, not SelectField: the wrapper takes only id/aria-labelledby, and this
+                    row needs its own `aria-label` plus an explicit unknown-value
+                    option it already renders itself. */}
                 <select
                   className="select-input"
                   aria-label={`Fallback ${i + 1} provider`}
@@ -527,6 +545,8 @@ export default function SectionProvider() {
                     <option value={row.provider}>{row.provider}</option>
                   )}
                 </select>
+                {/* Raw, not TextField: it needs a `list`/`datalist` pairing and an inline
+                    width, neither of which the wrapper accepts. */}
                 <input
                   type="text"
                   className="text-input"

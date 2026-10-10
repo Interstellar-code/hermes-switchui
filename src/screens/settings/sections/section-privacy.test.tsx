@@ -39,4 +39,18 @@ describe('SectionPrivacy', () => {
       screen.getByRole('switch', { name: /Allow private \/ internal URLs/ }),
     ).toBeTruthy()
   })
+
+  it('gives each config-bound row its key-meta scope and applies badges', () => {
+    render(<SectionPrivacy />)
+
+    const pii = screen.getByText('Redact PII from context').closest('.row')!
+    expect(pii.querySelector('.row-meta')).toBeTruthy()
+    expect(pii.textContent).toContain('Live')
+
+    const privateUrls = screen
+      .getByText('Allow private / internal URLs')
+      .closest('.row')!
+    expect(privateUrls.querySelector('.row-meta')).toBeTruthy()
+    expect(privateUrls.textContent).toContain('config.yaml')
+  })
 })

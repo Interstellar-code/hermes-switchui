@@ -146,6 +146,12 @@ describe('SectionProvider fallback chain', () => {
     expect(providerSelect.value).toBe('x')
     expect(modelInput.value).toBe('y')
     expect(screen.getByText(/is ignored by the agent/)).toBeTruthy()
+    // P2A review R2 MEDIUM 1: the note used to read as if the pre-filled row
+    // were already saved. It is display-only until the user edits or confirms,
+    // and the copy has to say so.
+    expect(
+      screen.getByText(/not saved until you edit or confirm it/),
+    ).toBeTruthy()
 
     // The pre-fill is display-only: nothing goes dirty until the user edits.
     expect(useSettingsStore.getState().dirty.size).toBe(0)
@@ -317,5 +323,25 @@ describe('SectionProvider fallback chain', () => {
 
     expect(screen.getByText(/No fallback providers configured/i)).toBeTruthy()
     expect(screen.queryByLabelText('Fallback 1 provider')).toBeNull()
+  })
+
+  it('gives the Provider row its key-meta strip', async () => {
+    loadDraft({})
+    renderSection()
+    await waitFor(() => expect(mockModelOptions).toHaveBeenCalled())
+
+    const row = screen
+      .getByText('Provider', { selector: '.lbl' })
+      .closest('.row')!
+    expect(row.querySelector('.row-meta')).toBeTruthy()
+    expect(row.textContent).toContain('config.yaml')
+    // The Default model row has no key in key-meta.json (it is written by
+    // setModelAssignment, not the draft), so it correctly gets no strip.
+    expect(
+      screen
+        .getByText('Default model', { selector: '.lbl' })
+        .closest('.row')!
+        .querySelector('.row-meta'),
+    ).toBeNull()
   })
 })
