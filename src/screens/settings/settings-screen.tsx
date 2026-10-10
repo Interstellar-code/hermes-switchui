@@ -29,8 +29,8 @@ import {
   SECTION_COMPONENTS,
   SECTION_SPECS,
   SECTION_SPEC_BY_ID,
+  curatedSectionIdsForKey,
   dirtySectionIds,
-  sectionIdsForKey,
 } from './lib/section-registry'
 import { listKeyMeta } from './lib/key-meta'
 import {
@@ -63,11 +63,17 @@ export type BuildSidebarGroupsOptions = {
  * maps keys to owning sections instead.
  *
  * Board A adds two more per-section flags from the key-meta contract (C1):
- * ◆ off-recommended (draft ≠ `recommended`) and ▲ config issue (draft ≠
- * `required.value`), plus each group's mockup hint. Like the dirty dot, a key
- * flags every section that owns it — same mapping, same rule. An absent draft
- * value counts as differing: an unset key with a recommended value is exactly
- * the case the chip exists to surface.
+ * ◆ off-recommended (effective value ≠ `recommended`) and ▲ config issue
+ * (effective value ≠ `required.value`). Two rules keep them signal-bearing:
+ *
+ *   - **Curated owners only.** A meta key with no curated section (most of
+ *     the 34 recommended / 8 required keys) must not flag the All-settings
+ *     catch-all — a single permanently-lit section says nothing. Uncovered
+ *     keys surface through the UnexposedKeys block instead.
+ *   - **Unset means the gateway default.** The compared value is
+ *     `draft[key] ?? meta.default`; a key with neither value nor default
+ *     says nothing either way. (A `null` default IS a value — it means ∞ for
+ *     keys like agent.max_turns and genuinely differs from a finite rec.)
  */
 export function buildSidebarGroups(
   dirty: Set<string>,
@@ -79,10 +85,10 @@ export function buildSidebarGroups(
   const issueIds = new Set<string>()
   if (opts?.draft) {
     for (const meta of listKeyMeta()) {
-      const storeKey = `config.${meta.id}`
-      const owners = sectionIdsForKey(storeKey)
+      const owners = curatedSectionIdsForKey(`config.${meta.id}`)
       if (owners.length === 0) continue
-      const value = opts.draft[storeKey]
+      const value = opts.draft[`config.${meta.id}`] ?? meta.default
+      if (value === undefined) continue
       if (
         meta.recommended !== undefined &&
         !valuesEqual(value, meta.recommended)

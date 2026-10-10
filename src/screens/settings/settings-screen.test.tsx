@@ -175,7 +175,35 @@ describe('buildSidebarGroups — board A flags and hints', () => {
     expect(items.find((i) => i.id === 'gateway')?.issues).toBe(true)
   })
 
-  it('treats an unset key with metadata as differing (unset ≠ recommended)', () => {
+  it('does not flag a meta key with no curated owner (no all-settings ◆)', () => {
+    // compression.threshold: recommended 0.75, no curated section declares it
+    // — it must surface via UnexposedKeys, not light the catch-all section.
+    const groups = buildSidebarGroups(new Set(), {
+      draft: { 'config.compression.threshold': 0.9 },
+    })
+    const items = groups.flatMap((g) => g.items)
+    expect(items.find((i) => i.id === 'all-settings')?.offRec).toBe(false)
+  })
+
+  it('an absent key whose meta default equals its recommended shows no ◆', () => {
+    // Storage's meta'd keys (sessions.auto_prune T/T, retention_days 90/90):
+    // unset → the gateway default applies → equal to the recommendation.
+    const groups = buildSidebarGroups(new Set(), { draft: {} })
+    const items = groups.flatMap((g) => g.items)
+    expect(items.find((i) => i.id === 'storage')?.offRec).toBe(false)
+  })
+
+  it('an absent key with no value and no default shows no ▲', () => {
+    // platforms.api_server.enabled: required true, no default, no curated
+    // owner — with nothing to compare, it flags nothing anywhere.
+    const groups = buildSidebarGroups(new Set(), { draft: {} })
+    const items = groups.flatMap((g) => g.items)
+    expect(items.find((i) => i.id === 'all-settings')?.issues).toBe(false)
+  })
+
+  it('treats a null default as a value (∞ ≠ a finite recommendation)', () => {
+    // agent.max_turns: default null (∞), recommended 150 — unset means ∞,
+    // which genuinely differs from the recommendation.
     const groups = buildSidebarGroups(new Set(), { draft: {} })
     const items = groups.flatMap((g) => g.items)
     expect(items.find((i) => i.id === 'agent-runtime')?.offRec).toBe(true)
