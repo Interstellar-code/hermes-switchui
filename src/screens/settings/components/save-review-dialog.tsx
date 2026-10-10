@@ -28,10 +28,23 @@ const GROUPS: Array<{ id: KeyApplies | 'other'; label: string }> = [
   { id: 'other', label: 'Other' },
 ]
 
-const SECRET_KEY = /(key|token|secret|password)/i
+/** Tested against one path segment, never the dotted key: `max_tokens` and `key_env` are not secrets. */
+const SECRET_SEGMENT = /(^|_)(api_?key|token|secret|password)$|secret|password/i
+
+const MASK = '••••••'
+
+function mask(name: string, value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((v) => mask(name, v))
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value).map(([k, v]) => [k, mask(k, v)]),
+    )
+  }
+  return SECRET_SEGMENT.test(name) && value ? MASK : value
+}
 
 function show(key: string, value: unknown): unknown {
-  return SECRET_KEY.test(key) && value ? '••••••' : value
+  return mask(key.split('.').pop() ?? key, value)
 }
 
 function nest(key: string, value: unknown): Record<string, unknown> {

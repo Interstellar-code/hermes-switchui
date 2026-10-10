@@ -46,33 +46,73 @@ function idleLabel(ownership: SectionOwnership | undefined): string {
 
 function IconSave() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M3 2h7l3 3v9H3V2z" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M6 2v4h4V2M5 11h6" strokeLinecap="round"/>
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden
+    >
+      <path
+        d="M3 2h7l3 3v9H3V2z"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M6 2v4h4V2M5 11h6" strokeLinecap="round" />
     </svg>
   )
 }
 
 function IconRefresh() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M3 8a5 5 0 1 0 1.5-3.5L2 3v4h4" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden
+    >
+      <path
+        d="M3 8a5 5 0 1 0 1.5-3.5L2 3v4h4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
 
 function IconExport() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M8 2v8M5 5l3-3 3 3M3 11v2h10v-2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden
+    >
+      <path
+        d="M8 2v8M5 5l3-3 3 3M3 11v2h10v-2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
 
 function IconImport() {
   return (
-    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden>
-      <path d="M8 10V2M5 7l3 3 3-3M3 11v2h10v-2" strokeLinecap="round" strokeLinejoin="round"/>
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      aria-hidden
+    >
+      <path
+        d="M8 10V2M5 7l3 3 3-3M3 11v2h10v-2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -105,7 +145,8 @@ export function SaveBar({
       const { phase: p, failures } = state.saveState
       if (p === 'saving') return
       unsub()
-      if (p === 'success' && failures.length === 0) void gatewayRestart().catch(() => {})
+      if (p === 'success' && failures.length === 0)
+        void gatewayRestart().catch(() => {})
     })
     if (useSettingsStore.getState().saveState.phase !== 'saving') unsub()
   }
@@ -127,7 +168,12 @@ export function SaveBar({
       <div className="spacer" />
 
       {onDiscardAll && hasDirty && (
-        <button type="button" className="btn" onClick={onDiscardAll} disabled={isSaving}>
+        <button
+          type="button"
+          className="btn"
+          onClick={onDiscardAll}
+          disabled={isSaving}
+        >
           Discard all
         </button>
       )}

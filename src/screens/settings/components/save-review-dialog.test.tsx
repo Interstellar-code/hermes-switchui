@@ -161,6 +161,37 @@ describe('SaveReviewDialog', () => {
   })
 })
 
+describe('buildDiff masking', () => {
+  const text = (k: string, a: unknown, b: unknown) =>
+    JSON.stringify(buildDiff([k], { [k]: a }, { [k]: b }))
+
+  it('shows non-secret keys that merely contain "token" or "key"', () => {
+    const t = text('config.agent.max_tokens', 100, 200)
+    expect(t).toContain('100')
+    expect(t).toContain('200')
+    expect(text('config.x.key_env', 'OLD_ENV', 'NEW_ENV')).toContain('NEW_ENV')
+  })
+
+  it('masks a bare token key and secret-named leaves', () => {
+    expect(text('config.x.token', 'old-t', 'new-t')).not.toContain('-t')
+    expect(text('config.x.auth_token', 'aaa', 'bbb')).not.toContain('bbb')
+  })
+
+  it('masks nested secrets inside object and array values', () => {
+    const t = text(
+      'config.providers',
+      { a: { api_key: 'sk-old', base_url: 'http://old' } },
+      {
+        a: { api_key: 'sk-new', base_url: 'http://new' },
+        list: [{ password: 'pw' }],
+      },
+    )
+    expect(t).not.toContain('sk-')
+    expect(t).not.toContain('pw')
+    expect(t).toContain('http://new')
+  })
+})
+
 describe('SaveReviewDialog standalone', () => {
   it('passes the restart flag to onConfirm', () => {
     s().set('config.agent.gateway_timeout', 900)
