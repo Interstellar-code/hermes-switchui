@@ -49,6 +49,15 @@ function enumSubsetViolations(meta: Array<KeyMeta>): Array<string> {
   return bad
 }
 
+type SpecLike = { keys?: Array<string> }
+
+function sectionKeysWithoutMeta(specs: Array<SpecLike>): Array<string> {
+  return specs
+    .flatMap((s) => s.keys ?? [])
+    .filter((k) => k.startsWith('config.') && !LEGACY_READ_ONLY.has(k))
+    .filter((k) => !getKeyMeta(k))
+}
+
 describe('key-meta contract', () => {
   it('every hermes-config meta id exists in the schema (allow-listed gateway surfaces aside)', () => {
     expect(schemaMissingIds(listKeyMeta())).toEqual([])
@@ -69,13 +78,45 @@ describe('key-meta contract', () => {
     expect(enumSubsetViolations(listKeyMeta())).toEqual([])
   })
 
+  it('an enum option missing from the schema options fails the check', () => {
+    const base = listKeyMeta().find((m) => m.id === 'approvals.mode')
+    expect(base, 'approvals.mode enum entry must exist').toBeDefined()
+    const rogue: KeyMeta = { ...base!, options: [...base!.options!, 'maybe'] }
+    expect(enumSubsetViolations([...listKeyMeta(), rogue])).toEqual([
+      'approvals.mode',
+    ])
+  })
+
   it.skipIf(listKeyMeta().length === 0)(
     'every config key used by a section has meta (legacy read-only keys aside)',
     () => {
-      const keys = SECTION_SPECS.flatMap((s) => s.keys ?? []).filter(
-        (k) => k.startsWith('config.') && !LEGACY_READ_ONLY.has(k),
-      )
-      expect(keys.filter((k) => !getKeyMeta(k))).toEqual([])
+      expect(sectionKeysWithoutMeta(SECTION_SPECS)).toEqual([])
     },
   )
+
+  it.skipIf(listKeyMeta().length === 0)(
+    'a section key without meta is reported by the check',
+    () => {
+      const rogue: Array<SpecLike> = [
+        { keys: ['config.agent.max_turns', 'config.no_meta_for_this'] },
+      ]
+      expect(sectionKeysWithoutMeta(rogue)).toEqual(['config.no_meta_for_this'])
+    },
+  )
+
+  it('the allow-lists have not gone stale', () => {
+    for (const id of Object.keys(NOT_IN_SCHEMA)) {
+      expect(
+        id in fields,
+        `${id} is allow-listed as NOT_IN_SCHEMA but the schema now publishes it — remove the entry`,
+      ).toBe(false)
+    }
+    const declaredKeys = new Set(SECTION_SPECS.flatMap((s) => s.keys ?? []))
+    for (const key of LEGACY_READ_ONLY) {
+      expect(
+        declaredKeys.has(key),
+        `${key} is listed LEGACY_READ_ONLY but no section declares it anymore — remove the entry`,
+      ).toBe(true)
+    }
+  })
 })
