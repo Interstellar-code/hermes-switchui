@@ -207,9 +207,7 @@ const FieldRow = memo(function Row({ field, defaultValue }: RowProps) {
             also in {curated}
           </span>
         )}
-        {field.description && (
-          <span className="desc">{field.description}</span>
-        )}
+        {field.description && <span className="desc">{field.description}</span>}
         <span
           className="desc"
           style={{ fontFamily: MONO, fontSize: '11px', color: FAINT }}
@@ -255,7 +253,8 @@ export default function SectionAllSettings({
   const q = text.trim().toLowerCase()
 
   const fields = useMemo(
-    () => (index.fields.length > 0 ? index.fields : fieldsFromValues(committed)),
+    () =>
+      index.fields.length > 0 ? index.fields : fieldsFromValues(committed),
     [index, committed],
   )
 
@@ -350,18 +349,24 @@ export default function SectionAllSettings({
           </div>
         </div>
         {truncated && (
-          <div style={{ padding: '0 18px 14px', fontSize: '11px', color: MUTED }}>
+          <div
+            style={{ padding: '0 18px 14px', fontSize: '11px', color: MUTED }}
+          >
             Showing the first {MAX_MATCHES} of {matchCount} matches — narrow the
             filter to see the rest.
           </div>
         )}
         {isLoading && fields.length === 0 && (
-          <div style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}>
+          <div
+            style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}
+          >
             Loading the config schema…
           </div>
         )}
         {!isLoading && matchCount === 0 && (
-          <div style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}>
+          <div
+            style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}
+          >
             No setting matches “{text}”.
           </div>
         )}

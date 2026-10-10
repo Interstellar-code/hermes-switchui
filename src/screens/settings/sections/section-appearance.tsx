@@ -25,10 +25,12 @@ import type { ThemeId } from '@/lib/theme'
 import { THEMES, getTheme, setTheme } from '@/lib/theme'
 
 // Show only base (non-light) themes for the picker
-const THEME_OPTIONS = THEMES.filter((t) => !t.id.endsWith('-light')).map((t) => ({
-  value: t.id,
-  label: t.label,
-}))
+const THEME_OPTIONS = THEMES.filter((t) => !t.id.endsWith('-light')).map(
+  (t) => ({
+    value: t.id,
+    label: t.label,
+  }),
+)
 
 function baseThemeId(id: string): ThemeId {
   return (id.endsWith('-light') ? id.replace('-light', '') : id) as ThemeId
@@ -50,7 +52,9 @@ export default function SectionAppearance() {
           <h2>Appearance</h2>
           <div className="desc">Visual theme for this browser.</div>
         </div>
-        <div className="meta">Section · <b>appearance</b></div>
+        <div className="meta">
+          Section · <b>appearance</b>
+        </div>
       </div>
 
       {/*

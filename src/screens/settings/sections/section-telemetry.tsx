@@ -23,8 +23,10 @@ export default function SectionTelemetry() {
   const set = useSettingsStore((s) => s.set)
 
   // logging.* — real DEFAULT_CONFIG keys
-  const maxSizeMb = (draft['config.logging.max_size_mb'] as number | undefined) ?? 5
-  const backupCount = (draft['config.logging.backup_count'] as number | undefined) ?? 3
+  const maxSizeMb =
+    (draft['config.logging.max_size_mb'] as number | undefined) ?? 5
+  const backupCount =
+    (draft['config.logging.backup_count'] as number | undefined) ?? 3
 
   return (
     <div>
@@ -33,7 +35,9 @@ export default function SectionTelemetry() {
           <h2>Telemetry</h2>
           <div className="desc">File logging rotation and backup policy.</div>
         </div>
-        <div className="meta">Section · <b>logging</b></div>
+        <div className="meta">
+          Section · <b>logging</b>
+        </div>
       </div>
 
       <SettingCard title="Log level">
