@@ -20,14 +20,17 @@ import { useState } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Segmented } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import type { ThemeId } from '@/lib/theme'
 import { THEMES, getTheme, setTheme } from '@/lib/theme'
 
 // Show only base (non-light) themes for the picker
-const THEME_OPTIONS = THEMES.filter((t) => !t.id.endsWith('-light')).map((t) => ({
-  value: t.id,
-  label: t.label,
-}))
+const THEME_OPTIONS = THEMES.filter((t) => !t.id.endsWith('-light')).map(
+  (t) => ({
+    value: t.id,
+    label: t.label,
+  }),
+)
 
 function baseThemeId(id: string): ThemeId {
   return (id.endsWith('-light') ? id.replace('-light', '') : id) as ThemeId
@@ -49,7 +52,9 @@ export default function SectionAppearance() {
           <h2>Appearance</h2>
           <div className="desc">Visual theme for this browser.</div>
         </div>
-        <div className="meta">Section · <b>appearance</b></div>
+        <div className="meta">
+          Section · <b>appearance</b>
+        </div>
       </div>
 
       {/*
@@ -58,7 +63,11 @@ export default function SectionAppearance() {
         not claim to speak for it.
       */}
       <SettingCard title="Theme" saves="self">
-        <SettingRow label="Theme" pill={{ t: 'local-only' }}>
+        <SettingRow
+          label="Theme"
+          pill={{ t: 'local-only' }}
+          meta={getKeyMeta('ui.localStorage.claude-theme')}
+        >
           <Segmented
             options={THEME_OPTIONS}
             value={theme}

@@ -5,12 +5,24 @@
 import { useEffect } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { SelectField } from '../components/select-field'
+import { getKeyMeta } from '../lib/key-meta'
+import { useSchemaOptions } from '../lib/schema-binding'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/toast'
 import { getLogs } from '@/lib/hermes-client'
 
-// Maps to DEFAULT_CONFIG logging.level (DEBUG | INFO | WARNING)
-const LOG_LEVEL_OPTIONS = ['DEBUG', 'INFO', 'WARNING']
+/**
+ * Fallback when the gateway's schema is unreachable — the four levels the
+ * schema itself publishes for logging.level, so ERROR stays selectable even
+ * with the gateway down. Telemetry's old control used the same binding.
+ */
+const LOG_LEVEL_OPTIONS = [
+  { value: 'DEBUG', label: 'DEBUG' },
+  { value: 'INFO', label: 'INFO' },
+  { value: 'WARNING', label: 'WARNING' },
+  { value: 'ERROR', label: 'ERROR' },
+]
 
 const K = {
   log_level: 'config.logging.level',
@@ -29,12 +41,15 @@ export default function SectionAdvanced() {
     registerDefaults({ [K.log_level]: 'INFO' })
   }, [registerDefaults])
 
+  const logLevelOptions =
+    useSchemaOptions(K.log_level, LOG_LEVEL_OPTIONS) ?? LOG_LEVEL_OPTIONS
+
   const logLevel = (draft[K.log_level] as string | undefined) ?? 'INFO'
 
   async function handleViewLogs() {
     try {
       const result = await getLogs()
-      const count = Array.isArray(result) ? result.length : (result ? 1 : 0)
+      const count = Array.isArray(result) ? result.length : result ? 1 : 0
       toast(`${count} log entr${count === 1 ? 'y' : 'ies'} retrieved`)
     } catch {
       toast('Failed to fetch logs')
@@ -48,27 +63,37 @@ export default function SectionAdvanced() {
           <h2>Advanced</h2>
           <div className="desc">Logging and diagnostic options.</div>
         </div>
-        <div className="meta">Section · <b>advanced</b></div>
+        <div className="meta">
+          Section · <b>advanced</b>
+        </div>
       </div>
 
       <SettingCard title="Logging">
-        <SettingRow label="Log level" desc="Minimum verbosity written to ~/.hermes/logs/agent.log">
-          <select
-            className="input-sm"
+        <SettingRow
+          label="Log level"
+          desc="Minimum verbosity written to ~/.hermes/logs/agent.log"
+          meta={getKeyMeta(K.log_level)}
+        >
+          <SelectField
+            options={logLevelOptions}
             value={logLevel}
-            onChange={(e) => set(K.log_level, e.target.value)}
-            style={{ width: 110, fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12 }}
-          >
-            {LOG_LEVEL_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+            onChange={(v) => set(K.log_level, v)}
+          />
         </SettingRow>
       </SettingCard>
 
       <SettingCard title="Diagnostics">
-        <SettingRow label="View recent logs" desc="Fetch and count recent gateway log entries">
-          <button type="button" className="btn" onClick={() => { void handleViewLogs() }}>
+        <SettingRow
+          label="View recent logs"
+          desc="Fetch and count recent gateway log entries"
+        >
+          <button
+            type="button"
+            className="btn"
+            onClick={() => {
+              void handleViewLogs()
+            }}
+          >
             View logs
           </button>
         </SettingRow>

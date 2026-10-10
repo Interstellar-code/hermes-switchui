@@ -29,6 +29,8 @@
 import { memo, useEffect, useMemo, useState } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { Segmented, Toggle } from '../components/controls'
+import { SelectField } from '../components/select-field'
+import { TextField } from '../components/text-field'
 import {
   humanizeKey,
   orderCategories,
@@ -115,6 +117,7 @@ function NumberCell({
   useEffect(() => setText(external), [external])
 
   return (
+    // Raw: buffers unparseable intermediates in local state so they are never written as NaN.
     <input
       className="text-input input-sm"
       type="number"
@@ -141,6 +144,7 @@ function ListCell({
 }) {
   const lines = Array.isArray(value) ? value.map((v) => String(v)) : []
   return (
+    // Raw: multiline editing — TextField is single-line.
     <textarea
       className="text-input"
       rows={3}
@@ -173,25 +177,7 @@ function SelectCell({
   if (opts.length <= SEGMENTED_MAX_OPTIONS) {
     return <Segmented options={opts} value={current} onChange={onChange} />
   }
-  return (
-    <select
-      className="select-input"
-      value={current}
-      style={{ minWidth: '180px' }}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {/* A live value the schema does not list must stay visible, not vanish
-          into the first option and get written back on the next save. */}
-      {current !== '' && !options.includes(current) && (
-        <option value={current}>{current} (not in schema)</option>
-      )}
-      {opts.map((o) => (
-        <option key={o.value} value={o.value}>
-          {o.label}
-        </option>
-      ))}
-    </select>
-  )
+  return <SelectField options={opts} value={current} onChange={onChange} />
 }
 
 // ── Row ───────────────────────────────────────────────────────────────────
@@ -221,9 +207,7 @@ const FieldRow = memo(function Row({ field, defaultValue }: RowProps) {
             also in {curated}
           </span>
         )}
-        {field.description && (
-          <span className="desc">{field.description}</span>
-        )}
+        {field.description && <span className="desc">{field.description}</span>}
         <span
           className="desc"
           style={{ fontFamily: MONO, fontSize: '11px', color: FAINT }}
@@ -245,14 +229,9 @@ const FieldRow = memo(function Row({ field, defaultValue }: RowProps) {
         {widget === 'number' && <NumberCell value={shown} onChange={set} />}
         {widget === 'list' && <ListCell value={shown} onChange={set} />}
         {widget === 'text' && (
-          <input
-            className="text-input"
-            type="text"
-            style={{ width: '100%', fontFamily: MONO, fontSize: '12px' }}
-            value={
-              shown === undefined || shown === null ? '' : String(shown)
-            }
-            onChange={(e) => set(e.target.value)}
+          <TextField
+            value={shown === undefined || shown === null ? '' : String(shown)}
+            onChange={(v) => set(v)}
           />
         )}
       </div>
@@ -274,7 +253,8 @@ export default function SectionAllSettings({
   const q = text.trim().toLowerCase()
 
   const fields = useMemo(
-    () => (index.fields.length > 0 ? index.fields : fieldsFromValues(committed)),
+    () =>
+      index.fields.length > 0 ? index.fields : fieldsFromValues(committed),
     [index, committed],
   )
 
@@ -356,6 +336,7 @@ export default function SectionAllSettings({
             </span>
           </div>
           <div className="ctl">
+            {/* Raw: type="search" with its own aria-label — not a SettingRow control. */}
             <input
               className="text-input"
               type="search"
@@ -368,18 +349,24 @@ export default function SectionAllSettings({
           </div>
         </div>
         {truncated && (
-          <div style={{ padding: '0 18px 14px', fontSize: '11px', color: MUTED }}>
+          <div
+            style={{ padding: '0 18px 14px', fontSize: '11px', color: MUTED }}
+          >
             Showing the first {MAX_MATCHES} of {matchCount} matches — narrow the
             filter to see the rest.
           </div>
         )}
         {isLoading && fields.length === 0 && (
-          <div style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}>
+          <div
+            style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}
+          >
             Loading the config schema…
           </div>
         )}
         {!isLoading && matchCount === 0 && (
-          <div style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}>
+          <div
+            style={{ padding: '0 18px 14px', fontSize: '12px', color: MUTED }}
+          >
             No setting matches “{text}”.
           </div>
         )}

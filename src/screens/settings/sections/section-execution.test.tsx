@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SectionExecution from './section-execution'
@@ -226,5 +227,19 @@ describe('SectionExecution', () => {
     expect(
       useSettingsStore.getState().draft['config.code_execution.mode'],
     ).toBe('strict')
+  })
+
+  it('shows key-meta badges on the terminal timeout row (config.yaml · Live)', async () => {
+    mockFetchAgentCwd.mockResolvedValue(BASE_CWD_STATUS)
+    loadDraft({ 'config.terminal.backend': 'local' })
+
+    renderSection()
+    await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
+
+    const row = screen
+      .getByText('Command timeout')
+      .closest('.row') as HTMLElement
+    expect(within(row).getByText('config.yaml')).toBeTruthy()
+    expect(within(row).getByText('Live')).toBeTruthy()
   })
 })

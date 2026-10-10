@@ -27,7 +27,13 @@
  * worse than one that is merely stale.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import SectionAgentRuntime from './section-agent-runtime'
 import { resetSettingsStore, useSettingsStore } from '@/stores/settings-store'
@@ -267,5 +273,14 @@ describe('SectionAgentRuntime — fast mode', () => {
     renderSection()
 
     expect(screen.getByDisplayValue('Fast').tagName).toBe('SELECT')
+  })
+
+  it('shows the key-meta badges on the Max turns row (config.yaml · Live)', () => {
+    useSettingsStore.getState().seed({})
+    renderSection()
+
+    const row = screen.getByText('Max turns').closest('.row') as HTMLElement
+    expect(within(row).getByText('config.yaml')).toBeTruthy()
+    expect(within(row).getByText('Live')).toBeTruthy()
   })
 })

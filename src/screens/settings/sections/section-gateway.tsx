@@ -23,6 +23,8 @@ import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Toggle } from '../components/controls'
+import { TextField } from '../components/text-field'
+import { getKeyMeta } from '../lib/key-meta'
 import type { ReactNode } from 'react'
 import type { ScopeStatusResponse } from '@/screens/chat/components/chat-composer-types'
 import { useSettingsStore } from '@/stores/settings-store'
@@ -256,6 +258,7 @@ export default function SectionGateway() {
           label="Multiplex profiles"
           pill={{ t: 'restart required' }}
           desc="gateway.multiplex_profiles — one gateway serving several profiles by URL prefix."
+          meta={getKeyMeta('config.gateway.multiplex_profiles')}
         >
           <Toggle
             on={multiplexProfiles}
@@ -325,13 +328,12 @@ export default function SectionGateway() {
               ? 'Legacy value, not applied by the agent — editing saves it under platforms.api_server.extra.host.'
               : 'Interface the API server binds to. 127.0.0.1 = local only, 0.0.0.0 = all interfaces.')
           }
+          meta={getKeyMeta(EXTRA_HOST_KEY)}
         >
-          <input
-            type="text"
-            className="text-input"
+          <TextField
             value={apiHost}
             placeholder="127.0.0.1"
-            onChange={(e) => commitHost(e.target.value)}
+            onChange={(v) => commitHost(v)}
           />
         </SettingRow>
         <SettingRow
@@ -349,7 +351,9 @@ export default function SectionGateway() {
               ? 'Legacy value, not applied by the agent — editing saves it under platforms.api_server.extra.port.'
               : 'TCP port the API server listens on.')
           }
+          meta={getKeyMeta(EXTRA_PORT_KEY)}
         >
+          {/* Raw: buffers keystrokes in local state and needs min/max attrs — TextField expresses neither. */}
           <input
             type="number"
             className="text-input"
