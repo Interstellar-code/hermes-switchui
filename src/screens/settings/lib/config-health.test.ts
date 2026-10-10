@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyPreset, checkConfigHealth } from './config-health'
+import {
+  applyPreset,
+  checkConfigHealth,
+  requiredValueMatches,
+} from './config-health'
 import { getPresets, listKeyMeta } from './key-meta'
 import type { HealthFinding } from './config-health'
 import type { KeyMeta, Preset } from './key-meta-types'
@@ -180,10 +184,10 @@ describe('checkConfigHealth', () => {
     delete draft['config.platforms.api_server.extra.host']
     draft['config.platforms.api_server.host'] = '0.0.0.0'
     expect(findingsFor(draft, 'legacy-flat-api-server-keys')).toEqual([])
-    // …but removing a required key must surface the required-rule instead.
+    // …and the removed required key is "not readable here", not drift (R2).
     expect(
-      findingsFor(draft, 'required-platforms.api_server.extra.host').length,
-    ).toBe(1)
+      findingsFor(draft, 'required-platforms.api_server.extra.host'),
+    ).toEqual([])
   })
 
   // ── issue 6 ──────────────────────────────────────────────────────────────
@@ -274,17 +278,25 @@ describe('checkConfigHealth', () => {
     expect(finding.fix).toEqual({ 'config.model.provider': 'manifest' })
   })
 
-  it('required: an absent required key is drift too', () => {
+  it('required: an absent required key is not readable here, not drift', () => {
+    // P5B R2: `_normalize_config_for_web` drops e.g. the model dict down to
+    // its default string, so absence means "not exposed by this API" —
+    // fabricating a fix beside that string could clobber the real setting.
     const draft = cleanDraft()
     delete draft['config.platforms.api_server.extra.port']
-    const finding = oneFinding(
-      draft,
-      'required-platforms.api_server.extra.port',
-    )
-    expect(finding.severity).toBe('error')
-    expect(finding.fix).toEqual({
-      'config.platforms.api_server.extra.port': 8642,
-    })
+    expect(
+      findingsFor(draft, 'required-platforms.api_server.extra.port'),
+    ).toEqual([])
+  })
+
+  it('required: a numeric string matches its numeric locked value (agent coerces on read)', () => {
+    const draft = {
+      ...cleanDraft(),
+      'config.platforms.api_server.extra.port': '8642',
+    }
+    expect(
+      findingsFor(draft, 'required-platforms.api_server.extra.port'),
+    ).toEqual([])
   })
 
   it('required: clean draft surfaces no required-* findings', () => {
@@ -373,5 +385,22 @@ describe('applyPreset', () => {
       ...applyPreset(cleanDraft(), preset, META),
     }
     expect(applyPreset(applied, preset, META)).toEqual({})
+  })
+})
+
+describe('requiredValueMatches', () => {
+  // int meta with locked value 8642 — the profile string the agent coerces.
+  const port = META.find((m) => m.id === 'platforms.api_server.extra.port')!
+
+  it('compares int/float meta numerically when the value is a numeric string', () => {
+    expect(requiredValueMatches(port, '8642')).toBe(true)
+    expect(requiredValueMatches(port, 8642)).toBe(true)
+    expect(requiredValueMatches(port, '8643')).toBe(false)
+  })
+
+  it('falls back to strict equality for non-numeric strings and other types', () => {
+    expect(requiredValueMatches(port, 'auto')).toBe(false)
+    expect(requiredValueMatches(port, '')).toBe(false)
+    expect(requiredValueMatches(port, undefined)).toBe(false)
   })
 })
