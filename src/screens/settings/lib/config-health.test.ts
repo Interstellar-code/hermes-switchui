@@ -109,34 +109,68 @@ describe('checkConfigHealth', () => {
 
   // ── issue 5 (brief extras) ───────────────────────────────────────────────
 
-  it('issue 5: legacy fallback_model string while fallback_providers is set', () => {
+  it('issue 5: legacy top-level fallback_model (string) while fallback_providers is set', () => {
     const draft = {
       ...cleanDraft(),
-      'config.model.fallback_model': 'claude-sonnet',
+      'config.fallback_model': 'claude-sonnet',
       'config.fallback_providers': ['manifest'],
     }
     const finding = oneFinding(draft, 'legacy-fallback-model')
     expect(finding.severity).toBe('warn')
     expect(finding.fix).toEqual({})
+    expect(finding.message).toContain('appended')
     expect(findingsFor(draft, 'legacy-flat-api-server-keys')).toEqual([])
+  })
+
+  it('issue 5: legacy fallback_model as a dict or chain list is also "set"', () => {
+    for (const legacy of [
+      { provider: 'manifest', model: 'm1' }, // dict shape (_validate_fallback_model)
+      ['anthropic', 'openrouter'], // chain-list shape
+    ]) {
+      const draft = {
+        ...cleanDraft(),
+        'config.fallback_model': legacy,
+        'config.fallback_providers': ['manifest'],
+      }
+      expect(oneFinding(draft, 'legacy-fallback-model').severity).toBe('warn')
+    }
+  })
+
+  it('issue 5: an empty legacy fallback_model (blank string or empty dict) stays quiet', () => {
+    for (const legacy of ['', {}]) {
+      const draft = {
+        ...cleanDraft(),
+        'config.fallback_model': legacy,
+        'config.fallback_providers': ['manifest'],
+      }
+      expect(findingsFor(draft, 'legacy-fallback-model')).toEqual([])
+    }
   })
 
   it('issue 5: legacy fallback_model alone (no providers list) is not dead-pair noise', () => {
     const draft = {
       ...cleanDraft(),
-      'config.model.fallback_model': 'claude-sonnet',
+      'config.fallback_model': 'claude-sonnet',
     }
     expect(findingsFor(draft, 'legacy-fallback-model')).toEqual([])
   })
 
-  it('issue 5: flat api_server host/port alongside extra.*', () => {
-    const draft = {
+  it('issue 5: flat api_server host/port alongside extra.* (both pairs)', () => {
+    const hostDraft = {
       ...cleanDraft(),
       'config.platforms.api_server.host': '0.0.0.0',
     }
-    const finding = oneFinding(draft, 'legacy-flat-api-server-keys')
-    expect(finding.severity).toBe('warn')
-    expect(finding.fix).toEqual({})
+    const hostFinding = oneFinding(hostDraft, 'legacy-flat-api-server-keys')
+    expect(hostFinding.severity).toBe('warn')
+    expect(hostFinding.fix).toEqual({})
+
+    const portDraft = {
+      ...cleanDraft(),
+      'config.platforms.api_server.port': 9999,
+    }
+    expect(oneFinding(portDraft, 'legacy-flat-api-server-keys').severity).toBe(
+      'warn',
+    )
   })
 
   it('issue 5: flat keys without extra.* twins stay quiet', () => {
@@ -208,15 +242,27 @@ describe('checkConfigHealth', () => {
 
   // ── issue 9 ──────────────────────────────────────────────────────────────
 
-  it('issue 9: hygiene limit tuned below default is informational, no auto-fix', () => {
+  it('issue 9: hygiene tuned below default, outside recommended/preset values, is informational, no auto-fix', () => {
     const draft = {
       ...cleanDraft(),
-      'config.compression.hygiene_hard_message_limit': 400,
+      'config.compression.hygiene_hard_message_limit': 200,
     }
     const finding = oneFinding(draft, 'hygiene-limit-tuned')
     expect(finding.severity).toBe('info')
     expect(finding.fix).toEqual({})
     expect(finding.message).toContain('5000')
+  })
+
+  it('issue 9: quiet at the meta recommended value and at every shipped preset value', () => {
+    // 400 = meta recommended (and balanced), 800 = power, 300 = safe —
+    // intended tuning by definition, same reasoning as the clarify floor.
+    for (const quiet of [400, 800, 300]) {
+      const draft = {
+        ...cleanDraft(),
+        'config.compression.hygiene_hard_message_limit': quiet,
+      }
+      expect(findingsFor(draft, 'hygiene-limit-tuned')).toEqual([])
+    }
   })
 
   // ── required keys (brief extra) ──────────────────────────────────────────
@@ -252,15 +298,36 @@ describe('checkConfigHealth', () => {
 
 describe('applyPreset', () => {
   it('over all 3 real presets: only preset keys, config.-prefixed, values verbatim', () => {
+    const requiredDraftKeys = new Set(
+      META.filter((m) => m.required).map(draftKeyFor),
+    )
     for (const preset of getPresets()) {
       const patch = applyPreset(cleanDraft(), preset, META)
       const presetKeys = new Set(
         Object.keys(preset.values).map((k) => `config.${k}`),
       )
+      // The patch is real (non-empty over this baseline) …
+      expect(Object.keys(patch).length).toBeGreaterThan(0)
       for (const [key, value] of Object.entries(patch)) {
+        // … every key belongs to the preset …
         expect(presetKeys.has(key)).toBe(true)
         expect(value).toEqual(preset.values[key.slice('config.'.length)])
+        // … and no real preset patch ever carries a required key.
+        expect(requiredDraftKeys.has(key)).toBe(false)
       }
+    }
+  })
+
+  it('health: applying any shipped preset over the clean draft leaves no findings at all', () => {
+    // Warn/error must not appear (research-trigger rules vs preset values),
+    // and info must not either: preset-set tunings (hygiene 400/800/300) are
+    // intended by definition, so the tuned-info rule stays quiet for them.
+    for (const preset of getPresets()) {
+      const applied = {
+        ...cleanDraft(),
+        ...applyPreset(cleanDraft(), preset, META),
+      }
+      expect(checkConfigHealth(applied, META)).toEqual([])
     }
   })
 

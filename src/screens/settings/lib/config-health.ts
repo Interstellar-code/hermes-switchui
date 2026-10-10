@@ -17,6 +17,7 @@
  * the research prose.
  */
 
+import { getPresets } from './key-meta'
 import type { KeyMeta, Preset } from './key-meta-types'
 
 export type HealthFinding = {
@@ -64,18 +65,20 @@ type Rule = (
  * runs stall. Fix restores the upstream default pair smart/300.
  */
 const approvalsManualShortTimeout: Rule = (draft) => {
+  const mode = draft[`${CONFIG_PREFIX}approvals.mode`]
+  const timeout = draft[`${CONFIG_PREFIX}approvals.timeout`]
+  // A null/0 timeout (never expires / unset) fails safe: no finding below.
   if (
-    draft[`${CONFIG_PREFIX}approvals.mode`] === 'manual' &&
-    typeof draft[`${CONFIG_PREFIX}approvals.timeout`] === 'number' &&
-    (draft[`${CONFIG_PREFIX}approvals.timeout`] as number) <
-      APPROVALS_TIMEOUT_FLOOR
+    mode === 'manual' &&
+    typeof timeout === 'number' &&
+    timeout < APPROVALS_TIMEOUT_FLOOR
   ) {
     return [
       {
         id: 'approvals-manual-short-timeout',
         severity: 'warn',
         message:
-          `Approvals are manual but the prompt expires after ${draft[`${CONFIG_PREFIX}approvals.timeout`]} s — ` +
+          `Approvals are manual but the prompt expires after ${timeout} s — ` +
           'easy to miss from a browser tab, so runs stall or get denied. Upstream default is smart with a 300 s timeout.',
         fix: {
           [`${CONFIG_PREFIX}approvals.mode`]: 'smart',
@@ -149,19 +152,21 @@ const apiMaxRetriesLow: Rule = (draft) => {
 const deadKeyRules: Rule = (draft) => {
   const findings: Array<HealthFinding> = []
 
-  const legacyFallback = draft[`${CONFIG_PREFIX}model.fallback_model`]
+  const legacyFallback = draft[`${CONFIG_PREFIX}fallback_model`]
   const providers = draft[`${CONFIG_PREFIX}fallback_providers`]
-  if (
-    typeof legacyFallback === 'string' &&
-    legacyFallback !== '' &&
-    Array.isArray(providers) &&
-    providers.length > 0
-  ) {
+  // "Set" mirrors the agent's legacy shapes: a non-empty string, dict, or
+  // chain list (hermes_cli/config.py:_validate_fallback_model).
+  const legacyFallbackSet =
+    (typeof legacyFallback === 'string' && legacyFallback !== '') ||
+    (typeof legacyFallback === 'object' &&
+      legacyFallback !== null &&
+      Object.keys(legacyFallback).length > 0)
+  if (legacyFallbackSet && Array.isArray(providers) && providers.length > 0) {
     findings.push({
       id: 'legacy-fallback-model',
       severity: 'warn',
       message:
-        'Legacy string model.fallback_model is set alongside fallback_providers; the agent ignores the legacy string, so it only looks like a working fallback.',
+        'Legacy top-level fallback_model is set alongside fallback_providers; the legacy value is appended after the fallback_providers chain, so the effective fallback order is not what the providers list alone shows.',
       fix: {},
     })
   }
@@ -251,21 +256,31 @@ const clarifyTimeoutLow: Rule = (draft) => {
 /**
  * Issue 9 — hygiene limit tuned below the 5000 default. Research calls this
  * "probably intentional, and OK": informational only, with the default made
- * visible; no automatic fix would respect a deliberate choice.
+ * visible; no automatic fix would respect a deliberate choice. Values the
+ * meta recommends or a shipped preset sets are intended tuning by definition,
+ * so they stay quiet (same reasoning as the clarify floor).
  */
-const hygieneLimitTuned: Rule = (draft) => {
-  const limit = draft[`${CONFIG_PREFIX}compression.hygiene_hard_message_limit`]
-  if (typeof limit === 'number' && limit < HYGIENE_DEFAULT) {
-    return [
-      {
-        id: 'hygiene-limit-tuned',
-        severity: 'info',
-        message: `compression.hygiene_hard_message_limit is tuned to ${limit} (default ${HYGIENE_DEFAULT}). Fine if intentional — shown so the tuning is visible.`,
-        fix: {},
-      },
-    ]
-  }
-  return []
+const HYGIENE_KEY = 'compression.hygiene_hard_message_limit'
+const HYGIENE_PRESET_VALUES = new Set<unknown>(
+  getPresets().flatMap((preset) => {
+    const value = preset.values[HYGIENE_KEY]
+    return value === undefined ? [] : [value]
+  }),
+)
+const hygieneLimitTuned: Rule = (draft, meta) => {
+  const limit = draft[`${CONFIG_PREFIX}${HYGIENE_KEY}`]
+  if (typeof limit !== 'number' || limit >= HYGIENE_DEFAULT) return []
+  const recommended = meta.find((m) => m.id === HYGIENE_KEY)?.recommended
+  if (recommended !== undefined && sameValue(limit, recommended)) return []
+  if (HYGIENE_PRESET_VALUES.has(limit)) return []
+  return [
+    {
+      id: 'hygiene-limit-tuned',
+      severity: 'info',
+      message: `${HYGIENE_KEY} is tuned to ${limit} (default ${HYGIENE_DEFAULT}). Fine if intentional — shown so the tuning is visible.`,
+      fix: {},
+    },
+  ]
 }
 
 /**
