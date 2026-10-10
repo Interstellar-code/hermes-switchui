@@ -1413,3 +1413,287 @@
   font-size: 10px;
   padding: 2px 8px;
 }
+
+/* ── Config health (P5B board C) ─────────────────────────────────────────────
+    Theme tokens only — no hard-coded colours, so all 10 themes render.
+    Severity colours: danger (issues ▲), accent-secondary (off-recommended ◆),
+    warning (dead/duplicate ◇), success (required-ok tile). */
+
+[data-screen='settings'] .health-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  border: 1px solid var(--m-border, var(--theme-border));
+  border-radius: var(--m-radius-md, 6px);
+  background: var(--m-panel, var(--theme-card));
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+[data-screen='settings'] .health-tile {
+  padding: 14px 18px;
+  border-right: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+  min-width: 0;
+}
+
+[data-screen='settings'] .health-tile:last-child {
+  border-right: none;
+}
+
+[data-screen='settings'] .health-tile-num {
+  display: block;
+  font: 700 24px var(--m-font-mono, ui-monospace, monospace);
+  line-height: 1.2;
+}
+
+[data-screen='settings'] .health-tile-num.health-ok {
+  color: var(--m-success, var(--theme-success));
+}
+
+[data-screen='settings'] .health-tile-num.health-issue {
+  color: var(--theme-danger);
+}
+
+[data-screen='settings'] .health-tile-num.health-info {
+  color: var(--theme-accent-secondary, var(--theme-accent));
+}
+
+[data-screen='settings'] .health-tile-num.health-legacy {
+  color: var(--theme-warning);
+}
+
+[data-screen='settings'] .health-tile-cap {
+  display: block;
+  margin-top: 4px;
+  font: 500 9.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+/* Findings list + right column (presets, required keys) */
+[data-screen='settings'] .health-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+[data-screen='settings'] .health-cols > .card {
+  flex: 999 1 560px;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+[data-screen='settings'] .health-side {
+  flex: 1 1 340px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+[data-screen='settings'] .health-side > .card {
+  margin-bottom: 0;
+}
+
+[data-screen='settings'] .health-fixall-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--m-border-subtle, var(--theme-border-subtle));
+}
+
+[data-screen='settings'] .health-empty {
+  padding: 18px 16px;
+  font: 500 12px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+  line-height: 1.5;
+}
+
+[data-screen='settings'] .health-iss {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  gap: 14px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border-subtle));
+  align-items: start;
+}
+
+[data-screen='settings'] .health-iss:last-child {
+  border-bottom: none;
+}
+
+[data-screen='settings'] .health-sev {
+  font-size: 13px;
+  line-height: 20px;
+}
+
+[data-screen='settings'] .health-sev-issue {
+  color: var(--theme-danger);
+}
+
+[data-screen='settings'] .health-sev-info {
+  color: var(--theme-accent-secondary, var(--theme-accent));
+}
+
+[data-screen='settings'] .health-sev-legacy {
+  color: var(--theme-warning);
+}
+
+[data-screen='settings'] .health-iss-msg {
+  font: 500 11.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text, var(--theme-text));
+  line-height: 1.55;
+}
+
+[data-screen='settings'] .health-chip {
+  display: inline-block;
+  margin-left: 6px;
+  font: 500 10px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-green-500, var(--theme-accent));
+  background: color-mix(
+    in srgb,
+    var(--m-green-500, var(--theme-accent)) 7%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 25%, transparent);
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+  vertical-align: 1px;
+}
+
+[data-screen='settings'] .health-diff {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+}
+
+[data-screen='settings'] .health-diff-key {
+  color: var(--m-text-faint, var(--theme-muted));
+}
+
+[data-screen='settings'] .health-diff-old {
+  color: var(--theme-danger);
+  text-decoration: line-through;
+}
+
+[data-screen='settings'] .health-diff-new {
+  color: var(--m-green-500, var(--theme-accent));
+}
+
+/* Presets card */
+[data-screen='settings'] .health-pre-list {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+[data-screen='settings'] .health-pre {
+  border: 1px solid var(--m-border, var(--theme-border));
+  border-radius: var(--m-radius-md, 6px);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--m-bg, var(--theme-bg));
+}
+
+[data-screen='settings'] .health-pre-h {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+[data-screen='settings'] .health-pre-name {
+  font: 600 13px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text, var(--theme-text));
+}
+
+[data-screen='settings'] .health-pre-tag {
+  font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--theme-accent-secondary, var(--theme-accent));
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+[data-screen='settings'] .health-pre-tail {
+  font: 500 10.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+}
+
+[data-screen='settings'] .health-pre-lines {
+  display: flex;
+  flex-direction: column;
+}
+
+[data-screen='settings'] .health-pl {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font: 500 11px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+  border-bottom: 1px dashed var(--m-border-faint, var(--theme-border-subtle));
+  padding: 3px 0;
+}
+
+[data-screen='settings'] .health-pl:last-child {
+  border-bottom: none;
+}
+
+[data-screen='settings'] .health-pl b {
+  color: var(--m-text, var(--theme-text));
+  font-weight: 600;
+  text-align: right;
+}
+
+[data-screen='settings'] .health-pre-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+/* Required-for-SwitchUI card */
+[data-screen='settings'] .health-lock {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  border-bottom: 1px solid var(--m-border-faint, var(--theme-border-subtle));
+  font: 500 11.5px var(--m-font-mono, ui-monospace, monospace);
+}
+
+[data-screen='settings'] .health-lock-state {
+  color: var(--m-text-muted, var(--theme-muted));
+  text-align: right;
+}
+
+[data-screen='settings'] .health-lock-state.ok {
+  color: var(--m-success, var(--theme-success));
+}
+
+[data-screen='settings'] .health-lock-state.bad {
+  color: var(--theme-danger);
+}
+
+[data-screen='settings'] .health-lock-note {
+  padding: 10px 16px;
+  font: 500 10.5px var(--m-font-mono, ui-monospace, monospace);
+  color: var(--m-text-muted, var(--theme-muted));
+}
+
+[data-screen='settings'] .health-iss-body {
+  min-width: 0;
+}
+
+[data-screen='settings'] .health-diff-item {
+  white-space: nowrap;
+}

@@ -44,14 +44,16 @@ export type SectionSpec = {
  * schema key count (`SchemaIndex.fields.length` — 837 in the captured
  * fixture; never a hard-coded number).
  *
- * `Overview` is deliberately absent: it is a placeholder group with no section
- * until P5B adds `health` (wave 3). A group with no sections cannot render.
+ * `Overview` leads the tree with the Config health page (P5B, board C) — the
+ * live lint of the draft against defaults, recommendations and the SwitchUI
+ * required keys.
  */
 export const GROUP_SPECS: Array<{
   label: string
   hint?: string
   hintKeyCount?: boolean
 }> = [
+  { label: 'Overview' },
   { label: 'Models', hint: 'fallback · aux' },
   { label: 'Agent behavior' },
   { label: 'Context & memory', hint: 'compression' },
@@ -69,6 +71,18 @@ export const GROUP_SPECS: Array<{
 ]
 
 export const SECTION_SPECS: Array<SectionSpec> = [
+  // ── Overview ──────────────────────────────────────────────────────────────
+  {
+    id: 'health',
+    label: 'Config health',
+    group: 'Overview',
+    // Writes the draft store through Fix / preset buttons, but declares no
+    // keys: every key it can write already belongs to the curated section
+    // that owns it (or the All-settings catch-all), so dirty dots light
+    // where the keys live rather than here.
+    ownership: 'store',
+  },
+
   // ── Models ───────────────────────────────────────────────────────────────
   {
     id: 'provider',
@@ -376,6 +390,7 @@ export const SECTION_COMPONENTS: Record<
   string,
   ComponentType<SectionProps> | undefined
 > = {
+  health: lazy(() => import('../sections/section-health')),
   workspace: lazy(() => import('../sections/section-workspace')),
   account: lazy(() => import('../sections/section-account')),
   appearance: lazy(() => import('../sections/section-appearance')),

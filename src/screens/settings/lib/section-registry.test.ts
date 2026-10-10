@@ -247,8 +247,13 @@ describe('board A intent groups', () => {
       'raw-config',
       'danger',
     ]
-    expect(ids).toEqual(new Set(beforeRegroup))
-    for (const id of beforeRegroup) {
+    // P5B adds `health` — every pre-regroup section must still be there.
+    expect(ids.has('health')).toBe(true)
+    expect(
+      [...beforeRegroup].every((id) => ids.has(id)),
+      'every pre-regroup id still reachable',
+    ).toBe(true)
+    for (const id of [...beforeRegroup, 'health']) {
       expect(SECTION_COMPONENTS[id], id).toBeTruthy()
     }
   })
@@ -276,13 +281,14 @@ describe('board A intent groups', () => {
     expect(groupOf('danger')).toBe('Danger')
   })
 
-  it('has a board A spec for every rendered group, and no Overview yet', () => {
+  it('has a spec for every rendered group, and Overview leads it with health', () => {
     const labels = new Set(SECTION_SPECS.map((s) => s.group))
     for (const g of GROUP_SPECS) {
       expect(labels.has(g.label), g.label).toBe(true)
     }
-    // Overview is a placeholder until P5B adds the health section (wave 3);
-    // a group with no sections must not appear in the tree.
-    expect(labels.has('Overview')).toBe(false)
+    // P5B (board C): Overview now renders — first group, health section.
+    expect(GROUP_SPECS[0]?.label).toBe('Overview')
+    expect(SECTION_SPECS[0]?.id).toBe('health')
+    expect(SECTION_SPECS[0]?.group).toBe('Overview')
   })
 })
