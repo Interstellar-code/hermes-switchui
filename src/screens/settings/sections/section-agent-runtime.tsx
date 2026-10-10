@@ -39,6 +39,8 @@ import { useState } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider, Segmented } from '../components/controls'
+import { SelectField } from '../components/select-field'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSchemaOptions } from '../lib/schema-binding'
 import { useSettingsStore } from '@/stores/settings-store'
 
@@ -141,6 +143,7 @@ export default function SectionAgentRuntime() {
         <SettingRow
           label="Max turns"
           desc="Cap on tool-calling iterations per turn — ∞ leaves the agent uncapped"
+          meta={getKeyMeta('config.agent.max_turns')}
         >
           {({ labelId }) => (
             <div
@@ -185,6 +188,7 @@ export default function SectionAgentRuntime() {
         <SettingRow
           label="Gateway timeout"
           desc={`${gatewayTimeout === 0 ? '∞ off' : `${gatewayTimeout}s`} — idle seconds without activity before the gateway gives up; 0 means no timeout`}
+          meta={getKeyMeta('config.agent.gateway_timeout')}
         >
           <NumberSlider
             min={0}
@@ -197,6 +201,7 @@ export default function SectionAgentRuntime() {
         <SettingRow
           label="API max retries"
           desc="Times to retry a failed API call"
+          meta={getKeyMeta('config.agent.api_max_retries')}
         >
           <NumberSlider
             min={0}
@@ -212,22 +217,18 @@ export default function SectionAgentRuntime() {
         <SettingRow
           label="Fast mode"
           desc="Provider service tier sent with each request — priority lanes queue less and cost more"
+          meta={getKeyMeta('config.agent.service_tier')}
         >
-          <select
-            className="select-input"
+          <SelectField
+            options={serviceTierOptions}
             value={serviceTier}
-            onChange={(e) => set('config.agent.service_tier', e.target.value)}
-          >
-            {serviceTierOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => set('config.agent.service_tier', v)}
+          />
         </SettingRow>
         <SettingRow
           label="Tool use enforcement"
           desc="Adds a must-use-your-tools instruction to the prompt — it never removes a tool. auto — only for models that need steering; on — always; off — never (tools still work)"
+          meta={getKeyMeta('config.agent.tool_use_enforcement')}
         >
           <Segmented
             options={ENFORCEMENT_OPTIONS}

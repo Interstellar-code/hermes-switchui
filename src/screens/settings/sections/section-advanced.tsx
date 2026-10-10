@@ -5,6 +5,8 @@
 import { useEffect } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
+import { SelectField } from '../components/select-field'
+import { getKeyMeta } from '../lib/key-meta'
 import { useSettingsStore } from '@/stores/settings-store'
 import { toast } from '@/components/ui/toast'
 import { getLogs } from '@/lib/hermes-client'
@@ -52,17 +54,19 @@ export default function SectionAdvanced() {
       </div>
 
       <SettingCard title="Logging">
-        <SettingRow label="Log level" desc="Minimum verbosity written to ~/.hermes/logs/agent.log">
-          <select
-            className="input-sm"
+        <SettingRow
+          label="Log level"
+          desc="Minimum verbosity written to ~/.hermes/logs/agent.log"
+          meta={getKeyMeta(K.log_level)}
+        >
+          <SelectField
+            options={LOG_LEVEL_OPTIONS.map((opt) => ({
+              value: opt,
+              label: opt,
+            }))}
             value={logLevel}
-            onChange={(e) => set(K.log_level, e.target.value)}
-            style={{ width: 110, fontFamily: 'var(--m-font-mono, ui-monospace, monospace)', fontSize: 12 }}
-          >
-            {LOG_LEVEL_OPTIONS.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
+            onChange={(v) => set(K.log_level, v)}
+          />
         </SettingRow>
       </SettingCard>
 

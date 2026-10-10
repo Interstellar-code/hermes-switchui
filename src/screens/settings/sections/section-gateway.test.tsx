@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import SectionGateway, {
@@ -329,5 +330,27 @@ describe('SectionGateway', () => {
     await waitFor(() => expect(mockFetchScopeStatus).toHaveBeenCalled())
 
     expect(screen.queryByText(/SwitchUI's gateway connection/i)).toBeNull()
+  })
+
+  it('shows key-meta badges on the multiplex and API server rows', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
+    loadDraft({})
+
+    renderSection()
+    await waitFor(() => expect(mockFetchScopeStatus).toHaveBeenCalled())
+
+    const multiplexRow = screen
+      .getByText('Multiplex profiles')
+      .closest('.row') as HTMLElement
+    expect(within(multiplexRow).getByText('config.yaml')).toBeTruthy()
+    expect(within(multiplexRow).getByText('Needs restart')).toBeTruthy()
+
+    const hostRow = screen.getByText('Host').closest('.row') as HTMLElement
+    expect(within(hostRow).getByText('config.yaml')).toBeTruthy()
+    expect(within(hostRow).getByText('Needs restart')).toBeTruthy()
   })
 })

@@ -36,6 +36,8 @@ import { useQuery } from '@tanstack/react-query'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { NumberSlider, Segmented, Toggle } from '../components/controls'
+import { TextField } from '../components/text-field'
+import { getKeyMeta } from '../lib/key-meta'
 import type { ReactNode } from 'react'
 import { useSettingsStore } from '@/stores/settings-store'
 import {
@@ -216,6 +218,7 @@ export default function SectionExecution() {
         <SettingRow
           label="Terminal backend"
           desc="Only local and docker are supported here — we cannot test Modal, Singularity, Daytona, or SSH-style remotes in this UI, and a broken picker for them is worse than no picker. Configure those via the raw config editor."
+          meta={getKeyMeta('config.terminal.backend')}
         >
           <Segmented
             options={backendOptions}
@@ -232,6 +235,7 @@ export default function SectionExecution() {
         <SettingRow
           label="Command timeout"
           desc={`${timeout}s — max seconds a terminal command may run`}
+          meta={getKeyMeta('config.terminal.timeout')}
         >
           <NumberSlider
             min={10}
@@ -249,6 +253,7 @@ export default function SectionExecution() {
               ? 'This is a no-op on the local backend (tools/terminal_tool.py:1440-1444) — local only reads TERMINAL_LOCAL_PERSISTENT, which no config key sets. Toggling it here changes nothing while backend is local.'
               : 'Keep a long-lived shell across commands so cwd/env vars survive between calls.'
           }
+          meta={getKeyMeta('config.terminal.persistent_shell')}
         >
           <Toggle
             on={persistentShell}
@@ -265,6 +270,7 @@ export default function SectionExecution() {
               ? 'Scripts run isolated in a temp directory with hermes-agent’s own Python — maximum reproducibility, but project deps and relative paths will not resolve.'
               : "Scripts run in the session's working directory with the active virtualenv — project deps and relative paths resolve normally."
           }
+          meta={getKeyMeta('config.code_execution.mode')}
         >
           <Segmented
             options={EXECUTION_MODES}
@@ -291,20 +297,18 @@ export default function SectionExecution() {
             <SettingRow
               label="Docker image"
               desc="Image used for sandboxed docker terminal sessions"
+              meta={getKeyMeta('config.terminal.docker_image')}
             >
-              <input
-                type="text"
-                className="text-input"
+              <TextField
                 value={dockerImage}
-                onChange={(e) =>
-                  set('config.terminal.docker_image', e.target.value)
-                }
+                onChange={(v) => set('config.terminal.docker_image', v)}
               />
             </SettingRow>
             <SettingRow
               label="Mount host cwd to /workspace"
               pill={{ t: 'danger' }}
               desc="Off by default — passing host directories into the sandbox weakens isolation. When ON, the agent's filesystem view becomes the bind-mounted host directory at /workspace instead of an isolated container filesystem; files it writes land directly on your host."
+              meta={getKeyMeta('config.terminal.docker_mount_cwd_to_workspace')}
             >
               <Toggle
                 on={dockerMountCwd}
@@ -318,7 +322,9 @@ export default function SectionExecution() {
               desc={
                 'One "host_path:container_path" mount per line (standard docker -v syntax).'
               }
+              meta={getKeyMeta('config.terminal.docker_volumes')}
             >
+              {/* Raw: multiline editing — TextField is single-line. */}
               <textarea
                 className="text-input"
                 rows={3}
@@ -339,13 +345,18 @@ export default function SectionExecution() {
             <SettingRow
               label="Network access"
               desc="Off runs the container with --network=none (no egress)"
+              meta={getKeyMeta('config.terminal.docker_network')}
             >
               <Toggle
                 on={dockerNetwork}
                 set={(v) => set('config.terminal.docker_network', v)}
               />
             </SettingRow>
-            <SettingRow label="CPU limit" desc={`${containerCpu} core(s)`}>
+            <SettingRow
+              label="CPU limit"
+              desc={`${containerCpu} core(s)`}
+              meta={getKeyMeta('config.terminal.container_cpu')}
+            >
               <NumberSlider
                 min={1}
                 max={16}
@@ -354,7 +365,11 @@ export default function SectionExecution() {
                 onChange={(v) => set('config.terminal.container_cpu', v)}
               />
             </SettingRow>
-            <SettingRow label="Memory limit" desc={`${containerMemory} MB`}>
+            <SettingRow
+              label="Memory limit"
+              desc={`${containerMemory} MB`}
+              meta={getKeyMeta('config.terminal.container_memory')}
+            >
               <NumberSlider
                 min={512}
                 max={32768}
@@ -363,7 +378,11 @@ export default function SectionExecution() {
                 onChange={(v) => set('config.terminal.container_memory', v)}
               />
             </SettingRow>
-            <SettingRow label="Disk limit" desc={`${containerDisk} MB`}>
+            <SettingRow
+              label="Disk limit"
+              desc={`${containerDisk} MB`}
+              meta={getKeyMeta('config.terminal.container_disk')}
+            >
               <NumberSlider
                 min={1024}
                 max={204800}

@@ -20,6 +20,7 @@ import { useState } from 'react'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { Segmented } from '../components/controls'
+import { getKeyMeta } from '../lib/key-meta'
 import type { ThemeId } from '@/lib/theme'
 import { THEMES, getTheme, setTheme } from '@/lib/theme'
 
@@ -58,7 +59,11 @@ export default function SectionAppearance() {
         not claim to speak for it.
       */}
       <SettingCard title="Theme" saves="self">
-        <SettingRow label="Theme" pill={{ t: 'local-only' }}>
+        <SettingRow
+          label="Theme"
+          pill={{ t: 'local-only' }}
+          meta={getKeyMeta('ui.localStorage.claude-theme')}
+        >
           <Segmented
             options={THEME_OPTIONS}
             value={theme}
