@@ -6,8 +6,12 @@
  * phase render exactly as before.
  */
 
+import { useState } from 'react'
+import { SaveReviewDialog } from './save-review-dialog'
 import type { SectionOwnership } from '../lib/section-registry'
 import type { SaveState } from '@/stores/settings-store'
+import { gatewayRestart } from '@/lib/hermes-client'
+import { useSettingsStore } from '@/stores/settings-store'
 
 type SaveBarProps = {
   dirtyCount: number
@@ -86,6 +90,25 @@ export function SaveBar({
   const hasDirty = dirtyCount > 0
   const phase = saveState?.phase ?? 'idle'
   const isSaving = phase === 'saving'
+  const [reviewing, setReviewing] = useState(false)
+
+  /**
+   * Run the screen's existing save, then restart the gateway only if the save
+   * finished with no failures. `onSave` is fire-and-forget, so the outcome is
+   * read from the store's save phase (set to 'saving' synchronously by `save`).
+   */
+  function confirmSave(restart: boolean) {
+    setReviewing(false)
+    onSave()
+    if (!restart) return
+    const unsub = useSettingsStore.subscribe((state) => {
+      const { phase: p, failures } = state.saveState
+      if (p === 'saving') return
+      unsub()
+      if (p === 'success' && failures.length === 0) void gatewayRestart().catch(() => {})
+    })
+    if (useSettingsStore.getState().saveState.phase !== 'saving') unsub()
+  }
 
   return (
     <div className="save-bar" role="region" aria-label="Save changes">
@@ -138,12 +161,20 @@ export function SaveBar({
       <button
         type="button"
         className="btn primary"
-        onClick={onSave}
+        onClick={() => setReviewing(true)}
         disabled={isSaving || !hasDirty}
       >
         <IconSave />
         {isSaving ? 'Saving…' : 'Save changes'}
       </button>
+
+      {reviewing && (
+        <SaveReviewDialog
+          open
+          onCancel={() => setReviewing(false)}
+          onConfirm={confirmSave}
+        />
+      )}
     </div>
   )
 }
