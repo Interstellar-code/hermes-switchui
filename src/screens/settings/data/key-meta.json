@@ -270,6 +270,19 @@
     "verified": true
   },
   {
+    "id": "command_allowlist",
+    "label": "Command allowlist",
+    "group": "safety",
+    "scope": "hermes-config",
+    "applies": "restart",
+    "type": "list",
+    "default": [],
+    "effect": "Permanent 'always' approvals consulted on every dangerous-command decision: entries are exact command text or shell-style globs (e.g. 'podman *'). SwitchUI's Safety section edits it revoke-only; hand edits in config.yaml are the documented way to withdraw a standing approval, honoured after a gateway restart (the in-memory set is loaded once at agent start and never re-read on the approval hot path).",
+    "tradeoff": "More entries = fewer approval prompts but more standing trust; a broad glob quietly pre-approves a command family.",
+    "source": "tools/approval.py:1219 (load_permanent_allowlist at module import), :402-424 (load/save reconcile; 'Nothing re-reads the file on the approval hot path'), :366-386 (_read_permanent_allowlist via load_config_readonly); tools/approval_floors.py:188-200 (_command_matches_permanent_allowlist on the decision path); hermes_cli/config_defaults.py:1586 (default []); SwitchUI revoke-only editor sections/section-safety.tsx:72,86",
+    "verified": true
+  },
+  {
     "id": "compression.enabled",
     "label": "Context compression",
     "group": "agent-runtime",
