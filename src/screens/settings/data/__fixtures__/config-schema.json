@@ -1,0 +1,4941 @@
+{
+    "fields": {
+        "model": {
+            "type": "string",
+            "description": "Default model (e.g. anthropic/claude-sonnet-4.6)",
+            "category": "general"
+        },
+        "model_context_length": {
+            "type": "number",
+            "description": "Context window override (0 = auto-detect from model metadata)",
+            "category": "general"
+        },
+        "fallback_providers": {
+            "type": "list",
+            "description": "Fallback Providers",
+            "category": "general"
+        },
+        "toolsets": {
+            "type": "list",
+            "description": "Toolsets",
+            "category": "general"
+        },
+        "api_server.interactive_clarify": {
+            "type": "boolean",
+            "description": "Api Server \u2192 Interactive Clarify",
+            "category": "agent"
+        },
+        "database.journal_mode": {
+            "type": "string",
+            "description": "Database \u2192 Journal Mode",
+            "category": "database"
+        },
+        "database.wal_autocheckpoint": {
+            "type": "string",
+            "description": "Database \u2192 Wal Autocheckpoint",
+            "category": "database"
+        },
+        "database.journal_size_limit": {
+            "type": "string",
+            "description": "Database \u2192 Journal Size Limit",
+            "category": "database"
+        },
+        "runtime.nofile_soft_limit": {
+            "type": "number",
+            "description": "Runtime \u2192 Nofile Soft Limit",
+            "category": "agent"
+        },
+        "max_concurrent_sessions": {
+            "type": "string",
+            "description": "Max Concurrent Sessions",
+            "category": "general"
+        },
+        "max_live_sessions": {
+            "type": "number",
+            "description": "Max Live Sessions",
+            "category": "general"
+        },
+        "session.terminal_continue": {
+            "type": "boolean",
+            "description": "Session \u2192 Terminal Continue",
+            "category": "general"
+        },
+        "agent.max_turns": {
+            "type": "string",
+            "description": "Agent \u2192 Max Turns",
+            "category": "agent"
+        },
+        "agent.budget_warning_ratio": {
+            "type": "string",
+            "description": "Agent \u2192 Budget Warning Ratio",
+            "category": "agent"
+        },
+        "agent.run_budget_seconds": {
+            "type": "string",
+            "description": "Agent \u2192 Run Budget Seconds",
+            "category": "agent"
+        },
+        "agent.gateway_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Timeout",
+            "category": "agent"
+        },
+        "agent.gateway_turn_lease_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Turn Lease Timeout",
+            "category": "agent"
+        },
+        "agent.agent_cache.max_size": {
+            "type": "number",
+            "description": "Agent \u2192 Agent Cache \u2192 Max Size",
+            "category": "agent"
+        },
+        "agent.agent_cache.idle_ttl_secs": {
+            "type": "number",
+            "description": "Agent \u2192 Agent Cache \u2192 Idle Ttl Secs",
+            "category": "agent"
+        },
+        "agent.agent_cache.memory_high_mb": {
+            "type": "string",
+            "description": "Agent \u2192 Agent Cache \u2192 Memory High Mb",
+            "category": "agent"
+        },
+        "agent.agent_cache.max_evictions_per_pass": {
+            "type": "number",
+            "description": "Agent \u2192 Agent Cache \u2192 Max Evictions Per Pass",
+            "category": "agent"
+        },
+        "agent.agent_cache.protect_recent": {
+            "type": "number",
+            "description": "Agent \u2192 Agent Cache \u2192 Protect Recent",
+            "category": "agent"
+        },
+        "agent.restart_drain_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Restart Drain Timeout",
+            "category": "agent"
+        },
+        "agent.cron_drain_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Cron Drain Timeout",
+            "category": "agent"
+        },
+        "agent.restart_after_turn_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Restart After Turn Timeout",
+            "category": "agent"
+        },
+        "agent.build_wait_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Build Wait Timeout",
+            "category": "agent"
+        },
+        "agent.api_max_retries": {
+            "type": "number",
+            "description": "Agent \u2192 Api Max Retries",
+            "category": "agent"
+        },
+        "agent.empty_response_guard.enabled": {
+            "type": "boolean",
+            "description": "Agent \u2192 Empty Response Guard \u2192 Enabled",
+            "category": "agent"
+        },
+        "agent.empty_response_guard.cost_threshold_usd": {
+            "type": "number",
+            "description": "Agent \u2192 Empty Response Guard \u2192 Cost Threshold Usd",
+            "category": "agent"
+        },
+        "agent.service_tier": {
+            "type": "select",
+            "description": "Fast mode: fast = always, auto = first N seconds of each turn, cold = first turn only",
+            "category": "agent",
+            "options": [
+                "",
+                "normal",
+                "fast",
+                "auto",
+                "cold"
+            ]
+        },
+        "agent.fast_auto_seconds": {
+            "type": "number",
+            "description": "Agent \u2192 Fast Auto Seconds",
+            "category": "agent"
+        },
+        "agent.tool_use_enforcement": {
+            "type": "string",
+            "description": "Agent \u2192 Tool Use Enforcement",
+            "category": "agent"
+        },
+        "agent.execution_guidance": {
+            "type": "string",
+            "description": "Agent \u2192 Execution Guidance",
+            "category": "agent"
+        },
+        "agent.intent_ack_continuation": {
+            "type": "string",
+            "description": "Agent \u2192 Intent Ack Continuation",
+            "category": "agent"
+        },
+        "agent.stall_guards": {
+            "type": "boolean",
+            "description": "Agent \u2192 Stall Guards",
+            "category": "agent"
+        },
+        "agent.task_completion_guidance": {
+            "type": "boolean",
+            "description": "Agent \u2192 Task Completion Guidance",
+            "category": "agent"
+        },
+        "agent.parallel_tool_call_guidance": {
+            "type": "boolean",
+            "description": "Agent \u2192 Parallel Tool Call Guidance",
+            "category": "agent"
+        },
+        "agent.environment_probe": {
+            "type": "boolean",
+            "description": "Agent \u2192 Environment Probe",
+            "category": "agent"
+        },
+        "agent.bot_mode_protocol": {
+            "type": "boolean",
+            "description": "Agent \u2192 Bot Mode Protocol",
+            "category": "agent"
+        },
+        "agent.environment_hint": {
+            "type": "string",
+            "description": "Agent \u2192 Environment Hint",
+            "category": "agent"
+        },
+        "agent.coding_context": {
+            "type": "string",
+            "description": "Agent \u2192 Coding Context",
+            "category": "agent"
+        },
+        "agent.coding_instructions": {
+            "type": "string",
+            "description": "Agent \u2192 Coding Instructions",
+            "category": "agent"
+        },
+        "agent.verify_guidance": {
+            "type": "boolean",
+            "description": "Agent \u2192 Verify Guidance",
+            "category": "agent"
+        },
+        "agent.max_verify_nudges": {
+            "type": "number",
+            "description": "Agent \u2192 Max Verify Nudges",
+            "category": "agent"
+        },
+        "agent.verify_on_stop": {
+            "type": "boolean",
+            "description": "Agent \u2192 Verify On Stop",
+            "category": "agent"
+        },
+        "agent.gateway_timeout_warning": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Timeout Warning",
+            "category": "agent"
+        },
+        "agent.clarify_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Clarify Timeout",
+            "category": "agent"
+        },
+        "agent.gateway_notify_interval": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Notify Interval",
+            "category": "agent"
+        },
+        "agent.session_stall_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Session Stall Timeout",
+            "category": "agent"
+        },
+        "agent.sanitizer_heal_escalation_threshold": {
+            "type": "number",
+            "description": "Agent \u2192 Sanitizer Heal Escalation Threshold",
+            "category": "agent"
+        },
+        "agent.reconnect_attention_after": {
+            "type": "number",
+            "description": "Agent \u2192 Reconnect Attention After",
+            "category": "agent"
+        },
+        "agent.gateway_auto_continue_freshness": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Auto Continue Freshness",
+            "category": "agent"
+        },
+        "agent.gateway_startup_restore_drain_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Startup Restore Drain Timeout",
+            "category": "agent"
+        },
+        "agent.gateway_startup_warmup_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Gateway Startup Warmup Timeout",
+            "category": "agent"
+        },
+        "agent.local_stream_stale_timeout": {
+            "type": "number",
+            "description": "Agent \u2192 Local Stream Stale Timeout",
+            "category": "agent"
+        },
+        "agent.image_input_mode": {
+            "type": "string",
+            "description": "Agent \u2192 Image Input Mode",
+            "category": "agent"
+        },
+        "agent.disabled_toolsets": {
+            "type": "list",
+            "description": "Agent \u2192 Disabled Toolsets",
+            "category": "agent"
+        },
+        "agent.reasoning_echo": {
+            "type": "boolean",
+            "description": "Agent \u2192 Reasoning Echo",
+            "category": "agent"
+        },
+        "agent.turn_liveness.timeout_s": {
+            "type": "number",
+            "description": "Agent \u2192 Turn Liveness \u2192 Timeout S",
+            "category": "agent"
+        },
+        "agent.turn_liveness.poll_s": {
+            "type": "number",
+            "description": "Agent \u2192 Turn Liveness \u2192 Poll S",
+            "category": "agent"
+        },
+        "terminal.backend": {
+            "type": "select",
+            "description": "Terminal execution backend",
+            "category": "terminal",
+            "options": [
+                "local",
+                "docker",
+                "ssh",
+                "modal",
+                "daytona",
+                "vercel_sandbox",
+                "singularity"
+            ]
+        },
+        "terminal.modal_mode": {
+            "type": "select",
+            "description": "Modal sandbox mode",
+            "category": "terminal",
+            "options": [
+                "sandbox",
+                "function"
+            ]
+        },
+        "terminal.degraded_mode": {
+            "type": "string",
+            "description": "Terminal \u2192 Degraded Mode",
+            "category": "terminal"
+        },
+        "terminal.cwd": {
+            "type": "string",
+            "description": "Terminal \u2192 Cwd",
+            "category": "terminal"
+        },
+        "terminal.temp_dir": {
+            "type": "string",
+            "description": "Terminal \u2192 Temp Dir",
+            "category": "terminal"
+        },
+        "terminal.font_family": {
+            "type": "string",
+            "description": "Terminal \u2192 Font Family",
+            "category": "terminal"
+        },
+        "terminal.timeout": {
+            "type": "number",
+            "description": "Terminal \u2192 Timeout",
+            "category": "terminal"
+        },
+        "terminal.daemon_term_grace_seconds": {
+            "type": "number",
+            "description": "Terminal \u2192 Daemon Term Grace Seconds",
+            "category": "terminal"
+        },
+        "terminal.oneshot_completion_wait_seconds": {
+            "type": "number",
+            "description": "Terminal \u2192 Oneshot Completion Wait Seconds",
+            "category": "terminal"
+        },
+        "terminal.env_passthrough": {
+            "type": "list",
+            "description": "Terminal \u2192 Env Passthrough",
+            "category": "terminal"
+        },
+        "terminal.home_mode": {
+            "type": "string",
+            "description": "Terminal \u2192 Home Mode",
+            "category": "terminal"
+        },
+        "terminal.shell_init_files": {
+            "type": "list",
+            "description": "Terminal \u2192 Shell Init Files",
+            "category": "terminal"
+        },
+        "terminal.auto_source_bashrc": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Auto Source Bashrc",
+            "category": "terminal"
+        },
+        "terminal.docker_image": {
+            "type": "string",
+            "description": "Terminal \u2192 Docker Image",
+            "category": "terminal"
+        },
+        "terminal.docker_forward_env": {
+            "type": "list",
+            "description": "Terminal \u2192 Docker Forward Env",
+            "category": "terminal"
+        },
+        "terminal.singularity_image": {
+            "type": "string",
+            "description": "Terminal \u2192 Singularity Image",
+            "category": "terminal"
+        },
+        "terminal.modal_image": {
+            "type": "string",
+            "description": "Terminal \u2192 Modal Image",
+            "category": "terminal"
+        },
+        "terminal.daytona_image": {
+            "type": "string",
+            "description": "Terminal \u2192 Daytona Image",
+            "category": "terminal"
+        },
+        "terminal.vercel_runtime": {
+            "type": "select",
+            "description": "Vercel Sandbox runtime",
+            "category": "terminal",
+            "options": [
+                "node24",
+                "node22",
+                "python3.13"
+            ]
+        },
+        "terminal.container_cpu": {
+            "type": "number",
+            "description": "Terminal \u2192 Container Cpu",
+            "category": "terminal"
+        },
+        "terminal.container_memory": {
+            "type": "number",
+            "description": "Terminal \u2192 Container Memory",
+            "category": "terminal"
+        },
+        "terminal.container_disk": {
+            "type": "number",
+            "description": "Terminal \u2192 Container Disk",
+            "category": "terminal"
+        },
+        "terminal.container_persistent": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Container Persistent",
+            "category": "terminal"
+        },
+        "terminal.docker_volumes": {
+            "type": "list",
+            "description": "Terminal \u2192 Docker Volumes",
+            "category": "terminal"
+        },
+        "terminal.docker_mount_cwd_to_workspace": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Docker Mount Cwd To Workspace",
+            "category": "terminal"
+        },
+        "terminal.docker_network": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Docker Network",
+            "category": "terminal"
+        },
+        "terminal.docker_extra_args": {
+            "type": "list",
+            "description": "Terminal \u2192 Docker Extra Args",
+            "category": "terminal"
+        },
+        "terminal.docker_shm_size": {
+            "type": "string",
+            "description": "Terminal \u2192 Docker Shm Size",
+            "category": "terminal"
+        },
+        "terminal.docker_run_as_host_user": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Docker Run As Host User",
+            "category": "terminal"
+        },
+        "terminal.docker_snap_compat": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Docker Snap Compat",
+            "category": "terminal"
+        },
+        "terminal.docker_shared_container_key": {
+            "type": "string",
+            "description": "Terminal \u2192 Docker Shared Container Key",
+            "category": "terminal"
+        },
+        "terminal.persistent_shell": {
+            "type": "boolean",
+            "description": "Terminal \u2192 Persistent Shell",
+            "category": "terminal"
+        },
+        "web.backend": {
+            "type": "string",
+            "description": "Web \u2192 Backend",
+            "category": "web"
+        },
+        "web.search_backend": {
+            "type": "string",
+            "description": "Web \u2192 Search Backend",
+            "category": "web"
+        },
+        "web.extract_backend": {
+            "type": "string",
+            "description": "Web \u2192 Extract Backend",
+            "category": "web"
+        },
+        "web.extract_char_limit": {
+            "type": "number",
+            "description": "Web \u2192 Extract Char Limit",
+            "category": "web"
+        },
+        "web.keyless_fallback": {
+            "type": "boolean",
+            "description": "Web \u2192 Keyless Fallback",
+            "category": "web"
+        },
+        "web.keyless_rescue": {
+            "type": "boolean",
+            "description": "Web \u2192 Keyless Rescue",
+            "category": "web"
+        },
+        "web.cache_enabled": {
+            "type": "boolean",
+            "description": "Web \u2192 Cache Enabled",
+            "category": "web"
+        },
+        "web.cache_ttl_minutes": {
+            "type": "number",
+            "description": "Web \u2192 Cache Ttl Minutes",
+            "category": "web"
+        },
+        "web.cache_exempt_hosts": {
+            "type": "list",
+            "description": "Web \u2192 Cache Exempt Hosts",
+            "category": "web"
+        },
+        "browser.backend": {
+            "type": "string",
+            "description": "Browser \u2192 Backend",
+            "category": "browser"
+        },
+        "browser.inactivity_timeout": {
+            "type": "number",
+            "description": "Browser \u2192 Inactivity Timeout",
+            "category": "browser"
+        },
+        "browser.command_timeout": {
+            "type": "number",
+            "description": "Browser \u2192 Command Timeout",
+            "category": "browser"
+        },
+        "browser.snapshot_threshold": {
+            "type": "number",
+            "description": "Browser \u2192 Snapshot Threshold",
+            "category": "browser"
+        },
+        "browser.record_sessions": {
+            "type": "boolean",
+            "description": "Browser \u2192 Record Sessions",
+            "category": "browser"
+        },
+        "browser.headed": {
+            "type": "boolean",
+            "description": "Run the local browser in headed mode (visible window). Also keeps the window open between turns; idle sessions are still reaped after browser.inactivity_timeout.",
+            "category": "browser"
+        },
+        "browser.allow_private_urls": {
+            "type": "boolean",
+            "description": "Browser \u2192 Allow Private Urls",
+            "category": "browser"
+        },
+        "browser.engine": {
+            "type": "string",
+            "description": "Browser \u2192 Engine",
+            "category": "browser"
+        },
+        "browser.auto_local_for_private_urls": {
+            "type": "boolean",
+            "description": "Browser \u2192 Auto Local For Private Urls",
+            "category": "browser"
+        },
+        "browser.cdp_url": {
+            "type": "string",
+            "description": "Browser \u2192 Cdp Url",
+            "category": "browser"
+        },
+        "browser.use_real_profile": {
+            "type": "boolean",
+            "description": "Browser \u2192 Use Real Profile",
+            "category": "browser"
+        },
+        "browser.real_profile_autoclose": {
+            "type": "boolean",
+            "description": "Browser \u2192 Real Profile Autoclose",
+            "category": "browser"
+        },
+        "browser.real_profile_pin": {
+            "type": "string",
+            "description": "Browser \u2192 Real Profile Pin",
+            "category": "browser"
+        },
+        "browser.allow_unsafe_evaluate": {
+            "type": "boolean",
+            "description": "Browser \u2192 Allow Unsafe Evaluate",
+            "category": "browser"
+        },
+        "browser.restrict_evaluate": {
+            "type": "boolean",
+            "description": "Browser \u2192 Restrict Evaluate",
+            "category": "browser"
+        },
+        "browser.dialog_policy": {
+            "type": "string",
+            "description": "Browser \u2192 Dialog Policy",
+            "category": "browser"
+        },
+        "browser.dialog_timeout_s": {
+            "type": "number",
+            "description": "Browser \u2192 Dialog Timeout S",
+            "category": "browser"
+        },
+        "browser.camofox.managed_persistence": {
+            "type": "boolean",
+            "description": "Browser \u2192 Camofox \u2192 Managed Persistence",
+            "category": "browser"
+        },
+        "browser.camofox.user_id": {
+            "type": "string",
+            "description": "Browser \u2192 Camofox \u2192 User Id",
+            "category": "browser"
+        },
+        "browser.camofox.session_key": {
+            "type": "string",
+            "description": "Browser \u2192 Camofox \u2192 Session Key",
+            "category": "browser"
+        },
+        "browser.camofox.adopt_existing_tab": {
+            "type": "boolean",
+            "description": "Browser \u2192 Camofox \u2192 Adopt Existing Tab",
+            "category": "browser"
+        },
+        "browser.camofox.rewrite_loopback_urls": {
+            "type": "boolean",
+            "description": "Browser \u2192 Camofox \u2192 Rewrite Loopback Urls",
+            "category": "browser"
+        },
+        "browser.camofox.loopback_host_alias": {
+            "type": "string",
+            "description": "Browser \u2192 Camofox \u2192 Loopback Host Alias",
+            "category": "browser"
+        },
+        "browser.extension_control.enabled": {
+            "type": "boolean",
+            "description": "Browser \u2192 Extension Control \u2192 Enabled",
+            "category": "browser"
+        },
+        "browser.extension_control.developer_mode": {
+            "type": "boolean",
+            "description": "Browser \u2192 Extension Control \u2192 Developer Mode",
+            "category": "browser"
+        },
+        "checkpoints.enabled": {
+            "type": "boolean",
+            "description": "Checkpoints \u2192 Enabled",
+            "category": "agent"
+        },
+        "checkpoints.max_snapshots": {
+            "type": "number",
+            "description": "Checkpoints \u2192 Max Snapshots",
+            "category": "agent"
+        },
+        "checkpoints.max_total_size_mb": {
+            "type": "number",
+            "description": "Checkpoints \u2192 Max Total Size Mb",
+            "category": "agent"
+        },
+        "checkpoints.max_file_size_mb": {
+            "type": "number",
+            "description": "Checkpoints \u2192 Max File Size Mb",
+            "category": "agent"
+        },
+        "checkpoints.auto_prune": {
+            "type": "boolean",
+            "description": "Checkpoints \u2192 Auto Prune",
+            "category": "agent"
+        },
+        "checkpoints.retention_days": {
+            "type": "number",
+            "description": "Checkpoints \u2192 Retention Days",
+            "category": "agent"
+        },
+        "checkpoints.min_interval_hours": {
+            "type": "number",
+            "description": "Checkpoints \u2192 Min Interval Hours",
+            "category": "agent"
+        },
+        "context_file_max_chars": {
+            "type": "string",
+            "description": "Context File Max Chars",
+            "category": "general"
+        },
+        "context_file_read_timeout": {
+            "type": "number",
+            "description": "Context File Read Timeout",
+            "category": "general"
+        },
+        "file_read_max_chars": {
+            "type": "number",
+            "description": "File Read Max Chars",
+            "category": "general"
+        },
+        "mcp_discovery_timeout": {
+            "type": "number",
+            "description": "Mcp Discovery Timeout",
+            "category": "general"
+        },
+        "mcp_single_query_discovery_timeout": {
+            "type": "number",
+            "description": "Mcp Single Query Discovery Timeout",
+            "category": "general"
+        },
+        "mcp.auto_reload_on_config_change": {
+            "type": "boolean",
+            "description": "Mcp \u2192 Auto Reload On Config Change",
+            "category": "agent"
+        },
+        "tool_output.max_bytes": {
+            "type": "number",
+            "description": "Tool Output \u2192 Max Bytes",
+            "category": "tool_output"
+        },
+        "tool_output.max_lines": {
+            "type": "number",
+            "description": "Tool Output \u2192 Max Lines",
+            "category": "tool_output"
+        },
+        "tool_output.max_line_length": {
+            "type": "number",
+            "description": "Tool Output \u2192 Max Line Length",
+            "category": "tool_output"
+        },
+        "tool_loop_guardrails.warnings_enabled": {
+            "type": "boolean",
+            "description": "Tool Loop Guardrails \u2192 Warnings Enabled",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.hard_stop_enabled": {
+            "type": "boolean",
+            "description": "Tool Loop Guardrails \u2192 Hard Stop Enabled",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.non_interactive_hard_stop_enabled": {
+            "type": "boolean",
+            "description": "Tool Loop Guardrails \u2192 Non Interactive Hard Stop Enabled",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.warn_after.exact_failure": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Warn After \u2192 Exact Failure",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.warn_after.same_tool_failure": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Warn After \u2192 Same Tool Failure",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.warn_after.idempotent_no_progress": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Warn After \u2192 Idempotent No Progress",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.hard_stop_after.exact_failure": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Hard Stop After \u2192 Exact Failure",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.hard_stop_after.same_tool_failure": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Hard Stop After \u2192 Same Tool Failure",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.hard_stop_after.idempotent_no_progress": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Hard Stop After \u2192 Idempotent No Progress",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.loop_caps.max_web_searches": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Loop Caps \u2192 Max Web Searches",
+            "category": "tool_loop_guardrails"
+        },
+        "tool_loop_guardrails.loop_caps.max_subagents": {
+            "type": "number",
+            "description": "Tool Loop Guardrails \u2192 Loop Caps \u2192 Max Subagents",
+            "category": "tool_loop_guardrails"
+        },
+        "compression.enabled": {
+            "type": "boolean",
+            "description": "Compression \u2192 Enabled",
+            "category": "compression"
+        },
+        "compression.checkpoint_required": {
+            "type": "boolean",
+            "description": "Compression \u2192 Checkpoint Required",
+            "category": "compression"
+        },
+        "compression.progress_notices": {
+            "type": "boolean",
+            "description": "Compression \u2192 Progress Notices",
+            "category": "compression"
+        },
+        "compression.threshold": {
+            "type": "number",
+            "description": "Compression \u2192 Threshold",
+            "category": "compression"
+        },
+        "compression.threshold_tokens": {
+            "type": "string",
+            "description": "Compression \u2192 Threshold Tokens",
+            "category": "compression"
+        },
+        "compression.target_ratio": {
+            "type": "number",
+            "description": "Compression \u2192 Target Ratio",
+            "category": "compression"
+        },
+        "compression.tail_mode": {
+            "type": "string",
+            "description": "Compression \u2192 Tail Mode",
+            "category": "compression"
+        },
+        "compression.protect_last_n": {
+            "type": "number",
+            "description": "Compression \u2192 Protect Last N",
+            "category": "compression"
+        },
+        "compression.min_tail_user_messages": {
+            "type": "number",
+            "description": "Compression \u2192 Min Tail User Messages",
+            "category": "compression"
+        },
+        "compression.max_attempts": {
+            "type": "number",
+            "description": "Compression \u2192 Max Attempts",
+            "category": "compression"
+        },
+        "compression.proactive_prune_tokens": {
+            "type": "number",
+            "description": "Compression \u2192 Proactive Prune Tokens",
+            "category": "compression"
+        },
+        "compression.proactive_prune_min_result_chars": {
+            "type": "number",
+            "description": "Compression \u2192 Proactive Prune Min Result Chars",
+            "category": "compression"
+        },
+        "compression.proactive_prune_min_reclaim_tokens": {
+            "type": "number",
+            "description": "Compression \u2192 Proactive Prune Min Reclaim Tokens",
+            "category": "compression"
+        },
+        "compression.micro_compact": {
+            "type": "boolean",
+            "description": "Compression \u2192 Micro Compact",
+            "category": "compression"
+        },
+        "compression.micro_compact_every_n_turns": {
+            "type": "number",
+            "description": "Compression \u2192 Micro Compact Every N Turns",
+            "category": "compression"
+        },
+        "compression.micro_compact_defrag_threshold_tokens": {
+            "type": "number",
+            "description": "Compression \u2192 Micro Compact Defrag Threshold Tokens",
+            "category": "compression"
+        },
+        "compression.hygiene_hard_message_limit": {
+            "type": "number",
+            "description": "Compression \u2192 Hygiene Hard Message Limit",
+            "category": "compression"
+        },
+        "compression.hygiene_timeout_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Hygiene Timeout Seconds",
+            "category": "compression"
+        },
+        "compression.hygiene_total_ceiling_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Hygiene Total Ceiling Seconds",
+            "category": "compression"
+        },
+        "compression.hygiene_failure_cooldown_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Hygiene Failure Cooldown Seconds",
+            "category": "compression"
+        },
+        "compression.hygiene_max_turn_hold_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Hygiene Max Turn Hold Seconds",
+            "category": "compression"
+        },
+        "compression.context_timeout_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Context Timeout Seconds",
+            "category": "compression"
+        },
+        "compression.context_total_ceiling_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Context Total Ceiling Seconds",
+            "category": "compression"
+        },
+        "compression.protect_first_n": {
+            "type": "number",
+            "description": "Compression \u2192 Protect First N",
+            "category": "compression"
+        },
+        "compression.abort_on_summary_failure": {
+            "type": "boolean",
+            "description": "Compression \u2192 Abort On Summary Failure",
+            "category": "compression"
+        },
+        "compression.codex_gpt55_autoraise": {
+            "type": "boolean",
+            "description": "Compression \u2192 Codex Gpt55 Autoraise",
+            "category": "compression"
+        },
+        "compression.codex_gpt55_autoraise_notice": {
+            "type": "boolean",
+            "description": "Compression \u2192 Codex Gpt55 Autoraise Notice",
+            "category": "compression"
+        },
+        "compression.codex_app_server_auto": {
+            "type": "string",
+            "description": "Compression \u2192 Codex App Server Auto",
+            "category": "compression"
+        },
+        "compression.codex_responses_native": {
+            "type": "boolean",
+            "description": "Compression \u2192 Codex Responses Native",
+            "category": "compression"
+        },
+        "compression.codex_responses_compact_threshold": {
+            "type": "string",
+            "description": "Compression \u2192 Codex Responses Compact Threshold",
+            "category": "compression"
+        },
+        "compression.in_place": {
+            "type": "boolean",
+            "description": "Compression \u2192 In Place",
+            "category": "compression"
+        },
+        "compression.idle_compact_after_seconds": {
+            "type": "number",
+            "description": "Compression \u2192 Idle Compact After Seconds",
+            "category": "compression"
+        },
+        "prompt_caching.cache_ttl": {
+            "type": "string",
+            "description": "Prompt Caching \u2192 Cache Ttl",
+            "category": "agent"
+        },
+        "openrouter.response_cache": {
+            "type": "boolean",
+            "description": "Openrouter \u2192 Response Cache",
+            "category": "openrouter"
+        },
+        "openrouter.response_cache_ttl": {
+            "type": "number",
+            "description": "Openrouter \u2192 Response Cache Ttl",
+            "category": "openrouter"
+        },
+        "openrouter.min_coding_score": {
+            "type": "number",
+            "description": "Openrouter \u2192 Min Coding Score",
+            "category": "openrouter"
+        },
+        "bedrock.region": {
+            "type": "string",
+            "description": "Bedrock \u2192 Region",
+            "category": "bedrock"
+        },
+        "bedrock.discovery.enabled": {
+            "type": "boolean",
+            "description": "Bedrock \u2192 Discovery \u2192 Enabled",
+            "category": "bedrock"
+        },
+        "bedrock.discovery.provider_filter": {
+            "type": "list",
+            "description": "Bedrock \u2192 Discovery \u2192 Provider Filter",
+            "category": "bedrock"
+        },
+        "bedrock.discovery.refresh_interval": {
+            "type": "number",
+            "description": "Bedrock \u2192 Discovery \u2192 Refresh Interval",
+            "category": "bedrock"
+        },
+        "bedrock.guardrail.guardrail_identifier": {
+            "type": "string",
+            "description": "Bedrock \u2192 Guardrail \u2192 Guardrail Identifier",
+            "category": "bedrock"
+        },
+        "bedrock.guardrail.guardrail_version": {
+            "type": "string",
+            "description": "Bedrock \u2192 Guardrail \u2192 Guardrail Version",
+            "category": "bedrock"
+        },
+        "bedrock.guardrail.stream_processing_mode": {
+            "type": "string",
+            "description": "Bedrock \u2192 Guardrail \u2192 Stream Processing Mode",
+            "category": "bedrock"
+        },
+        "bedrock.guardrail.trace": {
+            "type": "string",
+            "description": "Bedrock \u2192 Guardrail \u2192 Trace",
+            "category": "bedrock"
+        },
+        "auxiliary.transient_retries": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Transient Retries",
+            "category": "auxiliary"
+        },
+        "auxiliary.free_only": {
+            "type": "boolean",
+            "description": "Auxiliary \u2192 Free Only",
+            "category": "auxiliary"
+        },
+        "auxiliary.openrouter_model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Openrouter Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.stream_only_base_urls": {
+            "type": "list",
+            "description": "Auxiliary \u2192 Stream Only Base Urls",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Vision \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Vision \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Vision \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Vision \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Vision \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Vision \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.vision.download_timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Vision \u2192 Download Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.compression.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Compression \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.compression.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Compression \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.compression.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Compression \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.compression.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Compression \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.compression.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Compression \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.compression.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Compression \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.skills_hub.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Skills Hub \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.skills_hub.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Skills Hub \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.skills_hub.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Skills Hub \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.skills_hub.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Skills Hub \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.skills_hub.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Skills Hub \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.skills_hub.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Skills Hub \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.approval.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Approval \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.approval.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Approval \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.approval.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Approval \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.approval.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Approval \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.approval.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Approval \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.approval.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Approval \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.review.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Review \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.review.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Review \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.review.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Review \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.review.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Review \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.review.api_mode": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Review \u2192 Api Mode",
+            "category": "auxiliary"
+        },
+        "auxiliary.mcp.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Mcp \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.mcp.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Mcp \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.mcp.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Mcp \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.mcp.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Mcp \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.mcp.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Mcp \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.mcp.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Mcp \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.enabled": {
+            "type": "boolean",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Enabled",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.prefer_fast_model": {
+            "type": "boolean",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Prefer Fast Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.title_generation.language": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Title Generation \u2192 Language",
+            "category": "auxiliary"
+        },
+        "auxiliary.memory_query_rewrite.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Memory Query Rewrite \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.memory_query_rewrite.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Memory Query Rewrite \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.memory_query_rewrite.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Memory Query Rewrite \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.memory_query_rewrite.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Memory Query Rewrite \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.memory_query_rewrite.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Memory Query Rewrite \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.tts_audio_tags.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Tts Audio Tags \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.tts_audio_tags.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Tts Audio Tags \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.tts_audio_tags.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Tts Audio Tags \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.tts_audio_tags.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Tts Audio Tags \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.tts_audio_tags.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Tts Audio Tags \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.tts_audio_tags.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Tts Audio Tags \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.triage_specifier.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Triage Specifier \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.triage_specifier.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Triage Specifier \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.triage_specifier.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Triage Specifier \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.triage_specifier.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Triage Specifier \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.triage_specifier.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Triage Specifier \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.triage_specifier.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Triage Specifier \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.kanban_decomposer.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Kanban Decomposer \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.kanban_decomposer.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Kanban Decomposer \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.kanban_decomposer.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Kanban Decomposer \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.kanban_decomposer.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Kanban Decomposer \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.kanban_decomposer.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Kanban Decomposer \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.kanban_decomposer.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Kanban Decomposer \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.profile_describer.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Profile Describer \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.profile_describer.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Profile Describer \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.profile_describer.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Profile Describer \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.profile_describer.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Profile Describer \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.profile_describer.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Profile Describer \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.profile_describer.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Profile Describer \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.goal_judge.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Goal Judge \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.goal_judge.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Goal Judge \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.goal_judge.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Goal Judge \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.goal_judge.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Goal Judge \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.goal_judge.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Goal Judge \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.goal_judge.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Goal Judge \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.curator.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Curator \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.curator.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Curator \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.curator.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Curator \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.curator.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Curator \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.curator.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Curator \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.curator.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Curator \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.monitor.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Monitor \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.monitor.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Monitor \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.monitor.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Monitor \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.monitor.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Monitor \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.monitor.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Monitor \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.monitor.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Monitor \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.enabled": {
+            "type": "boolean",
+            "description": "Auxiliary \u2192 Background Review \u2192 Enabled",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Background Review \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Background Review \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Background Review \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Background Review \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Background Review \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.reasoning_effort": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Background Review \u2192 Reasoning Effort",
+            "category": "auxiliary"
+        },
+        "auxiliary.background_review.max_input_tokens": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Background Review \u2192 Max Input Tokens",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_reference.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Reference \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_reference.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Reference \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_reference.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Reference \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_reference.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Reference \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_reference.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Moa Reference \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_aggregator.provider": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Aggregator \u2192 Provider",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_aggregator.model": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Aggregator \u2192 Model",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_aggregator.base_url": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Aggregator \u2192 Base Url",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_aggregator.api_key": {
+            "type": "string",
+            "description": "Auxiliary \u2192 Moa Aggregator \u2192 Api Key",
+            "category": "auxiliary"
+        },
+        "auxiliary.moa_aggregator.timeout": {
+            "type": "number",
+            "description": "Auxiliary \u2192 Moa Aggregator \u2192 Timeout",
+            "category": "auxiliary"
+        },
+        "display.compact": {
+            "type": "boolean",
+            "description": "Display \u2192 Compact",
+            "category": "display"
+        },
+        "display.personality": {
+            "type": "string",
+            "description": "Display \u2192 Personality",
+            "category": "display"
+        },
+        "display.resume_display": {
+            "type": "select",
+            "description": "How resumed sessions display history",
+            "category": "display",
+            "options": [
+                "minimal",
+                "full",
+                "off"
+            ]
+        },
+        "display.resume_exchanges": {
+            "type": "number",
+            "description": "Display \u2192 Resume Exchanges",
+            "category": "display"
+        },
+        "display.resume_max_user_chars": {
+            "type": "number",
+            "description": "Display \u2192 Resume Max User Chars",
+            "category": "display"
+        },
+        "display.resume_max_assistant_chars": {
+            "type": "number",
+            "description": "Display \u2192 Resume Max Assistant Chars",
+            "category": "display"
+        },
+        "display.resume_max_assistant_lines": {
+            "type": "number",
+            "description": "Display \u2192 Resume Max Assistant Lines",
+            "category": "display"
+        },
+        "display.resume_skip_tool_only": {
+            "type": "boolean",
+            "description": "Display \u2192 Resume Skip Tool Only",
+            "category": "display"
+        },
+        "display.busy_input_mode": {
+            "type": "select",
+            "description": "Input behavior while agent is running",
+            "category": "display",
+            "options": [
+                "interrupt",
+                "queue",
+                "steer"
+            ]
+        },
+        "display.busy_steer_ack_enabled": {
+            "type": "boolean",
+            "description": "Display \u2192 Busy Steer Ack Enabled",
+            "category": "display"
+        },
+        "display.cli_multiline_shortcuts": {
+            "type": "boolean",
+            "description": "Display \u2192 Cli Multiline Shortcuts",
+            "category": "display"
+        },
+        "display.interface": {
+            "type": "string",
+            "description": "Display \u2192 Interface",
+            "category": "display"
+        },
+        "display.tui_auto_resume_recent": {
+            "type": "boolean",
+            "description": "Display \u2192 Tui Auto Resume Recent",
+            "category": "display"
+        },
+        "display.resume_last_session": {
+            "type": "boolean",
+            "description": "Display \u2192 Resume Last Session",
+            "category": "display"
+        },
+        "display.tui_agents_nudge": {
+            "type": "boolean",
+            "description": "Display \u2192 Tui Agents Nudge",
+            "category": "display"
+        },
+        "display.bell_on_complete": {
+            "type": "boolean",
+            "description": "Display \u2192 Bell On Complete",
+            "category": "display"
+        },
+        "display.bell_on_prompt": {
+            "type": "boolean",
+            "description": "Display \u2192 Bell On Prompt",
+            "category": "display"
+        },
+        "display.show_reasoning": {
+            "type": "boolean",
+            "description": "Display \u2192 Show Reasoning",
+            "category": "display"
+        },
+        "display.reasoning_full": {
+            "type": "boolean",
+            "description": "Display \u2192 Reasoning Full",
+            "category": "display"
+        },
+        "display.memory_notifications": {
+            "type": "string",
+            "description": "Display \u2192 Memory Notifications",
+            "category": "display"
+        },
+        "display.background_process_notifications": {
+            "type": "string",
+            "description": "Display \u2192 Background Process Notifications",
+            "category": "display"
+        },
+        "display.streaming": {
+            "type": "boolean",
+            "description": "Display \u2192 Streaming",
+            "category": "display"
+        },
+        "display.timestamps": {
+            "type": "boolean",
+            "description": "Display \u2192 Timestamps",
+            "category": "display"
+        },
+        "display.timestamp_format": {
+            "type": "string",
+            "description": "Display \u2192 Timestamp Format",
+            "category": "display"
+        },
+        "display.final_response_markdown": {
+            "type": "string",
+            "description": "Display \u2192 Final Response Markdown",
+            "category": "display"
+        },
+        "display.persistent_output": {
+            "type": "boolean",
+            "description": "Display \u2192 Persistent Output",
+            "category": "display"
+        },
+        "display.persistent_output_max_lines": {
+            "type": "number",
+            "description": "Display \u2192 Persistent Output Max Lines",
+            "category": "display"
+        },
+        "display.cli_rebuild_scrollback_on_redraw": {
+            "type": "boolean",
+            "description": "Display \u2192 Cli Rebuild Scrollback On Redraw",
+            "category": "display"
+        },
+        "display.persist_prompts": {
+            "type": "boolean",
+            "description": "Display \u2192 Persist Prompts",
+            "category": "display"
+        },
+        "display.inline_diffs": {
+            "type": "boolean",
+            "description": "Display \u2192 Inline Diffs",
+            "category": "display"
+        },
+        "display.file_mutation_verifier": {
+            "type": "boolean",
+            "description": "Display \u2192 File Mutation Verifier",
+            "category": "display"
+        },
+        "display.credits_notices": {
+            "type": "boolean",
+            "description": "Display \u2192 Credits Notices",
+            "category": "display"
+        },
+        "display.turn_completion_explainer": {
+            "type": "boolean",
+            "description": "Display \u2192 Turn Completion Explainer",
+            "category": "display"
+        },
+        "display.show_cost": {
+            "type": "boolean",
+            "description": "Display \u2192 Show Cost",
+            "category": "display"
+        },
+        "display.battery": {
+            "type": "boolean",
+            "description": "Display \u2192 Battery",
+            "category": "display"
+        },
+        "display.focus_view": {
+            "type": "boolean",
+            "description": "Display \u2192 Focus View",
+            "category": "display"
+        },
+        "display.focus_saved_tool_progress": {
+            "type": "string",
+            "description": "Display \u2192 Focus Saved Tool Progress",
+            "category": "display"
+        },
+        "display.skin": {
+            "type": "select",
+            "description": "CLI visual theme",
+            "category": "display",
+            "options": [
+                "default",
+                "ares",
+                "mono",
+                "slate"
+            ]
+        },
+        "display.language": {
+            "type": "string",
+            "description": "Display \u2192 Language",
+            "category": "display"
+        },
+        "display.tui_status_indicator": {
+            "type": "string",
+            "description": "Display \u2192 Tui Status Indicator",
+            "category": "display"
+        },
+        "display.cli_refresh_interval": {
+            "type": "number",
+            "description": "Display \u2192 Cli Refresh Interval",
+            "category": "display"
+        },
+        "display.vim_mode": {
+            "type": "boolean",
+            "description": "Display \u2192 Vim Mode",
+            "category": "display"
+        },
+        "display.user_message_preview.first_lines": {
+            "type": "number",
+            "description": "Display \u2192 User Message Preview \u2192 First Lines",
+            "category": "display"
+        },
+        "display.user_message_preview.last_lines": {
+            "type": "number",
+            "description": "Display \u2192 User Message Preview \u2192 Last Lines",
+            "category": "display"
+        },
+        "display.interim_assistant_messages": {
+            "type": "boolean",
+            "description": "Display \u2192 Interim Assistant Messages",
+            "category": "display"
+        },
+        "display.show_commentary": {
+            "type": "boolean",
+            "description": "Display \u2192 Show Commentary",
+            "category": "display"
+        },
+        "display.tool_progress_command": {
+            "type": "boolean",
+            "description": "Display \u2192 Tool Progress Command",
+            "category": "display"
+        },
+        "display.tool_preview_length": {
+            "type": "number",
+            "description": "Display \u2192 Tool Preview Length",
+            "category": "display"
+        },
+        "display.friendly_tool_labels": {
+            "type": "boolean",
+            "description": "Display \u2192 Friendly Tool Labels",
+            "category": "display"
+        },
+        "display.turn_summary": {
+            "type": "boolean",
+            "description": "Display \u2192 Turn Summary",
+            "category": "display"
+        },
+        "display.spinner_token_flow": {
+            "type": "boolean",
+            "description": "Display \u2192 Spinner Token Flow",
+            "category": "display"
+        },
+        "display.tool_progress_grouping": {
+            "type": "string",
+            "description": "Display \u2192 Tool Progress Grouping",
+            "category": "display"
+        },
+        "display.reasoning_style": {
+            "type": "string",
+            "description": "Display \u2192 Reasoning Style",
+            "category": "display"
+        },
+        "display.ephemeral_system_ttl": {
+            "type": "number",
+            "description": "Display \u2192 Ephemeral System Ttl",
+            "category": "display"
+        },
+        "display.platforms.telegram.streaming": {
+            "type": "boolean",
+            "description": "Display \u2192 Platforms \u2192 Telegram \u2192 Streaming",
+            "category": "display"
+        },
+        "display.platforms.discord.streaming": {
+            "type": "boolean",
+            "description": "Display \u2192 Platforms \u2192 Discord \u2192 Streaming",
+            "category": "display"
+        },
+        "display.platforms.slack.streaming": {
+            "type": "boolean",
+            "description": "Display \u2192 Platforms \u2192 Slack \u2192 Streaming",
+            "category": "display"
+        },
+        "display.platforms.wecom.streaming": {
+            "type": "boolean",
+            "description": "Display \u2192 Platforms \u2192 Wecom \u2192 Streaming",
+            "category": "display"
+        },
+        "display.runtime_footer.enabled": {
+            "type": "boolean",
+            "description": "Display \u2192 Runtime Footer \u2192 Enabled",
+            "category": "display"
+        },
+        "display.runtime_footer.fields": {
+            "type": "list",
+            "description": "Display \u2192 Runtime Footer \u2192 Fields",
+            "category": "display"
+        },
+        "display.status_bar.fields": {
+            "type": "list",
+            "description": "Display \u2192 Status Bar \u2192 Fields",
+            "category": "display"
+        },
+        "display.copy_shortcut": {
+            "type": "string",
+            "description": "Display \u2192 Copy Shortcut",
+            "category": "display"
+        },
+        "display.pet.enabled": {
+            "type": "boolean",
+            "description": "Display \u2192 Pet \u2192 Enabled",
+            "category": "display"
+        },
+        "display.pet.slug": {
+            "type": "string",
+            "description": "Display \u2192 Pet \u2192 Slug",
+            "category": "display"
+        },
+        "display.pet.render_mode": {
+            "type": "string",
+            "description": "Display \u2192 Pet \u2192 Render Mode",
+            "category": "display"
+        },
+        "display.pet.scale": {
+            "type": "number",
+            "description": "Display \u2192 Pet \u2192 Scale",
+            "category": "display"
+        },
+        "display.pet.unicode_cols": {
+            "type": "number",
+            "description": "Display \u2192 Pet \u2192 Unicode Cols",
+            "category": "display"
+        },
+        "dashboard.theme": {
+            "type": "select",
+            "description": "Web dashboard visual theme",
+            "category": "display",
+            "options": [
+                "default",
+                "midnight",
+                "ember",
+                "mono",
+                "cyberpunk",
+                "rose"
+            ]
+        },
+        "dashboard.turn_isolation": {
+            "type": "boolean",
+            "description": "Dashboard \u2192 Turn Isolation",
+            "category": "display"
+        },
+        "dashboard.compute_host_heartbeat_secs": {
+            "type": "number",
+            "description": "Dashboard \u2192 Compute Host Heartbeat Secs",
+            "category": "display"
+        },
+        "dashboard.compute_host_respawn_max": {
+            "type": "number",
+            "description": "Dashboard \u2192 Compute Host Respawn Max",
+            "category": "display"
+        },
+        "dashboard.show_token_analytics": {
+            "type": "boolean",
+            "description": "Dashboard \u2192 Show Token Analytics",
+            "category": "display"
+        },
+        "dashboard.trusted_proxies": {
+            "type": "list",
+            "description": "Dashboard \u2192 Trusted Proxies",
+            "category": "display"
+        },
+        "dashboard.ws_ping_interval": {
+            "type": "number",
+            "description": "Dashboard \u2192 Ws Ping Interval",
+            "category": "display"
+        },
+        "dashboard.ws_ping_timeout": {
+            "type": "number",
+            "description": "Dashboard \u2192 Ws Ping Timeout",
+            "category": "display"
+        },
+        "dashboard.ws_orphan_reap_grace_s": {
+            "type": "number",
+            "description": "Dashboard \u2192 Ws Orphan Reap Grace S",
+            "category": "display"
+        },
+        "dashboard.ws_orphan_activity_stale_s": {
+            "type": "number",
+            "description": "Dashboard \u2192 Ws Orphan Activity Stale S",
+            "category": "display"
+        },
+        "dashboard.startup_orphan_sweep": {
+            "type": "boolean",
+            "description": "Dashboard \u2192 Startup Orphan Sweep",
+            "category": "display"
+        },
+        "dashboard.oauth.client_id": {
+            "type": "string",
+            "description": "Dashboard \u2192 Oauth \u2192 Client Id",
+            "category": "display"
+        },
+        "dashboard.oauth.portal_url": {
+            "type": "string",
+            "description": "Dashboard \u2192 Oauth \u2192 Portal Url",
+            "category": "display"
+        },
+        "dashboard.basic_auth.username": {
+            "type": "string",
+            "description": "Dashboard \u2192 Basic Auth \u2192 Username",
+            "category": "display"
+        },
+        "dashboard.basic_auth.password_hash": {
+            "type": "string",
+            "description": "Dashboard \u2192 Basic Auth \u2192 Password Hash",
+            "category": "display"
+        },
+        "dashboard.basic_auth.password": {
+            "type": "string",
+            "description": "Dashboard \u2192 Basic Auth \u2192 Password",
+            "category": "display"
+        },
+        "dashboard.basic_auth.secret": {
+            "type": "string",
+            "description": "Dashboard \u2192 Basic Auth \u2192 Secret",
+            "category": "display"
+        },
+        "dashboard.basic_auth.session_ttl_seconds": {
+            "type": "number",
+            "description": "Dashboard \u2192 Basic Auth \u2192 Session Ttl Seconds",
+            "category": "display"
+        },
+        "dashboard.drain_auth.scope": {
+            "type": "string",
+            "description": "Dashboard \u2192 Drain Auth \u2192 Scope",
+            "category": "display"
+        },
+        "dashboard.drain_auth.min_secret_chars": {
+            "type": "number",
+            "description": "Dashboard \u2192 Drain Auth \u2192 Min Secret Chars",
+            "category": "display"
+        },
+        "dashboard.public_url": {
+            "type": "string",
+            "description": "Dashboard \u2192 Public Url",
+            "category": "display"
+        },
+        "privacy.redact_pii": {
+            "type": "boolean",
+            "description": "Privacy \u2192 Redact Pii",
+            "category": "security"
+        },
+        "tts.provider": {
+            "type": "select",
+            "description": "Text-to-speech provider",
+            "category": "tts",
+            "options": [
+                "edge",
+                "elevenlabs",
+                "openai",
+                "xai",
+                "minimax",
+                "mistral",
+                "gemini",
+                "neutts",
+                "kittentts",
+                "piper"
+            ]
+        },
+        "tts.edge.voice": {
+            "type": "string",
+            "description": "Tts \u2192 Edge \u2192 Voice",
+            "category": "tts"
+        },
+        "tts.elevenlabs.voice_id": {
+            "type": "string",
+            "description": "Tts \u2192 Elevenlabs \u2192 Voice Id",
+            "category": "tts"
+        },
+        "tts.elevenlabs.model_id": {
+            "type": "string",
+            "description": "Tts \u2192 Elevenlabs \u2192 Model Id",
+            "category": "tts"
+        },
+        "tts.openai.model": {
+            "type": "string",
+            "description": "Tts \u2192 Openai \u2192 Model",
+            "category": "tts"
+        },
+        "tts.openai.voice": {
+            "type": "string",
+            "description": "Tts \u2192 Openai \u2192 Voice",
+            "category": "tts"
+        },
+        "tts.gemini.model": {
+            "type": "string",
+            "description": "Tts \u2192 Gemini \u2192 Model",
+            "category": "tts"
+        },
+        "tts.gemini.voice": {
+            "type": "string",
+            "description": "Tts \u2192 Gemini \u2192 Voice",
+            "category": "tts"
+        },
+        "tts.gemini.audio_tags": {
+            "type": "boolean",
+            "description": "Tts \u2192 Gemini \u2192 Audio Tags",
+            "category": "tts"
+        },
+        "tts.gemini.persona_prompt_file": {
+            "type": "string",
+            "description": "Tts \u2192 Gemini \u2192 Persona Prompt File",
+            "category": "tts"
+        },
+        "tts.xai.voice_id": {
+            "type": "string",
+            "description": "Tts \u2192 Xai \u2192 Voice Id",
+            "category": "tts"
+        },
+        "tts.xai.language": {
+            "type": "string",
+            "description": "Tts \u2192 Xai \u2192 Language",
+            "category": "tts"
+        },
+        "tts.xai.speed": {
+            "type": "number",
+            "description": "Tts \u2192 Xai \u2192 Speed",
+            "category": "tts"
+        },
+        "tts.xai.auto_speech_tags": {
+            "type": "boolean",
+            "description": "Tts \u2192 Xai \u2192 Auto Speech Tags",
+            "category": "tts"
+        },
+        "tts.xai.optimize_streaming_latency": {
+            "type": "number",
+            "description": "Tts \u2192 Xai \u2192 Optimize Streaming Latency",
+            "category": "tts"
+        },
+        "tts.xai.sample_rate": {
+            "type": "number",
+            "description": "Tts \u2192 Xai \u2192 Sample Rate",
+            "category": "tts"
+        },
+        "tts.xai.bit_rate": {
+            "type": "number",
+            "description": "Tts \u2192 Xai \u2192 Bit Rate",
+            "category": "tts"
+        },
+        "tts.mistral.model": {
+            "type": "string",
+            "description": "Tts \u2192 Mistral \u2192 Model",
+            "category": "tts"
+        },
+        "tts.mistral.voice_id": {
+            "type": "string",
+            "description": "Tts \u2192 Mistral \u2192 Voice Id",
+            "category": "tts"
+        },
+        "tts.minimax.model": {
+            "type": "string",
+            "description": "Tts \u2192 Minimax \u2192 Model",
+            "category": "tts"
+        },
+        "tts.minimax.voice_id": {
+            "type": "string",
+            "description": "Tts \u2192 Minimax \u2192 Voice Id",
+            "category": "tts"
+        },
+        "tts.kittentts.model": {
+            "type": "string",
+            "description": "Tts \u2192 Kittentts \u2192 Model",
+            "category": "tts"
+        },
+        "tts.kittentts.voice": {
+            "type": "string",
+            "description": "Tts \u2192 Kittentts \u2192 Voice",
+            "category": "tts"
+        },
+        "tts.neutts.ref_audio": {
+            "type": "string",
+            "description": "Tts \u2192 Neutts \u2192 Ref Audio",
+            "category": "tts"
+        },
+        "tts.neutts.ref_text": {
+            "type": "string",
+            "description": "Tts \u2192 Neutts \u2192 Ref Text",
+            "category": "tts"
+        },
+        "tts.neutts.model": {
+            "type": "string",
+            "description": "Tts \u2192 Neutts \u2192 Model",
+            "category": "tts"
+        },
+        "tts.neutts.device": {
+            "type": "string",
+            "description": "Tts \u2192 Neutts \u2192 Device",
+            "category": "tts"
+        },
+        "tts.piper.voice": {
+            "type": "string",
+            "description": "Tts \u2192 Piper \u2192 Voice",
+            "category": "tts"
+        },
+        "tts.deepinfra.model": {
+            "type": "string",
+            "description": "Tts \u2192 Deepinfra \u2192 Model",
+            "category": "tts"
+        },
+        "tts.deepinfra.voice": {
+            "type": "string",
+            "description": "Tts \u2192 Deepinfra \u2192 Voice",
+            "category": "tts"
+        },
+        "stt.enabled": {
+            "type": "boolean",
+            "description": "Stt \u2192 Enabled",
+            "category": "stt"
+        },
+        "stt.echo_transcripts": {
+            "type": "boolean",
+            "description": "Stt \u2192 Echo Transcripts",
+            "category": "stt"
+        },
+        "stt.language": {
+            "type": "string",
+            "description": "Stt \u2192 Language",
+            "category": "stt"
+        },
+        "stt.cloud_trim_silence": {
+            "type": "boolean",
+            "description": "Stt \u2192 Cloud Trim Silence",
+            "category": "stt"
+        },
+        "stt.cloud_trim_threshold_db": {
+            "type": "number",
+            "description": "Stt \u2192 Cloud Trim Threshold Db",
+            "category": "stt"
+        },
+        "stt.cloud_trim_keep_ms": {
+            "type": "number",
+            "description": "Stt \u2192 Cloud Trim Keep Ms",
+            "category": "stt"
+        },
+        "stt.local.model": {
+            "type": "select",
+            "description": "Local faster-whisper model size",
+            "category": "stt",
+            "options": [
+                "tiny",
+                "base",
+                "small",
+                "medium",
+                "large-v3"
+            ]
+        },
+        "stt.local.language": {
+            "type": "string",
+            "description": "Stt \u2192 Local \u2192 Language",
+            "category": "stt"
+        },
+        "stt.local.initial_prompt": {
+            "type": "string",
+            "description": "Stt \u2192 Local \u2192 Initial Prompt",
+            "category": "stt"
+        },
+        "stt.local.vad": {
+            "type": "boolean",
+            "description": "Stt \u2192 Local \u2192 Vad",
+            "category": "stt"
+        },
+        "stt.local.vad_min_silence_ms": {
+            "type": "number",
+            "description": "Stt \u2192 Local \u2192 Vad Min Silence Ms",
+            "category": "stt"
+        },
+        "stt.local.no_speech_prob_threshold": {
+            "type": "number",
+            "description": "Stt \u2192 Local \u2192 No Speech Prob Threshold",
+            "category": "stt"
+        },
+        "stt.local.logprob_threshold": {
+            "type": "number",
+            "description": "Stt \u2192 Local \u2192 Logprob Threshold",
+            "category": "stt"
+        },
+        "stt.local.unload_after_idle_seconds": {
+            "type": "number",
+            "description": "Stt \u2192 Local \u2192 Unload After Idle Seconds",
+            "category": "stt"
+        },
+        "stt.groq.model": {
+            "type": "select",
+            "description": "Groq Whisper model",
+            "category": "stt",
+            "options": [
+                "whisper-large-v3-turbo",
+                "whisper-large-v3",
+                "distil-whisper-large-v3-en"
+            ]
+        },
+        "stt.groq.language": {
+            "type": "string",
+            "description": "Stt \u2192 Groq \u2192 Language",
+            "category": "stt"
+        },
+        "stt.openai.model": {
+            "type": "select",
+            "description": "OpenAI transcription model",
+            "category": "stt",
+            "options": [
+                "whisper-1",
+                "gpt-4o-mini-transcribe",
+                "gpt-4o-transcribe",
+                "gpt-transcribe"
+            ]
+        },
+        "stt.openai.language": {
+            "type": "string",
+            "description": "Stt \u2192 Openai \u2192 Language",
+            "category": "stt"
+        },
+        "stt.mistral.model": {
+            "type": "string",
+            "description": "Stt \u2192 Mistral \u2192 Model",
+            "category": "stt"
+        },
+        "stt.mistral.language": {
+            "type": "string",
+            "description": "Stt \u2192 Mistral \u2192 Language",
+            "category": "stt"
+        },
+        "stt.xai.language": {
+            "type": "string",
+            "description": "Stt \u2192 Xai \u2192 Language",
+            "category": "stt"
+        },
+        "stt.elevenlabs.model_id": {
+            "type": "select",
+            "description": "ElevenLabs Scribe model",
+            "category": "stt",
+            "options": [
+                "scribe_v2",
+                "scribe_v1"
+            ]
+        },
+        "stt.elevenlabs.language_code": {
+            "type": "string",
+            "description": "Stt \u2192 Elevenlabs \u2192 Language Code",
+            "category": "stt"
+        },
+        "stt.elevenlabs.tag_audio_events": {
+            "type": "boolean",
+            "description": "Stt \u2192 Elevenlabs \u2192 Tag Audio Events",
+            "category": "stt"
+        },
+        "stt.elevenlabs.diarize": {
+            "type": "boolean",
+            "description": "Stt \u2192 Elevenlabs \u2192 Diarize",
+            "category": "stt"
+        },
+        "stt.deepinfra.model": {
+            "type": "string",
+            "description": "Stt \u2192 Deepinfra \u2192 Model",
+            "category": "stt"
+        },
+        "voice.voice_chat_mode": {
+            "type": "string",
+            "description": "Voice \u2192 Voice Chat Mode",
+            "category": "voice"
+        },
+        "voice.gpt_live.model": {
+            "type": "string",
+            "description": "Voice \u2192 Gpt Live \u2192 Model",
+            "category": "voice"
+        },
+        "voice.gpt_live.voice": {
+            "type": "string",
+            "description": "Voice \u2192 Gpt Live \u2192 Voice",
+            "category": "voice"
+        },
+        "voice.gpt_live.instructions": {
+            "type": "string",
+            "description": "Voice \u2192 Gpt Live \u2192 Instructions",
+            "category": "voice"
+        },
+        "voice.record_key": {
+            "type": "string",
+            "description": "Voice \u2192 Record Key",
+            "category": "voice"
+        },
+        "voice.submit_mode": {
+            "type": "string",
+            "description": "Voice \u2192 Submit Mode",
+            "category": "voice"
+        },
+        "voice.max_recording_seconds": {
+            "type": "number",
+            "description": "Voice \u2192 Max Recording Seconds",
+            "category": "voice"
+        },
+        "voice.auto_tts": {
+            "type": "boolean",
+            "description": "Voice \u2192 Auto Tts",
+            "category": "voice"
+        },
+        "voice.client_direct": {
+            "type": "boolean",
+            "description": "Voice \u2192 Client Direct",
+            "category": "voice"
+        },
+        "voice.beep_enabled": {
+            "type": "boolean",
+            "description": "Voice \u2192 Beep Enabled",
+            "category": "voice"
+        },
+        "voice.beep_volume": {
+            "type": "number",
+            "description": "Voice \u2192 Beep Volume",
+            "category": "voice"
+        },
+        "voice.thinking_sound": {
+            "type": "boolean",
+            "description": "Voice \u2192 Thinking Sound",
+            "category": "voice"
+        },
+        "voice.silence_threshold": {
+            "type": "number",
+            "description": "Voice \u2192 Silence Threshold",
+            "category": "voice"
+        },
+        "voice.silence_duration": {
+            "type": "number",
+            "description": "Voice \u2192 Silence Duration",
+            "category": "voice"
+        },
+        "voice.barge_in": {
+            "type": "boolean",
+            "description": "Voice \u2192 Barge In",
+            "category": "voice"
+        },
+        "voice.barge_in_grace_seconds": {
+            "type": "number",
+            "description": "Voice \u2192 Barge In Grace Seconds",
+            "category": "voice"
+        },
+        "voice.barge_in_threshold_multiplier": {
+            "type": "number",
+            "description": "Voice \u2192 Barge In Threshold Multiplier",
+            "category": "voice"
+        },
+        "voice.stop_phrases": {
+            "type": "list",
+            "description": "Voice \u2192 Stop Phrases",
+            "category": "voice"
+        },
+        "wake_word.enabled": {
+            "type": "boolean",
+            "description": "Wake Word \u2192 Enabled",
+            "category": "wake_word"
+        },
+        "wake_word.surface": {
+            "type": "string",
+            "description": "Wake Word \u2192 Surface",
+            "category": "wake_word"
+        },
+        "wake_word.input_device": {
+            "type": "string",
+            "description": "Wake Word \u2192 Input Device",
+            "category": "wake_word"
+        },
+        "wake_word.capture": {
+            "type": "string",
+            "description": "Wake Word \u2192 Capture",
+            "category": "wake_word"
+        },
+        "wake_word.provider": {
+            "type": "string",
+            "description": "Wake Word \u2192 Provider",
+            "category": "wake_word"
+        },
+        "wake_word.phrase": {
+            "type": "string",
+            "description": "Wake Word \u2192 Phrase",
+            "category": "wake_word"
+        },
+        "wake_word.sensitivity": {
+            "type": "number",
+            "description": "Wake Word \u2192 Sensitivity",
+            "category": "wake_word"
+        },
+        "wake_word.confirmation_frames": {
+            "type": "number",
+            "description": "Wake Word \u2192 Confirmation Frames",
+            "category": "wake_word"
+        },
+        "wake_word.start_new_session": {
+            "type": "boolean",
+            "description": "Wake Word \u2192 Start New Session",
+            "category": "wake_word"
+        },
+        "wake_word.profile_routing": {
+            "type": "boolean",
+            "description": "Wake Word \u2192 Profile Routing",
+            "category": "wake_word"
+        },
+        "wake_word.openwakeword.model": {
+            "type": "string",
+            "description": "Wake Word \u2192 Openwakeword \u2192 Model",
+            "category": "wake_word"
+        },
+        "wake_word.openwakeword.inference_framework": {
+            "type": "string",
+            "description": "Wake Word \u2192 Openwakeword \u2192 Inference Framework",
+            "category": "wake_word"
+        },
+        "wake_word.sherpa.model_dir": {
+            "type": "string",
+            "description": "Wake Word \u2192 Sherpa \u2192 Model Dir",
+            "category": "wake_word"
+        },
+        "wake_word.porcupine.keyword": {
+            "type": "string",
+            "description": "Wake Word \u2192 Porcupine \u2192 Keyword",
+            "category": "wake_word"
+        },
+        "human_delay.mode": {
+            "type": "select",
+            "description": "Simulated typing delay mode",
+            "category": "display",
+            "options": [
+                "off",
+                "typing",
+                "fixed"
+            ]
+        },
+        "human_delay.min_ms": {
+            "type": "number",
+            "description": "Human Delay \u2192 Min Ms",
+            "category": "display"
+        },
+        "human_delay.max_ms": {
+            "type": "number",
+            "description": "Human Delay \u2192 Max Ms",
+            "category": "display"
+        },
+        "context.engine": {
+            "type": "select",
+            "description": "Context management engine",
+            "category": "agent",
+            "options": [
+                "default",
+                "custom"
+            ]
+        },
+        "context.memory_trim.enabled": {
+            "type": "boolean",
+            "description": "Context \u2192 Memory Trim \u2192 Enabled",
+            "category": "agent"
+        },
+        "context.memory_trim.cooldown_seconds": {
+            "type": "number",
+            "description": "Context \u2192 Memory Trim \u2192 Cooldown Seconds",
+            "category": "agent"
+        },
+        "context.memory_trim.log_every_n": {
+            "type": "number",
+            "description": "Context \u2192 Memory Trim \u2192 Log Every N",
+            "category": "agent"
+        },
+        "context.memory_trim.info_log_min_delta_mb": {
+            "type": "number",
+            "description": "Context \u2192 Memory Trim \u2192 Info Log Min Delta Mb",
+            "category": "agent"
+        },
+        "memory.memory_enabled": {
+            "type": "boolean",
+            "description": "Memory \u2192 Memory Enabled",
+            "category": "memory"
+        },
+        "memory.user_profile_enabled": {
+            "type": "boolean",
+            "description": "Memory \u2192 User Profile Enabled",
+            "category": "memory"
+        },
+        "memory.write_approval": {
+            "type": "boolean",
+            "description": "Memory \u2192 Write Approval",
+            "category": "memory"
+        },
+        "memory.memory_char_limit": {
+            "type": "number",
+            "description": "Memory \u2192 Memory Char Limit",
+            "category": "memory"
+        },
+        "memory.user_char_limit": {
+            "type": "number",
+            "description": "Memory \u2192 User Char Limit",
+            "category": "memory"
+        },
+        "memory.nudge_interval": {
+            "type": "number",
+            "description": "Memory \u2192 Nudge Interval",
+            "category": "memory"
+        },
+        "memory.provider": {
+            "type": "select",
+            "description": "Memory provider plugin",
+            "category": "memory",
+            "options": [
+                "",
+                "byterover",
+                "hindsight",
+                "holographic",
+                "honcho",
+                "matrix-memory",
+                "mem0",
+                "openviking",
+                "retaindb",
+                "supermemory"
+            ]
+        },
+        "delegation.model": {
+            "type": "string",
+            "description": "Delegation \u2192 Model",
+            "category": "delegation"
+        },
+        "delegation.provider": {
+            "type": "string",
+            "description": "Delegation \u2192 Provider",
+            "category": "delegation"
+        },
+        "delegation.fallback_providers": {
+            "type": "string",
+            "description": "Delegation \u2192 Fallback Providers",
+            "category": "delegation"
+        },
+        "delegation.base_url": {
+            "type": "string",
+            "description": "Delegation \u2192 Base Url",
+            "category": "delegation"
+        },
+        "delegation.api_key": {
+            "type": "string",
+            "description": "Delegation \u2192 Api Key",
+            "category": "delegation"
+        },
+        "delegation.api_mode": {
+            "type": "string",
+            "description": "Delegation \u2192 Api Mode",
+            "category": "delegation"
+        },
+        "delegation.compression_threshold_tokens": {
+            "type": "number",
+            "description": "Delegation \u2192 Compression Threshold Tokens",
+            "category": "delegation"
+        },
+        "delegation.inherit_mcp_toolsets": {
+            "type": "boolean",
+            "description": "Delegation \u2192 Inherit Mcp Toolsets",
+            "category": "delegation"
+        },
+        "delegation.max_iterations": {
+            "type": "number",
+            "description": "Delegation \u2192 Max Iterations",
+            "category": "delegation"
+        },
+        "delegation.max_summary_chars": {
+            "type": "number",
+            "description": "Delegation \u2192 Max Summary Chars",
+            "category": "delegation"
+        },
+        "delegation.child_timeout_seconds": {
+            "type": "number",
+            "description": "Delegation \u2192 Child Timeout Seconds",
+            "category": "delegation"
+        },
+        "delegation.reasoning_effort": {
+            "type": "select",
+            "description": "Reasoning effort for delegated subagents",
+            "category": "delegation",
+            "options": [
+                "",
+                "minimal",
+                "low",
+                "medium",
+                "high",
+                "xhigh",
+                "max",
+                "ultra"
+            ]
+        },
+        "delegation.max_concurrent_children": {
+            "type": "number",
+            "description": "Delegation \u2192 Max Concurrent Children",
+            "category": "delegation"
+        },
+        "delegation.independent_completions": {
+            "type": "boolean",
+            "description": "Delegation \u2192 Independent Completions",
+            "category": "delegation"
+        },
+        "delegation.max_spawn_depth": {
+            "type": "number",
+            "description": "Delegation \u2192 Max Spawn Depth",
+            "category": "delegation"
+        },
+        "delegation.orchestrator_enabled": {
+            "type": "boolean",
+            "description": "Delegation \u2192 Orchestrator Enabled",
+            "category": "delegation"
+        },
+        "delegation.subagent_auto_approve": {
+            "type": "boolean",
+            "description": "Delegation \u2192 Subagent Auto Approve",
+            "category": "delegation"
+        },
+        "delegation.surface_child_process_notifications": {
+            "type": "boolean",
+            "description": "Delegation \u2192 Surface Child Process Notifications",
+            "category": "delegation"
+        },
+        "prefill_messages_file": {
+            "type": "string",
+            "description": "Prefill Messages File",
+            "category": "general"
+        },
+        "goals.max_turns": {
+            "type": "number",
+            "description": "Goals \u2192 Max Turns",
+            "category": "agent"
+        },
+        "loops.min_interval_seconds": {
+            "type": "number",
+            "description": "Loops \u2192 Min Interval Seconds",
+            "category": "loops"
+        },
+        "loops.max_ticks": {
+            "type": "number",
+            "description": "Loops \u2192 Max Ticks",
+            "category": "loops"
+        },
+        "loops.self_paced_floor_seconds": {
+            "type": "number",
+            "description": "Loops \u2192 Self Paced Floor Seconds",
+            "category": "loops"
+        },
+        "loops.self_paced_ceiling_seconds": {
+            "type": "number",
+            "description": "Loops \u2192 Self Paced Ceiling Seconds",
+            "category": "loops"
+        },
+        "moa.default_preset": {
+            "type": "string",
+            "description": "Moa \u2192 Default Preset",
+            "category": "moa"
+        },
+        "moa.active_preset": {
+            "type": "string",
+            "description": "Moa \u2192 Active Preset",
+            "category": "moa"
+        },
+        "moa.save_traces": {
+            "type": "boolean",
+            "description": "Moa \u2192 Save Traces",
+            "category": "moa"
+        },
+        "moa.trace_dir": {
+            "type": "string",
+            "description": "Moa \u2192 Trace Dir",
+            "category": "moa"
+        },
+        "moa.privacy_filter": {
+            "type": "string",
+            "description": "Moa \u2192 Privacy Filter",
+            "category": "moa"
+        },
+        "moa.presets.default.reference_models": {
+            "type": "list",
+            "description": "Moa \u2192 Presets \u2192 Default \u2192 Reference Models",
+            "category": "moa"
+        },
+        "moa.presets.default.aggregator.provider": {
+            "type": "string",
+            "description": "Moa \u2192 Presets \u2192 Default \u2192 Aggregator \u2192 Provider",
+            "category": "moa"
+        },
+        "moa.presets.default.aggregator.model": {
+            "type": "string",
+            "description": "Moa \u2192 Presets \u2192 Default \u2192 Aggregator \u2192 Model",
+            "category": "moa"
+        },
+        "moa.presets.default.enabled": {
+            "type": "boolean",
+            "description": "Moa \u2192 Presets \u2192 Default \u2192 Enabled",
+            "category": "moa"
+        },
+        "skills.external_dirs": {
+            "type": "list",
+            "description": "Skills \u2192 External Dirs",
+            "category": "agent"
+        },
+        "skills.create_dir": {
+            "type": "string",
+            "description": "Skills \u2192 Create Dir",
+            "category": "agent"
+        },
+        "skills.project_discovery": {
+            "type": "boolean",
+            "description": "Skills \u2192 Project Discovery",
+            "category": "agent"
+        },
+        "skills.trusted_project_dirs": {
+            "type": "list",
+            "description": "Skills \u2192 Trusted Project Dirs",
+            "category": "agent"
+        },
+        "skills.template_vars": {
+            "type": "boolean",
+            "description": "Skills \u2192 Template Vars",
+            "category": "agent"
+        },
+        "skills.inline_shell": {
+            "type": "boolean",
+            "description": "Skills \u2192 Inline Shell",
+            "category": "agent"
+        },
+        "skills.inline_shell_timeout": {
+            "type": "number",
+            "description": "Skills \u2192 Inline Shell Timeout",
+            "category": "agent"
+        },
+        "skills.guard_agent_created": {
+            "type": "boolean",
+            "description": "Skills \u2192 Guard Agent Created",
+            "category": "agent"
+        },
+        "skills.tier1_advisory": {
+            "type": "boolean",
+            "description": "Skills \u2192 Tier1 Advisory",
+            "category": "agent"
+        },
+        "skills.write_approval": {
+            "type": "boolean",
+            "description": "Skills \u2192 Write Approval",
+            "category": "agent"
+        },
+        "skills.ledger": {
+            "type": "boolean",
+            "description": "Skills \u2192 Ledger",
+            "category": "agent"
+        },
+        "curator.enabled": {
+            "type": "boolean",
+            "description": "Curator \u2192 Enabled",
+            "category": "curator"
+        },
+        "curator.interval_hours": {
+            "type": "number",
+            "description": "Curator \u2192 Interval Hours",
+            "category": "curator"
+        },
+        "curator.min_idle_hours": {
+            "type": "number",
+            "description": "Curator \u2192 Min Idle Hours",
+            "category": "curator"
+        },
+        "curator.stale_after_days": {
+            "type": "number",
+            "description": "Curator \u2192 Stale After Days",
+            "category": "curator"
+        },
+        "curator.archive_after_days": {
+            "type": "number",
+            "description": "Curator \u2192 Archive After Days",
+            "category": "curator"
+        },
+        "curator.consolidate": {
+            "type": "boolean",
+            "description": "Curator \u2192 Consolidate",
+            "category": "curator"
+        },
+        "curator.prune_builtins": {
+            "type": "boolean",
+            "description": "Curator \u2192 Prune Builtins",
+            "category": "curator"
+        },
+        "curator.archive_ttl_days": {
+            "type": "number",
+            "description": "Curator \u2192 Archive Ttl Days",
+            "category": "curator"
+        },
+        "curator.backup.enabled": {
+            "type": "boolean",
+            "description": "Curator \u2192 Backup \u2192 Enabled",
+            "category": "curator"
+        },
+        "curator.backup.keep": {
+            "type": "number",
+            "description": "Curator \u2192 Backup \u2192 Keep",
+            "category": "curator"
+        },
+        "timezone": {
+            "type": "select",
+            "description": "IANA timezone (e.g. America/New_York). Blank uses the system timezone.",
+            "category": "general",
+            "options": [
+                "Africa/Abidjan",
+                "Africa/Accra",
+                "Africa/Addis_Ababa",
+                "Africa/Algiers",
+                "Africa/Asmara",
+                "Africa/Asmera",
+                "Africa/Bamako",
+                "Africa/Bangui",
+                "Africa/Banjul",
+                "Africa/Bissau",
+                "Africa/Blantyre",
+                "Africa/Brazzaville",
+                "Africa/Bujumbura",
+                "Africa/Cairo",
+                "Africa/Casablanca",
+                "Africa/Ceuta",
+                "Africa/Conakry",
+                "Africa/Dakar",
+                "Africa/Dar_es_Salaam",
+                "Africa/Djibouti",
+                "Africa/Douala",
+                "Africa/El_Aaiun",
+                "Africa/Freetown",
+                "Africa/Gaborone",
+                "Africa/Harare",
+                "Africa/Johannesburg",
+                "Africa/Juba",
+                "Africa/Kampala",
+                "Africa/Khartoum",
+                "Africa/Kigali",
+                "Africa/Kinshasa",
+                "Africa/Lagos",
+                "Africa/Libreville",
+                "Africa/Lome",
+                "Africa/Luanda",
+                "Africa/Lubumbashi",
+                "Africa/Lusaka",
+                "Africa/Malabo",
+                "Africa/Maputo",
+                "Africa/Maseru",
+                "Africa/Mbabane",
+                "Africa/Mogadishu",
+                "Africa/Monrovia",
+                "Africa/Nairobi",
+                "Africa/Ndjamena",
+                "Africa/Niamey",
+                "Africa/Nouakchott",
+                "Africa/Ouagadougou",
+                "Africa/Porto-Novo",
+                "Africa/Sao_Tome",
+                "Africa/Timbuktu",
+                "Africa/Tripoli",
+                "Africa/Tunis",
+                "Africa/Windhoek",
+                "America/Adak",
+                "America/Anchorage",
+                "America/Anguilla",
+                "America/Antigua",
+                "America/Araguaina",
+                "America/Argentina/Buenos_Aires",
+                "America/Argentina/Catamarca",
+                "America/Argentina/ComodRivadavia",
+                "America/Argentina/Cordoba",
+                "America/Argentina/Jujuy",
+                "America/Argentina/La_Rioja",
+                "America/Argentina/Mendoza",
+                "America/Argentina/Rio_Gallegos",
+                "America/Argentina/Salta",
+                "America/Argentina/San_Juan",
+                "America/Argentina/San_Luis",
+                "America/Argentina/Tucuman",
+                "America/Argentina/Ushuaia",
+                "America/Aruba",
+                "America/Asuncion",
+                "America/Atikokan",
+                "America/Atka",
+                "America/Bahia",
+                "America/Bahia_Banderas",
+                "America/Barbados",
+                "America/Belem",
+                "America/Belize",
+                "America/Blanc-Sablon",
+                "America/Boa_Vista",
+                "America/Bogota",
+                "America/Boise",
+                "America/Buenos_Aires",
+                "America/Cambridge_Bay",
+                "America/Campo_Grande",
+                "America/Cancun",
+                "America/Caracas",
+                "America/Catamarca",
+                "America/Cayenne",
+                "America/Cayman",
+                "America/Chicago",
+                "America/Chihuahua",
+                "America/Ciudad_Juarez",
+                "America/Coral_Harbour",
+                "America/Cordoba",
+                "America/Costa_Rica",
+                "America/Coyhaique",
+                "America/Creston",
+                "America/Cuiaba",
+                "America/Curacao",
+                "America/Danmarkshavn",
+                "America/Dawson",
+                "America/Dawson_Creek",
+                "America/Denver",
+                "America/Detroit",
+                "America/Dominica",
+                "America/Edmonton",
+                "America/Eirunepe",
+                "America/El_Salvador",
+                "America/Ensenada",
+                "America/Fort_Nelson",
+                "America/Fort_Wayne",
+                "America/Fortaleza",
+                "America/Glace_Bay",
+                "America/Godthab",
+                "America/Goose_Bay",
+                "America/Grand_Turk",
+                "America/Grenada",
+                "America/Guadeloupe",
+                "America/Guatemala",
+                "America/Guayaquil",
+                "America/Guyana",
+                "America/Halifax",
+                "America/Havana",
+                "America/Hermosillo",
+                "America/Indiana/Indianapolis",
+                "America/Indiana/Knox",
+                "America/Indiana/Marengo",
+                "America/Indiana/Petersburg",
+                "America/Indiana/Tell_City",
+                "America/Indiana/Vevay",
+                "America/Indiana/Vincennes",
+                "America/Indiana/Winamac",
+                "America/Indianapolis",
+                "America/Inuvik",
+                "America/Iqaluit",
+                "America/Jamaica",
+                "America/Jujuy",
+                "America/Juneau",
+                "America/Kentucky/Louisville",
+                "America/Kentucky/Monticello",
+                "America/Knox_IN",
+                "America/Kralendijk",
+                "America/La_Paz",
+                "America/Lima",
+                "America/Los_Angeles",
+                "America/Louisville",
+                "America/Lower_Princes",
+                "America/Maceio",
+                "America/Managua",
+                "America/Manaus",
+                "America/Marigot",
+                "America/Martinique",
+                "America/Matamoros",
+                "America/Mazatlan",
+                "America/Mendoza",
+                "America/Menominee",
+                "America/Merida",
+                "America/Metlakatla",
+                "America/Mexico_City",
+                "America/Miquelon",
+                "America/Moncton",
+                "America/Monterrey",
+                "America/Montevideo",
+                "America/Montreal",
+                "America/Montserrat",
+                "America/Nassau",
+                "America/New_York",
+                "America/Nipigon",
+                "America/Nome",
+                "America/Noronha",
+                "America/North_Dakota/Beulah",
+                "America/North_Dakota/Center",
+                "America/North_Dakota/New_Salem",
+                "America/Nuuk",
+                "America/Ojinaga",
+                "America/Panama",
+                "America/Pangnirtung",
+                "America/Paramaribo",
+                "America/Phoenix",
+                "America/Port-au-Prince",
+                "America/Port_of_Spain",
+                "America/Porto_Acre",
+                "America/Porto_Velho",
+                "America/Puerto_Rico",
+                "America/Punta_Arenas",
+                "America/Rainy_River",
+                "America/Rankin_Inlet",
+                "America/Recife",
+                "America/Regina",
+                "America/Resolute",
+                "America/Rio_Branco",
+                "America/Rosario",
+                "America/Santa_Isabel",
+                "America/Santarem",
+                "America/Santiago",
+                "America/Santo_Domingo",
+                "America/Sao_Paulo",
+                "America/Scoresbysund",
+                "America/Shiprock",
+                "America/Sitka",
+                "America/St_Barthelemy",
+                "America/St_Johns",
+                "America/St_Kitts",
+                "America/St_Lucia",
+                "America/St_Thomas",
+                "America/St_Vincent",
+                "America/Swift_Current",
+                "America/Tegucigalpa",
+                "America/Thule",
+                "America/Thunder_Bay",
+                "America/Tijuana",
+                "America/Toronto",
+                "America/Tortola",
+                "America/Vancouver",
+                "America/Virgin",
+                "America/Whitehorse",
+                "America/Winnipeg",
+                "America/Yakutat",
+                "America/Yellowknife",
+                "Antarctica/Casey",
+                "Antarctica/Davis",
+                "Antarctica/DumontDUrville",
+                "Antarctica/Macquarie",
+                "Antarctica/Mawson",
+                "Antarctica/McMurdo",
+                "Antarctica/Palmer",
+                "Antarctica/Rothera",
+                "Antarctica/South_Pole",
+                "Antarctica/Syowa",
+                "Antarctica/Troll",
+                "Antarctica/Vostok",
+                "Arctic/Longyearbyen",
+                "Asia/Aden",
+                "Asia/Almaty",
+                "Asia/Amman",
+                "Asia/Anadyr",
+                "Asia/Aqtau",
+                "Asia/Aqtobe",
+                "Asia/Ashgabat",
+                "Asia/Ashkhabad",
+                "Asia/Atyrau",
+                "Asia/Baghdad",
+                "Asia/Bahrain",
+                "Asia/Baku",
+                "Asia/Bangkok",
+                "Asia/Barnaul",
+                "Asia/Beirut",
+                "Asia/Bishkek",
+                "Asia/Brunei",
+                "Asia/Calcutta",
+                "Asia/Chita",
+                "Asia/Choibalsan",
+                "Asia/Chongqing",
+                "Asia/Chungking",
+                "Asia/Colombo",
+                "Asia/Dacca",
+                "Asia/Damascus",
+                "Asia/Dhaka",
+                "Asia/Dili",
+                "Asia/Dubai",
+                "Asia/Dushanbe",
+                "Asia/Famagusta",
+                "Asia/Gaza",
+                "Asia/Harbin",
+                "Asia/Hebron",
+                "Asia/Ho_Chi_Minh",
+                "Asia/Hong_Kong",
+                "Asia/Hovd",
+                "Asia/Irkutsk",
+                "Asia/Istanbul",
+                "Asia/Jakarta",
+                "Asia/Jayapura",
+                "Asia/Jerusalem",
+                "Asia/Kabul",
+                "Asia/Kamchatka",
+                "Asia/Karachi",
+                "Asia/Kashgar",
+                "Asia/Kathmandu",
+                "Asia/Katmandu",
+                "Asia/Khandyga",
+                "Asia/Kolkata",
+                "Asia/Krasnoyarsk",
+                "Asia/Kuala_Lumpur",
+                "Asia/Kuching",
+                "Asia/Kuwait",
+                "Asia/Macao",
+                "Asia/Macau",
+                "Asia/Magadan",
+                "Asia/Makassar",
+                "Asia/Manila",
+                "Asia/Muscat",
+                "Asia/Nicosia",
+                "Asia/Novokuznetsk",
+                "Asia/Novosibirsk",
+                "Asia/Omsk",
+                "Asia/Oral",
+                "Asia/Phnom_Penh",
+                "Asia/Pontianak",
+                "Asia/Pyongyang",
+                "Asia/Qatar",
+                "Asia/Qostanay",
+                "Asia/Qyzylorda",
+                "Asia/Rangoon",
+                "Asia/Riyadh",
+                "Asia/Saigon",
+                "Asia/Sakhalin",
+                "Asia/Samarkand",
+                "Asia/Seoul",
+                "Asia/Shanghai",
+                "Asia/Singapore",
+                "Asia/Srednekolymsk",
+                "Asia/Taipei",
+                "Asia/Tashkent",
+                "Asia/Tbilisi",
+                "Asia/Tehran",
+                "Asia/Tel_Aviv",
+                "Asia/Thimbu",
+                "Asia/Thimphu",
+                "Asia/Tokyo",
+                "Asia/Tomsk",
+                "Asia/Ujung_Pandang",
+                "Asia/Ulaanbaatar",
+                "Asia/Ulan_Bator",
+                "Asia/Urumqi",
+                "Asia/Ust-Nera",
+                "Asia/Vientiane",
+                "Asia/Vladivostok",
+                "Asia/Yakutsk",
+                "Asia/Yangon",
+                "Asia/Yekaterinburg",
+                "Asia/Yerevan",
+                "Atlantic/Azores",
+                "Atlantic/Bermuda",
+                "Atlantic/Canary",
+                "Atlantic/Cape_Verde",
+                "Atlantic/Faeroe",
+                "Atlantic/Faroe",
+                "Atlantic/Jan_Mayen",
+                "Atlantic/Madeira",
+                "Atlantic/Reykjavik",
+                "Atlantic/South_Georgia",
+                "Atlantic/St_Helena",
+                "Atlantic/Stanley",
+                "Australia/ACT",
+                "Australia/Adelaide",
+                "Australia/Brisbane",
+                "Australia/Broken_Hill",
+                "Australia/Canberra",
+                "Australia/Currie",
+                "Australia/Darwin",
+                "Australia/Eucla",
+                "Australia/Hobart",
+                "Australia/LHI",
+                "Australia/Lindeman",
+                "Australia/Lord_Howe",
+                "Australia/Melbourne",
+                "Australia/NSW",
+                "Australia/North",
+                "Australia/Perth",
+                "Australia/Queensland",
+                "Australia/South",
+                "Australia/Sydney",
+                "Australia/Tasmania",
+                "Australia/Victoria",
+                "Australia/West",
+                "Australia/Yancowinna",
+                "Brazil/Acre",
+                "Brazil/DeNoronha",
+                "Brazil/East",
+                "Brazil/West",
+                "CET",
+                "CST6CDT",
+                "Canada/Atlantic",
+                "Canada/Central",
+                "Canada/Eastern",
+                "Canada/Mountain",
+                "Canada/Newfoundland",
+                "Canada/Pacific",
+                "Canada/Saskatchewan",
+                "Canada/Yukon",
+                "Chile/Continental",
+                "Chile/EasterIsland",
+                "Cuba",
+                "EET",
+                "EST",
+                "EST5EDT",
+                "Egypt",
+                "Eire",
+                "Etc/GMT",
+                "Etc/GMT+0",
+                "Etc/GMT+1",
+                "Etc/GMT+10",
+                "Etc/GMT+11",
+                "Etc/GMT+12",
+                "Etc/GMT+2",
+                "Etc/GMT+3",
+                "Etc/GMT+4",
+                "Etc/GMT+5",
+                "Etc/GMT+6",
+                "Etc/GMT+7",
+                "Etc/GMT+8",
+                "Etc/GMT+9",
+                "Etc/GMT-0",
+                "Etc/GMT-1",
+                "Etc/GMT-10",
+                "Etc/GMT-11",
+                "Etc/GMT-12",
+                "Etc/GMT-13",
+                "Etc/GMT-14",
+                "Etc/GMT-2",
+                "Etc/GMT-3",
+                "Etc/GMT-4",
+                "Etc/GMT-5",
+                "Etc/GMT-6",
+                "Etc/GMT-7",
+                "Etc/GMT-8",
+                "Etc/GMT-9",
+                "Etc/GMT0",
+                "Etc/Greenwich",
+                "Etc/UCT",
+                "Etc/UTC",
+                "Etc/Universal",
+                "Etc/Zulu",
+                "Europe/Amsterdam",
+                "Europe/Andorra",
+                "Europe/Astrakhan",
+                "Europe/Athens",
+                "Europe/Belfast",
+                "Europe/Belgrade",
+                "Europe/Berlin",
+                "Europe/Bratislava",
+                "Europe/Brussels",
+                "Europe/Bucharest",
+                "Europe/Budapest",
+                "Europe/Busingen",
+                "Europe/Chisinau",
+                "Europe/Copenhagen",
+                "Europe/Dublin",
+                "Europe/Gibraltar",
+                "Europe/Guernsey",
+                "Europe/Helsinki",
+                "Europe/Isle_of_Man",
+                "Europe/Istanbul",
+                "Europe/Jersey",
+                "Europe/Kaliningrad",
+                "Europe/Kiev",
+                "Europe/Kirov",
+                "Europe/Kyiv",
+                "Europe/Lisbon",
+                "Europe/Ljubljana",
+                "Europe/London",
+                "Europe/Luxembourg",
+                "Europe/Madrid",
+                "Europe/Malta",
+                "Europe/Mariehamn",
+                "Europe/Minsk",
+                "Europe/Monaco",
+                "Europe/Moscow",
+                "Europe/Nicosia",
+                "Europe/Oslo",
+                "Europe/Paris",
+                "Europe/Podgorica",
+                "Europe/Prague",
+                "Europe/Riga",
+                "Europe/Rome",
+                "Europe/Samara",
+                "Europe/San_Marino",
+                "Europe/Sarajevo",
+                "Europe/Saratov",
+                "Europe/Simferopol",
+                "Europe/Skopje",
+                "Europe/Sofia",
+                "Europe/Stockholm",
+                "Europe/Tallinn",
+                "Europe/Tirane",
+                "Europe/Tiraspol",
+                "Europe/Ulyanovsk",
+                "Europe/Uzhgorod",
+                "Europe/Vaduz",
+                "Europe/Vatican",
+                "Europe/Vienna",
+                "Europe/Vilnius",
+                "Europe/Volgograd",
+                "Europe/Warsaw",
+                "Europe/Zagreb",
+                "Europe/Zaporozhye",
+                "Europe/Zurich",
+                "Factory",
+                "GB",
+                "GB-Eire",
+                "GMT",
+                "GMT+0",
+                "GMT-0",
+                "GMT0",
+                "Greenwich",
+                "HST",
+                "Hongkong",
+                "Iceland",
+                "Indian/Antananarivo",
+                "Indian/Chagos",
+                "Indian/Christmas",
+                "Indian/Cocos",
+                "Indian/Comoro",
+                "Indian/Kerguelen",
+                "Indian/Mahe",
+                "Indian/Maldives",
+                "Indian/Mauritius",
+                "Indian/Mayotte",
+                "Indian/Reunion",
+                "Iran",
+                "Israel",
+                "Jamaica",
+                "Japan",
+                "Kwajalein",
+                "Libya",
+                "MET",
+                "MST",
+                "MST7MDT",
+                "Mexico/BajaNorte",
+                "Mexico/BajaSur",
+                "Mexico/General",
+                "NZ",
+                "NZ-CHAT",
+                "Navajo",
+                "PRC",
+                "PST8PDT",
+                "Pacific/Apia",
+                "Pacific/Auckland",
+                "Pacific/Bougainville",
+                "Pacific/Chatham",
+                "Pacific/Chuuk",
+                "Pacific/Easter",
+                "Pacific/Efate",
+                "Pacific/Enderbury",
+                "Pacific/Fakaofo",
+                "Pacific/Fiji",
+                "Pacific/Funafuti",
+                "Pacific/Galapagos",
+                "Pacific/Gambier",
+                "Pacific/Guadalcanal",
+                "Pacific/Guam",
+                "Pacific/Honolulu",
+                "Pacific/Johnston",
+                "Pacific/Kanton",
+                "Pacific/Kiritimati",
+                "Pacific/Kosrae",
+                "Pacific/Kwajalein",
+                "Pacific/Majuro",
+                "Pacific/Marquesas",
+                "Pacific/Midway",
+                "Pacific/Nauru",
+                "Pacific/Niue",
+                "Pacific/Norfolk",
+                "Pacific/Noumea",
+                "Pacific/Pago_Pago",
+                "Pacific/Palau",
+                "Pacific/Pitcairn",
+                "Pacific/Pohnpei",
+                "Pacific/Ponape",
+                "Pacific/Port_Moresby",
+                "Pacific/Rarotonga",
+                "Pacific/Saipan",
+                "Pacific/Samoa",
+                "Pacific/Tahiti",
+                "Pacific/Tarawa",
+                "Pacific/Tongatapu",
+                "Pacific/Truk",
+                "Pacific/Wake",
+                "Pacific/Wallis",
+                "Pacific/Yap",
+                "Poland",
+                "Portugal",
+                "ROC",
+                "ROK",
+                "Singapore",
+                "Turkey",
+                "UCT",
+                "US/Alaska",
+                "US/Aleutian",
+                "US/Arizona",
+                "US/Central",
+                "US/East-Indiana",
+                "US/Eastern",
+                "US/Hawaii",
+                "US/Indiana-Starke",
+                "US/Michigan",
+                "US/Mountain",
+                "US/Pacific",
+                "US/Samoa",
+                "UTC",
+                "Universal",
+                "W-SU",
+                "WET",
+                "Zulu"
+            ],
+            "searchable": true,
+            "clearable": true
+        },
+        "slack.require_mention": {
+            "type": "boolean",
+            "description": "Slack \u2192 Require Mention",
+            "category": "slack"
+        },
+        "slack.free_response_channels": {
+            "type": "string",
+            "description": "Slack \u2192 Free Response Channels",
+            "category": "slack"
+        },
+        "slack.allowed_channels": {
+            "type": "string",
+            "description": "Slack \u2192 Allowed Channels",
+            "category": "slack"
+        },
+        "slack.require_mention_channels": {
+            "type": "string",
+            "description": "Slack \u2192 Require Mention Channels",
+            "category": "slack"
+        },
+        "slack.ignore_other_user_mentions": {
+            "type": "boolean",
+            "description": "Slack \u2192 Ignore Other User Mentions",
+            "category": "slack"
+        },
+        "slack.thread_require_mention": {
+            "type": "boolean",
+            "description": "Slack \u2192 Thread Require Mention",
+            "category": "slack"
+        },
+        "discord.require_mention": {
+            "type": "boolean",
+            "description": "Discord \u2192 Require Mention",
+            "category": "discord"
+        },
+        "discord.free_response_channels": {
+            "type": "string",
+            "description": "Discord \u2192 Free Response Channels",
+            "category": "discord"
+        },
+        "discord.allowed_channels": {
+            "type": "string",
+            "description": "Discord \u2192 Allowed Channels",
+            "category": "discord"
+        },
+        "discord.auto_thread": {
+            "type": "boolean",
+            "description": "Discord \u2192 Auto Thread",
+            "category": "discord"
+        },
+        "discord.thread_require_mention": {
+            "type": "boolean",
+            "description": "Discord \u2192 Thread Require Mention",
+            "category": "discord"
+        },
+        "discord.bots_require_inline_mention": {
+            "type": "boolean",
+            "description": "Discord \u2192 Bots Require Inline Mention",
+            "category": "discord"
+        },
+        "discord.history_backfill": {
+            "type": "boolean",
+            "description": "Discord \u2192 History Backfill",
+            "category": "discord"
+        },
+        "discord.history_backfill_limit": {
+            "type": "number",
+            "description": "Discord \u2192 History Backfill Limit",
+            "category": "discord"
+        },
+        "discord.missed_message_backfill.enabled": {
+            "type": "boolean",
+            "description": "Discord \u2192 Missed Message Backfill \u2192 Enabled",
+            "category": "discord"
+        },
+        "discord.missed_message_backfill.channels": {
+            "type": "string",
+            "description": "Discord \u2192 Missed Message Backfill \u2192 Channels",
+            "category": "discord"
+        },
+        "discord.missed_message_backfill.window_seconds": {
+            "type": "number",
+            "description": "Discord \u2192 Missed Message Backfill \u2192 Window Seconds",
+            "category": "discord"
+        },
+        "discord.missed_message_backfill.limit": {
+            "type": "number",
+            "description": "Discord \u2192 Missed Message Backfill \u2192 Limit",
+            "category": "discord"
+        },
+        "discord.missed_message_backfill.max_dispatches": {
+            "type": "number",
+            "description": "Discord \u2192 Missed Message Backfill \u2192 Max Dispatches",
+            "category": "discord"
+        },
+        "discord.reactions": {
+            "type": "boolean",
+            "description": "Discord \u2192 Reactions",
+            "category": "discord"
+        },
+        "discord.websocket_liveness_interval_seconds": {
+            "type": "number",
+            "description": "Discord \u2192 Websocket Liveness Interval Seconds",
+            "category": "discord"
+        },
+        "discord.websocket_liveness_failure_threshold": {
+            "type": "number",
+            "description": "Discord \u2192 Websocket Liveness Failure Threshold",
+            "category": "discord"
+        },
+        "discord.websocket_heartbeat_ack_max_age_seconds": {
+            "type": "number",
+            "description": "Discord \u2192 Websocket Heartbeat Ack Max Age Seconds",
+            "category": "discord"
+        },
+        "discord.websocket_max_latency_seconds": {
+            "type": "number",
+            "description": "Discord \u2192 Websocket Max Latency Seconds",
+            "category": "discord"
+        },
+        "discord.dm_role_auth_guild": {
+            "type": "string",
+            "description": "Discord \u2192 Dm Role Auth Guild",
+            "category": "discord"
+        },
+        "discord.server_actions": {
+            "type": "string",
+            "description": "Discord \u2192 Server Actions",
+            "category": "discord"
+        },
+        "discord.allow_any_attachment": {
+            "type": "boolean",
+            "description": "Discord \u2192 Allow Any Attachment",
+            "category": "discord"
+        },
+        "discord.max_attachment_bytes": {
+            "type": "number",
+            "description": "Discord \u2192 Max Attachment Bytes",
+            "category": "discord"
+        },
+        "discord.approval_mentions": {
+            "type": "boolean",
+            "description": "Discord \u2192 Approval Mentions",
+            "category": "discord"
+        },
+        "discord.voice_channel_inactivity_timeout_seconds": {
+            "type": "number",
+            "description": "Discord \u2192 Voice Channel Inactivity Timeout Seconds",
+            "category": "discord"
+        },
+        "discord.voice_playback_timeout_seconds": {
+            "type": "number",
+            "description": "Discord \u2192 Voice Playback Timeout Seconds",
+            "category": "discord"
+        },
+        "discord.voice_fx.enabled": {
+            "type": "boolean",
+            "description": "Discord \u2192 Voice Fx \u2192 Enabled",
+            "category": "discord"
+        },
+        "discord.voice_fx.ambient_enabled": {
+            "type": "boolean",
+            "description": "Discord \u2192 Voice Fx \u2192 Ambient Enabled",
+            "category": "discord"
+        },
+        "discord.voice_fx.ambient_path": {
+            "type": "string",
+            "description": "Discord \u2192 Voice Fx \u2192 Ambient Path",
+            "category": "discord"
+        },
+        "discord.voice_fx.ambient_gain": {
+            "type": "number",
+            "description": "Discord \u2192 Voice Fx \u2192 Ambient Gain",
+            "category": "discord"
+        },
+        "discord.voice_fx.duck_gain": {
+            "type": "number",
+            "description": "Discord \u2192 Voice Fx \u2192 Duck Gain",
+            "category": "discord"
+        },
+        "discord.voice_fx.speech_gain": {
+            "type": "number",
+            "description": "Discord \u2192 Voice Fx \u2192 Speech Gain",
+            "category": "discord"
+        },
+        "discord.voice_fx.ack_enabled": {
+            "type": "boolean",
+            "description": "Discord \u2192 Voice Fx \u2192 Ack Enabled",
+            "category": "discord"
+        },
+        "discord.voice_fx.ack_phrases": {
+            "type": "list",
+            "description": "Discord \u2192 Voice Fx \u2192 Ack Phrases",
+            "category": "discord"
+        },
+        "telegram.reactions": {
+            "type": "boolean",
+            "description": "Telegram \u2192 Reactions",
+            "category": "discord"
+        },
+        "telegram.allowed_chats": {
+            "type": "string",
+            "description": "Telegram \u2192 Allowed Chats",
+            "category": "discord"
+        },
+        "telegram.extra.rich_messages": {
+            "type": "boolean",
+            "description": "Telegram \u2192 Extra \u2192 Rich Messages",
+            "category": "discord"
+        },
+        "telegram.extra.rich_drafts": {
+            "type": "boolean",
+            "description": "Telegram \u2192 Extra \u2192 Rich Drafts",
+            "category": "discord"
+        },
+        "mattermost.require_mention": {
+            "type": "boolean",
+            "description": "Mattermost \u2192 Require Mention",
+            "category": "mattermost"
+        },
+        "mattermost.free_response_channels": {
+            "type": "string",
+            "description": "Mattermost \u2192 Free Response Channels",
+            "category": "mattermost"
+        },
+        "mattermost.allowed_channels": {
+            "type": "string",
+            "description": "Mattermost \u2192 Allowed Channels",
+            "category": "mattermost"
+        },
+        "matrix.require_mention": {
+            "type": "boolean",
+            "description": "Matrix \u2192 Require Mention",
+            "category": "matrix"
+        },
+        "matrix.free_response_rooms": {
+            "type": "string",
+            "description": "Matrix \u2192 Free Response Rooms",
+            "category": "matrix"
+        },
+        "matrix.allowed_rooms": {
+            "type": "string",
+            "description": "Matrix \u2192 Allowed Rooms",
+            "category": "matrix"
+        },
+        "approvals.mode": {
+            "type": "select",
+            "description": "Dangerous command approval mode",
+            "category": "security",
+            "options": [
+                "manual",
+                "smart",
+                "off"
+            ]
+        },
+        "approvals.timeout": {
+            "type": "number",
+            "description": "Approvals \u2192 Timeout",
+            "category": "security"
+        },
+        "approvals.cron_mode": {
+            "type": "string",
+            "description": "Approvals \u2192 Cron Mode",
+            "category": "security"
+        },
+        "approvals.single_query_mode": {
+            "type": "string",
+            "description": "Approvals \u2192 Single Query Mode",
+            "category": "security"
+        },
+        "approvals.unattended_mode": {
+            "type": "string",
+            "description": "Approvals \u2192 Unattended Mode",
+            "category": "security"
+        },
+        "approvals.smart_policy": {
+            "type": "string",
+            "description": "Approvals \u2192 Smart Policy",
+            "category": "security"
+        },
+        "approvals.denial_breaker_threshold": {
+            "type": "number",
+            "description": "Approvals \u2192 Denial Breaker Threshold",
+            "category": "security"
+        },
+        "approvals.deny": {
+            "type": "list",
+            "description": "Approvals \u2192 Deny",
+            "category": "security"
+        },
+        "approvals.mcp_reload_confirm": {
+            "type": "boolean",
+            "description": "Approvals \u2192 Mcp Reload Confirm",
+            "category": "security"
+        },
+        "approvals.destructive_slash_confirm": {
+            "type": "boolean",
+            "description": "Approvals \u2192 Destructive Slash Confirm",
+            "category": "security"
+        },
+        "command_allowlist": {
+            "type": "list",
+            "description": "Command Allowlist",
+            "category": "general"
+        },
+        "plugins.hook_callback_timeout": {
+            "type": "number",
+            "description": "Wall-clock cap (seconds) for timeout-bounded in-process Python plugin hook callbacks (hot-path observers + pre_tool_call). Timed-out pre_tool_call fails closed. 0 disables the cap; values above 600 are clamped. Caller-thread hooks such as subagent_stop are never moved onto a timeout worker.",
+            "category": "agent"
+        },
+        "plugins.allow_deprecated_imports": {
+            "type": "boolean",
+            "description": "Plugins \u2192 Allow Deprecated Imports",
+            "category": "agent"
+        },
+        "hooks_auto_accept": {
+            "type": "boolean",
+            "description": "Hooks Auto Accept",
+            "category": "general"
+        },
+        "security.allow_private_urls": {
+            "type": "boolean",
+            "description": "Security \u2192 Allow Private Urls",
+            "category": "security"
+        },
+        "security.redact_secrets": {
+            "type": "boolean",
+            "description": "Security \u2192 Redact Secrets",
+            "category": "security"
+        },
+        "security.allow_data_training_tiers_noninteractive": {
+            "type": "boolean",
+            "description": "Security \u2192 Allow Data Training Tiers Noninteractive",
+            "category": "security"
+        },
+        "security.approval.transport": {
+            "type": "string",
+            "description": "Security \u2192 Approval \u2192 Transport",
+            "category": "security"
+        },
+        "security.approval.transport_fallback": {
+            "type": "string",
+            "description": "Security \u2192 Approval \u2192 Transport Fallback",
+            "category": "security"
+        },
+        "security.protected_instruction_files": {
+            "type": "boolean",
+            "description": "Security \u2192 Protected Instruction Files",
+            "category": "security"
+        },
+        "security.protected_instruction_extra_patterns": {
+            "type": "list",
+            "description": "Security \u2192 Protected Instruction Extra Patterns",
+            "category": "security"
+        },
+        "security.tirith_enabled": {
+            "type": "boolean",
+            "description": "Security \u2192 Tirith Enabled",
+            "category": "security"
+        },
+        "security.tirith_path": {
+            "type": "string",
+            "description": "Security \u2192 Tirith Path",
+            "category": "security"
+        },
+        "security.tirith_timeout": {
+            "type": "number",
+            "description": "Security \u2192 Tirith Timeout",
+            "category": "security"
+        },
+        "security.tirith_fail_open": {
+            "type": "boolean",
+            "description": "Security \u2192 Tirith Fail Open",
+            "category": "security"
+        },
+        "security.website_blocklist.enabled": {
+            "type": "boolean",
+            "description": "Security \u2192 Website Blocklist \u2192 Enabled",
+            "category": "security"
+        },
+        "security.website_blocklist.domains": {
+            "type": "list",
+            "description": "Security \u2192 Website Blocklist \u2192 Domains",
+            "category": "security"
+        },
+        "security.website_blocklist.shared_files": {
+            "type": "list",
+            "description": "Security \u2192 Website Blocklist \u2192 Shared Files",
+            "category": "security"
+        },
+        "security.acked_advisories": {
+            "type": "list",
+            "description": "Security \u2192 Acked Advisories",
+            "category": "security"
+        },
+        "security.allow_lazy_installs": {
+            "type": "boolean",
+            "description": "Security \u2192 Allow Lazy Installs",
+            "category": "security"
+        },
+        "cron.catch_up_missed": {
+            "type": "boolean",
+            "description": "Cron \u2192 Catch Up Missed",
+            "category": "agent"
+        },
+        "cron.allow_agent_scheduling": {
+            "type": "boolean",
+            "description": "Cron \u2192 Allow Agent Scheduling",
+            "category": "agent"
+        },
+        "cron.preflight": {
+            "type": "boolean",
+            "description": "Cron \u2192 Preflight",
+            "category": "agent"
+        },
+        "cron.model": {
+            "type": "string",
+            "description": "Cron \u2192 Model",
+            "category": "agent"
+        },
+        "cron.model_provider": {
+            "type": "string",
+            "description": "Cron \u2192 Model Provider",
+            "category": "agent"
+        },
+        "cron.provider": {
+            "type": "string",
+            "description": "Cron \u2192 Provider",
+            "category": "agent"
+        },
+        "cron.chronos.portal_url": {
+            "type": "string",
+            "description": "Cron \u2192 Chronos \u2192 Portal Url",
+            "category": "agent"
+        },
+        "cron.chronos.callback_url": {
+            "type": "string",
+            "description": "Cron \u2192 Chronos \u2192 Callback Url",
+            "category": "agent"
+        },
+        "cron.chronos.expected_audience": {
+            "type": "string",
+            "description": "Cron \u2192 Chronos \u2192 Expected Audience",
+            "category": "agent"
+        },
+        "cron.chronos.nas_jwks_url": {
+            "type": "string",
+            "description": "Cron \u2192 Chronos \u2192 Nas Jwks Url",
+            "category": "agent"
+        },
+        "cron.wrap_response": {
+            "type": "boolean",
+            "description": "Cron \u2192 Wrap Response",
+            "category": "agent"
+        },
+        "cron.delivery.notify": {
+            "type": "boolean",
+            "description": "Cron \u2192 Delivery \u2192 Notify",
+            "category": "agent"
+        },
+        "cron.mirror_delivery": {
+            "type": "boolean",
+            "description": "Cron \u2192 Mirror Delivery",
+            "category": "agent"
+        },
+        "cron.max_parallel_jobs": {
+            "type": "string",
+            "description": "Cron \u2192 Max Parallel Jobs",
+            "category": "agent"
+        },
+        "cron.output_retention": {
+            "type": "number",
+            "description": "Cron \u2192 Output Retention",
+            "category": "agent"
+        },
+        "cron.script_timeout_seconds": {
+            "type": "number",
+            "description": "Cron \u2192 Script Timeout Seconds",
+            "category": "agent"
+        },
+        "cron.session_db_timeout_seconds": {
+            "type": "number",
+            "description": "Cron \u2192 Session Db Timeout Seconds",
+            "category": "agent"
+        },
+        "cron.media_send_timeout_seconds": {
+            "type": "number",
+            "description": "Cron \u2192 Media Send Timeout Seconds",
+            "category": "agent"
+        },
+        "cron.require_restart_safe_scope": {
+            "type": "boolean",
+            "description": "Cron \u2192 Require Restart Safe Scope",
+            "category": "agent"
+        },
+        "kanban.auto_subscribe_on_create": {
+            "type": "boolean",
+            "description": "Kanban \u2192 Auto Subscribe On Create",
+            "category": "kanban"
+        },
+        "kanban.notify_in_gateway": {
+            "type": "boolean",
+            "description": "Kanban \u2192 Notify In Gateway",
+            "category": "kanban"
+        },
+        "kanban.dispatch_in_gateway": {
+            "type": "boolean",
+            "description": "Kanban \u2192 Dispatch In Gateway",
+            "category": "kanban"
+        },
+        "kanban.review_dispatch": {
+            "type": "boolean",
+            "description": "Kanban \u2192 Review Dispatch",
+            "category": "kanban"
+        },
+        "kanban.dispatch_interval_seconds": {
+            "type": "number",
+            "description": "Kanban \u2192 Dispatch Interval Seconds",
+            "category": "kanban"
+        },
+        "kanban.failure_limit": {
+            "type": "number",
+            "description": "Kanban \u2192 Failure Limit",
+            "category": "kanban"
+        },
+        "kanban.worker_log_rotate_bytes": {
+            "type": "number",
+            "description": "Kanban \u2192 Worker Log Rotate Bytes",
+            "category": "kanban"
+        },
+        "kanban.worker_log_backup_count": {
+            "type": "number",
+            "description": "Kanban \u2192 Worker Log Backup Count",
+            "category": "kanban"
+        },
+        "kanban.orchestrator_profile": {
+            "type": "string",
+            "description": "Kanban \u2192 Orchestrator Profile",
+            "category": "kanban"
+        },
+        "kanban.default_assignee": {
+            "type": "string",
+            "description": "Kanban \u2192 Default Assignee",
+            "category": "kanban"
+        },
+        "kanban.max_in_progress": {
+            "type": "string",
+            "description": "Kanban \u2192 Max In Progress",
+            "category": "kanban"
+        },
+        "kanban.max_in_progress_per_profile": {
+            "type": "string",
+            "description": "Kanban \u2192 Max In Progress Per Profile",
+            "category": "kanban"
+        },
+        "kanban.auto_decompose": {
+            "type": "boolean",
+            "description": "Kanban \u2192 Auto Decompose",
+            "category": "kanban"
+        },
+        "kanban.auto_decompose_per_tick": {
+            "type": "number",
+            "description": "Kanban \u2192 Auto Decompose Per Tick",
+            "category": "kanban"
+        },
+        "kanban.dispatch_stale_timeout_seconds": {
+            "type": "number",
+            "description": "Kanban \u2192 Dispatch Stale Timeout Seconds",
+            "category": "kanban"
+        },
+        "kanban.reconcile_orphans": {
+            "type": "boolean",
+            "description": "Kanban \u2192 Reconcile Orphans",
+            "category": "kanban"
+        },
+        "kanban.done_sub_retention_days": {
+            "type": "number",
+            "description": "Kanban \u2192 Done Sub Retention Days",
+            "category": "kanban"
+        },
+        "bot_mode.envelope_ttl_seconds": {
+            "type": "number",
+            "description": "Bot Mode \u2192 Envelope Ttl Seconds",
+            "category": "agent"
+        },
+        "bot_mode.turn_wait_seconds": {
+            "type": "number",
+            "description": "Bot Mode \u2192 Turn Wait Seconds",
+            "category": "agent"
+        },
+        "code_execution.mode": {
+            "type": "string",
+            "description": "Code Execution \u2192 Mode",
+            "category": "agent"
+        },
+        "code_execution.kernel_idle_timeout": {
+            "type": "number",
+            "description": "Code Execution \u2192 Kernel Idle Timeout",
+            "category": "agent"
+        },
+        "code_execution.max_session_kernels": {
+            "type": "number",
+            "description": "Code Execution \u2192 Max Session Kernels",
+            "category": "agent"
+        },
+        "tools.tool_search.enabled": {
+            "type": "string",
+            "description": "Tools \u2192 Tool Search \u2192 Enabled",
+            "category": "tools"
+        },
+        "tools.tool_search.threshold_pct": {
+            "type": "number",
+            "description": "Tools \u2192 Tool Search \u2192 Threshold Pct",
+            "category": "tools"
+        },
+        "tools.tool_search.search_default_limit": {
+            "type": "number",
+            "description": "Tools \u2192 Tool Search \u2192 Search Default Limit",
+            "category": "tools"
+        },
+        "tools.tool_search.max_search_limit": {
+            "type": "number",
+            "description": "Tools \u2192 Tool Search \u2192 Max Search Limit",
+            "category": "tools"
+        },
+        "tools.tool_search.listing": {
+            "type": "string",
+            "description": "Tools \u2192 Tool Search \u2192 Listing",
+            "category": "tools"
+        },
+        "tools.tool_search.listing_max_tokens": {
+            "type": "number",
+            "description": "Tools \u2192 Tool Search \u2192 Listing Max Tokens",
+            "category": "tools"
+        },
+        "tools.connectors.enabled": {
+            "type": "boolean",
+            "description": "Tools \u2192 Connectors \u2192 Enabled",
+            "category": "tools"
+        },
+        "logging.level": {
+            "type": "select",
+            "description": "Log level for agent.log",
+            "category": "logging",
+            "options": [
+                "DEBUG",
+                "INFO",
+                "WARNING",
+                "ERROR"
+            ]
+        },
+        "logging.max_size_mb": {
+            "type": "number",
+            "description": "Logging \u2192 Max Size Mb",
+            "category": "logging"
+        },
+        "logging.backup_count": {
+            "type": "number",
+            "description": "Logging \u2192 Backup Count",
+            "category": "logging"
+        },
+        "model_catalog.enabled": {
+            "type": "boolean",
+            "description": "Model Catalog \u2192 Enabled",
+            "category": "model_catalog"
+        },
+        "model_catalog.url": {
+            "type": "string",
+            "description": "Model Catalog \u2192 Url",
+            "category": "model_catalog"
+        },
+        "model_catalog.ttl_minutes": {
+            "type": "number",
+            "description": "Model Catalog \u2192 Ttl Minutes",
+            "category": "model_catalog"
+        },
+        "models_dev.url": {
+            "type": "string",
+            "description": "Models Dev \u2192 Url",
+            "category": "agent"
+        },
+        "network.force_ipv4": {
+            "type": "boolean",
+            "description": "Network \u2192 Force Ipv4",
+            "category": "agent"
+        },
+        "monitoring.install_id": {
+            "type": "string",
+            "description": "Monitoring \u2192 Install Id",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.enabled": {
+            "type": "boolean",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Enabled",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.metrics_enabled": {
+            "type": "boolean",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Metrics Enabled",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.diagnostic_events_enabled": {
+            "type": "boolean",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Diagnostic Events Enabled",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.warning_error_events_enabled": {
+            "type": "boolean",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Warning Error Events Enabled",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.export_interval_seconds": {
+            "type": "number",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Export Interval Seconds",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.logs_export_interval_seconds": {
+            "type": "number",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Logs Export Interval Seconds",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.resource_attributes.service.name": {
+            "type": "string",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Resource Attributes \u2192 Service \u2192 Name",
+            "category": "monitoring"
+        },
+        "monitoring.gateway_health_export.resource_attributes.deployment.environment.name": {
+            "type": "string",
+            "description": "Monitoring \u2192 Gateway Health Export \u2192 Resource Attributes \u2192 Deployment \u2192 Environment \u2192 Name",
+            "category": "monitoring"
+        },
+        "monitoring.export.otlp.enabled": {
+            "type": "boolean",
+            "description": "Monitoring \u2192 Export \u2192 Otlp \u2192 Enabled",
+            "category": "monitoring"
+        },
+        "monitoring.export.otlp.endpoint": {
+            "type": "string",
+            "description": "Monitoring \u2192 Export \u2192 Otlp \u2192 Endpoint",
+            "category": "monitoring"
+        },
+        "gateway.signal_interrupt_grace_timeout": {
+            "type": "number",
+            "description": "Gateway \u2192 Signal Interrupt Grace Timeout",
+            "category": "gateway"
+        },
+        "gateway.delivery_ledger": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Delivery Ledger",
+            "category": "gateway"
+        },
+        "gateway.platform_connect_timeout": {
+            "type": "number",
+            "description": "Gateway \u2192 Platform Connect Timeout",
+            "category": "gateway"
+        },
+        "gateway.loop_watchdog": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Loop Watchdog",
+            "category": "gateway"
+        },
+        "gateway.loop_watchdog_probe_interval_s": {
+            "type": "number",
+            "description": "Gateway \u2192 Loop Watchdog Probe Interval S",
+            "category": "gateway"
+        },
+        "gateway.loop_watchdog_probe_timeout_s": {
+            "type": "number",
+            "description": "Gateway \u2192 Loop Watchdog Probe Timeout S",
+            "category": "gateway"
+        },
+        "gateway.loop_watchdog_max_strikes": {
+            "type": "number",
+            "description": "Gateway \u2192 Loop Watchdog Max Strikes",
+            "category": "gateway"
+        },
+        "gateway.bot_loop_guard.enabled": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Bot Loop Guard \u2192 Enabled",
+            "category": "gateway"
+        },
+        "gateway.bot_loop_guard.max_events": {
+            "type": "number",
+            "description": "Gateway \u2192 Bot Loop Guard \u2192 Max Events",
+            "category": "gateway"
+        },
+        "gateway.bot_loop_guard.window_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Bot Loop Guard \u2192 Window Seconds",
+            "category": "gateway"
+        },
+        "gateway.bot_loop_guard.cooldown_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Bot Loop Guard \u2192 Cooldown Seconds",
+            "category": "gateway"
+        },
+        "gateway.startup_watchdog": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Startup Watchdog",
+            "category": "gateway"
+        },
+        "gateway.startup_watchdog_timeout_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Startup Watchdog Timeout Seconds",
+            "category": "gateway"
+        },
+        "gateway.write_sessions_json": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Write Sessions Json",
+            "category": "gateway"
+        },
+        "gateway.multiplex_profiles": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Multiplex Profiles",
+            "category": "gateway"
+        },
+        "gateway.auto_migrate": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Auto Migrate",
+            "category": "gateway"
+        },
+        "gateway.profile_routes": {
+            "type": "list",
+            "description": "Gateway \u2192 Profile Routes",
+            "category": "gateway"
+        },
+        "gateway.scale_to_zero.idle_timeout_minutes": {
+            "type": "number",
+            "description": "Gateway \u2192 Scale To Zero \u2192 Idle Timeout Minutes",
+            "category": "gateway"
+        },
+        "gateway.restart_loop_guard.max_restarts": {
+            "type": "number",
+            "description": "Gateway \u2192 Restart Loop Guard \u2192 Max Restarts",
+            "category": "gateway"
+        },
+        "gateway.restart_loop_guard.window_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Restart Loop Guard \u2192 Window Seconds",
+            "category": "gateway"
+        },
+        "gateway.restart_loop_guard.max_gap_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Restart Loop Guard \u2192 Max Gap Seconds",
+            "category": "gateway"
+        },
+        "gateway.respawn_storm.max_starts": {
+            "type": "number",
+            "description": "Gateway \u2192 Respawn Storm \u2192 Max Starts",
+            "category": "gateway"
+        },
+        "gateway.respawn_storm.window_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Respawn Storm \u2192 Window Seconds",
+            "category": "gateway"
+        },
+        "gateway.message_timestamps.enabled": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Message Timestamps \u2192 Enabled",
+            "category": "gateway"
+        },
+        "gateway.max_inbound_media_bytes": {
+            "type": "number",
+            "description": "Gateway \u2192 Max Inbound Media Bytes",
+            "category": "gateway"
+        },
+        "gateway.trust_env": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Trust Env",
+            "category": "gateway"
+        },
+        "gateway.strict": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Strict",
+            "category": "gateway"
+        },
+        "gateway.media_delivery_allow_dirs": {
+            "type": "list",
+            "description": "Gateway \u2192 Media Delivery Allow Dirs",
+            "category": "gateway"
+        },
+        "gateway.trust_recent_files": {
+            "type": "boolean",
+            "description": "Gateway \u2192 Trust Recent Files",
+            "category": "gateway"
+        },
+        "gateway.trust_recent_files_seconds": {
+            "type": "number",
+            "description": "Gateway \u2192 Trust Recent Files Seconds",
+            "category": "gateway"
+        },
+        "gateway.api_server.max_concurrent_runs": {
+            "type": "number",
+            "description": "Gateway \u2192 Api Server \u2192 Max Concurrent Runs",
+            "category": "gateway"
+        },
+        "streaming.enabled": {
+            "type": "boolean",
+            "description": "Streaming \u2192 Enabled",
+            "category": "streaming"
+        },
+        "streaming.transport": {
+            "type": "string",
+            "description": "Streaming \u2192 Transport",
+            "category": "streaming"
+        },
+        "streaming.edit_interval": {
+            "type": "number",
+            "description": "Streaming \u2192 Edit Interval",
+            "category": "streaming"
+        },
+        "streaming.buffer_threshold": {
+            "type": "number",
+            "description": "Streaming \u2192 Buffer Threshold",
+            "category": "streaming"
+        },
+        "streaming.cursor": {
+            "type": "string",
+            "description": "Streaming \u2192 Cursor",
+            "category": "streaming"
+        },
+        "streaming.fresh_final_after_seconds": {
+            "type": "number",
+            "description": "Streaming \u2192 Fresh Final After Seconds",
+            "category": "streaming"
+        },
+        "sessions.auto_prune": {
+            "type": "boolean",
+            "description": "Sessions \u2192 Auto Prune",
+            "category": "sessions"
+        },
+        "sessions.retention_days": {
+            "type": "number",
+            "description": "Sessions \u2192 Retention Days",
+            "category": "sessions"
+        },
+        "sessions.auto_archive": {
+            "type": "boolean",
+            "description": "Sessions \u2192 Auto Archive",
+            "category": "sessions"
+        },
+        "sessions.auto_archive_days": {
+            "type": "number",
+            "description": "Sessions \u2192 Auto Archive Days",
+            "category": "sessions"
+        },
+        "sessions.vacuum_after_prune": {
+            "type": "boolean",
+            "description": "Sessions \u2192 Vacuum After Prune",
+            "category": "sessions"
+        },
+        "sessions.min_vacuum_interval_days": {
+            "type": "number",
+            "description": "Sessions \u2192 Min Vacuum Interval Days",
+            "category": "sessions"
+        },
+        "sessions.min_interval_hours": {
+            "type": "number",
+            "description": "Sessions \u2192 Min Interval Hours",
+            "category": "sessions"
+        },
+        "sessions.fts_optimize_notice": {
+            "type": "string",
+            "description": "Sessions \u2192 Fts Optimize Notice",
+            "category": "sessions"
+        },
+        "sessions.cjk_fts": {
+            "type": "boolean",
+            "description": "Sessions \u2192 Cjk Fts",
+            "category": "sessions"
+        },
+        "sessions.search_slow_ms": {
+            "type": "number",
+            "description": "Sessions \u2192 Search Slow Ms",
+            "category": "sessions"
+        },
+        "sessions.max_resume_messages": {
+            "type": "number",
+            "description": "Sessions \u2192 Max Resume Messages",
+            "category": "sessions"
+        },
+        "sessions.max_export_messages": {
+            "type": "number",
+            "description": "Sessions \u2192 Max Export Messages",
+            "category": "sessions"
+        },
+        "onboarding.profile_build": {
+            "type": "string",
+            "description": "Onboarding \u2192 Profile Build",
+            "category": "agent"
+        },
+        "telemetry.shared_metrics.enabled": {
+            "type": "boolean",
+            "description": "Telemetry \u2192 Shared Metrics \u2192 Enabled",
+            "category": "security"
+        },
+        "telemetry.shared_metrics.send": {
+            "type": "boolean",
+            "description": "Telemetry \u2192 Shared Metrics \u2192 Send",
+            "category": "security"
+        },
+        "telemetry.shared_metrics.endpoint": {
+            "type": "string",
+            "description": "Telemetry \u2192 Shared Metrics \u2192 Endpoint",
+            "category": "security"
+        },
+        "doctor.live_probe_timeout": {
+            "type": "number",
+            "description": "Doctor \u2192 Live Probe Timeout",
+            "category": "general"
+        },
+        "updates.check": {
+            "type": "boolean",
+            "description": "Updates \u2192 Check",
+            "category": "general"
+        },
+        "updates.pre_update_backup": {
+            "type": "string",
+            "description": "Updates \u2192 Pre Update Backup",
+            "category": "general"
+        },
+        "updates.backup_keep": {
+            "type": "number",
+            "description": "Updates \u2192 Backup Keep",
+            "category": "general"
+        },
+        "updates.non_interactive_local_changes": {
+            "type": "select",
+            "description": "When the chat app / gateway updates Hermes (no terminal prompt), what to do with uncommitted local source edits. 'stash' keeps them and re-applies them after the update; 'discard' throws them away. Terminal updates always ask, regardless of this setting.",
+            "category": "general",
+            "options": [
+                "stash",
+                "discard"
+            ]
+        },
+        "updates.auto_switch_parked_branch": {
+            "type": "boolean",
+            "description": "Updates \u2192 Auto Switch Parked Branch",
+            "category": "general"
+        },
+        "updates.parked_branch_strategy": {
+            "type": "string",
+            "description": "Updates \u2192 Parked Branch Strategy",
+            "category": "general"
+        },
+        "updates.refresh_cua_driver": {
+            "type": "boolean",
+            "description": "Refresh an already-installed cua-driver during hermes update. Disable this on non-admin macOS accounts where /Applications is not writable.",
+            "category": "general"
+        },
+        "lsp.enabled": {
+            "type": "boolean",
+            "description": "Lsp \u2192 Enabled",
+            "category": "lsp"
+        },
+        "lsp.wait_mode": {
+            "type": "string",
+            "description": "Lsp \u2192 Wait Mode",
+            "category": "lsp"
+        },
+        "lsp.wait_timeout": {
+            "type": "number",
+            "description": "Lsp \u2192 Wait Timeout",
+            "category": "lsp"
+        },
+        "lsp.install_strategy": {
+            "type": "string",
+            "description": "Lsp \u2192 Install Strategy",
+            "category": "lsp"
+        },
+        "lsp.idle_timeout": {
+            "type": "number",
+            "description": "Lsp \u2192 Idle Timeout",
+            "category": "lsp"
+        },
+        "x_search.model": {
+            "type": "string",
+            "description": "X Search \u2192 Model",
+            "category": "x_search"
+        },
+        "x_search.reasoning_effort": {
+            "type": "string",
+            "description": "X Search \u2192 Reasoning Effort",
+            "category": "x_search"
+        },
+        "x_search.timeout_seconds": {
+            "type": "number",
+            "description": "X Search \u2192 Timeout Seconds",
+            "category": "x_search"
+        },
+        "x_search.retries": {
+            "type": "number",
+            "description": "X Search \u2192 Retries",
+            "category": "x_search"
+        },
+        "vault.onepassword.enabled": {
+            "type": "boolean",
+            "description": "Vault \u2192 Onepassword \u2192 Enabled",
+            "category": "vault"
+        },
+        "vault.onepassword.account": {
+            "type": "string",
+            "description": "Vault \u2192 Onepassword \u2192 Account",
+            "category": "vault"
+        },
+        "vault.onepassword.binary_path": {
+            "type": "string",
+            "description": "Vault \u2192 Onepassword \u2192 Binary Path",
+            "category": "vault"
+        },
+        "vault.onepassword.service_account_token_env": {
+            "type": "string",
+            "description": "Vault \u2192 Onepassword \u2192 Service Account Token Env",
+            "category": "vault"
+        },
+        "vault.bitwarden.enabled": {
+            "type": "boolean",
+            "description": "Vault \u2192 Bitwarden \u2192 Enabled",
+            "category": "vault"
+        },
+        "vault.bitwarden.binary_path": {
+            "type": "string",
+            "description": "Vault \u2192 Bitwarden \u2192 Binary Path",
+            "category": "vault"
+        },
+        "secrets.bitwarden.enabled": {
+            "type": "boolean",
+            "description": "Secrets \u2192 Bitwarden \u2192 Enabled",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.access_token_env": {
+            "type": "string",
+            "description": "Secrets \u2192 Bitwarden \u2192 Access Token Env",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.project_id": {
+            "type": "string",
+            "description": "Secrets \u2192 Bitwarden \u2192 Project Id",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.cache_ttl_seconds": {
+            "type": "number",
+            "description": "Secrets \u2192 Bitwarden \u2192 Cache Ttl Seconds",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.encrypted_cache.enabled": {
+            "type": "boolean",
+            "description": "Secrets \u2192 Bitwarden \u2192 Encrypted Cache \u2192 Enabled",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.encrypted_cache.max_stale_seconds": {
+            "type": "number",
+            "description": "Secrets \u2192 Bitwarden \u2192 Encrypted Cache \u2192 Max Stale Seconds",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.override_existing": {
+            "type": "boolean",
+            "description": "Secrets \u2192 Bitwarden \u2192 Override Existing",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.auto_install": {
+            "type": "boolean",
+            "description": "Secrets \u2192 Bitwarden \u2192 Auto Install",
+            "category": "secrets"
+        },
+        "secrets.bitwarden.server_url": {
+            "type": "string",
+            "description": "Secrets \u2192 Bitwarden \u2192 Server Url",
+            "category": "secrets"
+        },
+        "secrets.onepassword.enabled": {
+            "type": "boolean",
+            "description": "Secrets \u2192 Onepassword \u2192 Enabled",
+            "category": "secrets"
+        },
+        "secrets.onepassword.account": {
+            "type": "string",
+            "description": "Secrets \u2192 Onepassword \u2192 Account",
+            "category": "secrets"
+        },
+        "secrets.onepassword.service_account_token_env": {
+            "type": "string",
+            "description": "Secrets \u2192 Onepassword \u2192 Service Account Token Env",
+            "category": "secrets"
+        },
+        "secrets.onepassword.binary_path": {
+            "type": "string",
+            "description": "Secrets \u2192 Onepassword \u2192 Binary Path",
+            "category": "secrets"
+        },
+        "secrets.onepassword.cache_ttl_seconds": {
+            "type": "number",
+            "description": "Secrets \u2192 Onepassword \u2192 Cache Ttl Seconds",
+            "category": "secrets"
+        },
+        "secrets.onepassword.override_existing": {
+            "type": "boolean",
+            "description": "Secrets \u2192 Onepassword \u2192 Override Existing",
+            "category": "secrets"
+        },
+        "paste_collapse_threshold": {
+            "type": "number",
+            "description": "Paste Collapse Threshold",
+            "category": "general"
+        },
+        "paste_collapse_threshold_fallback": {
+            "type": "number",
+            "description": "Paste Collapse Threshold Fallback",
+            "category": "general"
+        },
+        "paste_collapse_char_threshold": {
+            "type": "number",
+            "description": "Paste Collapse Char Threshold",
+            "category": "general"
+        },
+        "computer_use.cua_telemetry": {
+            "type": "boolean",
+            "description": "Computer Use \u2192 Cua Telemetry",
+            "category": "agent"
+        },
+        "computer_use.native_wayland": {
+            "type": "boolean",
+            "description": "Computer Use \u2192 Native Wayland",
+            "category": "agent"
+        },
+        "computer_use.max_image_dimension": {
+            "type": "number",
+            "description": "Computer Use \u2192 Max Image Dimension",
+            "category": "agent"
+        },
+        "computer_use.capture_after_mode": {
+            "type": "string",
+            "description": "Computer Use \u2192 Capture After Mode",
+            "category": "agent"
+        },
+        "computer_use.no_overlay": {
+            "type": "string",
+            "description": "Computer Use \u2192 No Overlay",
+            "category": "agent"
+        },
+        "computer_use.permission_mode": {
+            "type": "string",
+            "description": "Computer Use \u2192 Permission Mode",
+            "category": "agent"
+        },
+        "computer_use.capability_manifest": {
+            "type": "string",
+            "description": "Computer Use \u2192 Capability Manifest",
+            "category": "agent"
+        },
+        "computer_use.allow_unsigned_driver": {
+            "type": "boolean",
+            "description": "Computer Use \u2192 Allow Unsigned Driver",
+            "category": "agent"
+        },
+        "proxy.enabled": {
+            "type": "boolean",
+            "description": "Docker-only egress credential firewall. Requires `hermes egress setup` and `hermes egress start`; Modal/SSH/Daytona are not wired yet.",
+            "category": "security"
+        },
+        "proxy.tunnel_port": {
+            "type": "number",
+            "description": "Proxy \u2192 Tunnel Port",
+            "category": "proxy"
+        },
+        "proxy.auto_install": {
+            "type": "boolean",
+            "description": "Proxy \u2192 Auto Install",
+            "category": "proxy"
+        },
+        "proxy.credential_source": {
+            "type": "select",
+            "description": "Where iron-proxy loads real upstream secrets at start time",
+            "category": "security",
+            "options": [
+                "env",
+                "bitwarden"
+            ]
+        },
+        "proxy.enforce_on_docker": {
+            "type": "boolean",
+            "description": "Refuse Docker sandboxes when egress is enabled but not configured/running",
+            "category": "security"
+        },
+        "proxy.allow_env_fallback": {
+            "type": "boolean",
+            "description": "Proxy \u2192 Allow Env Fallback",
+            "category": "proxy"
+        },
+        "proxy.upstream_deny_cidrs": {
+            "type": "string",
+            "description": "Proxy \u2192 Upstream Deny Cidrs",
+            "category": "proxy"
+        },
+        "proxy.extra_allowed_hosts": {
+            "type": "list",
+            "description": "Proxy \u2192 Extra Allowed Hosts",
+            "category": "proxy"
+        },
+        "desktop.repo_scan_enabled": {
+            "type": "boolean",
+            "description": "Desktop \u2192 Repo Scan Enabled",
+            "category": "desktop"
+        },
+        "desktop.repo_scan_roots": {
+            "type": "list",
+            "description": "Desktop \u2192 Repo Scan Roots",
+            "category": "desktop"
+        },
+        "desktop.repo_scan_exclude_paths": {
+            "type": "list",
+            "description": "Desktop \u2192 Repo Scan Exclude Paths",
+            "category": "desktop"
+        },
+        "desktop.electron_flags": {
+            "type": "list",
+            "description": "Desktop \u2192 Electron Flags",
+            "category": "desktop"
+        },
+        "desktop.ozone_platform_hint": {
+            "type": "string",
+            "description": "Desktop \u2192 Ozone Platform Hint",
+            "category": "desktop"
+        },
+        "desktop.disable_gpu": {
+            "type": "string",
+            "description": "Desktop \u2192 Disable Gpu",
+            "category": "desktop"
+        },
+        "desktop.password_store": {
+            "type": "string",
+            "description": "Desktop \u2192 Password Store",
+            "category": "desktop"
+        },
+        "desktop.manage_launcher_entry": {
+            "type": "boolean",
+            "description": "Desktop \u2192 Manage Launcher Entry",
+            "category": "desktop"
+        },
+        "desktop.macos_signing_identity": {
+            "type": "string",
+            "description": "Desktop \u2192 Macos Signing Identity",
+            "category": "desktop"
+        },
+        "desktop.auto_continue.enabled": {
+            "type": "boolean",
+            "description": "Desktop \u2192 Auto Continue \u2192 Enabled",
+            "category": "desktop"
+        },
+        "desktop.auto_continue.freshness_minutes": {
+            "type": "number",
+            "description": "Desktop \u2192 Auto Continue \u2192 Freshness Minutes",
+            "category": "desktop"
+        },
+        "desktop.auto_continue.max_attempts": {
+            "type": "number",
+            "description": "Desktop \u2192 Auto Continue \u2192 Max Attempts",
+            "category": "desktop"
+        },
+        "nous.keepalive_interval_seconds": {
+            "type": "number",
+            "description": "Nous \u2192 Keepalive Interval Seconds",
+            "category": "agent"
+        },
+        "nous.anthropic_wire": {
+            "type": "string",
+            "description": "Nous \u2192 Anthropic Wire",
+            "category": "agent"
+        },
+        "nous.guest": {
+            "type": "boolean",
+            "description": "Nous \u2192 Guest",
+            "category": "agent"
+        },
+        "vertex.project_id": {
+            "type": "string",
+            "description": "Vertex \u2192 Project Id",
+            "category": "vertex"
+        },
+        "vertex.region": {
+            "type": "string",
+            "description": "Vertex \u2192 Region",
+            "category": "vertex"
+        },
+        "local_runtime.enabled": {
+            "type": "boolean",
+            "description": "Local Runtime \u2192 Enabled",
+            "category": "local_runtime"
+        },
+        "local_runtime.tag": {
+            "type": "string",
+            "description": "Local Runtime \u2192 Tag",
+            "category": "local_runtime"
+        },
+        "local_runtime.backend": {
+            "type": "string",
+            "description": "Local Runtime \u2192 Backend",
+            "category": "local_runtime"
+        },
+        "local_runtime.models_max": {
+            "type": "number",
+            "description": "Local Runtime \u2192 Models Max",
+            "category": "local_runtime"
+        },
+        "local_runtime.port": {
+            "type": "number",
+            "description": "Local Runtime \u2192 Port",
+            "category": "local_runtime"
+        },
+        "local_runtime.detect_ports": {
+            "type": "list",
+            "description": "Local Runtime \u2192 Detect Ports",
+            "category": "local_runtime"
+        }
+    },
+    "category_order": [
+        "general",
+        "agent",
+        "terminal",
+        "display",
+        "delegation",
+        "memory",
+        "compression",
+        "security",
+        "browser",
+        "voice",
+        "tts",
+        "stt",
+        "logging",
+        "discord",
+        "auxiliary"
+    ]
+}

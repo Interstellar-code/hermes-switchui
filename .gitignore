@@ -88,6 +88,7 @@ tmp/
 
 # Task data (local persistence)
 data/
+!src/screens/settings/data/
 dist/
 research/
 BROWSER-RESEARCH.md
