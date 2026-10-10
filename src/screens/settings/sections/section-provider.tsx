@@ -8,21 +8,34 @@
  * Fallback chain card edits `config.fallback_providers` — an ordered list of
  * `{provider, model}` rows — which is the only fallback shape the agent reads
  * (`hermes_cli/fallback_config.py:get_fallback_chain` keeps list order and
- * requires truthy `provider` + `model` on each entry). The legacy string
- * `config.fallback_model` is dropped by the agent, so it is never written:
- * when it holds a string and `fallback_providers` is absent, the chain is
- * pre-filled from it (with a note) and any edit persists `fallback_providers`
- * only. The saver PUTs arrays whole (`flatten-config.ts` keeps arrays at one
- * dotted key; `saver.ts` nests it as a real list of dicts), so the body
- * carries `config.fallback_providers: [{provider, model}, …]`.
+ * requires truthy `provider` + `model` on each entry; it also preserves every
+ * other key per entry — `base_url`, `key_env`, `api_key`, … — so every row
+ * here keeps those keys through edit/move/remove too).
+ *
+ * Incomplete rows (missing provider or model) are dropped by the agent, so
+ * they are marked invalid inline and never written: the draft only ever holds
+ * complete rows, while the user's in-progress rows live in a local `shadow`
+ * list that renders on top of the draft.
+ *
+ * Legacy `fallback_model`:
+ *   - string form: the agent drops it. When the chain is empty and untouched,
+ *     it pre-fills one editable row (with an "ignored by the agent" note);
+ *     `fallback_model` itself is never written or cleared.
+ *   - dict/list form: the agent still merges it after the chain, so it is
+ *     shown read-only with a note saying so.
+ *
+ * The saver PUTs arrays whole (`flatten-config.ts` keeps arrays at one dotted
+ * key; `saver.ts` nests it as a real list of dicts), so the body carries
+ * `config.fallback_providers: [{provider, model, …}, …]`.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { SettingCard } from '../components/setting-card'
 import { SettingRow } from '../components/setting-row'
 import { useSettingsStore } from '@/stores/settings-store'
+import { valuesEqual } from '@/stores/settings-equal'
 import {
   modelInfo,
   modelOptions,
@@ -33,28 +46,35 @@ import { toast } from '@/components/ui/toast'
 const FALLBACK_PROVIDERS_KEY = 'config.fallback_providers'
 const FALLBACK_MODEL_KEY = 'config.fallback_model'
 
-type FallbackEntry = { provider: string; model: string }
+/** Every key of a chain entry is preserved; `provider`/`model` are coerced to strings. */
+type FallbackEntry = { provider: string; model: string } & Record<
+  string,
+  unknown
+>
 
-/**
- * `null` means the key is absent from the draft (nothing saved yet) — distinct
- * from `[]`, which is an explicitly empty chain the user chose. Non-array
- * values and non-dict entries cannot round-trip through the agent and are
- * dropped rather than corrupted into visible rows.
- */
-function normalizeFallbackChain(value: unknown): Array<FallbackEntry> | null {
-  if (value === undefined || value === null) return null
+function toEntry(record: Record<string, unknown>): FallbackEntry {
+  return {
+    ...record,
+    provider: typeof record.provider === 'string' ? record.provider : '',
+    model: typeof record.model === 'string' ? record.model : '',
+  }
+}
+
+function normalizeFallbackChain(value: unknown): Array<FallbackEntry> {
+  if (value === undefined || value === null) return []
   if (!Array.isArray(value)) return []
   const rows: Array<FallbackEntry> = []
   for (const entry of value) {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry))
       continue
-    const record = entry as Record<string, unknown>
-    rows.push({
-      provider: typeof record.provider === 'string' ? record.provider : '',
-      model: typeof record.model === 'string' ? record.model : '',
-    })
+    rows.push(toEntry(entry as Record<string, unknown>))
   }
   return rows
+}
+
+/** The agent keeps only entries with truthy provider + model; writes match that. */
+export function isCompleteFallbackRow(row: FallbackEntry): boolean {
+  return row.provider.trim() !== '' && row.model.trim() !== ''
 }
 
 /** Parse a legacy `fallback_model` string: `"provider/model"`, else bare model. */
@@ -68,9 +88,26 @@ export function parseLegacyFallback(raw: string): FallbackEntry {
   }
 }
 
+/** A dict or list `fallback_model` is still merged by the agent after the chain. */
+function legacyFallbackEntries(value: unknown): Array<FallbackEntry> {
+  if (value === undefined || value === null || typeof value === 'string')
+    return []
+  const candidates = Array.isArray(value) ? value : [value]
+  const entries: Array<FallbackEntry> = []
+  for (const entry of candidates) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry))
+      continue
+    entries.push(toEntry(entry as Record<string, unknown>))
+  }
+  return entries
+}
+
 export default function SectionProvider() {
   const draft = useSettingsStore((s) => s.draft)
   const set = useSettingsStore((s) => s.set)
+  const chainDirty = useSettingsStore((s) =>
+    s.dirty.has(FALLBACK_PROVIDERS_KEY),
+  )
   const navigate = useNavigate()
 
   const { data: info, isLoading: infoLoading } = useQuery({
@@ -104,39 +141,68 @@ export default function SectionProvider() {
   const supportsVision = caps?.supports_vision as boolean | undefined
   const supportsReasoning = caps?.supports_reasoning as boolean | undefined
 
-  // Legacy pre-fill: only while `fallback_providers` is absent from the draft
-  // AND `fallback_model` holds a non-empty string. The first chain edit writes
-  // `fallback_providers`, after which the legacy value stops mattering. An
-  // explicit `[]` is a user-chosen empty chain and does not re-trigger the
-  // pre-fill, or removing the pre-filled row could never stick.
+  const draftChain = normalizeFallbackChain(draft[FALLBACK_PROVIDERS_KEY])
+
+  // Every row the user has touched (complete or not) since the chain key was
+  // last clean. Incomplete rows exist ONLY here: visible and editable, but
+  // never written to the draft — and the draft is what a save sends.
+  const [shadowRows, setShadowRows] = useState<Array<FallbackEntry> | null>(
+    null,
+  )
+
   const fallbackModelRaw = draft[FALLBACK_MODEL_KEY]
-  const legacyFallbackModel =
+  const legacyString =
     typeof fallbackModelRaw === 'string' && fallbackModelRaw.trim() !== ''
       ? fallbackModelRaw
       : null
-  const chainFromDraft = normalizeFallbackChain(draft[FALLBACK_PROVIDERS_KEY])
-  const legacyPrefill = chainFromDraft === null && legacyFallbackModel !== null
-  const fallbackRows: Array<FallbackEntry> = legacyPrefill
-    ? [parseLegacyFallback(legacyFallbackModel)]
-    : (chainFromDraft ?? [])
+  const legacyActive =
+    legacyString === null ? legacyFallbackEntries(fallbackModelRaw) : []
 
-  function writeFallbackChain(next: Array<FallbackEntry>) {
-    set(FALLBACK_PROVIDERS_KEY, next)
+  // Pre-fill when the chain is EMPTY — absent or `[]`; the defaults-merged
+  // `GET /api/config` the screen seeds from always returns the key as `[]` —
+  // and the user has not touched it. The shadow doubles as the "user removed
+  // the pre-filled row" latch: once any edit lands, the pre-fill never
+  // re-fires for this mount, so a removed row stays removed.
+  const prefillActive =
+    shadowRows === null &&
+    legacyString !== null &&
+    draftChain.length === 0 &&
+    !chainDirty
+
+  const rows: Array<FallbackEntry> =
+    shadowRows ??
+    (prefillActive ? [parseLegacyFallback(legacyString)] : draftChain)
+
+  // A clean key means the draft is server truth again (discard, or a save
+  // committed). If the shadow's complete rows disagree with the draft, the
+  // user discarded — drop the shadow so the display reverts. When they agree,
+  // the shadow only adds in-progress incomplete rows and is kept.
+  useEffect(() => {
+    if (shadowRows === null || chainDirty) return
+    if (!valuesEqual(shadowRows.filter(isCompleteFallbackRow), draftChain)) {
+      setShadowRows(null)
+    }
+  }, [shadowRows, chainDirty, draftChain])
+
+  function commitRows(next: Array<FallbackEntry>) {
+    setShadowRows(next)
+    set(FALLBACK_PROVIDERS_KEY, next.filter(isCompleteFallbackRow))
   }
 
-  function updateFallbackRow(index: number, patch: Partial<FallbackEntry>) {
-    writeFallbackChain(
-      fallbackRows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
-    )
+  function updateFallbackRow(
+    index: number,
+    patch: Partial<Pick<FallbackEntry, 'provider' | 'model'>>,
+  ) {
+    commitRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
   }
 
   function moveFallbackRow(index: number, direction: -1 | 1) {
     const target = index + direction
-    if (target < 0 || target >= fallbackRows.length) return
-    const next = [...fallbackRows]
+    if (target < 0 || target >= rows.length) return
+    const next = [...rows]
     const [moved] = next.splice(index, 1)
     next.splice(target, 0, moved)
-    writeFallbackChain(next)
+    commitRows(next)
   }
 
   async function handleProviderChange(provider: string) {
@@ -255,7 +321,9 @@ export default function SectionProvider() {
               {contextWindow != null && (
                 <div>
                   <span
-                    style={{ color: 'var(--m-text-muted, var(--theme-muted))' }}
+                    style={{
+                      color: 'var(--m-text-muted, var(--theme-muted))',
+                    }}
                   >
                     context window
                   </span>
@@ -362,7 +430,7 @@ export default function SectionProvider() {
             gap: '10px',
           }}
         >
-          {legacyPrefill && (
+          {prefillActive && (
             <div
               role="status"
               style={{
@@ -389,7 +457,7 @@ export default function SectionProvider() {
             </div>
           )}
 
-          {fallbackRows.length === 0 && (
+          {rows.length === 0 && !prefillActive && legacyActive.length === 0 && (
             <div
               style={{
                 fontSize: '12px',
@@ -402,12 +470,13 @@ export default function SectionProvider() {
             </div>
           )}
 
-          {fallbackRows.map((row, i) => {
+          {rows.map((row, i) => {
             const rowModels =
               providerList.find((p) => p.slug === row.provider)?.models ?? []
             const providerKnown = providerList.some(
               (p) => p.slug === row.provider,
             )
+            const rowIncomplete = !isCompleteFallbackRow(row)
             return (
               <div
                 key={i}
@@ -417,6 +486,14 @@ export default function SectionProvider() {
                   alignItems: 'center',
                   gap: '8px',
                   flexWrap: 'wrap',
+                  ...(rowIncomplete
+                    ? {
+                        borderRadius: '6px',
+                        border:
+                          '1px solid var(--m-danger, var(--theme-danger))',
+                        padding: '6px 8px',
+                      }
+                    : {}),
                 }}
               >
                 <span
@@ -484,7 +561,7 @@ export default function SectionProvider() {
                   aria-label={`Move fallback ${i + 1} down`}
                   title="Move down"
                   style={iconBtnStyle}
-                  disabled={i === fallbackRows.length - 1}
+                  disabled={i === rows.length - 1}
                   onClick={() => moveFallbackRow(i, 1)}
                 >
                   ↓
@@ -495,27 +572,75 @@ export default function SectionProvider() {
                   aria-label={`Remove fallback ${i + 1}`}
                   title="Remove"
                   style={iconBtnStyle}
-                  onClick={() =>
-                    writeFallbackChain(fallbackRows.filter((_, j) => j !== i))
-                  }
+                  onClick={() => commitRows(rows.filter((_, j) => j !== i))}
                 >
                   ✕
                 </button>
+                {rowIncomplete && (
+                  <span
+                    role="alert"
+                    style={{
+                      width: '100%',
+                      fontSize: '11px',
+                      fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                      color: 'var(--m-danger, var(--theme-danger))',
+                    }}
+                  >
+                    provider and model are both required — this row will not be
+                    saved
+                  </span>
+                )}
               </div>
             )
           })}
+
+          {legacyActive.length > 0 && (
+            <div
+              role="status"
+              data-legacy-fallback
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+                padding: '10px 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--m-border, var(--theme-border))',
+                background:
+                  'color-mix(in srgb, var(--m-green-500, var(--theme-accent)) 6%, transparent)',
+                fontSize: '12px',
+                color: 'var(--m-text-faint, var(--theme-muted))',
+                lineHeight: 1.4,
+              }}
+            >
+              <span>
+                A legacy <code>fallback_model</code> (dict/list form) is still
+                read by the agent — its entries are tried after the chain above.
+                Read-only here; edit it via the raw config.
+              </span>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}
+              >
+                {legacyActive.map((entry, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontFamily: 'var(--m-font-mono, ui-monospace, monospace)',
+                      fontSize: '11px',
+                    }}
+                  >
+                    {`${entry.provider || '?'} / ${entry.model || '?'}`}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <button
               type="button"
               className="btn"
               style={{ fontSize: '11px', padding: '4px 10px' }}
-              onClick={() =>
-                writeFallbackChain([
-                  ...fallbackRows,
-                  { provider: '', model: '' },
-                ])
-              }
+              onClick={() => commitRows([...rows, { provider: '', model: '' }])}
             >
               + Add fallback
             </button>

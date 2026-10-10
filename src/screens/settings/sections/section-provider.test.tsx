@@ -128,8 +128,13 @@ describe('SectionProvider fallback chain', () => {
     expect(Array.isArray(body.config?.fallback_providers)).toBe(true)
   })
 
-  it('a legacy fallback_model string pre-fills one row, shows the ignored note, and is never written', async () => {
-    loadDraft({ 'config.fallback_model': 'x/y' })
+  it('a legacy fallback_model string pre-fills one row over an empty chain, shows the ignored note, and is never written', async () => {
+    // Real servers return `fallback_providers: []` (defaults-merged config),
+    // so the pre-fill must fire on the empty array, not only on an absent key.
+    loadDraft({
+      'config.fallback_providers': [],
+      'config.fallback_model': 'x/y',
+    })
     renderSection()
     await waitFor(() => expect(mockModelOptions).toHaveBeenCalled())
 
@@ -172,6 +177,113 @@ describe('SectionProvider fallback chain', () => {
     expect(useSettingsStore.getState().dirty.has('config.fallback_model')).toBe(
       false,
     )
+  })
+
+  it('a removed pre-filled row stays removed', async () => {
+    loadDraft({
+      'config.fallback_providers': [],
+      'config.fallback_model': 'x/y',
+    })
+    renderSection()
+    await waitFor(() => expect(mockModelOptions).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove fallback 1' }))
+
+    // The pre-fill must not re-fire: no row, no note, nothing dirty.
+    expect(screen.queryByLabelText('Fallback 1 provider')).toBeNull()
+    expect(screen.queryByText(/is ignored by the agent/)).toBeNull()
+    expect(useSettingsStore.getState().dirty.size).toBe(0)
+  })
+
+  it('keeps extra entry keys (base_url, key_env, api_key…) through reorder and edit', async () => {
+    loadDraft({
+      'config.fallback_providers': [
+        {
+          provider: 'custom-a',
+          model: 'm-a',
+          base_url: 'http://a:1234/v1',
+          key_env: 'A_KEY',
+        },
+        {
+          provider: 'custom-b',
+          model: 'm-b',
+          api_key: 'placeholder',
+          api_key_env: 'B_KEY',
+        },
+      ],
+    })
+    renderSection()
+    await waitFor(() => expect(mockModelOptions).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: 'Move fallback 2 up' }))
+    fireEvent.change(screen.getByLabelText('Fallback 1 model'), {
+      target: { value: 'm-b-2' },
+    })
+
+    await useSettingsStore.getState().save(settingsSaver)
+
+    const body = mockPutConfig.mock.calls[0][0]
+    expect(body.config.fallback_providers).toEqual([
+      {
+        provider: 'custom-b',
+        model: 'm-b-2',
+        api_key: 'placeholder',
+        api_key_env: 'B_KEY',
+      },
+      {
+        provider: 'custom-a',
+        model: 'm-a',
+        base_url: 'http://a:1234/v1',
+        key_env: 'A_KEY',
+      },
+    ])
+  })
+
+  it('marks incomplete rows invalid and never writes them', async () => {
+    loadDraft({ 'config.fallback_providers': [{ provider: 'p', model: 'm' }] })
+    renderSection()
+    await waitFor(() => expect(mockModelOptions).toHaveBeenCalled())
+
+    fireEvent.click(screen.getByRole('button', { name: '+ Add fallback' }))
+    expect(
+      screen.getByText(/provider and model are both required/i),
+    ).toBeTruthy()
+
+    // Make the chain dirty via the complete row; the empty row must still be
+    // skipped in what the saver receives.
+    fireEvent.change(screen.getByLabelText('Fallback 1 model'), {
+      target: { value: 'm-2' },
+    })
+    await useSettingsStore.getState().save(settingsSaver)
+
+    const body = mockPutConfig.mock.calls[0][0]
+    expect(body.config).toEqual({
+      fallback_providers: [{ provider: 'p', model: 'm-2' }],
+    })
+
+    // The incomplete row survives in the UI for further editing.
+    expect(
+      screen.getByText(/provider and model are both required/i),
+    ).toBeTruthy()
+  })
+
+  it('shows a dict/list legacy fallback_model read-only, without the ignored note', async () => {
+    loadDraft({
+      'config.fallback_providers': [],
+      'config.fallback_model': [{ provider: 'z', model: 'w' }],
+    })
+    renderSection()
+    await waitFor(() => expect(mockModelOptions).toHaveBeenCalled())
+
+    expect(screen.getByText(/still read by the agent/i)).toBeTruthy()
+    expect(screen.getByText('z / w')).toBeTruthy()
+    // No editable pre-fill row (that is the string form's behaviour)…
+    expect(screen.queryByLabelText('Fallback 1 provider')).toBeNull()
+    // …and no "ignored"/"requests fail" copy — the agent still uses these.
+    expect(screen.queryByText(/is ignored by the agent/)).toBeNull()
+    expect(
+      screen.queryByText(/requests fail instead of failing over/i),
+    ).toBeNull()
   })
 
   it('reorders and removes rows, writing the whole chain each time', async () => {

@@ -247,6 +247,59 @@ describe('SectionGateway', () => {
     expect(screen.getByDisplayValue('8642')).toBeTruthy()
     expect(screen.queryByDisplayValue('0.0.0.0')).toBeNull()
     expect(screen.queryByDisplayValue('7000')).toBeNull()
+    // extra-sourced values are not labelled as legacy.
+    expect(
+      screen.queryByText(/Legacy value, not applied by the agent/),
+    ).toBeNull()
+  })
+
+  it('labels legacy flat values and warns only on the effective (extra) address', async () => {
+    mockFetchScopeStatus.mockResolvedValue({
+      mode: 'single',
+      servedProfiles: null,
+      sessionCounts: {},
+    })
+    loadDraft({
+      'config.platforms.api_server.host': '0.0.0.0',
+      'config.platforms.api_server.port': 9000,
+    })
+
+    renderSection()
+    await waitFor(() => expect(mockFetchScopeStatus).toHaveBeenCalled())
+
+    // Display falls back to the legacy values, labelled as not applied…
+    expect(screen.getByDisplayValue('0.0.0.0')).toBeTruthy()
+    expect(screen.getByDisplayValue('9000')).toBeTruthy()
+    expect(
+      screen.getAllByText(/Legacy value, not applied by the agent/).length,
+    ).toBe(2)
+    // …and the non-default warning is based on the effective address (the
+    // defaults, since no extra keys exist), not the phantom legacy values.
+    expect(screen.queryByText(/SwitchUI's gateway connection/i)).toBeNull()
+
+    // Editing host materializes the legacy-sourced port under `extra`, so
+    // display == saved, and the now-effective address triggers the warning.
+    fireEvent.change(screen.getByDisplayValue('0.0.0.0'), {
+      target: { value: '10.1.2.3' },
+    })
+    expect(
+      useSettingsStore.getState().draft[
+        'config.platforms.api_server.extra.host'
+      ],
+    ).toBe('10.1.2.3')
+    expect(
+      useSettingsStore.getState().draft[
+        'config.platforms.api_server.extra.port'
+      ],
+    ).toBe(9000)
+    // The legacy flat keys are untouched.
+    expect(
+      useSettingsStore.getState().draft['config.platforms.api_server.host'],
+    ).toBe('0.0.0.0')
+    expect(
+      useSettingsStore.getState().draft['config.platforms.api_server.port'],
+    ).toBe(9000)
+    expect(screen.getByText(/SwitchUI's gateway connection/i)).toBeTruthy()
   })
 
   it('warns when the effective port differs from the 127.0.0.1:8642 default', async () => {

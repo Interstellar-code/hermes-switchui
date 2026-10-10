@@ -155,22 +155,37 @@ export default function SectionGateway() {
 
   const multiplexProfiles =
     (draft['config.gateway.multiplex_profiles'] as boolean | undefined) ?? false
-  // `extra` wins; an absent `extra` key falls back to the legacy flat key so
-  // configs written by older UIs still display (and can be re-saved to `extra`).
+  // Display: `extra` wins; an absent `extra` key falls back to the legacy flat
+  // key so configs written by older UIs still display (and can be re-saved to
+  // `extra`). The agent ignores the legacy keys entirely.
   const extraHost = draft[EXTRA_HOST_KEY] as string | undefined
   const legacyHost = draft[LEGACY_HOST_KEY] as string | undefined
   const apiHost = extraHost ?? legacyHost ?? '127.0.0.1'
   const extraPortRaw = draft[EXTRA_PORT_KEY] as number | string | undefined
   const legacyPortRaw = draft[LEGACY_PORT_KEY] as number | string | undefined
-  const apiPortRaw = extraPortRaw ?? legacyPortRaw
+  const displayedPortRaw = extraPortRaw ?? legacyPortRaw
   const apiPort =
-    apiPortRaw === undefined || apiPortRaw === '' ? 8642 : Number(apiPortRaw)
+    displayedPortRaw === undefined || displayedPortRaw === ''
+      ? 8642
+      : Number(displayedPortRaw)
+  const hostIsLegacy = extraHost === undefined && legacyHost !== undefined
+  const portIsLegacy = extraPortRaw === undefined && legacyPortRaw !== undefined
+
+  // Effective: the address the agent actually binds — `extra`, else env /
+  // default. The legacy flat keys never apply, so they must not drive the
+  // non-default warning either.
+  const effectiveHost = extraHost ?? '127.0.0.1'
+  const effectivePort =
+    extraPortRaw === undefined || extraPortRaw === ''
+      ? 8642
+      : Number(extraPortRaw)
 
   const hostError = validateApiServerHost(apiHost)
   const portError = validateApiServerPort(apiPort)
   // SwitchUI's own gateway connection (HERMES_API_URL) assumes the default
   // loopback address; anything else needs the env var updated to match.
-  const nonDefaultAddress = apiHost !== '127.0.0.1' || apiPort !== 8642
+  const nonDefaultAddress =
+    effectiveHost !== '127.0.0.1' || effectivePort !== 8642
 
   // Shares the composer's query key on purpose — React Query dedupes by key,
   // so this is an extra observer on one poll, not a second HTTP request.
@@ -191,11 +206,20 @@ export default function SectionGateway() {
     ((multiplexProfiles && liveMode === 'single') ||
       (!multiplexProfiles && liveMode === 'multiplex'))
 
+  function commitHost(value: string) {
+    set(EXTRA_HOST_KEY, value)
+    // Materialize the legacy-sourced port displayed next to this edit, so
+    // what is shown after saving is what the agent applies.
+    if (portIsLegacy) set(EXTRA_PORT_KEY, apiPort)
+  }
+
   function handlePortChange(text: string) {
     setPortInput(text)
     const parsed = Number(text)
     if (text.trim() !== '' && Number.isFinite(parsed)) {
       set(EXTRA_PORT_KEY, Math.trunc(parsed))
+      // Symmetric: materialize the legacy-sourced host the UI is showing.
+      if (hostIsLegacy) set(EXTRA_HOST_KEY, apiHost)
     }
   }
 
@@ -276,9 +300,9 @@ export default function SectionGateway() {
         </WarningNote>
         {nonDefaultAddress && (
           <WarningNote>
-            The API server address (
+            The effective API server address (
             <code>
-              {apiHost}:{apiPort}
+              {effectiveHost}:{effectivePort}
             </code>
             ) differs from the default <code>127.0.0.1:8642</code> that
             SwitchUI's gateway connection (<code>HERMES_API_URL</code>) expects
@@ -288,10 +312,18 @@ export default function SectionGateway() {
         )}
         <SettingRow
           label="Host"
-          pill={hostError ? { t: 'invalid' } : undefined}
+          pill={
+            hostError
+              ? { t: 'invalid' }
+              : hostIsLegacy
+                ? { t: 'legacy' }
+                : undefined
+          }
           desc={
             hostError ??
-            'Interface the API server binds to. 127.0.0.1 = local only, 0.0.0.0 = all interfaces.'
+            (hostIsLegacy
+              ? 'Legacy value, not applied by the agent — editing saves it under platforms.api_server.extra.host.'
+              : 'Interface the API server binds to. 127.0.0.1 = local only, 0.0.0.0 = all interfaces.')
           }
         >
           <input
@@ -299,13 +331,24 @@ export default function SectionGateway() {
             className="text-input"
             value={apiHost}
             placeholder="127.0.0.1"
-            onChange={(e) => set(EXTRA_HOST_KEY, e.target.value)}
+            onChange={(e) => commitHost(e.target.value)}
           />
         </SettingRow>
         <SettingRow
           label="Port"
-          pill={portError ? { t: 'invalid' } : undefined}
-          desc={portError ?? 'TCP port the API server listens on.'}
+          pill={
+            portError
+              ? { t: 'invalid' }
+              : portIsLegacy
+                ? { t: 'legacy' }
+                : undefined
+          }
+          desc={
+            portError ??
+            (portIsLegacy
+              ? 'Legacy value, not applied by the agent — editing saves it under platforms.api_server.extra.port.'
+              : 'TCP port the API server listens on.')
+          }
         >
           <input
             type="number"
