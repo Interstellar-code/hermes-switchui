@@ -2,6 +2,8 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { Segmented } from './controls'
+import { SelectField } from './select-field'
+import { TextField } from './text-field'
 
 afterEach(() => {
   cleanup()
@@ -15,7 +17,9 @@ const OPTIONS = [
 
 describe('Segmented', () => {
   it('renders an ARIA radiogroup with one radio per option, the selected one checked', () => {
-    render(<Segmented options={OPTIONS} value="smart" onChange={() => undefined} />)
+    render(
+      <Segmented options={OPTIONS} value="smart" onChange={() => undefined} />,
+    )
 
     const group = screen.getByRole('radiogroup')
     expect(group).toBeTruthy()
@@ -30,7 +34,9 @@ describe('Segmented', () => {
   })
 
   it('only the selected option is in the tab order (roving tabindex)', () => {
-    render(<Segmented options={OPTIONS} value="smart" onChange={() => undefined} />)
+    render(
+      <Segmented options={OPTIONS} value="smart" onChange={() => undefined} />,
+    )
 
     const radios = screen.getAllByRole('radio')
     expect(radios.map((r) => r.tabIndex)).toEqual([-1, 0, -1])
@@ -71,7 +77,11 @@ describe('Segmented', () => {
   it('Home and End jump to the first and last option', () => {
     const seen: Array<string> = []
     render(
-      <Segmented options={OPTIONS} value="smart" onChange={(v) => seen.push(v)} />,
+      <Segmented
+        options={OPTIONS}
+        value="smart"
+        onChange={(v) => seen.push(v)}
+      />,
     )
 
     const group = screen.getByRole('radiogroup')
@@ -84,9 +94,144 @@ describe('Segmented', () => {
     const onChange = () => {
       throw new Error('should not be called while disabled')
     }
-    render(<Segmented options={OPTIONS} value="manual" onChange={onChange} disabled />)
+    render(
+      <Segmented
+        options={OPTIONS}
+        value="manual"
+        onChange={onChange}
+        disabled
+      />,
+    )
 
     const group = screen.getByRole('radiogroup')
     expect(() => fireEvent.keyDown(group, { key: 'ArrowRight' })).not.toThrow()
+  })
+})
+
+describe('SelectField', () => {
+  const TIERS = [
+    { value: 'auto', label: 'Auto' },
+    { value: 'flex', label: 'Flex' },
+    { value: 'priority', label: 'Priority' },
+  ]
+
+  it('renders one option per entry and reports the chosen value on change', () => {
+    let value = 'auto'
+    const { rerender } = render(
+      <SelectField
+        options={TIERS}
+        value={value}
+        onChange={(v) => {
+          value = v
+        }}
+      />,
+    )
+
+    const select = screen.getByRole('combobox')
+    expect(select.querySelectorAll('option').length).toBe(3)
+    expect(select.value).toBe('auto')
+
+    fireEvent.change(select, { target: { value: 'flex' } })
+    expect(value).toBe('flex')
+
+    rerender(
+      <SelectField
+        options={TIERS}
+        value={value}
+        onChange={(v) => {
+          value = v
+        }}
+      />,
+    )
+    expect(select.value).toBe('flex')
+  })
+
+  it('shows an unknown current value as "<value> (not offered here)" instead of snapping', () => {
+    render(
+      <SelectField
+        options={TIERS}
+        value="weird-backend"
+        onChange={() => undefined}
+      />,
+    )
+
+    const select = screen.getByRole('combobox')
+    // The unknown value stays selected rather than silently becoming the
+    // first offered option, and says why it looks different from the rest.
+    expect(select.value).toBe('weird-backend')
+    expect(screen.getByText('weird-backend (not offered here)')).toBeTruthy()
+    expect(select.querySelectorAll('option').length).toBe(4)
+  })
+
+  it('treats an empty value as unset, not as an unknown value to flag', () => {
+    render(<SelectField options={TIERS} value="" onChange={() => undefined} />)
+
+    expect(screen.queryByText(/not offered here/)).toBeNull()
+    expect(screen.getByRole('combobox').querySelectorAll('option').length).toBe(
+      3,
+    )
+  })
+
+  it('accepts the id/aria-labelledby SettingRow clones onto it', () => {
+    render(
+      <SelectField
+        options={TIERS}
+        value="auto"
+        onChange={() => undefined}
+        id="ctl"
+        aria-labelledby="lbl"
+      />,
+    )
+    const select = screen.getByRole('combobox')
+    expect(select.id).toBe('ctl')
+    expect(select.getAttribute('aria-labelledby')).toBe('lbl')
+  })
+})
+
+describe('TextField', () => {
+  it('renders a controlled text input with the section input class', () => {
+    const { rerender } = render(
+      <TextField value="127.0.0.1" onChange={() => undefined} />,
+    )
+    const input = screen.getByRole('textbox')
+    expect(input.tagName).toBe('INPUT')
+    expect(input.type).toBe('text')
+    expect(input.className).toBe('text-input')
+    expect(input.value).toBe('127.0.0.1')
+
+    rerender(<TextField value="0.0.0.0" onChange={() => undefined} />)
+    expect(input.value).toBe('0.0.0.0')
+  })
+
+  it('reports edits through onChange and passes through placeholder/disabled', () => {
+    let value = ''
+    render(
+      <TextField
+        value={value}
+        onChange={(v) => {
+          value = v
+        }}
+        placeholder="8642"
+      />,
+    )
+    const input = screen.getByPlaceholderText('8642')
+    expect((input as HTMLInputElement).disabled).toBe(false)
+
+    fireEvent.change(input, { target: { value: '9000' } })
+    expect(value).toBe('9000')
+  })
+
+  it('accepts the id/aria-labelledby SettingRow clones onto it', () => {
+    render(
+      <TextField
+        value="a"
+        onChange={() => undefined}
+        id="ctl"
+        aria-labelledby="lbl"
+      />,
+    )
+    const input = screen.getByRole('textbox')
+    expect(input.id).toBe('ctl')
+    expect(input.getAttribute('aria-labelledby')).toBe('lbl')
   })
 })
