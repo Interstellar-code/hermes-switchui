@@ -127,7 +127,7 @@ describe('SelectField', () => {
       />,
     )
 
-    const select = screen.getByRole('combobox')
+    const select = screen.getByRole<HTMLSelectElement>('combobox')
     expect(select.querySelectorAll('option').length).toBe(3)
     expect(select.value).toBe('auto')
 
@@ -155,7 +155,7 @@ describe('SelectField', () => {
       />,
     )
 
-    const select = screen.getByRole('combobox')
+    const select = screen.getByRole<HTMLSelectElement>('combobox')
     // The unknown value stays selected rather than silently becoming the
     // first offered option, and says why it looks different from the rest.
     expect(select.value).toBe('weird-backend')
@@ -193,7 +193,7 @@ describe('TextField', () => {
     const { rerender } = render(
       <TextField value="127.0.0.1" onChange={() => undefined} />,
     )
-    const input = screen.getByRole('textbox')
+    const input = screen.getByRole<HTMLInputElement>('textbox')
     expect(input.tagName).toBe('INPUT')
     expect(input.type).toBe('text')
     expect(input.className).toBe('text-input')
