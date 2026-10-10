@@ -91,6 +91,15 @@ describe('SaveReviewDialog', () => {
     expect(BACKUP_NOTE).toMatch(/does not back up/)
   })
 
+  it('counts only config. keys in the "written to config.yaml" message', () => {
+    s().set('config.agent.max_turns', 50)
+    s().set('local.ui_pref', 'dark') // dirty, but never written to config.yaml
+    openReview()
+    expect(
+      screen.getByText('1 setting will be written to config.yaml.'),
+    ).toBeTruthy()
+  })
+
   it('ticks restart by default only when a restart-applies key changed', () => {
     s().set('config.agent.max_turns', 50)
     openReview()
@@ -175,6 +184,32 @@ describe('buildDiff masking', () => {
   it('masks a bare token key and secret-named leaves', () => {
     expect(text('config.x.token', 'old-t', 'new-t')).not.toContain('-t')
     expect(text('config.x.auth_token', 'aaa', 'bbb')).not.toContain('bbb')
+  })
+
+  it('masks authorization, hyphenated api-key, private_key and credential segments', () => {
+    expect(
+      text('config.x.authorization', 'Bearer old', 'Bearer new'),
+    ).not.toContain('Bearer new')
+    expect(text('config.x.api-key', 'sk-old', 'sk-new')).not.toContain('sk-new')
+    expect(text('config.x.x-api-key', 'old-x', 'new-x')).not.toContain('new-x')
+    expect(text('config.x.private_key', 'old-pk', 'new-pk')).not.toContain(
+      'new-pk',
+    )
+    expect(text('config.x.credentials', 'old-c', 'new-c')).not.toContain(
+      'new-c',
+    )
+    expect(
+      text('config.x.client_credential', 'old-cc', 'new-cc'),
+    ).not.toContain('new-cc')
+  })
+
+  it('still shows non-secret names that merely rhyme with the widened set', () => {
+    expect(text('config.agent.max_tokens', 100, 200)).toContain('200')
+    expect(text('config.x.key_env', 'OLD_ENV', 'NEW_ENV')).toContain('NEW_ENV')
+    expect(
+      text('config.providers.0.base_url', 'http://old', 'http://new'),
+    ).toContain('http://new')
+    expect(text('config.x.authorized_tools', ['a'], ['b'])).toContain('b')
   })
 
   it('masks nested secrets inside object and array values', () => {

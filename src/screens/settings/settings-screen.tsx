@@ -24,6 +24,7 @@ import { SaveBar } from './components/save-bar'
 import { UnexposedKeys } from './components/unexposed-keys'
 import { settingsSaver } from './lib/saver'
 import { flattenConfig } from './lib/flatten-config'
+import { requiredValueMatches } from './lib/config-health'
 import {
   GROUP_SPECS,
   SECTION_COMPONENTS,
@@ -95,7 +96,9 @@ export function buildSidebarGroups(
       ) {
         for (const id of owners) offRecIds.add(id)
       }
-      if (meta.required && !valuesEqual(value, meta.required.value)) {
+      // Same match as the health page: a coerced numeric string or a list
+      // superset is fine and must not light the issue flag.
+      if (meta.required && !requiredValueMatches(meta, value)) {
         for (const id of owners) issueIds.add(id)
       }
     }

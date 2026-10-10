@@ -757,12 +757,14 @@ export default function SectionMemoryWiki() {
             step={100}
             value={memoryCharLimit}
             style={{ width: 90 }}
-            onChange={(e) =>
+            onChange={(e) => {
+              // Empty means "being cleared", not 0 — never write NaN.
+              if (e.target.value === '') return
               set(
                 'config.memory.memory_char_limit',
                 parseInt(e.target.value, 10),
               )
-            }
+            }}
           />
         </SettingRow>
 
@@ -781,9 +783,10 @@ export default function SectionMemoryWiki() {
             step={100}
             value={userCharLimit}
             style={{ width: 90 }}
-            onChange={(e) =>
+            onChange={(e) => {
+              if (e.target.value === '') return
               set('config.memory.user_char_limit', parseInt(e.target.value, 10))
-            }
+            }}
           />
         </SettingRow>
       </SettingCard>

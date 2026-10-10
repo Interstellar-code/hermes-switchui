@@ -168,6 +168,37 @@ describe('SectionAllSettings', () => {
     )
   })
 
+  it('renders secret-named string fields as password inputs', async () => {
+    mockGetConfigSchema.mockResolvedValue({
+      category_order: ['integrations'],
+      fields: {
+        'integrations.aux.api_key': {
+          type: 'string',
+          description: 'Aux model API key',
+          category: 'integrations',
+        },
+        'integrations.base_url': {
+          type: 'string',
+          description: 'Provider base URL',
+          category: 'integrations',
+        },
+      },
+    })
+    mockGetConfigDefaults.mockResolvedValue({})
+    renderSection({ query: 'integrations' })
+
+    const secretRow = (
+      await screen.findByText('config.integrations.aux.api_key')
+    ).closest<HTMLElement>('.row')!
+    const clearRow = (
+      await screen.findByText('config.integrations.base_url')
+    ).closest<HTMLElement>('.row')!
+    expect(secretRow.querySelector('input')!.getAttribute('type')).toBe(
+      'password',
+    )
+    expect(clearRow.querySelector('input')!.getAttribute('type')).toBe('text')
+  })
+
   it('renders a boolean as a switch and round-trips it', async () => {
     mockGetConfigSchema.mockResolvedValue(SCHEMA)
     mockGetConfigDefaults.mockResolvedValue({})
