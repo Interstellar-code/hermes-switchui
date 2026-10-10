@@ -1,5 +1,7 @@
 import { Fragment, cloneElement, isValidElement, useId } from 'react'
+import { RowMeta } from './row-meta'
 import type { ReactElement, ReactNode } from 'react'
+import type { KeyMeta } from '../lib/key-meta-types'
 
 type PillProps = {
   /** Display text */
@@ -31,6 +33,13 @@ type SettingRowProps = {
   children?: ReactNode | ((ids: SettingRowIds) => ReactNode)
   /** Align control to flex-end */
   rowEnd?: boolean
+  /**
+   * Per-key metadata (board B). When present, a `RowMeta` strip is rendered
+   * under the label (scope/applies badges, default/recommended/range line,
+   * ⓘ tooltip). Omitted — as all 22 current importers do — the row renders
+   * exactly as before: same DOM, no wrapper.
+   */
+  meta?: KeyMeta
 }
 
 /**
@@ -54,7 +63,14 @@ type SettingRowProps = {
  * buttons, say — cannot be reached by that clone, and so stayed unnamed. They
  * pass a function as `children` instead and wire the ids up themselves.
  */
-export function SettingRow({ label, desc, pill, children, rowEnd }: SettingRowProps) {
+export function SettingRow({
+  label,
+  desc,
+  pill,
+  meta,
+  children,
+  rowEnd,
+}: SettingRowProps) {
   const autoId = useId()
   const labelId = `${autoId}-label`
   const controlId = `${autoId}-control`
@@ -79,15 +95,30 @@ export function SettingRow({ label, desc, pill, children, rowEnd }: SettingRowPr
       })
     : rendered
 
+  const labelEl = (
+    <label
+      className="lbl"
+      id={labelId}
+      htmlFor={singleChild ? controlId : undefined}
+    >
+      {label}
+      {pill && (
+        <span className={`pill${pill.k ? ` ${pill.k}` : ''}`}>{pill.t}</span>
+      )}
+      {desc && <span className="desc">{desc}</span>}
+    </label>
+  )
+
   return (
     <div className="row">
-      <label className="lbl" id={labelId} htmlFor={singleChild ? controlId : undefined}>
-        {label}
-        {pill && (
-          <span className={`pill${pill.k ? ` ${pill.k}` : ''}`}>{pill.t}</span>
-        )}
-        {desc && <span className="desc">{desc}</span>}
-      </label>
+      {meta ? (
+        <div className="lbl-wrap">
+          {labelEl}
+          <RowMeta meta={meta} />
+        </div>
+      ) : (
+        labelEl
+      )}
       <div className={`ctl${rowEnd ? ' row-end' : ''}`}>{control}</div>
     </div>
   )
