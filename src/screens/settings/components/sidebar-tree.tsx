@@ -7,6 +7,11 @@
  * *settings* grouped under the section that owns them; without it the component
  * behaves exactly as it did, which is what keeps it usable from a test or any
  * caller that has no index to give it.
+ *
+ * Board A adds a filter-chip row (All · Modified · Off-rec · Issues, counts
+ * included) and per-row status markers, with a legend under the tree:
+ * ● modified · ◆ off-recommended · ▲ config issue. The flags arrive on the
+ * items; this component only draws and filters them.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -18,6 +23,10 @@ export type SidebarItem = {
   label: string
   badge?: string
   dirty?: boolean
+  /** Section has a key whose draft value ≠ the key-meta `recommended`. */
+  offRec?: boolean
+  /** Section has a key whose key-meta `required` value the draft violates. */
+  issues?: boolean
   icon?: string
   /**
    * Optional. Surfaced as `data-ownership` + a title hint so a section whose
@@ -29,7 +38,19 @@ export type SidebarItem = {
 
 export type SidebarGroup = {
   label: string
+  /** Board A's muted tail on the group header, e.g. "fallback · aux". */
+  hint?: string
   items: Array<SidebarItem>
+}
+
+/** The chip filters. Keys double as the chip labels' stable ids. */
+export type ChipFilter = 'all' | 'modified' | 'off-rec' | 'issues'
+
+const CHIP_PREDICATES: Record<ChipFilter, (it: SidebarItem) => boolean> = {
+  all: () => true,
+  modified: (it) => it.dirty === true,
+  'off-rec': (it) => it.offRec === true,
+  issues: (it) => it.issues === true,
 }
 
 type SidebarTreeProps = {
@@ -55,9 +76,10 @@ const GROUPS_LS_KEY = 'hermes.settings.expandedGroups'
 
 /**
  * Groups the user has expanded. Groups are collapsed by default: 28 sections
- * across 11 groups do not fit a laptop rail, and an all-open list buries the
- * group you want under scroll. An absent key means everything starts closed —
- * except whichever group holds the open section, which is forced open below.
+ * across 14 board A intent groups do not fit a laptop rail, and an all-open
+ * list buries the group you want under scroll. An absent key means everything
+ * starts closed — except whichever group holds the open section, which is
+ * forced open below.
  */
 function readExpandedGroups(): Set<string> {
   try {
@@ -81,6 +103,7 @@ export function SidebarTree({
 }: SidebarTreeProps) {
   const [ownQuery, setOwnQuery] = useState('')
   const [collapsed, setCollapsed] = useState(false)
+  const [chip, setChip] = useState<ChipFilter>('all')
   const [expandedGroups, setExpandedGroups] =
     useState<Set<string>>(readExpandedGroups)
 
@@ -131,17 +154,6 @@ export function SidebarTree({
   const setText = onQueryChange ?? setOwnQuery
   const trimmed = text.trim()
 
-  const filtered = trimmed
-    ? groups
-        .map((g) => ({
-          ...g,
-          items: g.items.filter((it) =>
-            it.label.toLowerCase().includes(trimmed.toLowerCase()),
-          ),
-        }))
-        .filter((g) => g.items.length > 0)
-    : groups
-
   const searching = trimmed.length > 0 && searchResults !== undefined
   const hitCount = searching
     ? searchResults.reduce((n, s) => n + s.hits.length + s.overflow, 0)
@@ -154,6 +166,40 @@ export function SidebarTree({
   const dirtyById = new Map(
     groups.flatMap((g) => g.items.map((it) => [it.id, it.dirty ?? false])),
   )
+
+  // Chip counts are over the full tree, not the text-filtered view, so they
+  // stay stable while the user types in the search box.
+  const chipCounts = {
+    modified: groups.reduce(
+      (n, g) => n + g.items.filter((it) => it.dirty).length,
+      0,
+    ),
+    'off-rec': groups.reduce(
+      (n, g) => n + g.items.filter((it) => it.offRec).length,
+      0,
+    ),
+    issues: groups.reduce(
+      (n, g) => n + g.items.filter((it) => it.issues).length,
+      0,
+    ),
+  }
+
+  const chipPredicate = CHIP_PREDICATES[chip]
+
+  const visibleGroups = (
+    trimmed
+      ? groups
+          .map((g) => ({
+            ...g,
+            items: g.items.filter((it) =>
+              it.label.toLowerCase().includes(trimmed.toLowerCase()),
+            ),
+          }))
+          .filter((g) => g.items.length > 0)
+      : groups
+  )
+    .map((g) => ({ ...g, items: g.items.filter(chipPredicate) }))
+    .filter((g) => g.items.length > 0)
 
   return (
     <nav
@@ -184,6 +230,45 @@ export function SidebarTree({
           aria-label="Search settings"
         />
       </div>
+
+      {/* Board A's filter chips. Hidden while searching: results replace the
+          tree, so a section filter on top of them would be a no-op lie. */}
+      {!searching && (
+        <div className="sk-chips" role="group" aria-label="Filter sections">
+          <button
+            type="button"
+            className={`sk-chip${chip === 'all' ? ' on' : ''}`}
+            aria-pressed={chip === 'all'}
+            onClick={() => setChip('all')}
+          >
+            All
+          </button>
+          <button
+            type="button"
+            className={`sk-chip${chip === 'modified' ? ' on' : ''}`}
+            aria-pressed={chip === 'modified'}
+            onClick={() => setChip('modified')}
+          >
+            Modified · {chipCounts.modified}
+          </button>
+          <button
+            type="button"
+            className={`sk-chip${chip === 'off-rec' ? ' on' : ''}`}
+            aria-pressed={chip === 'off-rec'}
+            onClick={() => setChip('off-rec')}
+          >
+            Off-rec · {chipCounts['off-rec']}
+          </button>
+          <button
+            type="button"
+            className={`sk-chip${chip === 'issues' ? ' on' : ''}`}
+            aria-pressed={chip === 'issues'}
+            onClick={() => setChip('issues')}
+          >
+            Issues · {chipCounts.issues}
+          </button>
+        </div>
+      )}
 
       <div className="sk-filter-body">
         {searching ? (
@@ -263,7 +348,7 @@ export function SidebarTree({
             ))}
           </>
         ) : (
-          filtered.map((group) => {
+          visibleGroups.map((group) => {
             const holdsActive = group.items.some((it) => it.id === activeId)
             const isOpen = expandedGroups.has(group.label)
             const dirtyCount = group.items.filter((it) => it.dirty).length
@@ -293,6 +378,7 @@ export function SidebarTree({
                 </svg>
                 <span className="sec-label-text">
                   {group.label}
+                  {group.hint && <span className="grp-hint">{group.hint}</span>}
                   {/* Collapsing the group you are in must not lose your place,
                       so a closed group names the section that is open. */}
                   {!isOpen && holdsActive && (
@@ -329,7 +415,21 @@ export function SidebarTree({
                     }
                   >
                     <span>{item.label}</span>
-                    {item.dirty && <span className="item-ct">●</span>}
+                    {item.dirty && (
+                      <span className="item-ct" data-marker="modified" title="Modified">
+                        ●
+                      </span>
+                    )}
+                    {item.offRec && (
+                      <span className="item-ct" data-marker="offrec" title="Off recommended value">
+                        ◆
+                      </span>
+                    )}
+                    {item.issues && (
+                      <span className="item-ct" data-marker="issue" title="Config issue">
+                        ▲
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -337,7 +437,26 @@ export function SidebarTree({
             )
           })
         )}
+        {!searching && visibleGroups.length === 0 && (
+          <div
+            className="sec-label"
+            style={{ color: 'var(--m-text-faint, var(--theme-muted))' }}
+          >
+            No section matches this filter
+          </div>
+        )}
       </div>
+
+      {/* Board A's status legend. */}
+      {!searching && (
+        <div className="sk-legend">
+          <span className="item-ct" data-marker="modified" aria-hidden>●</span> modified
+          <span className="sk-legend-sep" aria-hidden>·</span>
+          <span className="item-ct" data-marker="offrec" aria-hidden>◆</span> off-recommended
+          <span className="sk-legend-sep" aria-hidden>·</span>
+          <span className="item-ct" data-marker="issue" aria-hidden>▲</span> config issue
+        </div>
+      )}
 
       {/* collapsed rail */}
       <div className="sk-rail">

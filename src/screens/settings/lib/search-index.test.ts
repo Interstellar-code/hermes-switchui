@@ -172,3 +172,35 @@ describe('searchSections', () => {
     expect(searchSections(INDEX, '')).toEqual([])
   })
 })
+
+describe('board A group names', () => {
+  // Registry-only index: titles and groups are searchable even with no schema.
+  const index = buildSearchIndex(
+    buildSchemaIndex({ fields: {}, category_order: [] }),
+  )
+
+  it('finds the sections of a group by its board A name ("safety")', () => {
+    const sections = searchSections(index, 'safety').map((s) => s.sectionId)
+    expect(sections).toContain('safety')
+    expect(sections).toContain('privacy')
+  })
+
+  it('finds all four Integrations sections by group name', () => {
+    const sections = searchSections(index, 'integrations').map(
+      (s) => s.sectionId,
+    )
+    expect(sections).toEqual(
+      expect.arrayContaining([
+        'mcp-servers',
+        'mcp-registered',
+        'hermes-plugin',
+        'api-keys',
+      ]),
+    )
+  })
+
+  it('matches setting entries whose haystack carries the group (channels)', () => {
+    const hits = searchSettings(index, 'channels')
+    expect(hits.some((h) => h.sectionId === 'gateway')).toBe(true)
+  })
+})
