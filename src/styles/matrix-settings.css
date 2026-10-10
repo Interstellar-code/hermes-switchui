@@ -1453,8 +1453,15 @@
   color: var(--theme-danger);
 }
 
+/* Text colour darkens toward --theme-text so light themes keep contrast
+   (~2.0–2.5:1 on claude-classic/slate-light was too low, P5B R2). Markers
+   and borders keep the raw accent-secondary. */
 [data-screen='settings'] .health-tile-num.health-info {
-  color: var(--theme-accent-secondary, var(--theme-accent));
+  color: color-mix(
+    in srgb,
+    var(--theme-accent-secondary, var(--theme-accent)) 55%,
+    var(--theme-text)
+  );
 }
 
 [data-screen='settings'] .health-tile-num.health-legacy {
@@ -1619,7 +1626,11 @@
 
 [data-screen='settings'] .health-pre-tag {
   font: 600 9.5px var(--m-font-mono, ui-monospace, monospace);
-  color: var(--theme-accent-secondary, var(--theme-accent));
+  color: color-mix(
+    in srgb,
+    var(--theme-accent-secondary, var(--theme-accent)) 55%,
+    var(--theme-text)
+  );
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
@@ -1682,6 +1693,12 @@
 
 [data-screen='settings'] .health-lock-state.bad {
   color: var(--theme-danger);
+}
+
+/* Absent from the web draft (normalized away by the API) — neutral, no ✓/✗. */
+[data-screen='settings'] .health-lock-state.unreadable {
+  color: var(--m-text-faint, var(--theme-muted));
+  font-style: italic;
 }
 
 [data-screen='settings'] .health-lock-note {

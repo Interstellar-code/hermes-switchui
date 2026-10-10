@@ -48,6 +48,26 @@ function sameValue(a: unknown, b: unknown): boolean {
   return a === b
 }
 
+/**
+ * Required-key comparison (P5B R2). The agent coerces numeric strings on
+ * read (`gateway/platforms/api_server.py` `_coerce_port`), so a profile can
+ * legitimately carry `port: '8642'`; for int/float meta a numeric string
+ * therefore compares by `Number()` instead of failing on the type. Exported
+ * for the health card, which scores the same rule.
+ */
+export function requiredValueMatches(meta: KeyMeta, value: unknown): boolean {
+  const expected = meta.required?.value
+  if (
+    (meta.type === 'int' || meta.type === 'float') &&
+    typeof value === 'string' &&
+    value.trim() !== '' &&
+    !Number.isNaN(Number(value))
+  ) {
+    return Number(value) === Number(expected)
+  }
+  return sameValue(value, expected)
+}
+
 // Thresholds, each tied to its research issue / meta recommended value.
 const APPROVALS_TIMEOUT_FLOOR = 300 // rec issue 1: upstream default 300 s
 const RETRIES_FLOOR = 3 // rec issue 4: default/recommended retries
@@ -287,6 +307,11 @@ const hygieneLimitTuned: Rule = (draft, meta) => {
  * Brief extra — required keys (board C locks). Any drift, including absence,
  * is an error: SwitchUI features depend on these values. One finding per key
  * (`required-<bare-id>`), fix restores the locked value.
+ *
+ * P5B R2: absence is no longer drift. The dashboard's
+ * `_normalize_config_for_web` replaces e.g. the `model` dict with its
+ * `default` string, so `config.model.provider` is simply not present in the
+ * web draft — "not readable here", not drifted, and no fix may fabricate it.
  */
 const requiredKeyDrift: Rule = (draft, meta) => {
   const findings: Array<HealthFinding> = []
@@ -294,7 +319,8 @@ const requiredKeyDrift: Rule = (draft, meta) => {
     if (!m.required) continue
     const key = draftKey(m)
     const value = draft[key]
-    if (!sameValue(value, m.required.value)) {
+    if (value === undefined) continue
+    if (!requiredValueMatches(m, value)) {
       findings.push({
         id: `required-${m.id}`,
         severity: 'error',

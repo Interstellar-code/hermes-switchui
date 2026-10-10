@@ -13,7 +13,11 @@
  */
 
 import { SettingCard } from '../components/setting-card'
-import { applyPreset, checkConfigHealth } from '../lib/config-health'
+import {
+  applyPreset,
+  checkConfigHealth,
+  requiredValueMatches,
+} from '../lib/config-health'
 import { getPresets, listKeyMeta } from '../lib/key-meta'
 import type { HealthFinding } from '../lib/config-health'
 import type { KeyMeta } from '../lib/key-meta-types'
@@ -26,17 +30,25 @@ function draftKeyOf(meta: KeyMeta): string {
   return meta.scope === 'hermes-config' ? `${CONFIG_PREFIX}${meta.id}` : meta.id
 }
 
-/** Value equality over the list/map values config keys carry. */
-function sameValue(a: unknown, b: unknown): boolean {
-  if (
-    typeof a === 'object' &&
-    a !== null &&
-    typeof b === 'object' &&
-    b !== null
-  ) {
-    return JSON.stringify(a) === JSON.stringify(b)
+/**
+ * P5B R2 write guard: `key` would land beside a non-object ancestor in the
+ * flat draft (e.g. `config.model.provider` while the draft carries
+ * `config.model` as the normalized `"auto"` string), which could clobber
+ * that parent on save — so no Fix / Fix all / preset write may target it.
+ */
+function parentHoldsNonObject(
+  draft: Record<string, unknown>,
+  key: string,
+): boolean {
+  const parts = key.split('.')
+  for (let i = parts.length - 1; i > 0; i--) {
+    const ancestor = parts.slice(0, i).join('.')
+    const value = draft[ancestor]
+    if (value !== undefined && (typeof value !== 'object' || value === null)) {
+      return true
+    }
   }
-  return a === b
+  return false
 }
 
 /** Human value for chips and diffs: strings bare, everything else JSON. */
@@ -106,13 +118,27 @@ export default function SectionHealth() {
   const meta = listKeyMeta()
   const findings = checkConfigHealth(draft, meta)
 
+  /** setMany, minus keys the write guard rejects. */
+  const applyPatch = (patch: Record<string, unknown>) => {
+    const safe: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(patch)) {
+      if (parentHoldsNonObject(draft, key)) continue
+      safe[key] = value
+    }
+    setMany(safe)
+  }
+
   // Score strip. "Dead / duplicate" findings also count as issues (their
-  // severity is warn) — the board's tiles overlap the same way.
+  // severity is warn) — the board's tiles overlap the same way. Required
+  // keys absent from the draft are "not readable here", excluded from n/m.
   const requiredEntries = meta.flatMap((m) =>
-    m.required ? [{ id: m.id, key: draftKeyOf(m), required: m.required }] : [],
+    m.required ? [{ m, key: draftKeyOf(m), required: m.required }] : [],
   )
-  const requiredOk = requiredEntries.filter((e) =>
-    sameValue(draft[e.key], e.required.value),
+  const readableEntries = requiredEntries.filter(
+    (e) => draft[e.key] !== undefined,
+  )
+  const requiredOk = readableEntries.filter((e) =>
+    requiredValueMatches(e.m, draft[e.key]),
   ).length
   const issues = findings.filter(
     (f) => f.severity === 'error' || f.severity === 'warn',
@@ -154,7 +180,7 @@ export default function SectionHealth() {
       >
         <div className="health-tile">
           <span className="health-tile-num health-ok">
-            {requiredOk}/{requiredEntries.length}
+            {requiredOk}/{readableEntries.length}
           </span>
           <span className="health-tile-cap">SwitchUI required ok</span>
         </div>
@@ -180,7 +206,7 @@ export default function SectionHealth() {
           <div className="health-fixall-bar">
             <button
               className="btn"
-              onClick={() => setMany(fixAllPatch)}
+              onClick={() => applyPatch(fixAllPatch)}
               disabled={fixable.length === 0}
             >
               Fix all
@@ -236,7 +262,7 @@ export default function SectionHealth() {
                   {fixEntries.length > 0 && (
                     <button
                       className="btn btn-sm"
-                      onClick={() => setMany(f.fix)}
+                      onClick={() => applyPatch(f.fix)}
                     >
                       Fix
                     </button>
@@ -280,9 +306,10 @@ export default function SectionHealth() {
                       <button
                         className="btn"
                         disabled={Object.keys(patch).length === 0}
-                        onClick={() => setMany(patch)}
+                        onClick={() => applyPatch(patch)}
                       >
-                        Apply {Object.keys(patch).length} changes
+                        Apply {Object.keys(patch).length}{' '}
+                        {Object.keys(patch).length === 1 ? 'change' : 'changes'}
                       </button>
                     </div>
                   </div>
@@ -293,16 +320,28 @@ export default function SectionHealth() {
 
           <SettingCard
             title="Required for SwitchUI"
-            sub={`${requiredOk}/${requiredEntries.length} ✓`}
+            sub={`${requiredOk}/${readableEntries.length} ✓`}
           >
             {requiredEntries.map((e) => {
-              const ok = sameValue(draft[e.key], e.required.value)
+              const value = draft[e.key]
+              const readable = value !== undefined
+              const ok = readable && requiredValueMatches(e.m, value)
               return (
-                <div className="health-lock" key={e.id}>
-                  <span className="health-chip">{e.id}</span>
-                  <span className={`health-lock-state ${ok ? 'ok' : 'bad'}`}>
-                    {formatValue(draft[e.key])}{' '}
-                    {ok ? '✓' : `✗ ${e.required.reason}`}
+                <div className="health-lock" key={e.m.id}>
+                  <span className="health-chip">{e.m.id}</span>
+                  <span
+                    className={`health-lock-state ${
+                      !readable ? 'unreadable' : ok ? 'ok' : 'bad'
+                    }`}
+                  >
+                    {readable ? (
+                      <>
+                        {formatValue(value)}{' '}
+                        {ok ? '✓' : `✗ ${e.required.reason}`}
+                      </>
+                    ) : (
+                      'not readable here'
+                    )}
                   </span>
                 </div>
               )

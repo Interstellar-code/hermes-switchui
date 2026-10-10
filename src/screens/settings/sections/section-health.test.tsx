@@ -204,9 +204,129 @@ describe('SectionHealth — required card', () => {
         expect(row.textContent).toContain('✓')
       }
     }
-    // Score strip agrees: 7 of 8 locked keys ok.
-    expect(screen.getByText('7/8')).toBeTruthy()
+    // Score strip agrees: all-but-the-drift of the required keys ok,
+    // derived from the required-meta count (never a hard-coded ratio).
+    const requiredCount = listKeyMeta().filter((m) => m.required).length
+    expect(
+      screen.getByText(`${requiredCount - 1}/${requiredCount}`),
+    ).toBeTruthy()
     // Footer note: presets never change these keys.
     expect(screen.getByText(/Presets never change these keys/)).toBeTruthy()
+  })
+
+  it('shows "not readable here" (neutral) for an absent required key, excluded from the score', () => {
+    // The dashboard normalizes the model dict to its default string, so
+    // config.model.provider is absent from the web draft.
+    const base = { ...REQUIRED_BASE }
+    delete base['config.model.provider']
+    useSettingsStore.getState().seed({ ...base, 'config.model': 'auto' })
+
+    render(<SectionHealth />)
+
+    const requiredCount = Object.keys(REQUIRED_BASE).length
+    // Unreadable keys leave the score entirely: 7 of 7 readable, all ok.
+    expect(
+      screen.getByText(`${requiredCount - 1}/${requiredCount - 1}`),
+    ).toBeTruthy()
+    const card = screen
+      .getByText('Required for SwitchUI')
+      .closest<HTMLElement>('.card')!
+    const row = within(card)
+      .getByText('model.provider')
+      .closest<HTMLElement>('.health-lock')!
+    expect(row.textContent).toContain('not readable here')
+    expect(row.textContent).not.toContain('✗')
+    expect(row.textContent).not.toContain('✓')
+    // …and no required-model.provider finding is fabricated for it.
+    expect(screen.queryByText(/is required for SwitchUI/)).toBeNull()
+    expect(screen.getByText(/No findings/)).toBeTruthy()
+  })
+
+  it('never writes a fix whose parent path holds a non-object value', () => {
+    // config.model is the normalized string; a Fix on config.model.provider
+    // would write beside it and could clobber the model setting on save.
+    loadDraft({ 'config.model': 'auto', 'config.model.provider': 'openai' })
+
+    render(<SectionHealth />)
+
+    const row = screen
+      .getByText(/is required for SwitchUI/)
+      .closest<HTMLElement>('.health-iss')!
+    fireEvent.click(within(row).getByRole('button', { name: 'Fix' }))
+
+    const s = useSettingsStore.getState()
+    expect(s.draft['config.model.provider']).toBe('openai')
+    expect(s.draft['config.model']).toBe('auto')
+    expect(s.dirty.size).toBe(0)
+    expect(s.committed['config.model']).toBe('auto')
+  })
+
+  it('treats a numeric-string port as matching its numeric locked value', () => {
+    loadDraft({ 'config.platforms.api_server.extra.port': '8642' })
+
+    render(<SectionHealth />)
+
+    const requiredCount = Object.keys(REQUIRED_BASE).length
+    expect(screen.getByText(`${requiredCount}/${requiredCount}`)).toBeTruthy()
+    const card = screen
+      .getByText('Required for SwitchUI')
+      .closest<HTMLElement>('.card')!
+    const row = within(card)
+      .getByText('platforms.api_server.extra.port')
+      .closest<HTMLElement>('.health-lock')!
+    expect(row.textContent).toContain('✓')
+    expect(screen.getByText(/No findings/)).toBeTruthy()
+  })
+})
+
+describe('SectionHealth — markers, chips and wording', () => {
+  it('a finding without an automatic fix shows its key chip and no Fix button', () => {
+    loadDraft({
+      'config.browser.cdp_url':
+        'http://127.0.0.1:9222/devtools/browser/deadbeef-uuid',
+    })
+
+    render(<SectionHealth />)
+
+    const row = screen
+      .getByText(/devtools\/browser/)
+      .closest<HTMLElement>('.health-iss')!
+    expect(row.textContent).toContain('browser.cdp_url')
+    expect(within(row).queryByRole('button', { name: 'Fix' })).toBeNull()
+  })
+
+  it('gives the ◆ info and ◇ legacy markers their accessible names', () => {
+    loadDraft({
+      'config.compression.hygiene_hard_message_limit': 100,
+      'config.fallback_model': 'claude-sonnet',
+      'config.fallback_providers': ['manifest'],
+    })
+
+    render(<SectionHealth />)
+
+    expect(screen.getByRole('img', { name: 'info' })).toBeTruthy()
+    expect(screen.getByRole('img', { name: 'legacy' })).toBeTruthy()
+  })
+
+  it('says "Apply 1 change" (singular) and applies exactly that key', () => {
+    const power = getPresets().find((p) => p.id === 'power')
+    expect(power).toBeDefined()
+    const draft: Record<string, unknown> = { ...REQUIRED_BASE }
+    for (const [id, value] of Object.entries(power!.values)) {
+      draft[draftKeyFor(id)] = value
+    }
+    draft['config.agent.max_turns'] = 299
+    useSettingsStore.getState().seed(draft)
+
+    render(<SectionHealth />)
+
+    const block = screen.getByText('Power').closest<HTMLElement>('.health-pre')!
+    fireEvent.click(
+      within(block).getByRole('button', { name: 'Apply 1 change' }),
+    )
+
+    const s = useSettingsStore.getState()
+    expect(s.draft['config.agent.max_turns']).toBe(300)
+    expect([...s.dirty]).toEqual(['config.agent.max_turns'])
   })
 })
