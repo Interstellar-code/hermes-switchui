@@ -12,6 +12,8 @@
  * a plain object to keep the request shape predictable.
  */
 
+import { HttpError } from './http-error'
+
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 
 export async function apiFetch(
@@ -34,14 +36,20 @@ export async function apiFetch(
  * endpoints that return 204 / an empty body don't throw "Unexpected end of
  * JSON input".
  */
-export async function apiJson<T>(input: string, init?: RequestInit): Promise<T> {
+export async function apiJson<T>(
+  input: string,
+  init?: RequestInit,
+): Promise<T> {
   const res = await apiFetch(input, init)
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as {
       error?: string
       detail?: string
     }
-    throw new Error(body.error ?? body.detail ?? `Request failed: ${res.status}`)
+    throw new HttpError(
+      body.error ?? body.detail ?? `Request failed: ${res.status}`,
+      res.status,
+    )
   }
   if (res.status === 204) return undefined as T
   const text = await res.text()

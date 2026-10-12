@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { isPlaceholderSessionKey } from './projects-types'
+import { HttpError } from './http-error'
 import type {
   AddProjectFolderInput,
   CreateProjectInput,
@@ -24,7 +25,7 @@ async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
       detail?: unknown
     }
     const detail = body.detail ?? body.error
-    throw new Error(
+    const message =
       typeof detail === 'string'
         ? detail
         : Array.isArray(detail)
@@ -35,8 +36,8 @@ async function projectsJson<T>(url: string, init?: RequestInit): Promise<T> {
                   : [],
               )
               .join('; ') || `Request failed: ${res.status}`
-          : `Request failed: ${res.status}`,
-    )
+          : `Request failed: ${res.status}`
+    throw new HttpError(message, res.status)
   }
   return res.json() as Promise<T>
 }
