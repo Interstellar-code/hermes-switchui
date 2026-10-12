@@ -570,6 +570,10 @@ export function useProjects(
     queryKey: projectsKeys.list(includeArchived, profile),
     queryFn: () => fetchProjects(includeArchived, profile),
     enabled,
+    // Heavy dashboard enrichment behind this: serve cache for 60 s and never
+    // retry (the 12 s abort → 503 cascade used to spin 4× per key).
+    staleTime: 60_000,
+    retry: false,
   })
 }
 

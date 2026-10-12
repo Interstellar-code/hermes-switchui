@@ -5,7 +5,7 @@ import {
   createRootRoute,
   useRouterState,
 } from '@tanstack/react-router'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 import appCss from '../styles.css?url'
 import { getRootSurfaceState } from './-root-layout-state'
@@ -31,6 +31,7 @@ import { LoginScreen } from '@/components/auth/login-screen'
 import { useSetupWizardStore } from '@/stores/setup-wizard-store'
 import { saveMissionStoreBeforeUnload } from '@/stores/mission-store'
 import { syncSessionProfileToPath } from '@/lib/session-scope'
+import { createQueryClient } from '@/lib/query-defaults'
 
 const APP_CSP = [
   "default-src 'self'",
@@ -217,7 +218,7 @@ export const Route = createRootRoute({
   },
 })
 
-const queryClient = new QueryClient()
+const queryClient = createQueryClient()
 
 export function getRootLayoutMode(
   onboardingComplete: string | null,
