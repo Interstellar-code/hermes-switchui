@@ -1,7 +1,59 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { RefObject } from 'react'
 
 export type LiveToolActivity = Array<{ name: string; timestamp: number }>
+
+/**
+ * History poll cadence while the live `/api/events` stream is down.
+ * While the stream is connected the history query must not poll
+ * (`refetchInterval: false`) — stream events invalidate it instead.
+ */
+export const HISTORY_POLL_INTERVAL_MS = 5_000
+
+/**
+ * Pure selector for the history query's `refetchInterval` option:
+ * `false` while the live stream is connected, 5 s only when disconnected.
+ */
+export function resolveHistoryRefetchInterval(
+  isLiveStreamConnected: boolean,
+): number | false {
+  return isLiveStreamConnected ? false : HISTORY_POLL_INTERVAL_MS
+}
+
+// Shared readout of the ONE `/api/events` EventSource owned by
+// `useActivityStream` below (the screen's live stream). Module-level on
+// purpose: `useChatHistory` runs earlier in `chat-screen.tsx` than the
+// activity hook, so the flag cannot travel through hook return values
+// without reordering unrelated hooks. This is the same connection —
+// not a second tracker — surfaced via `useSyncExternalStore`.
+let liveStreamConnected = false
+const liveStreamListeners = new Set<() => void>()
+
+function setLiveStreamConnected(connected: boolean): void {
+  if (liveStreamConnected === connected) return
+  liveStreamConnected = connected
+  for (const listener of Array.from(liveStreamListeners)) listener()
+}
+
+function subscribeLiveStream(listener: () => void): () => void {
+  liveStreamListeners.add(listener)
+  return () => {
+    liveStreamListeners.delete(listener)
+  }
+}
+
+function getLiveStreamSnapshot(): boolean {
+  return liveStreamConnected
+}
+
+/** Reactive readout: true while the shared `/api/events` SSE stream is open. */
+export function useLiveStreamConnected(): boolean {
+  return useSyncExternalStore(
+    subscribeLiveStream,
+    getLiveStreamSnapshot,
+    getLiveStreamSnapshot,
+  )
+}
 
 /**
  * Activity stream cluster — owns the `/api/events` activity EventSource,
@@ -54,9 +106,22 @@ export function useActivityStream(params: {
       }
     }
     events.addEventListener('activity', onActivity)
+    // Surface the SSE connection for history polling: while open the
+    // history query must not poll; on error it falls back to 5 s polls.
+    const onOpen = () => {
+      setLiveStreamConnected(true)
+    }
+    const onError = () => {
+      setLiveStreamConnected(false)
+    }
+    events.addEventListener('open', onOpen)
+    events.addEventListener('error', onError)
     return () => {
       events.removeEventListener('activity', onActivity)
+      events.removeEventListener('open', onOpen)
+      events.removeEventListener('error', onError)
       events.close()
+      setLiveStreamConnected(false)
     }
   }, []) // mount only — stays open for session lifetime
 

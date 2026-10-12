@@ -32,7 +32,7 @@ type UseChatHistoryInput = {
   activeExists: boolean
   sessionsReady: boolean
   queryClient: QueryClient
-  historyRefetchInterval?: number
+  historyRefetchInterval?: number | false
   /** When true, skip all server history fetching (portable mode). */
   portableMode?: boolean
 }

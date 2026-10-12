@@ -38,7 +38,11 @@ import { useActiveRunCheck } from './hooks/use-active-run-check'
 import { useRunStop } from './hooks/use-run-stop'
 import { useActiveRunPoller } from './hooks/use-active-run-poller'
 import { useFocusMode } from './hooks/use-focus-mode'
-import { useActivityStream } from './hooks/use-activity-stream'
+import {
+  resolveHistoryRefetchInterval,
+  useActivityStream,
+  useLiveStreamConnected,
+} from './hooks/use-activity-stream'
 import { useHistoryPolling } from './hooks/use-history-polling'
 import {
   classifySessionSource,
@@ -269,6 +273,9 @@ export function ChatScreen({
       )
     )
   }, [activeFriendlyId, activeSession, activeSessionKey, sessionFeedItems])
+  // Live-stream connection gates history polling: no 5 s poll while the
+  // shared `/api/events` SSE stream is connected; poll only when it is down.
+  const isLiveStreamConnected = useLiveStreamConnected()
   const {
     historyQuery,
     historyMessages,
@@ -286,7 +293,9 @@ export function ChatScreen({
     activeExists,
     sessionsReady: sessionsQuery.isSuccess,
     queryClient,
-    historyRefetchInterval: 5_000,
+    historyRefetchInterval: resolveHistoryRefetchInterval(
+      isLiveStreamConnected,
+    ),
     portableMode: isPortableMode,
   })
 
