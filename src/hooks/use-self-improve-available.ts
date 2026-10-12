@@ -25,13 +25,22 @@ async function fetchEnabledPlugins(): Promise<Array<string>> {
     : []
 }
 
+/**
+ * Only feeds a nav-item visibility flag: the old 5 s poll cost ~24 dashboard
+ * calls/min, so poll every 5 min and never while the tab is hidden.
+ */
+export const selfImproveQueryOptions = {
+  staleTime: 300_000,
+  refetchInterval: 300_000,
+  refetchIntervalInBackground: false,
+  retry: 1,
+} as const
+
 export function useSelfImproveAvailable(): boolean | null {
   const { data, isError, isLoading } = useQuery({
     queryKey: ['hermes-plugin', 'enabled-plugins'],
     queryFn: fetchEnabledPlugins,
-    staleTime: 5_000,
-    refetchInterval: 5_000,
-    retry: 1,
+    ...selfImproveQueryOptions,
   })
 
   if (isError) return false
