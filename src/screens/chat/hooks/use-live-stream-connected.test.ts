@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, renderHook } from '@testing-library/react'
 import {
+  HISTORY_CONNECTED_POLL_INTERVAL_MS,
   HISTORY_POLL_INTERVAL_MS,
   resolveHistoryRefetchInterval,
   useActivityStream,
@@ -68,9 +69,10 @@ describe('F4: history polling follows the live SSE stream', () => {
     vi.useRealTimers()
   })
 
-  it('polls every 5 s only while disconnected, never while connected', () => {
+  it('polls slowly (15 s) while connected, every 5 s while disconnected', () => {
+    expect(resolveHistoryRefetchInterval(true)).toBe(15000)
     expect(resolveHistoryRefetchInterval(false)).toBe(5000)
-    expect(resolveHistoryRefetchInterval(true)).toBe(false)
+    expect(HISTORY_CONNECTED_POLL_INTERVAL_MS).toBe(15000)
     expect(HISTORY_POLL_INTERVAL_MS).toBe(5000)
   })
 

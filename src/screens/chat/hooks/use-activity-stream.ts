@@ -5,19 +5,30 @@ export type LiveToolActivity = Array<{ name: string; timestamp: number }>
 
 /**
  * History poll cadence while the live `/api/events` stream is down.
- * While the stream is connected the history query must not poll
- * (`refetchInterval: false`) — stream events invalidate it instead.
  */
 export const HISTORY_POLL_INTERVAL_MS = 5_000
 
 /**
+ * Slower history poll while the live `/api/events` stream is connected.
+ * `/api/events` only carries events for the user's own send runs, so
+ * messages that never arrive as stream events for this run (cron turns,
+ * Telegram, another browser tab, agent-initiated turns) would be lost
+ * without a poll — the connected slow poll covers them.
+ */
+export const HISTORY_CONNECTED_POLL_INTERVAL_MS = 15_000
+
+/**
  * Pure selector for the history query's `refetchInterval` option:
- * `false` while the live stream is connected, 5 s only when disconnected.
+ * a slow 15 s poll while the live stream is connected (covers external
+ * messages that never arrive as stream events for this run — cron,
+ * Telegram, other tabs, agent-initiated turns), 5 s when disconnected.
  */
 export function resolveHistoryRefetchInterval(
   isLiveStreamConnected: boolean,
 ): number | false {
-  return isLiveStreamConnected ? false : HISTORY_POLL_INTERVAL_MS
+  return isLiveStreamConnected
+    ? HISTORY_CONNECTED_POLL_INTERVAL_MS
+    : HISTORY_POLL_INTERVAL_MS
 }
 
 // Shared readout of the ONE `/api/events` EventSource owned by
@@ -77,8 +88,7 @@ export function useActivityStream(params: {
 } {
   const { waitingForResponseRef, waitingForResponse } = params
 
-  const [liveToolActivity, setLiveToolActivity] =
-    useState<LiveToolActivity>([])
+  const [liveToolActivity, setLiveToolActivity] = useState<LiveToolActivity>([])
 
   // Keep activity stream open persistently — opens on mount so it's ready
   // before the first tool call fires (avoids connection latency gap).
@@ -107,7 +117,8 @@ export function useActivityStream(params: {
     }
     events.addEventListener('activity', onActivity)
     // Surface the SSE connection for history polling: while open the
-    // history query must not poll; on error it falls back to 5 s polls.
+    // history query slows to a 15 s poll (external messages never arrive
+    // as stream events for this run); on error it returns to 5 s polls.
     const onOpen = () => {
       setLiveStreamConnected(true)
     }
