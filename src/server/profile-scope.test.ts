@@ -873,4 +873,81 @@ describe('slow or failing /api/status probe (409-storm fix)', () => {
     expect(await second).toBeInstanceOf(ProfileScopeIndeterminateError)
     expect(calls).toHaveLength(1)
   })
+
+  it('a completed remote-gated reprobe is returned as-is, never masked by the stale-good fallback', async () => {
+    vi.useFakeTimers()
+    let live: Record<string, unknown> = MULTIPLEX
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown) => Promise.resolve(statusResponse(live))),
+    )
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    expect(await scopedPath('/api/sessions', 'neo')).toBe('/p/neo/api/sessions')
+
+    // The dashboard answers again — this time from outside the loopback
+    // trust envelope, withholding the roster. That is a COMPLETED topology
+    // answer (auth_required gating), not a busy dashboard: the stale-good
+    // multiplex cached above must NOT mask it, or profile-scoped writes keep
+    // their /p/<profile>/ prefix against a dashboard that just said "cannot
+    // verify from here".
+    live = {
+      gateway_mode: 'multiplex',
+      profiles: ['default', 'neo'],
+      auth_required: true,
+    }
+    vi.advanceTimersByTime(6_000) // past MODE_TTL_MS, so the next call reprobes
+    const err = await scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('remote-gated')
+  })
+
+  it('no good result cached: a hanging dashboard fails the probe at the 8 s budget', async () => {
+    vi.useFakeTimers()
+    fakeAbortSignalTimeout()
+    stubHangingStatusFetch()
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+
+    let settled = false
+    const pending = scopedPath('/api/sessions', 'neo')
+      .catch((e) => e)
+      .finally(() => {
+        settled = true
+      })
+    await vi.advanceTimersByTimeAsync(8_000)
+    // The short no-fallback budget: settled at the 8 s mark, not held to 12 s.
+    expect(settled).toBe(true)
+    const err = await pending
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('probe-failed')
+  })
+
+  it('good result cached: the probe still pends at 8 s and succeeds on a 10 s answer', async () => {
+    vi.useFakeTimers()
+    fakeAbortSignalTimeout()
+    // One good probe at t=0: immediate multiplex answer, cached fresh.
+    stubFetch(MULTIPLEX)
+    const { scopedPath } = await import('./profile-scope')
+    expect(await scopedPath('/api/sessions', 'neo')).toBe('/p/neo/api/sessions')
+
+    // From here the dashboard hangs. The reprobe starts at t=5 s with a good
+    // value cached, so the 12 s fallback budget applies — NOT the 8 s
+    // no-fallback one.
+    const { answer } = stubHangingStatusFetch()
+    await vi.advanceTimersByTimeAsync(5_000)
+    let settled = false
+    const pending = scopedPath('/api/sessions', 'neo')
+      .catch((e) => e)
+      .finally(() => {
+        settled = true
+      })
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(settled).toBe(false)
+    // The dashboard answers 10 s into the probe — inside the 12 s budget —
+    // and the scoped write proceeds on the fresh answer.
+    await vi.advanceTimersByTimeAsync(2_000)
+    answer(statusResponse(MULTIPLEX))
+    expect(await pending).toBe('/p/neo/api/sessions')
+  })
 })

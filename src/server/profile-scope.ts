@@ -172,7 +172,11 @@ export type GatewayMode =
  *  (unreachable dashboard, network error, timeout, unrecognised payload) —
  *  as opposed to one that completed and reported a gated/remote topology.
  *  `assertProfileServed` rejects every explicit profile for both `'unknown'`
- *  reasons, but with a message that matches which one actually happened. */
+ *  reasons, but with a message that matches which one actually happened.
+ *  This is also the ONLY `'unknown'` result the STALE_GOOD_TTL_MS fallback
+ *  ever masks: a probe that completed and answered `'remote-gated'` or
+ *  `'multiple-gateways'` reports a topology change, not a busy dashboard,
+ *  and must fail closed at once. */
 const PROBE_FAILED: GatewayMode = {
   mode: 'unknown',
   servedProfiles: null,
@@ -202,14 +206,28 @@ const MODE_TTL_MS = 5_000
  *  several seconds under load. gateway-capabilities.ts raised its own probe
  *  timeout to 15 s for exactly that race; a 3 s timeout here turned every
  *  load spike into a cached probe failure — and thus MODE_TTL_MS of 409s on
- *  every profile-scoped route. */
-const PROBE_TIMEOUT_MS = 12_000
+ *  every profile-scoped route.
+ *
+ *  The budget is chosen per probe (see `getGatewayMode`): the full 12 s
+ *  applies only when a good cached result can be fallen back to, so a busy
+ *  dashboard still gets the long wait that makes the stale-good exception
+ *  useful. With NOTHING good cached there is no fallback — every caller
+ *  waits out the probe only to receive its 409 — so the shorter 8 s budget
+ *  applies and a truly down dashboard fails fast, comfortably inside the
+ *  12 s budgets upstream clients wrap their dashboard calls in
+ *  (hermes-kanban-client.ts, projects-client.ts — each sized against a ~6 s
+ *  worst-case auth flow). */
+const PROBE_TIMEOUT_MS = 8_000
+const PROBE_TIMEOUT_WITH_FALLBACK_MS = 12_000
 /** How long a previously GOOD topology keeps being served when probes fail:
- *  inside this window (measured from when the good value was cached) a
- *  failed/timed-out probe never evicts it. Freshness is still MODE_TTL_MS —
- *  past it every call reprobes, and only a FAILING reprobe falls back to the
- *  stale-good value. Beyond this window a failing probe is cached and served
- *  as before; with no prior good result, nothing changes. */
+ *  inside this window (measured from when the good value was cached) a probe
+ *  that failed with reason `'probe-failed'` (timeout / network / unusable
+ *  payload) never evicts it. Freshness is still MODE_TTL_MS — past it every
+ *  call reprobes, and only a `'probe-failed'` reprobe falls back to the
+ *  stale-good value; a probe that COMPLETED with `'remote-gated'` or
+ *  `'multiple-gateways'` is a topology answer and is never masked by the
+ *  fallback. Beyond this window a failing probe is cached and served as
+ *  before; with no prior good result, nothing changes. */
 const STALE_GOOD_TTL_MS = 60_000
 
 // The cache is keyed by BOTH URLs it describes: the dashboard URL it was
@@ -252,10 +270,14 @@ function isGoodMode(value: GatewayMode): boolean {
  *  payload resolves to `'unknown'` (reason `'probe-failed'`), and a dashboard
  *  that answered but withheld gated detail resolves to `'unknown'` (reason
  *  `'remote-gated'`) — both make every profile-scoped request throw, just with
- *  a message that matches which one actually happened. The one exception: a
- *  good topology already cached younger than STALE_GOOD_TTL_MS keeps being
- *  served when a fresh probe fails, so a busy dashboard degrades to a
- *  bounded-stale answer instead of a 409 storm.
+ *  a message that matches which one actually happened. The one exception —
+ *  and it applies to reason `'probe-failed'` ONLY: a good topology already
+ *  cached younger than STALE_GOOD_TTL_MS keeps being served when a fresh
+ *  probe times out or cannot reach the dashboard, so a busy dashboard
+ *  degrades to a bounded-stale answer instead of a 409 storm. A probe that
+ *  completed and answered anything else (`'remote-gated'`,
+ *  `'multiple-gateways'`) reports a topology change the stale value would
+ *  mask, and fails closed immediately.
  */
 export async function getGatewayMode(
   opts: { force?: boolean } = {},
@@ -268,13 +290,28 @@ export async function getGatewayMode(
     }
     if (inflight && inflight.url === key) return inflight.promise
   }
-  const run = probeMode(dashboardUrl).then((value) => {
+  // The budget is picked at probe start, from the cache this probe found:
+  // the long wait is only worth it when a good cached value can be fallen
+  // back to; with nothing cached it would just delay every caller's 409.
+  const hasStaleGoodFallback =
+    cached !== null &&
+    cached.url === key &&
+    isGoodMode(cached.value) &&
+    Date.now() - cached.at < STALE_GOOD_TTL_MS
+  const run = probeMode(
+    dashboardUrl,
+    hasStaleGoodFallback ? PROBE_TIMEOUT_WITH_FALLBACK_MS : PROBE_TIMEOUT_MS,
+  ).then((value) => {
     const previous = cached
     // `previous.at` is deliberately not refreshed in this branch, so the
     // fallback window is measured from the last GOOD probe and every
-    // post-TTL call still reprobes.
+    // post-TTL call still reprobes. And only a `'probe-failed'` result may
+    // take the fallback: a probe that COMPLETED with `'remote-gated'` or
+    // `'multiple-gateways'` answered a topology question, and the stale-good
+    // value would mask that answer for the whole window.
     if (
-      !isGoodMode(value) &&
+      value.mode === 'unknown' &&
+      value.reason === 'probe-failed' &&
       previous !== null &&
       previous.url === key &&
       isGoodMode(previous.value) &&
@@ -375,10 +412,13 @@ function matchConfiguredGateway(
   return matches.length === 1 ? matches[0] : null
 }
 
-async function probeMode(dashboardUrl: string): Promise<GatewayMode> {
+async function probeMode(
+  dashboardUrl: string,
+  timeoutMs: number,
+): Promise<GatewayMode> {
   try {
     const res = await fetch(`${dashboardUrl}/api/status`, {
-      signal: AbortSignal.timeout(PROBE_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     })
     if (!res.ok) return PROBE_FAILED
     const body = (await res.json()) as {
