@@ -197,7 +197,20 @@ const REMOTE_GATED: GatewayMode = {
  *  it cannot close it, which is why the operator invariant is "hold multiplex
  *  enabled while cross-profile work is in flight". */
 const MODE_TTL_MS = 5_000
-const PROBE_TIMEOUT_MS = 3_000
+/** The dashboard shares one Python process (and its GIL) with the heavy
+ *  projects/boards enrichment endpoints, so /api/status can stall for
+ *  several seconds under load. gateway-capabilities.ts raised its own probe
+ *  timeout to 15 s for exactly that race; a 3 s timeout here turned every
+ *  load spike into a cached probe failure — and thus MODE_TTL_MS of 409s on
+ *  every profile-scoped route. */
+const PROBE_TIMEOUT_MS = 12_000
+/** How long a previously GOOD topology keeps being served when probes fail:
+ *  inside this window (measured from when the good value was cached) a
+ *  failed/timed-out probe never evicts it. Freshness is still MODE_TTL_MS —
+ *  past it every call reprobes, and only a FAILING reprobe falls back to the
+ *  stale-good value. Beyond this window a failing probe is cached and served
+ *  as before; with no prior good result, nothing changes. */
+const STALE_GOOD_TTL_MS = 60_000
 
 // The cache is keyed by BOTH URLs it describes: the dashboard URL it was
 // probed against AND the gateway URL the answer authorises writes to. Keying
@@ -223,6 +236,12 @@ export function invalidateGatewayMode(): void {
   inflight = null
 }
 
+/** A probe result that established a usable topology (`single`/`multiplex`)
+ *  — the only kind a later failed probe must not evict (STALE_GOOD_TTL_MS). */
+function isGoodMode(value: GatewayMode): boolean {
+  return value.mode !== 'unknown'
+}
+
 /**
  * Probed gateway topology — never a config read. `gateway.multiplex_profiles`
  * being true in config.yaml does not prove the RUNNING process was started
@@ -230,10 +249,13 @@ export function invalidateGatewayMode(): void {
  * `served_profiles` from the live gateway's runtime state file.
  *
  * Fails closed: any probe error, unreachable dashboard, or unrecognised
- * payload resolves to `'unknown'` (reason `'probe-failed'`), and a dashboard
- * that answered but withheld gated detail resolves to `'unknown'` (reason
- * `'remote-gated'`) — both make every profile-scoped request throw, just with
- * a message that matches which one actually happened.
+ *  payload resolves to `'unknown'` (reason `'probe-failed'`), and a dashboard
+ *  that answered but withheld gated detail resolves to `'unknown'` (reason
+ *  `'remote-gated'`) — both make every profile-scoped request throw, just with
+ *  a message that matches which one actually happened. The one exception: a
+ *  good topology already cached younger than STALE_GOOD_TTL_MS keeps being
+ *  served when a fresh probe fails, so a busy dashboard degrades to a
+ *  bounded-stale answer instead of a 409 storm.
  */
 export async function getGatewayMode(
   opts: { force?: boolean } = {},
@@ -247,6 +269,19 @@ export async function getGatewayMode(
     if (inflight && inflight.url === key) return inflight.promise
   }
   const run = probeMode(dashboardUrl).then((value) => {
+    const previous = cached
+    // `previous.at` is deliberately not refreshed in this branch, so the
+    // fallback window is measured from the last GOOD probe and every
+    // post-TTL call still reprobes.
+    if (
+      !isGoodMode(value) &&
+      previous !== null &&
+      previous.url === key &&
+      isGoodMode(previous.value) &&
+      Date.now() - previous.at < STALE_GOOD_TTL_MS
+    ) {
+      return previous.value
+    }
     cached = { at: Date.now(), url: key, value }
     return value
   })

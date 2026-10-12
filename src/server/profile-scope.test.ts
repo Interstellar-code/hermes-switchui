@@ -750,3 +750,127 @@ describe('remote/gated dashboard: topology unknown, not "not multiplexed" (W3 au
     )
   })
 })
+
+describe('slow or failing /api/status probe (409-storm fix)', () => {
+  // The dashboard shares one Python process with the heavy projects/boards
+  // enrichment, so /api/status can answer in 4+ s or stall entirely while
+  // those run. The old 3 s probe timeout cached PROBE_FAILED for 5 s, so one
+  // busy spell turned every profile-scoped route into a 409.
+  //
+  // Only the network edge is faked: `fetch` is a deferred promise that
+  // honours `init.signal` aborts like a real in-flight request, and
+  // `AbortSignal.timeout` is rerouted through setTimeout (faked by vitest)
+  // because its real implementation uses a native timer no JS clock fake
+  // reaches. Date is faked too, so the TTL arithmetic tracks the clock.
+
+  /** /api/status hangs until `answer()` is called and rejects on abort;
+   *  every other URL answers 200 '{}'. */
+  function stubHangingStatusFetch() {
+    let answer!: (response: Response) => void
+    const calls: Array<string> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown, init?: RequestInit) => {
+        const url = String(input)
+        calls.push(url)
+        return new Promise<Response>((resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(init.signal?.reason ?? new Error('aborted')),
+          )
+          if (url.includes('/api/status')) answer = resolve
+          else resolve(new Response('{}', { status: 200 }))
+        })
+      }),
+    )
+    return {
+      calls,
+      answer: (response: Response) => answer(response),
+    }
+  }
+
+  function fakeAbortSignalTimeout() {
+    vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(), ms)
+      return controller.signal
+    })
+  }
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('a /api/status answering after 4 s still succeeds — no probe-failed mode', async () => {
+    vi.useFakeTimers()
+    fakeAbortSignalTimeout()
+    const { answer } = stubHangingStatusFetch()
+    const { scopedPath } = await import('./profile-scope')
+
+    const pending = scopedPath('/api/sessions', 'neo').catch((e) => e)
+    // 4 s pass with the probe still in flight. Under the old 3 s timeout
+    // the abort fired at 3 s and this became a 409 (probe-failed).
+    await vi.advanceTimersByTimeAsync(4_000)
+    answer(statusResponse(MULTIPLEX))
+    expect(await pending).toBe('/p/neo/api/sessions')
+  })
+
+  it('keeps serving the last good topology for 60 s when later probes time out', async () => {
+    vi.useFakeTimers()
+    fakeAbortSignalTimeout()
+    // One good probe at t=0: immediate multiplex answer, cached fresh.
+    stubFetch(MULTIPLEX)
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+    expect(await scopedPath('/api/sessions', 'neo')).toBe('/p/neo/api/sessions')
+
+    // From here on the dashboard stalls: every probe hangs until aborted.
+    const { calls } = stubHangingStatusFetch()
+
+    // Past the 5 s freshness TTL the next call reprobes (starts at t=5 s);
+    // that probe times out at t=17 s and must NOT evict the good topology
+    // cached at t=0.
+    await vi.advanceTimersByTimeAsync(5_000)
+    const second = scopedPath('/api/sessions', 'neo').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(12_500)
+    expect(await second).toBe('/p/neo/api/sessions')
+
+    // Repeated timeouts inside the window keep serving the last good value
+    // (probe starting at t=17.5 s fails at t=29.5 s; the cache entry itself
+    // is stale, so each call still reprobes rather than serving without
+    // asking).
+    const third = scopedPath('/api/sessions', 'neo').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(12_500)
+    expect(await third).toBe('/p/neo/api/sessions')
+    expect(calls).toHaveLength(2)
+
+    // Beyond 60 s from the last GOOD probe the fallback expires and the
+    // failure is reported again — fail closed, reason probe-failed.
+    await vi.advanceTimersByTimeAsync(31_000) // t≈60.5 s
+    const fourth = scopedPath('/api/sessions', 'neo').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(12_500)
+    const result = await fourth
+    expect(result).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(result.reason).toBe('probe-failed')
+    expect(calls).toHaveLength(3)
+  })
+
+  it('with no prior good result, a timed-out probe fails closed and caches the failure for the TTL', async () => {
+    vi.useFakeTimers()
+    fakeAbortSignalTimeout()
+    const { calls } = stubHangingStatusFetch()
+    const { scopedPath, ProfileScopeIndeterminateError } =
+      await import('./profile-scope')
+
+    const first = scopedPath('/api/sessions', 'neo').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(12_500)
+    const err = await first
+    expect(err).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(err.reason).toBe('probe-failed')
+
+    // Failure cached like a success for MODE_TTL_MS: an immediate retry is
+    // served from cache without a new probe.
+    const second = scopedPath('/api/sessions', 'neo').catch((e) => e)
+    expect(await second).toBeInstanceOf(ProfileScopeIndeterminateError)
+    expect(calls).toHaveLength(1)
+  })
+})
