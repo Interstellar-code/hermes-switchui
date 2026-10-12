@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { HttpError } from './http-error'
 import type {
   BoardMeta,
   CreateBoardInput,
@@ -11,13 +12,8 @@ import { scopeSegments } from '@/lib/session-scope'
 async function boardsJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, init)
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as {
-      error?: string
-      detail?: string
-    }
-    throw new Error(
-      body.error ?? body.detail ?? `Request failed: ${res.status}`,
-    )
+    const body = (await res.json().catch(() => ({}))) as { error?: string; detail?: string }
+    throw new HttpError(body.error ?? body.detail ?? `Request failed: ${res.status}`, res.status)
   }
   return res.json() as Promise<T>
 }
@@ -41,51 +37,35 @@ async function boardsJson<T>(url: string, init?: RequestInit): Promise<T> {
 export const boardsKeys = {
   all: ['hermes-kanban', 'boards'] as const,
   list: (includeArchived: boolean, profile: string | null) =>
-    [
-      'hermes-kanban',
-      'boards',
-      'list',
-      { includeArchived },
-      ...scopeSegments(profile),
-    ] as const,
+    ['hermes-kanban', 'boards', 'list', { includeArchived }, ...scopeSegments(profile)] as const,
 }
 
-export async function fetchBoards(
-  includeArchived = false,
-): Promise<KanbanBoardsListResponse> {
+export async function fetchBoards(includeArchived = false): Promise<KanbanBoardsListResponse> {
   const q = new URLSearchParams()
   if (includeArchived) q.set('include_archived', 'true')
   const qs = q.toString()
-  return boardsJson<KanbanBoardsListResponse>(
-    `/api/hermes-kanban/boards${qs ? `?${qs}` : ''}`,
-  )
+  return boardsJson<KanbanBoardsListResponse>(`/api/hermes-kanban/boards${qs ? `?${qs}` : ''}`)
 }
 
 export async function fetchCreateBoard(
   input: CreateBoardInput,
 ): Promise<{ board: BoardMeta; current: string }> {
-  return boardsJson<{ board: BoardMeta; current: string }>(
-    '/api/hermes-kanban/boards',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    },
-  )
+  return boardsJson<{ board: BoardMeta; current: string }>('/api/hermes-kanban/boards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }
 
 export async function fetchUpdateBoard(
   slug: string,
   input: UpdateBoardInput,
 ): Promise<{ board: BoardMeta }> {
-  return boardsJson<{ board: BoardMeta }>(
-    `/api/hermes-kanban/boards/${encodeURIComponent(slug)}`,
-    {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    },
-  )
+  return boardsJson<{ board: BoardMeta }>(`/api/hermes-kanban/boards/${encodeURIComponent(slug)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
 }
 
 export async function fetchDeleteBoard(
@@ -99,9 +79,7 @@ export async function fetchDeleteBoard(
   )
 }
 
-export async function fetchSwitchBoard(
-  slug: string,
-): Promise<{ current: string }> {
+export async function fetchSwitchBoard(slug: string): Promise<{ current: string }> {
   return boardsJson<{ current: string }>(
     `/api/hermes-kanban/boards/${encodeURIComponent(slug)}/switch`,
     { method: 'POST' },
@@ -145,13 +123,8 @@ export function useUpdateBoard() {
 export function useDeleteBoard() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: ({
-      slug,
-      hardDelete,
-    }: {
-      slug: string
-      hardDelete?: boolean
-    }) => fetchDeleteBoard(slug, hardDelete),
+    mutationFn: ({ slug, hardDelete }: { slug: string; hardDelete?: boolean }) =>
+      fetchDeleteBoard(slug, hardDelete),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: boardsKeys.all })
     },
