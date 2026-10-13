@@ -20,6 +20,7 @@ import { StreamingTextContext } from './components/streaming-text-context'
 import { ChatEmptyState } from './components/chat-empty-state'
 import { ChatComposerShadcn } from './components/chat-composer-shadcn'
 import { BranchMessageDialog } from './components/branch-message-dialog'
+import { branchSelectionToNewSession } from './branch-selection-send'
 import { InlineClarifyCard } from './components/inline-clarify-card'
 import { CommandOutputList } from './components/command-output-card'
 import { GoalProgressList } from './components/goal-progress-card'
@@ -87,6 +88,10 @@ import { rekeySessionModel } from './components/chat-composer-services'
 import { ChatHeaderV2 } from './components/v2/chat-header-v2'
 import { ChatMetaBarV2 } from './components/v2/chat-meta-bar-v2'
 import { SidebarPanelHostV2 } from './components/v2/sidebar-panel-host-v2'
+import type {
+  BranchMessageDialogConfirm,
+  BranchMessageDialogInitial,
+} from './components/branch-message-dialog'
 import type { PanelCount } from './components/v2/sidebar-panel-v2'
 import type { QuoteRef } from './quote-markers'
 import type {
@@ -1470,28 +1475,71 @@ export function ChatScreen({
     },
     [realtimeMessages],
   )
-  // Non-destructive fork anchored at a message: the gateway copies the
-  // transcript up to and including it. `end_source` (and the optional title
-  // and model pick) come from the BranchMessageDialog confirm step — the
-  // popover IS the confirmation, so this handler only gates and opens it.
-  const [branchDialogMessage, setBranchDialogMessage] =
-    useState<ChatMessage | null>(null)
-  const handleBranchMessage = useCallback((msg: ChatMessage) => {
-    const rawId = typeof msg.id === 'string' ? msg.id : ''
-    if (!rawId.startsWith('msg-')) {
-      toast('Cannot branch — message is not synced to the server yet', {
-        type: 'info',
-      })
-      return
-    }
-    setBranchDialogMessage(msg)
-  }, [])
-  const handleConfirmBranch = useCallback(
-    (opts: { title?: string; endSource: boolean; model?: string }) => {
-      const msg = branchDialogMessage
-      setBranchDialogMessage(null)
-      if (!msg) return
+  // Non-destructive fork anchored at a message. Full mode: the gateway copies
+  // the transcript up to and including it. Selection mode: only the passage
+  // goes to a NEW session with its own prompt (branch-selection plan) — never
+  // through /fork. The popover IS the confirmation, so this handler only
+  // gates and opens it.
+  type BranchDialogState = {
+    message: ChatMessage
+    selectedText?: string
+    initial?: BranchMessageDialogInitial
+  }
+  const [branchDialog, setBranchDialog] = useState<BranchDialogState | null>(
+    null,
+  )
+  const handleBranchMessage = useCallback(
+    (msg: ChatMessage, selectedText?: string) => {
       const rawId = typeof msg.id === 'string' ? msg.id : ''
+      if (!rawId.startsWith('msg-')) {
+        toast('Cannot branch — message is not synced to the server yet', {
+          type: 'info',
+        })
+        return
+      }
+      setBranchDialog({
+        message: msg,
+        ...(selectedText && selectedText.trim().length > 0
+          ? { selectedText }
+          : {}),
+      })
+    },
+    [],
+  )
+  const handleConfirmBranch = useCallback(
+    (opts: BranchMessageDialogConfirm) => {
+      const draft = branchDialog
+      setBranchDialog(null)
+      if (!draft) return
+      if (opts.mode === 'selection') {
+        // Only the passage moves: create a fresh session, seed the picked
+        // model, stash the composed first message, navigate — the new
+        // session's lifecycle effect sends it. /fork is never called.
+        void branchSelectionToNewSession(
+          {
+            ...(opts.quote ? { quote: opts.quote } : {}),
+            ...(opts.prompt ? { prompt: opts.prompt } : {}),
+            ...(opts.title ? { title: opts.title } : {}),
+            ...(opts.model ? { model: opts.model } : {}),
+          },
+          {
+            createSession: () => createSessionForMessage(),
+            navigate,
+            renameSession,
+            toast,
+            onSessionCreateFailed: (values) =>
+              setBranchDialog({
+                message: draft.message,
+                ...(draft.selectedText
+                  ? { selectedText: draft.selectedText }
+                  : {}),
+                initial: values,
+              }),
+          },
+        )
+        return
+      }
+      const rawId = typeof draft.message.id === 'string' ? draft.message.id : ''
       const serverMessageId = rawId.startsWith('msg-') ? rawId.slice(4) : ''
       const sessionKey =
         forcedSessionKey ||
@@ -1513,9 +1561,7 @@ export function ChatScreen({
           // Same per-session override the composer picker writes; the forked
           // session's next send carries it as the `model` body field.
           if (opts.model) {
-            useSessionModelStore
-              .getState()
-              .setModel(newSessionKey, opts.model)
+            useSessionModelStore.getState().setModel(newSessionKey, opts.model)
           }
           toast(
             opts.endSource
@@ -1537,10 +1583,12 @@ export function ChatScreen({
     [
       activeFriendlyId,
       activeSessionKey,
-      branchDialogMessage,
+      branchDialog,
+      createSessionForMessage,
       forcedSessionKey,
       forkSession,
       navigate,
+      renameSession,
       resolvedSessionKey,
     ],
   )
@@ -1870,17 +1918,19 @@ export function ChatScreen({
         />
       )}
 
-      {branchDialogMessage ? (
+      {branchDialog ? (
         <BranchMessageDialog
-          message={branchDialogMessage}
+          message={branchDialog.message}
+          selectedText={branchDialog.selectedText}
+          initial={branchDialog.initial}
           messageCount={stableMessageSeq(
             realtimeMessages,
-            branchDialogMessage,
+            branchDialog.message,
           )}
           defaultModel={currentModel || undefined}
           modelOptions={availableModelIds}
           onConfirm={handleConfirmBranch}
-          onClose={() => setBranchDialogMessage(null)}
+          onClose={() => setBranchDialog(null)}
         />
       ) : null}
 

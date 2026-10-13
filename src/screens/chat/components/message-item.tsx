@@ -329,7 +329,7 @@ export type MessageItemProps = {
   clarifyCard?: ReactNode
   onRetryMessage?: (message: ChatMessage) => void
   onReplyMessage?: (message: ChatMessage, selectedText?: string) => void
-  onBranchMessage?: (message: ChatMessage) => void
+  onBranchMessage?: (message: ChatMessage, selectedText?: string) => void
   forceActionsVisible?: boolean
   wrapperRef?: React.RefObject<HTMLDivElement | null>
   wrapperClassName?: string
@@ -2772,7 +2772,7 @@ function MessageItemComponent({
     onBranchMessage &&
     typeof message.id === 'string' &&
     message.id.startsWith('msg-')
-      ? () => onBranchMessage(message)
+      ? () => onBranchMessage(message, messageContextMenu?.selectedText)
       : undefined
 
   const delegationComplete = isUser ? message.__delegationComplete : undefined

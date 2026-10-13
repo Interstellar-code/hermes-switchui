@@ -711,7 +711,7 @@ type ChatMessageListProps = {
   messages: Array<ChatMessage>
   onRetryMessage?: (message: ChatMessage) => void
   onReplyMessage?: (message: ChatMessage, selectedText?: string) => void
-  onBranchMessage?: (message: ChatMessage) => void
+  onBranchMessage?: (message: ChatMessage, selectedText?: string) => void
   onRefresh?: () => void | Promise<unknown>
   onThinkingIndicatorChange?: (visible: boolean) => void
   loading: boolean
