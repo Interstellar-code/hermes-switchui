@@ -106,7 +106,14 @@ async function fetchJsonWithTimeout<T>(
     const json = await res.json().catch(() => null)
     if (!json) return null
     return json as T
-  } catch {
+  } catch (error) {
+    // An abort (our REQUEST_TIMEOUT_MS or a query cancel) must not resolve
+    // to null: callers map null to [] and TanStack would cache that empty
+    // list for the staleTime, silently blanking the palette. Throwing lands
+    // the query in its error state so the next open refetches.
+    if (signal.aborted) {
+      throw error
+    }
     return null
   } finally {
     cleanup()
@@ -159,10 +166,7 @@ async function fetchSessions(
   const url = profile
     ? `/api/sessions?profile=${encodeURIComponent(profile)}`
     : '/api/sessions'
-  const data = await fetchJsonWithTimeout<SessionsApiResponse>(
-    url,
-    querySignal,
-  )
+  const data = await fetchJsonWithTimeout<SessionsApiResponse>(url, querySignal)
   if (!data) return []
 
   const sessions = Array.isArray(data.sessions) ? data.sessions : []
@@ -173,8 +177,7 @@ async function fetchSessions(
         ? session.derivedTitle.trim()
         : ''
     const friendlyId = String(session.friendlyId || session.key || 'unknown')
-    const preview =
-      typeof session.preview === 'string' ? session.preview : ''
+    const preview = typeof session.preview === 'string' ? session.preview : ''
     return {
       id: String(session.key || session.friendlyId || 'unknown'),
       key: String(session.key || ''),
@@ -243,12 +246,20 @@ async function fetchSkills(
  * behaviour is byte-identical to before.
  */
 export const searchKeys = {
-  sessions: (profile: string | null) => ['search', 'sessions', ...scopeSegments(profile)],
+  sessions: (profile: string | null) => [
+    'search',
+    'sessions',
+    ...scopeSegments(profile),
+  ],
   files: ['search', 'files'] as const,
-  skills: (profile: string | null) => ['search', 'skills', ...scopeSegments(profile)],
+  skills: (profile: string | null) => [
+    'search',
+    'skills',
+    ...scopeSegments(profile),
+  ],
 }
 
-export function useSearchData(scope: SearchQueryScope) {
+export function useSearchData(scope: SearchQueryScope, open: boolean) {
   const sessionsAvailable = useFeatureAvailable('sessions')
   const skillsAvailable = useFeatureAvailable('skills')
   const profile = useResolvedProfile()
@@ -257,7 +268,8 @@ export function useSearchData(scope: SearchQueryScope) {
   const sessionsQuery = useQuery({
     queryKey: searchKeys.sessions(profile),
     queryFn: ({ signal }) => fetchSessions(signal, profile),
-    enabled: sessionsAvailable && (scope === 'all' || scope === 'chats'),
+    enabled:
+      open && sessionsAvailable && (scope === 'all' || scope === 'chats'),
     staleTime: SESSIONS_STALE_TIME_MS,
     gcTime: SEARCH_QUERY_GC_TIME_MS,
     retry: false,
@@ -269,7 +281,7 @@ export function useSearchData(scope: SearchQueryScope) {
   const filesQuery = useQuery({
     queryKey: searchKeys.files,
     queryFn: ({ signal }) => fetchFiles(signal),
-    enabled: scope === 'all' || scope === 'files',
+    enabled: open && (scope === 'all' || scope === 'files'),
     staleTime: FILES_STALE_TIME_MS,
     gcTime: SEARCH_QUERY_GC_TIME_MS,
     retry: false,
@@ -281,7 +293,7 @@ export function useSearchData(scope: SearchQueryScope) {
   const skillsQuery = useQuery({
     queryKey: searchKeys.skills(profile),
     queryFn: ({ signal }) => fetchSkills(signal, profile),
-    enabled: skillsAvailable && (scope === 'all' || scope === 'skills'),
+    enabled: open && skillsAvailable && (scope === 'all' || scope === 'skills'),
     staleTime: SKILLS_STALE_TIME_MS,
     gcTime: SEARCH_QUERY_GC_TIME_MS,
     retry: false,

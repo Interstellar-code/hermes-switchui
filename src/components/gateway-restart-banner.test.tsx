@@ -9,10 +9,19 @@
  * rather than declaring victory the moment the request is accepted.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 import {
+  GATEWAY_STATUS_HEALTHY_REFETCH_MS,
+  GATEWAY_STATUS_UNHEALTHY_REFETCH_MS,
   GatewayRestartBanner,
   RESTART_POLL_INTERVAL_MS,
   RESTART_POLL_TIMEOUT_MS,
@@ -85,11 +94,15 @@ describe('GatewayRestartBanner', () => {
     })
     renderBanner()
 
-    const button = await screen.findByRole('button', { name: 'Restart gateway' })
+    const button = await screen.findByRole('button', {
+      name: 'Restart gateway',
+    })
     fireEvent.click(button)
 
     await waitFor(() =>
-      expect(screen.getByText(/Gateway restarted — the new config is live\./)).toBeTruthy(),
+      expect(
+        screen.getByText(/Gateway restarted — the new config is live\./),
+      ).toBeTruthy(),
     )
     expect(gatewayRestartMock).toHaveBeenCalledTimes(1)
   })
@@ -119,7 +132,9 @@ describe('GatewayRestartBanner', () => {
     fireEvent.click(button)
 
     await waitFor(() =>
-      expect(screen.getByText(/Gateway started — the new config is live\./)).toBeTruthy(),
+      expect(
+        screen.getByText(/Gateway started — the new config is live\./),
+      ).toBeTruthy(),
     )
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/start-agent',
@@ -147,10 +162,14 @@ describe('GatewayRestartBanner', () => {
     })
     renderBanner()
 
-    const button = await screen.findByRole('button', { name: 'Restart gateway' })
+    const button = await screen.findByRole('button', {
+      name: 'Restart gateway',
+    })
     fireEvent.click(button)
 
-    await waitFor(() => expect(screen.getByText(/dashboard not running/)).toBeTruthy())
+    await waitFor(() =>
+      expect(screen.getByText(/dashboard not running/)).toBeTruthy(),
+    )
     // The manual fallback never disappears, failure or not.
     expect(screen.getByText(/copy: hermes gateway restart/)).toBeTruthy()
     // Button is re-enabled so the user can retry.
@@ -183,13 +202,17 @@ describe('GatewayRestartBanner', () => {
 
     // Get to the button under real timers (react-query/testing-library's
     // internal waits are real-time based); only the poll loop needs faking.
-    const button = await screen.findByRole('button', { name: 'Restart gateway' })
+    const button = await screen.findByRole('button', {
+      name: 'Restart gateway',
+    })
     vi.useFakeTimers()
     fireEvent.click(button)
 
     // Drain the bounded poll loop (timeout + one interval of slack).
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(RESTART_POLL_TIMEOUT_MS + RESTART_POLL_INTERVAL_MS * 2)
+      await vi.advanceTimersByTimeAsync(
+        RESTART_POLL_TIMEOUT_MS + RESTART_POLL_INTERVAL_MS * 2,
+      )
     })
 
     expect(screen.getByText(/did not come back within/)).toBeTruthy()
@@ -206,7 +229,9 @@ describe('GatewayRestartBanner', () => {
       vi.fn((input: RequestInfo | URL) => {
         const url = String(input)
         if (url.startsWith('/api/gateway-status')) {
-          return jsonResponse({ capabilities: { health: false, authError: true } })
+          return jsonResponse({
+            capabilities: { health: false, authError: true },
+          })
         }
         return jsonResponse({})
       }),
@@ -244,5 +269,95 @@ describe('GatewayRestartBanner', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Dismiss banner' }))
 
     expect(useGatewayRestartStore.getState().needsRestart).toBe(false)
+  })
+
+  // Interval tests: everything runs on fake timers from before render so
+  // react-query schedules its refetchInterval setInterval on the fake
+  // clock; `advanceTimersByTimeAsync` also flushes the fetch promises.
+  // The 1 s settle window lets the first fetch resolve before the first
+  // checkpoint, so the interval's origin is within [0, 1 s] of mount.
+  describe('gateway-status refetch cadence', () => {
+    async function advanceTo(clock: { t: number }, targetMs: number) {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(targetMs - clock.t)
+        // Drain the fetch promise chains so call counts are stable on return.
+        for (let i = 0; i < 10; i += 1) {
+          await Promise.resolve()
+        }
+      })
+      clock.t = targetMs
+    }
+
+    it('polls every 30 s while the gateway is healthy', async () => {
+      const fetchMock = vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/gateway-status')) {
+          return jsonResponse({ capabilities: { health: true } })
+        }
+        return jsonResponse({})
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      act(() => {
+        useGatewayRestartStore.getState().markNeedsRestart('hermes-switch')
+      })
+      vi.useFakeTimers()
+      renderBanner()
+
+      const statusCalls = () =>
+        fetchMock.mock.calls.filter((call) =>
+          String(call[0]).startsWith('/api/gateway-status'),
+        ).length
+      const clock = { t: 0 }
+
+      await advanceTo(clock, 1_000)
+      expect(statusCalls()).toBe(1)
+      expect(
+        screen.getByRole('button', { name: 'Restart gateway' }),
+      ).toBeTruthy()
+
+      // Old code refetched at a fixed 15 s — already a second call by now.
+      await advanceTo(clock, GATEWAY_STATUS_HEALTHY_REFETCH_MS - 1)
+      expect(statusCalls()).toBe(1)
+
+      await advanceTo(clock, GATEWAY_STATUS_HEALTHY_REFETCH_MS + 2_000)
+      expect(statusCalls()).toBe(2)
+    })
+
+    it('polls every 10 s while the gateway is unhealthy', async () => {
+      const fetchMock = vi.fn((input: RequestInfo | URL) => {
+        const url = String(input)
+        if (url.startsWith('/api/gateway-status')) {
+          return jsonResponse({ capabilities: { health: false } })
+        }
+        return jsonResponse({})
+      })
+      vi.stubGlobal('fetch', fetchMock)
+
+      act(() => {
+        useGatewayRestartStore.getState().markNeedsRestart('hermes-switch')
+      })
+      vi.useFakeTimers()
+      renderBanner()
+
+      const statusCalls = () =>
+        fetchMock.mock.calls.filter((call) =>
+          String(call[0]).startsWith('/api/gateway-status'),
+        ).length
+      const clock = { t: 0 }
+
+      await advanceTo(clock, 1_000)
+      expect(statusCalls()).toBe(1)
+      expect(screen.getByRole('button', { name: 'Start gateway' })).toBeTruthy()
+
+      // The interval origin is t=0 (the immediate mock resolves before the
+      // clock moves), so the second fetch lands at ~10 s, not 11 s.
+      await advanceTo(clock, GATEWAY_STATUS_UNHEALTHY_REFETCH_MS - 1)
+      expect(statusCalls()).toBe(1)
+
+      // Old code waited 15 s — no second call by 13 s.
+      await advanceTo(clock, GATEWAY_STATUS_UNHEALTHY_REFETCH_MS + 3_000)
+      expect(statusCalls()).toBe(2)
+    })
   })
 })

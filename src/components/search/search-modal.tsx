@@ -71,8 +71,9 @@ export function SearchModal() {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const deferredQuery = useDeferredValue(debouncedQuery)
 
-  // Real data (Phase 3.2)
-  const { sessions, files, skills } = useSearchData(scope)
+  // Real data (Phase 3.2) — fetched only while the modal is open so the
+  // always-mounted palette costs nothing while closed.
+  const { sessions, files, skills } = useSearchData(scope, isOpen)
   const searchableFiles = useMemo(
     () => files.filter((entry) => entry.type === 'file'),
     [files],

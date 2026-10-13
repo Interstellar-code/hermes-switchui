@@ -17,6 +17,24 @@ export const RESTART_POLL_TIMEOUT_MS = 30_000
 
 const SUCCESS_AUTO_DISMISS_MS = 2_500
 
+export const GATEWAY_STATUS_HEALTHY_REFETCH_MS = 30_000
+export const GATEWAY_STATUS_UNHEALTHY_REFETCH_MS = 10_000
+
+/**
+ * Shared refetch cadence for the `['gateway-status']` key. Both status
+ * banners (GatewayRestartBanner and DashboardUnavailableBanner) derive
+ * their interval from this so TanStack Query dedupes them into one poll:
+ * 30 s while the gateway answers healthy, 10 s once a probe fails so
+ * recovery is still noticed quickly.
+ */
+export function gatewayStatusRefetchIntervalMs(
+  data: { capabilities?: { health?: boolean } } | undefined,
+): number {
+  return data?.capabilities?.health === true
+    ? GATEWAY_STATUS_HEALTHY_REFETCH_MS
+    : GATEWAY_STATUS_UNHEALTHY_REFETCH_MS
+}
+
 interface GatewayStatusResponse {
   capabilities?: { health?: boolean; authError?: boolean }
 }
@@ -35,7 +53,9 @@ function useGatewayHealth(enabled: boolean) {
     },
     enabled,
     staleTime: 10_000,
-    refetchInterval: enabled ? 15_000 : false,
+    refetchInterval: enabled
+      ? (query) => gatewayStatusRefetchIntervalMs(query.state.data)
+      : false,
   })
 }
 
@@ -131,7 +151,9 @@ export function GatewayRestartBanner() {
         headers: { 'Content-Type': 'application/json' },
       })
       if (!res.ok) return false
-      const payload = (await res.json().catch(() => ({}))) as GatewayReprobeResponse
+      const payload = (await res
+        .json()
+        .catch(() => ({}))) as GatewayReprobeResponse
       return payload.gateway?.available === true
     } catch {
       return false
@@ -158,7 +180,10 @@ export function GatewayRestartBanner() {
         })
         return
       }
-      pollTimerRef.current = window.setTimeout(() => void tick(), RESTART_POLL_INTERVAL_MS)
+      pollTimerRef.current = window.setTimeout(
+        () => void tick(),
+        RESTART_POLL_INTERVAL_MS,
+      )
     }
     void tick()
   }
@@ -181,7 +206,10 @@ export function GatewayRestartBanner() {
       if (!mountedRef.current) return
       setAction({
         kind: 'failure',
-        message: error instanceof Error ? error.message : 'Failed to start the gateway',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to start the gateway',
       })
       return
     }
@@ -196,7 +224,10 @@ export function GatewayRestartBanner() {
       if (!mountedRef.current) return
       setAction({
         kind: 'failure',
-        message: error instanceof Error ? error.message : 'Failed to restart the gateway',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Failed to restart the gateway',
       })
       return
     }
@@ -209,24 +240,21 @@ export function GatewayRestartBanner() {
   if (action.kind === 'success') {
     statusText = <span>✓ {action.message}</span>
   } else if (action.kind === 'failure') {
-    statusText = (
-      <span>
-        {action.message} Or restart it manually:
-      </span>
-    )
+    statusText = <span>{action.message} Or restart it manually:</span>
   } else {
     statusText = (
       <>
         Profile switched
         {profileName ? (
           <>
-            {' '}to <strong className="font-semibold">{profileName}</strong>
+            {' '}
+            to <strong className="font-semibold">{profileName}</strong>
           </>
         ) : null}
         .{' '}
         {authError
           ? "The gateway is reachable, but its token doesn't match this workspace's " +
-            'HERMES_API_TOKEN — check ~/.hermes/.env\'s API_SERVER_KEY (or HERMES_API_TOKEN) ' +
+            "HERMES_API_TOKEN — check ~/.hermes/.env's API_SERVER_KEY (or HERMES_API_TOKEN) " +
             'and restart once they agree.'
           : gatewayStatusKnown && !gatewayUp
             ? 'The gateway looks like it stopped — start it to pick up the new config.'
@@ -243,7 +271,11 @@ export function GatewayRestartBanner() {
         disabled={isWorking}
         className="shrink-0 rounded border border-amber-400 dark:border-amber-600 px-2 py-1 text-[11px] font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
       >
-        {isWorking ? action.label : gatewayUp ? 'Restart gateway' : 'Start gateway'}
+        {isWorking
+          ? action.label
+          : gatewayUp
+            ? 'Restart gateway'
+            : 'Start gateway'}
       </button>
     ) : null
 

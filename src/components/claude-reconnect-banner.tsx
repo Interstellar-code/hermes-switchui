@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
-const POLL_INTERVAL_MS = 10_000
+// Quiet cadence while connected; fast cadence once a probe fails so an
+// outage is still noticed quickly.
+const CONNECTED_POLL_INTERVAL_MS = 30_000
+const DISCONNECTED_POLL_INTERVAL_MS = 10_000
 const FLASH_DURATION_MS = 1_800
 
 type ClaudeReconnectBannerProps = {
@@ -113,8 +116,7 @@ export function ClaudeReconnectBanner({
           } else {
             wasDisconnectedRef.current = true
             setBannerState('disconnected')
-            const sinceLastTry =
-              Date.now() - autoRestartTriedAtRef.current
+            const sinceLastTry = Date.now() - autoRestartTriedAtRef.current
             if (sinceLastTry > AUTO_RESTART_COOLDOWN_MS) {
               autoRestartTriedAtRef.current = Date.now()
               void fetch('/api/start-claude', {
@@ -131,8 +133,7 @@ export function ClaudeReconnectBanner({
                   }
                   if (res.ok && data.ok) {
                     setMessage(
-                      data.message ||
-                        'Auto-restarting Hermes Agent gateway…',
+                      data.message || 'Auto-restarting Hermes Agent gateway…',
                     )
                     // Probe again shortly so the banner clears as soon as
                     // the gateway answers /health.
@@ -173,15 +174,47 @@ export function ClaudeReconnectBanner({
     }
 
     probeNowRef.current = runProbe
-    void runProbe(false)
-    const interval = window.setInterval(() => {
-      void runProbe(false)
-    }, POLL_INTERVAL_MS)
+
+    let pollTimerId: number | null = null
+
+    const clearPollTimer = () => {
+      if (pollTimerId !== null) {
+        window.clearTimeout(pollTimerId)
+        pollTimerId = null
+      }
+    }
+
+    const scheduleNextPoll = (connected: boolean) => {
+      if (cancelled || document.hidden || pollTimerId !== null) return
+      pollTimerId = window.setTimeout(
+        () => {
+          pollTimerId = null
+          void runProbe(false).then(scheduleNextPoll)
+        },
+        connected ? CONNECTED_POLL_INTERVAL_MS : DISCONNECTED_POLL_INTERVAL_MS,
+      )
+    }
+
+    const handleVisibilityChange = () => {
+      if (cancelled) return
+      if (document.hidden) {
+        clearPollTimer()
+      } else if (pollTimerId === null) {
+        void runProbe(false).then(scheduleNextPoll)
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    if (!document.hidden) {
+      void runProbe(false).then(scheduleNextPoll)
+    }
 
     return () => {
       cancelled = true
       probeNowRef.current = null
-      window.clearInterval(interval)
+      clearPollTimer()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
   }, [enabled])
 

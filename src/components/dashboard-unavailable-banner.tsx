@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { gatewayStatusRefetchIntervalMs } from '@/components/gateway-restart-banner'
 import { cn } from '@/lib/utils'
 
 const START_HINT = 'hermes dashboard --no-open --skip-build'
@@ -22,11 +23,15 @@ function useGatewayStatus() {
       if (!res.ok) throw new Error('gateway-status fetch failed')
       return res.json()
     },
-    // Poll often: this drives a "Limited mode" banner that must clear quickly
-    // once the dashboard is started. Pairs with the server's short probe TTL
-    // while the dashboard is down (see effectiveProbeTtl in gateway-capabilities).
+    // Shares the `['gateway-status']` poll with GatewayRestartBanner via
+    // gatewayStatusRefetchIntervalMs (30 s healthy / 10 s unhealthy) so
+    // TanStack dedupes both banners into one request stream; window focus
+    // still forces a fresh probe. Pairs with the server's short probe TTL
+    // while the dashboard is down (see effectiveProbeTtl in
+    // gateway-capabilities).
     staleTime: 10_000,
-    refetchInterval: 15_000,
+    refetchInterval: (query) =>
+      gatewayStatusRefetchIntervalMs(query.state.data),
     refetchOnWindowFocus: true,
   })
 }
@@ -92,9 +97,11 @@ export function DashboardUnavailableBanner() {
     >
       <span aria-hidden="true">⚠</span>
       <span className="flex-1 min-w-0">
-        <strong className="font-semibold">Limited mode — Hermes dashboard not connected.</strong>{' '}
-        Sessions, skills, memory, kanban and jobs need the dashboard service (port 9119). Start it
-        with:
+        <strong className="font-semibold">
+          Limited mode — Hermes dashboard not connected.
+        </strong>{' '}
+        Sessions, skills, memory, kanban and jobs need the dashboard service
+        (port 9119). Start it with:
       </span>
       <button
         type="button"
