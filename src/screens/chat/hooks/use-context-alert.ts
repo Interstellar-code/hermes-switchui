@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react'
+import { useSessionStatus } from '@/hooks/use-session-status'
 import { useContextUsageStore } from '@/stores/context-usage-store'
 
-const POLL_MS = 15_000
 const STORAGE_KEY_PREFIX = 'claude-ctx-alert'
 const THRESHOLDS = [90, 75] as const
 
@@ -56,13 +62,8 @@ function saveStoredState(state: StoredState, sessionKey: string) {
   }
 }
 
-function readPercent(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) return value
-  if (typeof value === 'string') {
-    const parsed = Number(value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-  return 0
+function isRealSession(sessionKey: string): boolean {
+  return sessionKey !== '' && sessionKey !== 'new' && sessionKey !== 'main'
 }
 
 export function useContextAlert(sessionKey = ''): {
@@ -122,39 +123,24 @@ export function useContextAlert(sessionKey = ''): {
     [],
   )
 
-  const refresh = useCallback(async () => {
-    if (!sessionKey || sessionKey === 'new' || sessionKey === 'main') return
-    try {
-      const res = await fetch(
-        `/api/context-usage?sessionId=${encodeURIComponent(sessionKey)}`,
-      )
-      if (!res.ok) return
-      const data = (await res.json()) as {
-        ok?: boolean
-        contextPercent?: unknown
-      }
-      if (!data.ok) return
+  const status = useSessionStatus(sessionKey, {
+    enabled: isRealSession(sessionKey),
+  })
+  const pollContextPercent = status.contextPercent
 
-      const currentPercent = readPercent(data.contextPercent)
-      setAlertPercent(currentPercent)
-
-      if (alertOpen) return
-      checkThresholds(currentPercent, sessionKey)
-    } catch {
-      /* ignore */
-    }
-  }, [sessionKey, alertOpen, checkThresholds])
-
+  // Backstop from the shared session-status poll (same job as the deleted
+  // 15 s /api/context-usage poll): apply each new percent and fire thresholds.
   useEffect(() => {
     if (typeof window === 'undefined') return
     storedRef.current = loadStoredState(sessionKey)
-    if (!sessionKey || sessionKey === 'new' || sessionKey === 'main') return
-    void refresh()
-    const id = window.setInterval(() => {
-      void refresh()
-    }, POLL_MS)
-    return () => window.clearInterval(id)
-  }, [sessionKey, refresh])
+    if (!isRealSession(sessionKey)) return
+    if (pollContextPercent <= 0) return
+
+    setAlertPercent(pollContextPercent)
+
+    if (alertOpen) return
+    checkThresholds(pollContextPercent, sessionKey)
+  }, [pollContextPercent, sessionKey, alertOpen, checkThresholds])
 
   // React immediately when context is compressed: reset fired thresholds so
   // they can fire again on the next build-up, and update the displayed percent.
@@ -179,7 +165,13 @@ export function useContextAlert(sessionKey = ''): {
     setAlertPercent((prev) => Math.max(prev, storeContextPercent))
     if (alertOpen) return
     checkThresholds(storeContextPercent, sessionKey)
-  }, [storeContextPercent, storeSessionKey, sessionKey, alertOpen, checkThresholds])
+  }, [
+    storeContextPercent,
+    storeSessionKey,
+    sessionKey,
+    alertOpen,
+    checkThresholds,
+  ])
 
   return { alertOpen, alertThreshold, alertPercent, dismissAlert }
 }
