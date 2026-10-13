@@ -182,7 +182,8 @@ export function BranchMessageDialog({
     () => initial?.model ?? null,
   )
 
-  const modelList = modelOptions ?? []
+  // /api/models can list an id twice (e.g. `auto`); options are keyed by id.
+  const modelList = Array.from(new Set(modelOptions ?? []))
   const showModelSelector = modelList.length > 0
   const selectedModel =
     pickedModel ?? defaultModel ?? modelOptions?.[0] ?? undefined

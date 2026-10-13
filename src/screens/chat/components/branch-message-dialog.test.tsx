@@ -398,4 +398,22 @@ describe('BranchMessageDialog', () => {
 
     expect(queryDialog()!.querySelector('select')).toBeNull()
   })
+
+  it('lists a duplicated model id once', () => {
+    renderDialog(
+      <BranchMessageDialog
+        message={makeMessage('anchor text')}
+        messageCount={4}
+        modelOptions={['auto', 'other-model', 'auto']}
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const values = Array.from(
+      queryDialog()!.querySelectorAll('option'),
+      (o) => o.value,
+    )
+    expect(values).toEqual(['auto', 'other-model'])
+  })
 })
