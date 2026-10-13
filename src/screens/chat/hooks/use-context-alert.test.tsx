@@ -59,7 +59,7 @@ async function advance(ms: number) {
 
 function storedSentFlags(): Record<string, boolean> {
   const raw = window.sessionStorage.getItem(`claude-ctx-alert:${REAL_KEY}`)
-  return raw ? (JSON.parse(raw) as Record<string, boolean>).sent : {}
+  return raw ? (JSON.parse(raw) as { sent: Record<string, boolean> }).sent : {}
 }
 
 describe('useContextAlert', () => {

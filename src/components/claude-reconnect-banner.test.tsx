@@ -36,7 +36,7 @@ describe('ClaudeReconnectBanner poll cadence', () => {
     vi.unstubAllGlobals()
     vi.useRealTimers()
     try {
-      delete document.hidden
+      delete (document as { hidden?: boolean }).hidden
     } catch {
       /* no own hidden property to restore */
     }

@@ -90,8 +90,8 @@ const callsFor = (url: string) =>
 const pollRequest = () =>
   new Request(`http://localhost/api/session-status?sessionKey=${SESSION_ID}`)
 
-const handler = (Route as any).options.server.handlers.GET as ({
-  request: Request,
+const handler = (Route as any).options.server.handlers.GET as (args: {
+  request: Request
 }) => Promise<Response>
 
 describe('/api/session-status upstream cost (perf-pass2 S1)', () => {

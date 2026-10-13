@@ -140,7 +140,7 @@ describe('useSessionStatus', () => {
       EMPTY_PAYLOAD,
     ])
 
-    resolveFirst(jsonResponse(sessionStatusBody({ contextPercent: 50 })))
+    resolveFirst(await jsonResponse(sessionStatusBody({ contextPercent: 50 })))
     await advance(0)
     expect(countCalls('/api/session-status')).toBe(1)
     expect(hooks.every((h) => h.result.current.contextPercent === 50)).toBe(

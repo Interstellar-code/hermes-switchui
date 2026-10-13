@@ -74,7 +74,9 @@ describe('useSearchData profile threading', () => {
 
   it('threads ?profile= onto /api/sessions and /api/skills when a profile is resolved, but not /api/files', async () => {
     mockUseResolvedProfile.mockReturnValue('neo')
-    const mockFetch = vi.fn(() => Promise.resolve(jsonResponse({})))
+    const mockFetch = vi.fn((..._args: Array<unknown>) =>
+      Promise.resolve(jsonResponse({})),
+    )
     vi.stubGlobal('fetch', mockFetch)
 
     const { Wrapper } = createWrapper()
@@ -104,7 +106,9 @@ describe('useSearchData profile threading', () => {
 
   it('adds no ?profile= when unscoped — byte-identical request URLs to today', async () => {
     mockUseResolvedProfile.mockReturnValue(null)
-    const mockFetch = vi.fn(() => Promise.resolve(jsonResponse({})))
+    const mockFetch = vi.fn((..._args: Array<unknown>) =>
+      Promise.resolve(jsonResponse({})),
+    )
     vi.stubGlobal('fetch', mockFetch)
 
     const { Wrapper } = createWrapper()
