@@ -58,6 +58,12 @@ describe('shouldRetry', () => {
     expect(shouldRetry(1, relayed)).toBe(false)
   })
 
+  it('does not retry the parenthesised 4xx shape, retries parenthesised 503 once', () => {
+    expect(shouldRetry(0, new Error('Request failed (404)'))).toBe(false)
+    expect(shouldRetry(0, new Error('Request failed (503)'))).toBe(true)
+    expect(shouldRetry(1, new Error('Request failed (503)'))).toBe(false)
+  })
+
   it('retries a network error at failure counts 0 and 1, gives up at 2', () => {
     const networkError = new TypeError('Failed to fetch')
     expect(shouldRetry(0, networkError)).toBe(true)
@@ -120,6 +126,14 @@ describe('extractHttpStatus', () => {
     expect(
       extractHttpStatus(new Error('Hermes Dashboard API /a: 404 gone')),
     ).toBe(404)
+  })
+
+  it('recognises the parenthesised Request failed (N) shape, not free text', () => {
+    expect(extractHttpStatus(new Error('Request failed (404)'))).toBe(404)
+    expect(extractHttpStatus(new Error('Request failed (503)'))).toBe(503)
+    expect(
+      extractHttpStatus(new Error('Request failed (see log 404 times)')),
+    ).toBeNull()
   })
 
   it('never reads 3 digits in free text as a status', () => {

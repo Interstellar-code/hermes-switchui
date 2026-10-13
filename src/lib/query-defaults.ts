@@ -14,6 +14,8 @@ const MAX_NETWORK_RETRIES = 2
 const MESSAGE_STATUS_PATTERNS = [
   // projects/boards/api-fetch/tasks/commands/templates/nav-counts fallback.
   /^Request failed:\s*(\d{3})\s*$/,
+  // use-profiles-list.ts and session-scope.ts readSendFailure fallback.
+  /^Request failed\s*\((\d{3})\)\s*$/,
   // use-self-improve-available.
   /^status (\d{3})$/,
   // Dashboard errors relayed through route bodies into helper messages.
