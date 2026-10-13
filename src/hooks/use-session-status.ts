@@ -201,6 +201,25 @@ function sessionStatusRefetchInterval(
   return POLL_MS
 }
 
+/**
+ * Revive trigger for a stopped poll only: once `consecutiveFailures` reaches
+ * MAX_FAILURES the interval above returns false, and a window focus is the
+ * single event that retries. A healthy poll keeps the legacy
+ * no-focus-refetch behaviour. A successful retry resets the count inside the
+ * queryFn, so the interval resumes on its own.
+ */
+function sessionStatusRefetchOnWindowFocus(
+  query: Query<
+    SessionStatusPayload,
+    Error,
+    SessionStatusPayload,
+    ReturnType<typeof sessionStatusQueryKey>
+  >,
+): boolean | 'always' {
+  const key = (query.queryKey[1] as string | undefined) ?? ''
+  return (consecutiveFailures.get(key) ?? 0) >= MAX_FAILURES ? 'always' : false
+}
+
 export function sessionStatusQueryOptions(
   sessionKey: string | null | undefined,
 ) {
@@ -219,9 +238,9 @@ export function sessionStatusQueryOptions(
     retry: false,
     refetchInterval: sessionStatusRefetchInterval,
     refetchIntervalInBackground: false,
-    // The legacy setTimeout poll never refetched on focus/reconnect; without
-    // this a focus event would restart a poll stopped after MAX_FAILURES.
-    refetchOnWindowFocus: false,
+    // A stopped poll (MAX_FAILURES) revives on window focus only; a healthy
+    // poll never refetches on focus, matching the legacy setTimeout poll.
+    refetchOnWindowFocus: sessionStatusRefetchOnWindowFocus,
     refetchOnReconnect: false,
   }
 }
@@ -231,7 +250,8 @@ export function sessionStatusQueryOptions(
  * - One shared request per interval no matter how many components mount it
  *   (the chat page mounts four).
  * - Exponential backoff on 5xx (5s → 60s, capped).
- * - Stops polling after MAX_FAILURES consecutive failures.
+ * - Stops polling after MAX_FAILURES consecutive failures; a window focus
+ *   retries once, and a success resumes the 15 s cadence.
  * - Falls back to /api/context-usage if session-status returns no useful
  *   data (non-5xx failure).
  * - Returns EMPTY_PAYLOAD before the first data arrives.

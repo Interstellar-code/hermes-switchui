@@ -256,4 +256,47 @@ describe('useSessionStatus', () => {
     expect(a.result.current.model).toBe('model-sess-a')
     expect(b.result.current.model).toBe('model-sess-b')
   })
+
+  it('revives a stopped poll on window focus, and ignores focus while healthy', async () => {
+    for (let i = 0; i < 5; i += 1) {
+      fetchMock.mockImplementationOnce(() => jsonResponse({}, false, 500))
+    }
+    fetchMock.mockImplementation(() =>
+      jsonResponse(sessionStatusBody({ contextPercent: 44 })),
+    )
+
+    const hook = setupHook('sess-focus')
+    await advance(0)
+    expect(countCalls('/api/session-status')).toBe(1)
+
+    await advance(5_000)
+    await advance(10_000)
+    await advance(20_000)
+    await advance(40_000)
+    expect(countCalls('/api/session-status')).toBe(5)
+
+    // Stopped: time alone schedules nothing more.
+    await advance(120_000)
+    expect(countCalls('/api/session-status')).toBe(5)
+
+    // A focus event retries once (query-core focusManager listens for
+    // window visibilitychange); the success resets the failure count.
+    act(() => {
+      window.dispatchEvent(new Event('visibilitychange'))
+    })
+    await advance(1)
+    expect(countCalls('/api/session-status')).toBe(6)
+    expect(hook.result.current.contextPercent).toBe(44)
+
+    // The 15 s interval resumes after the successful retry.
+    await advance(15_000)
+    expect(countCalls('/api/session-status')).toBe(7)
+
+    // Focus while healthy schedules nothing.
+    act(() => {
+      window.dispatchEvent(new Event('visibilitychange'))
+    })
+    await advance(1)
+    expect(countCalls('/api/session-status')).toBe(7)
+  })
 })

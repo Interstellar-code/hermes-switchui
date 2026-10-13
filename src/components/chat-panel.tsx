@@ -15,7 +15,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react'
 import type { SessionMeta } from '@/screens/chat/types'
 import { ChatScreen } from '@/screens/chat/chat-screen'
-import { moveHistoryMessages } from '@/screens/chat/chat-queries'
+import { chatQueryKeys, moveHistoryMessages } from '@/screens/chat/chat-queries'
 import { useWorkspaceStore } from '@/stores/workspace-store'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,11 +25,13 @@ import {
   TooltipTrigger,
 } from '@/components/shadcn/ui/tooltip'
 
-// Own key, NOT chatQueryKeys.sessions: that key is owned by
-// use-chat-sessions.ts whose queryFn fetches a different shape (two
-// source-filtered windows). Sharing it let one shape leak into the other
-// consumer's cache on route switches.
-const chatPanelSessionsKey = ['chat-panel', 'sessions'] as const
+// Panel key nested under chatQueryKeys.sessions (read per render — the getter
+// includes the active scope): prefix invalidations of the sessions list refresh
+// the panel too, while exact setQueryData(chatQueryKeys.sessions, …) writes of
+// the other shape cannot leak into it.
+export function chatPanelSessionsKey(): Array<string> {
+  return [...chatQueryKeys.sessions, 'chat-panel']
+}
 
 export function ChatPanel() {
   const isOpen = useWorkspaceStore((s) => s.chatPanelOpen)
@@ -55,7 +57,7 @@ export function ChatPanel() {
 
   // Session list for the dropdown
   const sessionsQuery = useQuery({
-    queryKey: chatPanelSessionsKey,
+    queryKey: chatPanelSessionsKey(),
     queryFn: async () => {
       const res = await fetch('/api/sessions')
       if (!res.ok) return []
