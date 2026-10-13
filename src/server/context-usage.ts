@@ -159,9 +159,89 @@ function emptySnapshot(): ContextUsageSnapshot {
   }
 }
 
+// ── perf-pass2 S1: request-cost guards ────────────────────────────
+// Two module-level caches keep the 15 s session-status poll cheap:
+// - a per `profile|sessionId` promise cache: concurrent callers share one
+//   upstream fetch (in-flight coalescing) and repeated polls inside the TTL
+//   reuse the last snapshot. Empty-looking results (dashboard hiccup) are
+//   held at most ~1 s so a transient 503 cannot pin the gauge at 0%.
+// - transcript token estimates keyed by `profile|sessionId|message_count`:
+//   the transcript only grows when message_count grows, so an unchanged
+//   count reuses the previous estimate instead of refetching the whole
+//   transcript (1.5 MB for a long chat). Entries expire after 60 s so
+//   in-place edits or compaction that keep the count still converge.
+const SNAPSHOT_CACHE_TTL_MS = 5_000
+const EMPTY_SNAPSHOT_CACHE_TTL_MS = 1_000
+const SNAPSHOT_CACHE_MAX = 100
+const ESTIMATE_CACHE_TTL_MS = 60_000
+const ESTIMATE_CACHE_MAX = 100
+
+type SnapshotCacheEntry = {
+  at: number
+  promise: Promise<ContextUsageSnapshot>
+  empty: boolean
+}
+
+const snapshotCache = new Map<string, SnapshotCacheEntry>()
+const estimateCache = new Map<string, { at: number; usedTokens: number }>()
+
+function snapshotCacheKey(sessionId: string, profile?: string | null): string {
+  return `${profile ?? ''}|${sessionId}`
+}
+
+function looksEmpty(snapshot: ContextUsageSnapshot): boolean {
+  // Matches both `emptySnapshot()` and the outer-catch fallback: a snapshot
+  // with no model and no tokens carries nothing worth holding for long.
+  return snapshot.usedTokens === 0 && snapshot.model === ''
+}
+
+function trimOldest<TKey, TValue>(map: Map<TKey, TValue>, max: number): void {
+  while (map.size > max) {
+    const oldest = map.keys().next().value
+    if (oldest === undefined) break
+    map.delete(oldest)
+  }
+}
+
+/** Test hook: wipe the module-level caches between tests. */
+export function __resetContextUsageCache(): void {
+  snapshotCache.clear()
+  estimateCache.clear()
+}
+
 export async function readContextUsage(
   sessionId = '',
   profile?: string | null,
+  preFetchedSession?: Record<string, unknown> | null,
+): Promise<ContextUsageSnapshot> {
+  const key = snapshotCacheKey(sessionId, profile)
+  const now = Date.now()
+  const hit = snapshotCache.get(key)
+  if (hit) {
+    const ttl = hit.empty ? EMPTY_SNAPSHOT_CACHE_TTL_MS : SNAPSHOT_CACHE_TTL_MS
+    if (now - hit.at < ttl) return hit.promise
+    snapshotCache.delete(key)
+  }
+  const entry: SnapshotCacheEntry = {
+    at: now,
+    empty: false,
+    promise: computeContextUsage(sessionId, profile, preFetchedSession),
+  }
+  void entry.promise.then(
+    (snapshot) => {
+      entry.empty = looksEmpty(snapshot)
+    },
+    () => snapshotCache.delete(key),
+  )
+  snapshotCache.set(key, entry)
+  trimOldest(snapshotCache, SNAPSHOT_CACHE_MAX)
+  return entry.promise
+}
+
+async function computeContextUsage(
+  sessionId = '',
+  profile?: string | null,
+  preFetchedSession?: Record<string, unknown> | null,
 ): Promise<ContextUsageSnapshot> {
   try {
     let sessionData: Record<string, unknown> | null = null
@@ -196,32 +276,40 @@ export async function readContextUsage(
     }
 
     if (explicitSessionId) {
-      try {
-        const res = capabilities.dashboard.available
-          ? await dashboardFetch(
-              withProfileQuery(
-                `/api/sessions/${encodeURIComponent(explicitSessionId)}`,
-                profile,
-              ),
-              { signal: AbortSignal.timeout(3000) },
-            )
-          : await fetch(
-              `${CLAUDE_API}${await scopedPath(`/api/sessions/${encodeURIComponent(explicitSessionId)}`, profile)}`,
-              {
-                headers: authHeaders(),
-                signal: AbortSignal.timeout(3000),
-              },
-            )
-        if (res.ok) {
-          const data = (await res.json()) as {
-            session?: Record<string, unknown>
-          } & Record<string, unknown>
-          sessionData = capabilities.dashboard.available
-            ? data
-            : (data.session ?? null)
+      if (preFetchedSession) {
+        // perf-pass2 S1: the caller already holds this session row (the
+        // session-status route has the one from getSession) — reuse it
+        // instead of refetching `/api/sessions/<id>` a second time. Both
+        // fetch paths resolve to the same row shape this function parses.
+        sessionData = preFetchedSession
+      } else {
+        try {
+          const res = capabilities.dashboard.available
+            ? await dashboardFetch(
+                withProfileQuery(
+                  `/api/sessions/${encodeURIComponent(explicitSessionId)}`,
+                  profile,
+                ),
+                { signal: AbortSignal.timeout(3000) },
+              )
+            : await fetch(
+                `${CLAUDE_API}${await scopedPath(`/api/sessions/${encodeURIComponent(explicitSessionId)}`, profile)}`,
+                {
+                  headers: authHeaders(),
+                  signal: AbortSignal.timeout(3000),
+                },
+              )
+          if (res.ok) {
+            const data = (await res.json()) as {
+              session?: Record<string, unknown>
+            } & Record<string, unknown>
+            sessionData = capabilities.dashboard.available
+              ? data
+              : (data.session ?? null)
+          }
+        } catch {
+          /* ignore */
         }
-      } catch {
-        /* ignore */
       }
     }
 
@@ -311,46 +399,64 @@ export async function readContextUsage(
         const targetSessionId =
           explicitSessionId || String(sessionData.id || '')
         if (targetSessionId) {
-          const capabilitiesNow = getCapabilities()
-          const msgRes = capabilitiesNow.dashboard.available
-            ? await dashboardFetch(
-                withProfileQuery(
-                  `/api/sessions/${encodeURIComponent(targetSessionId)}/messages`,
-                  profile,
-                ),
-                { signal: AbortSignal.timeout(5000) },
-              )
-            : await fetch(
-                `${CLAUDE_API}${await scopedPath(`/api/sessions/${encodeURIComponent(targetSessionId)}/messages`, profile)}`,
-                {
-                  headers: authHeaders(),
-                  signal: AbortSignal.timeout(5000),
-                },
-              )
-          if (msgRes.ok) {
-            const msgData = (await msgRes.json()) as {
-              items?: Array<{
-                content?: string
-                tool_calls?: unknown
-                reasoning?: string
-              }>
-              messages?: Array<{
-                content?: string
-                tool_calls?: unknown
-                reasoning?: string
-              }>
+          const estimateKey = `${profile ?? ''}|${targetSessionId}|${messageCount}`
+          const cachedEstimate = estimateCache.get(estimateKey)
+          if (
+            cachedEstimate &&
+            Date.now() - cachedEstimate.at < ESTIMATE_CACHE_TTL_MS
+          ) {
+            usedTokens = cachedEstimate.usedTokens
+          } else {
+            const capabilitiesNow = getCapabilities()
+            const msgRes = capabilitiesNow.dashboard.available
+              ? await dashboardFetch(
+                  withProfileQuery(
+                    `/api/sessions/${encodeURIComponent(targetSessionId)}/messages`,
+                    profile,
+                  ),
+                  { signal: AbortSignal.timeout(5000) },
+                )
+              : await fetch(
+                  `${CLAUDE_API}${await scopedPath(`/api/sessions/${encodeURIComponent(targetSessionId)}/messages`, profile)}`,
+                  {
+                    headers: authHeaders(),
+                    signal: AbortSignal.timeout(5000),
+                  },
+                )
+            if (msgRes.ok) {
+              const msgData = (await msgRes.json()) as {
+                items?: Array<{
+                  content?: string
+                  tool_calls?: unknown
+                  reasoning?: string
+                }>
+                messages?: Array<{
+                  content?: string
+                  tool_calls?: unknown
+                  reasoning?: string
+                }>
+              }
+              const messages = capabilitiesNow.dashboard.available
+                ? (msgData.messages ?? [])
+                : (msgData.items ?? [])
+              let totalChars = 0
+              for (const msg of messages) {
+                totalChars += (msg.content || '').length
+                if (msg.reasoning) totalChars += msg.reasoning.length
+                if (msg.tool_calls)
+                  totalChars += JSON.stringify(msg.tool_calls).length
+              }
+              usedTokens = Math.ceil(totalChars / CHARS_PER_TOKEN)
+              // Only a successful, non-zero estimate is memoised; a failed or
+              // empty transcript must keep the cache-read fallback path live.
+              if (usedTokens > 0) {
+                estimateCache.set(estimateKey, {
+                  at: Date.now(),
+                  usedTokens,
+                })
+                trimOldest(estimateCache, ESTIMATE_CACHE_MAX)
+              }
             }
-            const messages = capabilitiesNow.dashboard.available
-              ? (msgData.messages ?? [])
-              : (msgData.items ?? [])
-            let totalChars = 0
-            for (const msg of messages) {
-              totalChars += (msg.content || '').length
-              if (msg.reasoning) totalChars += msg.reasoning.length
-              if (msg.tool_calls)
-                totalChars += JSON.stringify(msg.tool_calls).length
-            }
-            usedTokens = Math.ceil(totalChars / CHARS_PER_TOKEN)
           }
         }
       } catch {

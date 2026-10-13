@@ -117,7 +117,9 @@ export const Route = createFileRoute('/api/session-status')({
 
           const inputTokens = session.input_tokens ?? 0
           const outputTokens = session.output_tokens ?? 0
-          const contextUsage = await readContextUsage(session.id)
+          // perf-pass2 S1: hand readContextUsage the row we already fetched
+          // so it does not duplicate the `/api/sessions/<id>` request.
+          const contextUsage = await readContextUsage(session.id, null, session)
 
           return Response.json({
             ok: true,
