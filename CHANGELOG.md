@@ -3,6 +3,32 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.0] - 2026-10-14
+
+### Added
+- **chat:** branch a selected passage into a new session with its own prompt (509944c7)
+
+### Fixed
+- **chat:** list each model once in the branch dialog (5760139d)
+- **chat:** revive a stopped session-status poll on focus, keep chat-panel sessions invalidated (69387a98)
+- **tests:** clear tsc errors introduced by perf-pass2 test files (00c6d9ba)
+- **query:** recognise the parenthesised Request failed (N) shape (3b4a0e76)
+- **profile-scope:** stale-good only for probe failures, shorter timeout without a good result (0d5434de)
+- **query:** carry HTTP status on errors, retry 503 once (e8c94593)
+- **chat:** keep a 15 s history poll while the live stream is connected (9abfc522)
+- **profile-scope:** tolerate slow dashboard status probe, stop 409 storms (13c6c9c4)
+
+### Performance
+- **ui:** slow idle status polls and load search data on open (c27ace9c)
+- **session-status:** reuse the fetched session and cache context usage briefly (7f2be32e)
+- **chat:** share one session-status poll across the chat page (aceed8af)
+- **chat:** poll history every 5 s only without a live stream (3d4a7fb6)
+- **query:** sane QueryClient retry and staleTime defaults (da99c6f2)
+- **self-improve:** poll plugin availability every 5 minutes (ecd2ff29)
+
+### Other
+- **boards:** drop unrelated reformatting (eb32d568)
+
 ## [2.15.0] — 2026-10-11
 
 Settings is rebuilt around what each key does: an intent-grouped tree with filters, every row showing where its value lives and when a change applies, a Config health page with one-click fixes and presets, and a review step before anything is written to config.yaml.
