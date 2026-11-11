@@ -364,6 +364,7 @@ export const Route = createFileRoute('/api/claude-config')({
             source: Record<string, unknown>,
           ) {
             for (const [key, value] of Object.entries(source)) {
+              if (key === '__proto__') continue
               if (
                 value &&
                 typeof value === 'object' &&

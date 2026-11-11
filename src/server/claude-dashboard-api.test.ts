@@ -64,3 +64,44 @@ describe('listProfileSessions degraded-profile signal', () => {
     expect(result.errors).toEqual([])
   })
 })
+
+describe('saveConfig prototype safety', () => {
+  it('ignores __proto__ while preserving ordinary patch data', async () => {
+    const marker = 'hermesIssue419Polluted'
+    dashboardFetch.mockReset()
+    dashboardFetch
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            config: { agent: { enabled: true, name: 'before' } },
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+    const patch = JSON.parse(
+      '{"agent":{"name":"after"},"__proto__":{"hermesIssue419Polluted":"polluted"}}',
+    ) as Record<string, unknown>
+
+    try {
+      const { saveConfig } = await import('./claude-dashboard-api')
+      await saveConfig(patch)
+
+      expect(Reflect.get(Object.prototype, marker)).toBeUndefined()
+      expect(Reflect.get({}, marker)).toBeUndefined()
+      const putInit = dashboardFetch.mock.calls[1]?.[1] as
+        | RequestInit
+        | undefined
+      expect(JSON.parse(String(putInit?.body))).toEqual({
+        config: { agent: { enabled: true, name: 'after' } },
+      })
+    } finally {
+      Reflect.deleteProperty(Object.prototype, marker)
+    }
+  })
+})

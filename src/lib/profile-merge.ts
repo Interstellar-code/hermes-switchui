@@ -57,6 +57,7 @@ export const REPLACE_WHOLE_CONFIG_KEYS = ['mcp_servers'] as const
  */
 export function deepMerge(target: ConfigRecord, source: ConfigRecord): void {
   for (const [key, value] of Object.entries(source)) {
+    if (key === '__proto__') continue
     if (
       value &&
       typeof value === 'object' &&

@@ -34,6 +34,26 @@ describe('deepMerge', () => {
     deepMerge(target, { skills: { external_dirs: ['/x'] } })
     expect(target).toEqual({ skills: { external_dirs: ['/x'] } })
   })
+
+  it('ignores nested __proto__ keys without breaking valid profile patches', () => {
+    const marker = 'hermesIssue419Polluted'
+    const current: Record<string, unknown> = {
+      agent_ui: { tier: 3, glyph: 'A4' },
+    }
+    const patch = JSON.parse(
+      '{"agent_ui":{"__proto__":{"hermesIssue419Polluted":"polluted"},"glyph":"B4"}}',
+    ) as Record<string, unknown>
+
+    try {
+      const result = mergeProfileConfig(current, patch)
+
+      expect(result.agent_ui).toEqual({ tier: 3, glyph: 'B4' })
+      expect(Reflect.get(Object.prototype, marker)).toBeUndefined()
+      expect(Reflect.get({}, marker)).toBeUndefined()
+    } finally {
+      Reflect.deleteProperty(Object.prototype, marker)
+    }
+  })
 })
 
 describe('mergeProfileConfig', () => {
