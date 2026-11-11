@@ -37,6 +37,7 @@ type Message = {
 
 type FileMatch = { path: string; line: number; text: string }
 type MnemoMatch = { kind: 'gist' | 'fact' | 'episodic'; text: string; score: number }
+type FetchResult<T> = { ok: true; data: T } | { ok: false }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -53,13 +54,13 @@ function uid() {
 
 // ── Memory context builder ──────────────────────────────────────────────────────
 
-async function fetchJson<T>(url: string): Promise<T | null> {
+async function fetchJson<T>(url: string): Promise<FetchResult<T>> {
   try {
     const res = await fetch(url, { credentials: 'same-origin' })
-    if (!res.ok) return null
-    return (await res.json()) as T
+    if (!res.ok) return { ok: false }
+    return { ok: true, data: (await res.json()) as T }
   } catch {
-    return null
+    return { ok: false }
   }
 }
 
@@ -67,7 +68,7 @@ async function buildMemoryContext(
   query: string,
   profile: string,
 ): Promise<{ context: string; sources: Array<string> }> {
-  const [files, mnemo] = await Promise.all([
+  const [filesResult, mnemoResult] = await Promise.all([
     fetchJson<{ results: Array<FileMatch> }>(
       `/api/memory/search?q=${encodeURIComponent(query)}`,
     ),
@@ -75,6 +76,8 @@ async function buildMemoryContext(
       `/api/memory/mnemosyne-search?q=${encodeURIComponent(query)}&limit=${TOP_K_MNEMO}&profile=${encodeURIComponent(profile)}`,
     ),
   ])
+  const files = filesResult.ok ? filesResult.data : null
+  const mnemo = mnemoResult.ok ? mnemoResult.data : null
 
   const chunks: Array<string> = []
   const sources: Array<string> = []
@@ -96,6 +99,10 @@ async function buildMemoryContext(
   // matrix-memory (mnemosyne)
   for (const m of mnemo?.results ?? []) {
     add(`[matrix-memory ${m.kind}]\n${m.text}`, `matrix-memory:${m.kind}`)
+  }
+
+  if (chunks.length === 0 && (!filesResult.ok || !mnemoResult.ok)) {
+    throw new Error('Memory search failed. Please try again.')
   }
 
   return { context: chunks.join('\n\n'), sources }
