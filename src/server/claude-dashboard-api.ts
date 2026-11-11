@@ -351,6 +351,7 @@ function deepMerge(
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...target }
   for (const [key, value] of Object.entries(patch)) {
+    if (key === '__proto__') continue
     if (value === null) {
       delete out[key]
       continue

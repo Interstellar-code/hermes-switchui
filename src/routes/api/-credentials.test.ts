@@ -4,7 +4,7 @@
  * inline `api_key`) to the browser verbatim, and it looked for the auth store
  * in a file that does not exist.
  */
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import YAML from 'yaml'
@@ -79,6 +79,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete process.env.HERMES_HOME
+  rmSync(home, { recursive: true, force: true })
 })
 
 describe('GET /api/credentials', () => {
@@ -239,6 +240,36 @@ describe('GET /api/claude-config', () => {
 })
 
 describe('PATCH /api/claude-config', () => {
+  it('ignores __proto__ while preserving ordinary nested config updates', async () => {
+    const marker = 'hermesIssue419Polluted'
+    writeFileSync(
+      join(home, 'config.yaml'),
+      YAML.stringify({ agent: { enabled: true, name: 'before' } }),
+    )
+
+    try {
+      const { PATCH: patch } = await loadRoute('./claude-config')
+      const response = await patch({
+        request: new Request('http://localhost/api/claude-config', {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: '{"config":{"agent":{"name":"after","tools":["one"]},"__proto__":{"hermesIssue419Polluted":"polluted"}}}',
+        }),
+      })
+
+      expect(response.status).toBe(200)
+      expect(Reflect.get(Object.prototype, marker)).toBeUndefined()
+      expect(Reflect.get({}, marker)).toBeUndefined()
+      expect(
+        YAML.parse(readFileSync(join(home, 'config.yaml'), 'utf-8')),
+      ).toEqual({
+        agent: { enabled: true, name: 'after', tools: ['one'] },
+      })
+    } finally {
+      Reflect.deleteProperty(Object.prototype, marker)
+    }
+  })
+
   it('routes credential writes through the reconciling dashboard path', async () => {
     dashboard.getStatus.mockResolvedValue({ version: '1', claude_home: home })
     const { PATCH: patch } = await loadRoute('./claude-config')
