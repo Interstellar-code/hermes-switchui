@@ -26,6 +26,9 @@ type MnemoMatch = {
   text: string
   score: number
 }
+type SearchFailures = Partial<
+  Record<'files' | 'mnemo', 'http' | 'network' | 'json'>
+>
 
 function makeStream(str: string) {
   return new ReadableStream({
@@ -40,19 +43,38 @@ function mockFetch(
   fileResults: Array<FileMatch>,
   mnemoResults: Array<MnemoMatch>,
   sseText: string,
+  failures: SearchFailures = {},
 ) {
   return vi.fn((url: string) => {
     const u = String(url)
-    if (u.includes('/api/memory/mnemosyne-search')) {
+    const source = u.includes('/api/memory/mnemosyne-search')
+      ? 'mnemo'
+      : u.includes('/api/memory/search')
+        ? 'files'
+        : null
+    if (source) {
+      const failure = failures[source]
+      if (failure === 'network') {
+        return Promise.reject(new Error('Network unavailable'))
+      }
+      if (failure === 'http') {
+        return Promise.resolve({
+          ok: false,
+          json: () => Promise.resolve({}),
+        })
+      }
+      if (failure === 'json') {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.reject(new Error('Invalid JSON')),
+        })
+      }
       return Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ results: mnemoResults }),
-      })
-    }
-    if (u.includes('/api/memory/search')) {
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve({ results: fileResults }),
+        json: () =>
+          Promise.resolve({
+            results: source === 'files' ? fileResults : mnemoResults,
+          }),
       })
     }
     if (u.includes('/api/memory/chat')) {
@@ -96,6 +118,78 @@ describe('ChatTab', () => {
       ),
     ).toBe(false)
   })
+
+  it.each([
+    {
+      name: 'both searches fail',
+      failures: { files: 'http', mnemo: 'network' } satisfies SearchFailures,
+    },
+    {
+      name: 'the files search fails and Mnemosyne returns no matches',
+      failures: { files: 'http' } satisfies SearchFailures,
+    },
+    {
+      name: 'the Mnemosyne search fails and files returns no matches',
+      failures: { mnemo: 'network' } satisfies SearchFailures,
+    },
+    {
+      name: 'a search returns invalid JSON and the other returns no matches',
+      failures: { files: 'json' } satisfies SearchFailures,
+    },
+  ])('reports a retrieval error when $name', async ({ failures }) => {
+    const fetchMock = mockFetch([], [], '', failures)
+    vi.stubGlobal('fetch', fetchMock)
+    render(<ChatTab />)
+
+    send('What is my favorite color?')
+
+    expect(
+      await screen.findByText('Error: Memory search failed. Please try again.'),
+    ).toBeTruthy()
+    expect(
+      fetchMock.mock.calls.some((call) =>
+        String(call[0]).includes('/api/memory/chat'),
+      ),
+    ).toBe(false)
+  })
+
+  it.each([
+    {
+      source: 'memory files',
+      files: [{ path: 'MEMORY.md', line: 1, text: 'Favorite color is blue.' }],
+      mnemo: [],
+      failures: { mnemo: 'network' } satisfies SearchFailures,
+    },
+    {
+      source: 'Mnemosyne',
+      files: [],
+      mnemo: [
+        { kind: 'fact' as const, text: 'Favorite color is blue.', score: 2 },
+      ],
+      failures: { files: 'http' } satisfies SearchFailures,
+    },
+  ])(
+    'uses partial context from $source when the other search fails',
+    async ({ files, mnemo, failures }) => {
+      const fetchMock = mockFetch(
+        files,
+        mnemo,
+        'event: chunk\ndata: {"text":"Blue"}\n\n',
+        failures,
+      )
+      vi.stubGlobal('fetch', fetchMock)
+      render(<ChatTab />)
+
+      send('What is my favorite color?')
+
+      expect(await screen.findByText('Blue')).toBeTruthy()
+      expect(
+        fetchMock.mock.calls.some((call) =>
+          String(call[0]).includes('/api/memory/chat'),
+        ),
+      ).toBe(true)
+    },
+  )
 
   it('streams a reply from /api/memory/chat when memory context is found', async () => {
     const SSE_TEXT =
