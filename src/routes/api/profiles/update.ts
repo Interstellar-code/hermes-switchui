@@ -57,30 +57,55 @@ export const Route = createFileRoute('/api/profiles/update')({
             !body.skills &&
             !body.memory
 
+          let patch: Record<string, unknown>
           if (isLegacy) {
-            if (!body.patch || typeof body.patch !== 'object') {
-              return Response.json({ error: 'patch is required' }, { status: 400 })
+            if (
+              !body.patch ||
+              typeof body.patch !== 'object' ||
+              Array.isArray(body.patch)
+            ) {
+              return Response.json(
+                { error: 'patch is required' },
+                { status: 400 },
+              )
             }
-            const profile = writeProfile(name, body.patch)
-            return Response.json({ ok: true, profile })
+            patch = body.patch
+          } else {
+            patch = {}
+            if (body.description !== undefined)
+              patch.description = body.description
+            if (body.system_prompt !== undefined)
+              patch.system_prompt = body.system_prompt
+            if (body.model !== undefined) patch.model = body.model
+            if (body.mcp_servers !== undefined)
+              patch.mcp_servers = body.mcp_servers
+            if (body.skills !== undefined) patch.skills = body.skills
+            if (body.memory !== undefined) patch.memory = body.memory
+            if (body.agent !== undefined) patch.agent = body.agent
+            if (body.agent_ui !== undefined) {
+              patch.agent_ui = body.agent_ui
+            }
           }
 
+          const agentUI = patch.agent_ui as Partial<AgentUIMetadata> | undefined
           const AGENT_UI_DENIED_KEYS = new Set(['status', 'builtin', 'id'])
-          if (body.agent_ui) {
-            const disallowed = Object.keys(body.agent_ui).filter((key) =>
+          if (agentUI) {
+            const disallowed = Object.keys(agentUI).filter((key) =>
               AGENT_UI_DENIED_KEYS.has(key),
             )
             if (disallowed.length > 0) {
               return Response.json(
-                { error: `agent_ui fields not allowed: ${disallowed.join(', ')}` },
+                {
+                  error: `agent_ui fields not allowed: ${disallowed.join(', ')}`,
+                },
                 { status: 400 },
               )
             }
           }
 
-          if (body.agent_ui?.tier !== undefined) {
+          if (agentUI?.tier !== undefined) {
             const existingTier = readProfile(name).config.agent_ui?.tier
-            if (existingTier !== undefined && existingTier !== body.agent_ui.tier) {
+            if (existingTier !== undefined && existingTier !== agentUI.tier) {
               return Response.json(
                 { error: 'agent_ui.tier cannot be updated after creation' },
                 { status: 400 },
@@ -90,9 +115,12 @@ export const Route = createFileRoute('/api/profiles/update')({
 
           // Guard: cannot update agent_ui.persona_id without a non-empty system_prompt
           if (
-            body.agent_ui?.persona_id != null &&
-            body.agent_ui.persona_id !== '' &&
-            !body.system_prompt?.trim()
+            agentUI?.persona_id != null &&
+            agentUI.persona_id !== '' &&
+            !(
+              typeof patch.system_prompt === 'string' &&
+              patch.system_prompt.trim()
+            )
           ) {
             return Response.json(
               {
@@ -103,20 +131,11 @@ export const Route = createFileRoute('/api/profiles/update')({
             )
           }
 
-          const patch: Record<string, unknown> = {}
-          if (body.description !== undefined) patch.description = body.description
-          if (body.system_prompt !== undefined) patch.system_prompt = body.system_prompt
-          if (body.model !== undefined) patch.model = body.model
-          if (body.mcp_servers !== undefined) patch.mcp_servers = body.mcp_servers
-          if (body.skills !== undefined) patch.skills = body.skills
-          if (body.memory !== undefined) patch.memory = body.memory
-          if (body.agent !== undefined) patch.agent = body.agent
-          if (body.agent_ui !== undefined) {
-            patch.agent_ui = body.agent_ui
-          }
-
-          if (Object.keys(patch).length === 0) {
-            return Response.json({ error: 'No fields to update' }, { status: 400 })
+          if (!isLegacy && Object.keys(patch).length === 0) {
+            return Response.json(
+              { error: 'No fields to update' },
+              { status: 400 },
+            )
           }
 
           const profile = writeProfile(name, patch)
