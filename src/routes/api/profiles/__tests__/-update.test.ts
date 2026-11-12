@@ -156,8 +156,80 @@ describe('POST /api/profiles/update — validation', () => {
         patch: { description: 'Updated via legacy envelope' },
       }),
     })
-    // Should not be a 400 validation error (may 200 or 500 depending on fs mock)
-    expect(res.status).not.toBe(400)
+    expect(res.status).toBe(200)
+  })
+
+  it('preserves empty legacy patch updates', async () => {
+    const handler = await getHandler()
+    const res = await handler({
+      request: makeRequest({ name: 'myprofile', patch: {} }),
+    })
+    expect(res.status).toBe(200)
+  })
+
+  it.each(['status', 'builtin', 'id'])(
+    'rejects legacy updates to agent_ui.%s',
+    async (field) => {
+      const handler = await getHandler()
+      const res = await handler({
+        request: makeRequest({
+          name: 'myprofile',
+          patch: { agent_ui: { [field]: 'forbidden' } },
+        }),
+      })
+      expect(res.status).toBe(400)
+      expect(writeFileSync).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects changing an existing agent_ui.tier through the legacy envelope', async () => {
+    readFileSync.mockReturnValue('model: auto\nagent_ui:\n  tier: 2\n')
+    const handler = await getHandler()
+    const res = await handler({
+      request: makeRequest({
+        name: 'myprofile',
+        patch: { agent_ui: { tier: 3 } },
+      }),
+    })
+    expect(res.status).toBe(400)
+    expect(((await res.json()) as { error: string }).error).toMatch(/tier/)
+    expect(writeFileSync).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['blank', ' \t '],
+  ])(
+    'rejects legacy persona updates with a %s system_prompt',
+    async (_kind, systemPrompt) => {
+      const patch: Record<string, unknown> = {
+        agent_ui: { persona_id: 'engineering-code-reviewer' },
+      }
+      if (systemPrompt !== undefined) patch.system_prompt = systemPrompt
+      const handler = await getHandler()
+      const res = await handler({
+        request: makeRequest({ name: 'myprofile', patch }),
+      })
+      expect(res.status).toBe(400)
+      expect(((await res.json()) as { error: string }).error).toMatch(
+        /system_prompt/,
+      )
+      expect(writeFileSync).not.toHaveBeenCalled()
+    },
+  )
+
+  it('allows a legacy update that includes a persona and non-empty system_prompt', async () => {
+    const handler = await getHandler()
+    const res = await handler({
+      request: makeRequest({
+        name: 'myprofile',
+        patch: {
+          agent_ui: { persona_id: 'engineering-code-reviewer' },
+          system_prompt: 'Review engineering code carefully.',
+        },
+      }),
+    })
+    expect(res.status).toBe(200)
   })
 
   it('rejects denied agent_ui fields with 400', async () => {
