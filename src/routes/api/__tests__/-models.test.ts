@@ -58,6 +58,10 @@ beforeEach(() => {
 })
 
 describe('models route', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   async function importModels() {
     vi.resetModules()
     const mod = await import('../models')
@@ -125,6 +129,61 @@ describe('models route', () => {
     expect(json.ok).toBe(true)
     expect(json.models[0].id).toBe('nest-model')
     expect(json.models[0].provider).toBe('anthropic')
+  })
+
+  it('uses default stream timeouts when the workspace section is empty', async () => {
+    const envHome = '/mock/profiles/jarvis'
+    vi.stubEnv('HERMES_HOME', envHome)
+    vi.stubEnv('STREAM_ACCEPTED_TIMEOUT_MS', '')
+    vi.stubEnv('STREAM_HANDOFF_TIMEOUT_MS', '')
+    process.env.CLAUDE_HOME = envHome
+
+    const configYaml =
+      'model: empty-workspace-model\nprovider: anthropic\nworkspace:\n'
+    const configPath = path.join(envHome, 'config.yaml')
+    existsSync.mockImplementation((p: string) => p === configPath)
+    readFileSync.mockImplementation((p: string) =>
+      p === configPath ? configYaml : '',
+    )
+
+    const get = await getHandler()
+    const res = await get({
+      request: new Request('http://localhost/api/models'),
+    })
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.ok).toBe(true)
+    expect(json.models[0].id).toBe('empty-workspace-model')
+    expect(json.models[0].provider).toBe('anthropic')
+    expect(json.streamAcceptedTimeoutMs).toBe(120_000)
+    expect(json.streamHandoffTimeoutMs).toBe(300_000)
+  })
+
+  it('preserves configured stream timeouts for a workspace object', async () => {
+    const envHome = '/mock/profiles/jarvis'
+    vi.stubEnv('HERMES_HOME', envHome)
+    vi.stubEnv('STREAM_ACCEPTED_TIMEOUT_MS', '')
+    vi.stubEnv('STREAM_HANDOFF_TIMEOUT_MS', '')
+    process.env.CLAUDE_HOME = envHome
+
+    const configYaml =
+      'workspace:\n  stream_accepted_timeout: 90\n  stream_handoff_timeout: 180\n'
+    const configPath = path.join(envHome, 'config.yaml')
+    existsSync.mockImplementation((p: string) => p === configPath)
+    readFileSync.mockImplementation((p: string) =>
+      p === configPath ? configYaml : '',
+    )
+
+    const get = await getHandler()
+    const res = await get({
+      request: new Request('http://localhost/api/models'),
+    })
+
+    expect(res.status).toBe(200)
+    const json = await res.json()
+    expect(json.streamAcceptedTimeoutMs).toBe(90_000)
+    expect(json.streamHandoffTimeoutMs).toBe(180_000)
   })
 
   it('profile=default resolves to the Hermes root config, not profiles/default', async () => {
