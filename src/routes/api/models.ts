@@ -268,10 +268,7 @@ function readStreamTimeouts(config: Record<string, unknown> | null): {
   let acceptedS = DEFAULT_ACCEPTED_TIMEOUT_S
   let handoffS = DEFAULT_HANDOFF_TIMEOUT_S
   if (config) {
-    const ws =
-      typeof config.workspace === 'object'
-        ? (config.workspace as Record<string, unknown>)
-        : {}
+    const ws = asRecord(config.workspace)
     if (
       typeof ws.stream_accepted_timeout === 'number' &&
       ws.stream_accepted_timeout > 0
