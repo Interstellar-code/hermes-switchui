@@ -13,7 +13,7 @@ export type KeyMeta = {
   default?: unknown
   recommended?: unknown
   range?: { min?: number; max?: number; unlimited?: unknown } // unlimited = the value meaning ∞ (null/0)
-  options?: string[]
+  options?: Array<string>
   effect: string
   tradeoff?: string
   source: string
