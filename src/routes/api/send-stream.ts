@@ -1689,7 +1689,12 @@ export const Route = createFileRoute('/api/send-stream')({
                           readString(
                             (data.error as Record<string, unknown> | undefined)
                               ?.message,
-                          ) || readString(data.message)
+                          ) ||
+                          readString(data.message) ||
+                          // hermes-agent v0.23.4 rewrites an is_error
+                          // tool.completed to tool.failed and carries the
+                          // error text in `preview`.
+                          readString(data.preview)
                         const toolName = getToolName(data)
                         const translated = {
                           phase: 'error',
@@ -1830,7 +1835,16 @@ export const Route = createFileRoute('/api/send-stream')({
                         return
                       }
 
-                      if (event === 'run.completed') {
+                      // hermes-agent v0.23.4 ends a run with run.{status}:
+                      // run.cancelled for an interrupted turn, run.failed for
+                      // one that ended without finishing. All three are
+                      // terminal; without this the stream waits for the
+                      // 10-minute timeout.
+                      if (
+                        event === 'run.completed' ||
+                        event === 'run.cancelled' ||
+                        event === 'run.failed'
+                      ) {
                         // Backfill tool calls from session history.
                         // Hermes Agent currently does not stream tool.* events
                         // reliably, but it persists tool calls on the assistant
@@ -1919,6 +1933,29 @@ export const Route = createFileRoute('/api/send-stream')({
                             sessionKey: sessionKeyFromEvent,
                             runId,
                           })
+                        }
+
+                        if (event === 'run.failed') {
+                          const reason = readString(data.turn_exit_reason)
+                          const errorMessage = reason
+                            ? `The run ended before it finished (${reason}).`
+                            : 'The run ended before it finished.'
+                          persistActiveRun((runSessionKey, activeId) =>
+                            markRunStatus(
+                              runSessionKey,
+                              activeId,
+                              'error',
+                              errorMessage,
+                            ),
+                          )
+                          sendEvent('done', {
+                            state: 'error',
+                            errorMessage,
+                            sessionKey: sessionKeyFromEvent,
+                            runId,
+                          })
+                          closeStream()
+                          return
                         }
 
                         const translated = {
