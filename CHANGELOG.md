@@ -3,6 +3,13 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.2] - 2026-11-27
+
+### Fixed
+- **chat:** end the stream on `run.failed` and `run.cancelled` from hermes-agent v0.23.4, so a failed or cancelled run no longer keeps the composer busy for 10 minutes; a failed run shows why it stopped (391a4311)
+- **chat:** show a failed tool's error text, which v0.23.4 sends in `preview` (391a4311)
+- **tests:** pin the memory activity test clock so it no longer fails after 22:00 UTC (8efa51a1)
+
 ## [2.16.1] - 2026-11-27
 
 ### Fixed
