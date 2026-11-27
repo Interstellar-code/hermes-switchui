@@ -12,7 +12,8 @@
  *     ladder, so this section only shows its read-only status.
  *   terminal.timeout                       — default 180 (seconds)
  *   terminal.persistent_shell              — default True; NO-OP on the
- *     local backend (tools/terminal_tool.py:1440-1444)
+ *     local backend, which persists by default via TERMINAL_LOCAL_PERSISTENT
+ *     (tools/terminal_tool.py:933-938)
  *   terminal.docker_image                  — default
  *     'nikolaik/python-nodejs:python3.11-nodejs20'
  *   terminal.docker_volumes                — array of "host:container" strings
@@ -250,7 +251,7 @@ export default function SectionExecution() {
           pill={backend === 'local' ? { t: 'no-op' } : undefined}
           desc={
             backend === 'local'
-              ? 'This is a no-op on the local backend (tools/terminal_tool.py:1440-1444) — local only reads TERMINAL_LOCAL_PERSISTENT, which no config key sets. Toggling it here changes nothing while backend is local.'
+              ? 'This is a no-op on the local backend (tools/terminal_tool.py:933-938) — local only reads TERMINAL_LOCAL_PERSISTENT, which no config key sets and which defaults to on, so env vars already carry between commands. To turn that off, set TERMINAL_LOCAL_PERSISTENT=false in ~/.hermes/.env. Toggling it here changes nothing while backend is local.'
               : 'Keep a long-lived shell across commands so cwd/env vars survive between calls.'
           }
           meta={getKeyMeta('config.terminal.persistent_shell')}

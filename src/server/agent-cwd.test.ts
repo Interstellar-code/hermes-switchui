@@ -140,12 +140,12 @@ describe('resolveAgentCwd — the gateway ladder', () => {
     {
       name: 'MESSAGING_CWD does NOT rescue a container backend without the mount flag',
       input: {
-        config: terminal({ cwd: '.', backend: 'singularity' }),
+        config: terminal({ cwd: '.', backend: 'modal' }),
         messagingCwd: '/srv/legacy',
       },
       path: CONTAINER_DEFAULT_CWD,
       source: 'container-default',
-      backend: 'singularity',
+      backend: 'modal',
     },
     {
       name: 'ssh + sentinel uses the remote home, not /root',
@@ -371,7 +371,20 @@ describe('resolveAgentCwd — adjacent settings', () => {
     expect(result.warnings.join('\n')).not.toMatch(/execute_code also runs/)
   })
 
-  it('warns that persistent_shell is a no-op on local', () => {
+  it('warns that persistent_shell: false does not turn off local persistence', () => {
+    const result = resolve({
+      config: terminal({
+        cwd: '/srv/x',
+        backend: 'local',
+        persistentShell: false,
+      }),
+    })
+    expect(result.warnings.join('\n')).toMatch(
+      /persistent_shell: false does not turn persistence off/,
+    )
+  })
+
+  it('does not warn about persistent_shell: true on local, which already persists', () => {
     const result = resolve({
       config: terminal({
         cwd: '/srv/x',
@@ -379,9 +392,7 @@ describe('resolveAgentCwd — adjacent settings', () => {
         persistentShell: true,
       }),
     })
-    expect(result.warnings.join('\n')).toMatch(
-      /persistent_shell: true is a no-op/,
-    )
+    expect(result.warnings.join('\n')).not.toMatch(/persistent_shell/)
   })
 
   it('does not warn about persistent_shell on ssh, where it IS read', () => {
@@ -389,10 +400,27 @@ describe('resolveAgentCwd — adjacent settings', () => {
       config: terminal({
         cwd: '/srv/x',
         backend: 'ssh',
-        persistentShell: true,
+        persistentShell: false,
       }),
     })
-    expect(result.warnings.join('\n')).not.toMatch(/no-op/)
+    expect(result.warnings.join('\n')).not.toMatch(/persistent_shell/)
+  })
+
+  it('warns that a plugin backend may declare its own starting folder', () => {
+    const result = resolve({
+      config: terminal({ cwd: '.', backend: 'singularity' }),
+    })
+    expect(result.path).toBe(CONTAINER_DEFAULT_CWD)
+    expect(result.warnings.join('\n')).toMatch(
+      /"singularity" is a plugin backend/,
+    )
+  })
+
+  it('does not call built-in backends plugin backends', () => {
+    for (const backend of ['ssh', 'docker', 'modal', 'managed_modal']) {
+      const result = resolve({ config: terminal({ cwd: '.', backend }) })
+      expect(result.warnings.join('\n')).not.toMatch(/plugin backend/)
+    }
   })
 
   it('names MESSAGING_CWD as the provenance when it supplies the path', () => {

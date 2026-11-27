@@ -1124,9 +1124,9 @@
     "applies": "live",
     "type": "bool",
     "default": true,
-    "effect": "Keeps one shell alive across commands so cwd and env carry over. Applied only to SSH terminals.",
+    "effect": "Keeps one shell alive across commands so cwd and env carry over. Applied only to SSH terminals; local terminals persist by default through TERMINAL_LOCAL_PERSISTENT, which no config key sets.",
     "tradeoff": "On = state carries between commands. Off = each command starts a fresh shell.",
-    "source": "/Users/rohits/.hermes/hermes-agent/tools/terminal_tool.py:657-660; applies traced: tools/terminal_tool.py:657-661 reads TERMINAL_PERSISTENT_SHELL per _get_env_config() call (SSH default); bridge re-applies on config change",
+    "source": "/Users/rohits/.hermes/hermes-agent/tools/terminal_tool.py:933-938; applies traced: tools/terminal_tool.py:935-937 reads TERMINAL_PERSISTENT_SHELL per _get_env_config() call (SSH default); bridge re-applies on config change",
     "verified": true
   },
   {
