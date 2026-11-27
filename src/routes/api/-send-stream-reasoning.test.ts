@@ -505,3 +505,93 @@ describe('send-stream handler — reasoning events on the enhanced stream', () =
     expect(events.some((e) => e.event === 'done')).toBe(true)
   })
 })
+
+describe('send-stream handler — v0.23.4 terminal run events', () => {
+  const SESSION = 'sess-reasoning-1'
+  const RUN = 'run-terminal-1'
+
+  afterEach(() => {
+    gateway.streamChatImpl = null
+  })
+
+  async function postFrames(
+    frames: Array<GatewayFrame>,
+  ): Promise<Array<{ event: string; data: unknown }>> {
+    gateway.streamChatImpl = async (...args: StreamChatArgs) => {
+      const opts = args[2]
+      for (const frame of frames) {
+        await opts.onEvent({ event: frame.event, data: frame.data })
+      }
+    }
+    const handler = await getPostHandler()
+    const res = await handler({ request: postRequest({ message: 'hi' }) })
+    return parseSse(await res.text())
+  }
+
+  it('ends the stream as an error on run.failed, naming the exit reason', async () => {
+    const events = await postFrames([
+      {
+        event: 'run.failed',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          completed: false,
+          partial: true,
+          interrupted: false,
+          turn_exit_reason: 'iteration_budget',
+        },
+      },
+    ])
+    const done = events.filter((e) => e.event === 'done')
+    expect(done).toHaveLength(1)
+    expect(done[0]?.data).toMatchObject({
+      state: 'error',
+      errorMessage: 'The run ended before it finished (iteration_budget).',
+    })
+  })
+
+  it('ends the stream as complete on run.cancelled', async () => {
+    const events = await postFrames([
+      {
+        event: 'run.cancelled',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          completed: false,
+          partial: false,
+          interrupted: true,
+        },
+      },
+    ])
+    const done = events.filter((e) => e.event === 'done')
+    expect(done).toHaveLength(1)
+    expect(done[0]?.data).toMatchObject({ state: 'complete' })
+  })
+
+  it('shows the preview text of a tool.failed frame as the tool error', async () => {
+    const events = await postFrames([
+      {
+        event: 'tool.failed',
+        data: {
+          session_id: SESSION,
+          run_id: RUN,
+          message_id: 'm1',
+          tool_name: 'terminal',
+          preview: 'exit 2: no such file',
+          args: {},
+        },
+      },
+      {
+        event: 'run.completed',
+        data: { session_id: SESSION, run_id: RUN, messages: [] },
+      },
+    ])
+    const tool = events.find(
+      (e) =>
+        e.event === 'tool' && (e.data as { phase?: string }).phase === 'error',
+    )
+    expect((tool?.data as { result?: string } | undefined)?.result).toBe(
+      'exit 2: no such file',
+    )
+  })
+})
