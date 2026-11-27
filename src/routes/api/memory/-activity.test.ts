@@ -36,6 +36,12 @@ const day = (ago: number) =>
 let dir: string
 
 beforeAll(() => {
+  // Pin the clock to noon UTC: the seed rows are UTC dates and the tz=+120
+  // case expects "today" to be the same UTC day, which fails after 22:00Z.
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(
+    new Date(`${new Date().toISOString().slice(0, 10)}T12:00:00Z`),
+  )
   dir = fs.mkdtempSync(path.join(os.tmpdir(), 'switchui-activity-'))
   const dbPath = path.join(dir, 'mnemosyne.db')
   const db = new Database(dbPath)
@@ -68,6 +74,7 @@ beforeAll(() => {
 })
 
 afterAll(() => {
+  vi.useRealTimers()
   delete process.env.MNEMOSYNE_DB_PATH
   fs.rmSync(dir, { recursive: true, force: true })
 })
