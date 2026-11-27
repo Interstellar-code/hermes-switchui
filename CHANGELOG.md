@@ -3,6 +3,16 @@
 All notable changes to Switch UI are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.16.1] - 2026-11-27
+
+### Fixed
+- **agent-cwd:** match hermes-agent v0.23.4 terminal behaviour: local terminals now keep env vars between commands by default, so the warning fires on `persistent_shell: false` on local; plugin backends such as Singularity get a warning that they may set their own starting folder; the contract test follows code upstream moved (178bac57)
+- **settings:** Persistent shell row and key help describe the new local default (178bac57)
+- **lint:** use `Array<string>` in key-meta-types, which unblocks CI (4b8ea374)
+
+### Other
+- remove stale claude-mem AGENTS.md (855861bb)
+
 ## [2.16.0] - 2026-10-14
 
 ### Added
