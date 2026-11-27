@@ -211,6 +211,7 @@ describe('SectionExecution', () => {
     await waitFor(() => expect(mockFetchAgentCwd).toHaveBeenCalled())
 
     expect(screen.getByText(/no-op on the local backend/)).toBeTruthy()
+    expect(screen.getByText(/TERMINAL_LOCAL_PERSISTENT=false/)).toBeTruthy()
   })
 
   it('round-trips code_execution.mode', async () => {

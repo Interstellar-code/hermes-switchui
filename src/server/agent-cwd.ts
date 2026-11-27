@@ -102,10 +102,9 @@ export const FILE_TOOLS_CWD_SENTINELS: ReadonlySet<string> = new Set([
   'cwd',
 ])
 
-/** `tools/terminal_tool_config.py:64`. */
+/** `tools/terminal_tool_config.py:155` (singularity left core in v0.23.4: it is a plugin now). */
 export const CONTAINER_BACKENDS: ReadonlySet<string> = new Set([
   'docker',
-  'singularity',
   'modal',
   'daytona',
   'vercel_sandbox',
@@ -118,9 +117,19 @@ export const CONTAINER_BACKENDS: ReadonlySet<string> = new Set([
  */
 export const HOST_CWD_PREFIXES: ReadonlyArray<string> = ['/Users/', '/home/']
 
-/** `tools/terminal_tool.py:588` — default cwd for container backends. */
+/**
+ * `tools/terminal_tool_config.py:156` — built-in backends that are not containers.
+ * Any backend outside this set and CONTAINER_BACKENDS is a plugin backend.
+ */
+export const NON_CONTAINER_BUILTIN_BACKENDS: ReadonlySet<string> = new Set([
+  'local',
+  'ssh',
+  'managed_modal',
+])
+
+/** `tools/terminal_tool.py:825-835` — default cwd for container backends. */
 export const CONTAINER_DEFAULT_CWD = '/root'
-/** `tools/terminal_tool.py:578` — default cwd for the ssh backend. */
+/** `tools/terminal_tool.py:822` — default cwd for the ssh backend. */
 export const SSH_DEFAULT_CWD = '~'
 /** `tools/terminal_tool_backends.py:27` — default cwd for vercel_sandbox. */
 export const VERCEL_SANDBOX_DEFAULT_CWD = '/vercel/sandbox'
@@ -367,11 +376,27 @@ function resolveInGateway(
         ? VERCEL_SANDBOX_DEFAULT_CWD
         : CONTAINER_DEFAULT_CWD
 
+  // A plugin backend may declare its own `default_cwd` and `is_container` flag
+  // (tools/terminal_tool.py:830-834, tools/terminal_tool_config.py:179-181).
+  // Neither is visible from config, so say what is a guess.
+  const isPluginBackend =
+    !CONTAINER_BACKENDS.has(backend) &&
+    !NON_CONTAINER_BUILTIN_BACKENDS.has(backend)
+  if (isPluginBackend) {
+    warnings.push(
+      `Backend "${backend}" is a plugin backend. Its starting folder is whatever the plugin ` +
+        `declares as default_cwd, or "${CONTAINER_DEFAULT_CWD}" if it declares none, and ` +
+        'whether host paths are discarded depends on its is_container flag ' +
+        '(tools/terminal_tool.py:830-834). Switch UI cannot read either, so the folder ' +
+        'shown here may not be where the agent runs.',
+    )
+  }
+
   if (terminalCwd === null) {
     warnings.push(
       `Backend "${backend}" is not local, so a sentinel terminal.cwd sets no TERMINAL_CWD at all ` +
         `(gateway/cwd_placeholder.py:47). terminal_tool falls back to its per-backend default ` +
-        `"${defaultCwd}" (tools/terminal_tool.py:1387-1392) — inside the sandbox, not on your host.`,
+        `"${defaultCwd}" (tools/terminal_tool.py:825-835) — inside the sandbox, not on your host.`,
     )
     return { path: defaultCwd, source: 'container-default' }
   }
@@ -384,7 +409,7 @@ function resolveInGateway(
     warnings.push(
       `terminal.cwd "${terminalCwd}" is a host or relative path, which cannot be a container ` +
         `workdir. terminal_tool discards it and uses "${defaultCwd}" instead ` +
-        '(tools/terminal_tool.py:1411-1417).',
+        '(tools/terminal_tool.py:877-881).',
     )
     return { path: defaultCwd, source: 'container-default' }
   }
@@ -482,12 +507,13 @@ export function resolveAgentCwd(input: ResolveAgentCwdInput): ResolvedCwd {
         'directory.',
     )
   }
-  if (backend === 'local' && config.persistentShell === true) {
+  if (backend === 'local' && config.persistentShell === false) {
     warnings.push(
-      'terminal.persistent_shell: true is a no-op on the local backend. It bridges to ' +
-        'TERMINAL_PERSISTENT_SHELL, which is only read as the SSH default; local reads ' +
-        'TERMINAL_LOCAL_PERSISTENT, which no config key sets ' +
-        '(tools/terminal_tool.py:1438-1444).',
+      'terminal.persistent_shell: false does not turn persistence off on the local backend. ' +
+        'It bridges to TERMINAL_PERSISTENT_SHELL, which is only read as the SSH default; local ' +
+        'reads TERMINAL_LOCAL_PERSISTENT, which no config key sets and which defaults to true, ' +
+        'so exported env still carries across commands. Set TERMINAL_LOCAL_PERSISTENT=false ' +
+        'in ~/.hermes/.env to turn it off (tools/terminal_tool.py:933-938).',
     )
   }
 

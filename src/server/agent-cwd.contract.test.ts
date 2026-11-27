@@ -23,6 +23,7 @@ import {
   FILE_TOOLS_CWD_SENTINELS,
   GATEWAY_CWD_PLACEHOLDERS,
   HOST_CWD_PREFIXES,
+  NON_CONTAINER_BUILTIN_BACKENDS,
   SSH_DEFAULT_CWD,
   VERCEL_SANDBOX_DEFAULT_CWD,
 } from './agent-cwd'
@@ -90,9 +91,10 @@ describe.skipIf(!AGENT_SOURCE)(
     })
 
     it('cli.py mirrors the same placeholder tuple', () => {
+      // Moved out of cli.py in v0.23.4; cli.py now re-imports it.
       const upstream = parseStringLiteralSet(
-        read('cli.py'),
-        '_CWD_PLACEHOLDERS',
+        read('hermes_cli/cli_config_load.py'),
+        '_CWD_PLACEHOLDERS = ',
       )
       expect([...upstream].sort()).toEqual([...GATEWAY_CWD_PLACEHOLDERS].sort())
     })
@@ -125,6 +127,17 @@ describe.skipIf(!AGENT_SOURCE)(
       expect([...upstream].sort()).toEqual([...CONTAINER_BACKENDS].sort())
     })
 
+    it('the non-container built-in backends match tools/terminal_tool_config.py', () => {
+      // Anything outside these two sets is a plugin backend, which gets a warning.
+      const upstream = parseStringLiteralSet(
+        read('tools/terminal_tool_config.py'),
+        '_BUILTIN_BACKENDS = _CONTAINER_BACKENDS |',
+      )
+      expect([...upstream].sort()).toEqual(
+        [...NON_CONTAINER_BUILTIN_BACKENDS].sort(),
+      )
+    })
+
     it('HOST_CWD_PREFIXES matches tools/terminal_tool_config.py', () => {
       const upstream = parseStringLiteralSet(
         read('tools/terminal_tool_config.py'),
@@ -135,13 +148,18 @@ describe.skipIf(!AGENT_SOURCE)(
 
     it('the per-backend default cwds still read /root, ~, /vercel/sandbox and /workspace', () => {
       const source = read('tools/terminal_tool.py')
-      // terminal_tool.py:578 + 588
+      // terminal_tool.py:822-835 (_backend_default_cwd, v0.23.4)
       expect(source).toMatch(
         /_DEFAULT_CWD_BY_BACKEND = \{"ssh": "~", "vercel_sandbox": _VERCEL_SANDBOX_DEFAULT_CWD\}/,
       )
-      expect(source).toMatch(
-        /default_cwd = _safe_getcwd\(\) if env_type == "local" else _DEFAULT_CWD_BY_BACKEND\.get\(env_type, "\/root"\)/,
+      const fn = source.slice(source.indexOf('def _backend_default_cwd('))
+      const body = fn.slice(0, fn.indexOf('\ndef ', 1))
+      expect(body).toMatch(
+        /if env_type == "local":\s*\n\s*return _safe_getcwd\(\)/,
       )
+      // Plugins may declare their own default; Switch UI warns it cannot see it.
+      expect(body).toMatch(/_plugin_env_flag\(env_type, "default_cwd", None\)/)
+      expect(body).toMatch(/return "\/root"\s*$/)
       expect(read('tools/terminal_tool_backends.py')).toMatch(
         new RegExp(
           `_VERCEL_SANDBOX_DEFAULT_CWD = "${VERCEL_SANDBOX_DEFAULT_CWD}"`,
@@ -163,14 +181,16 @@ describe.skipIf(!AGENT_SOURCE)(
     })
 
     it('gateway/run.py still passes Path.home() as the home fallback', () => {
-      expect(read('gateway/run.py')).toMatch(
+      // Moved from gateway/run.py to gateway/run_bootstrap.py in v0.23.4.
+      expect(read('gateway/run_bootstrap.py')).toMatch(
         /home_fallback=str\(Path\.home\(\)\)/,
       )
     })
 
     it('cli.py still overwrites a local cwd with os.getcwd()', () => {
       // The CLI/gateway divergence the resolver models via `host`.
-      expect(read('cli.py')).toMatch(
+      // Moved from cli.py to hermes_cli/cli_config_load.py in v0.23.4.
+      expect(read('hermes_cli/cli_config_load.py')).toMatch(
         /if effective_backend == "local":\s*\n\s*terminal_config\["cwd"\] = os\.getcwd\(\)/,
       )
     })
@@ -185,14 +205,15 @@ describe.skipIf(!AGENT_SOURCE)(
     })
 
     it('persistent_shell still bridges only to the SSH default, never local', () => {
-      // tools/terminal_tool.py:659-662 — local reads TERMINAL_LOCAL_PERSISTENT,
-      // which no config key writes, so `persistent_shell: true` is a no-op there.
+      // tools/terminal_tool.py:933-938 — local reads TERMINAL_LOCAL_PERSISTENT,
+      // which no config key writes and which defaults to "true" (upstream
+      // v0.23.4), so `persistent_shell: false` cannot turn local persistence off.
       const source = read('tools/terminal_tool.py')
       expect(source).toMatch(
         /"ssh_persistent": _tenv_bool\(\s*"TERMINAL_SSH_PERSISTENT",\s*_tenv\("TERMINAL_PERSISTENT_SHELL", "true"\),/,
       )
       expect(source).toMatch(
-        /"local_persistent": _tenv_bool\("TERMINAL_LOCAL_PERSISTENT", "false"\)/,
+        /"local_persistent": _tenv_bool\("TERMINAL_LOCAL_PERSISTENT", "true"\)/,
       )
       expect(source).not.toMatch(
         /TERMINAL_LOCAL_PERSISTENT["']?,?\s*\n?\s*os\.getenv\("TERMINAL_PERSISTENT_SHELL"/,
